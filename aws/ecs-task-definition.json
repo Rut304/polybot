@@ -1,0 +1,81 @@
+{
+  "family": "polybot-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/polybotTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "polybot",
+      "image": "YOUR_ECR_URL/polybot:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DRY_RUN",
+          "value": "true"
+        },
+        {
+          "name": "MIN_PROFIT_PERCENT",
+          "value": "1.0"
+        },
+        {
+          "name": "MAX_TRADE_SIZE",
+          "value": "100.0"
+        },
+        {
+          "name": "MAX_DAILY_LOSS",
+          "value": "50.0"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "POLYMARKET_PRIVATE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/polymarket-key"
+        },
+        {
+          "name": "KALSHI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/kalshi-api-key"
+        },
+        {
+          "name": "KALSHI_PRIVATE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/kalshi-private-key"
+        },
+        {
+          "name": "SUPABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/supabase-url"
+        },
+        {
+          "name": "SUPABASE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/supabase-key"
+        },
+        {
+          "name": "DISCORD_WEBHOOK",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/discord-webhook"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/polybot",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "python -c 'print(\"ok\")' || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
