@@ -23,6 +23,7 @@ import {
   useSimulatedTrades,
   useOpportunities,
   useSimulationHistory,
+  useRealTimeStats,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, isRecent, cn } from '@/lib/utils';
 import { PnLChart } from '@/components/charts/PnLChart';
@@ -35,9 +36,20 @@ import { StatDetailModal } from '@/components/StatDetailModal';
 export default function Dashboard() {
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
+  const { data: realTimeStats } = useRealTimeStats();
   const { data: trades } = useSimulatedTrades(20);
   const { data: opportunities } = useOpportunities(50);
   const { data: history } = useSimulationHistory(24);
+  
+  // Prefer real-time computed stats (more accurate)
+  const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 1000;
+  const totalPnl = realTimeStats?.total_pnl ?? simStats?.total_pnl ?? 0;
+  const totalTrades = realTimeStats?.total_trades ?? simStats?.total_trades ?? 0;
+  const winRate = realTimeStats?.win_rate ?? simStats?.win_rate ?? 0;
+  const winningTrades = realTimeStats?.winning_trades ?? simStats?.stats_json?.winning_trades ?? 0;
+  const losingTrades = realTimeStats?.losing_trades ?? simStats?.stats_json?.losing_trades ?? 0;
+  const roiPct = realTimeStats?.roi_pct ?? simStats?.stats_json?.roi_pct ?? 0;
+  const totalOpportunities = realTimeStats?.total_opportunities_seen ?? simStats?.stats_json?.total_opportunities_seen ?? 0;
   
   // Modal state
   const [modalType, setModalType] = useState<'balance' | 'pnl' | 'winrate' | 'opportunities' | null>(null);
@@ -70,38 +82,38 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Simulated Balance"
-            value={simStats?.simulated_balance ? formatCurrency(simStats.simulated_balance) : '$1,000.00'}
-            change={simStats?.stats_json?.roi_pct}
+            value={formatCurrency(balance)}
+            change={roiPct}
             icon={DollarSign}
             color="green"
-            loading={statsLoading}
+            loading={statsLoading && !realTimeStats}
             onClick={() => setModalType('balance')}
           />
           <StatCard
             title="Total P&L"
-            value={simStats?.total_pnl ? formatCurrency(simStats.total_pnl) : '$0.00'}
-            subtitle={simStats?.total_trades ? `${simStats.total_trades} trades` : '0 trades'}
+            value={formatCurrency(totalPnl)}
+            subtitle={`${totalTrades} trades`}
             icon={TrendingUp}
             color="blue"
-            loading={statsLoading}
+            loading={statsLoading && !realTimeStats}
             onClick={() => setModalType('pnl')}
           />
           <StatCard
             title="Win Rate"
-            value={simStats?.win_rate ? `${simStats.win_rate.toFixed(1)}%` : '0%'}
-            subtitle={`${simStats?.stats_json?.winning_trades || 0}W / ${simStats?.stats_json?.losing_trades || 0}L`}
+            value={`${winRate.toFixed(1)}%`}
+            subtitle={`${winningTrades}W / ${losingTrades}L`}
             icon={Target}
             color="purple"
-            loading={statsLoading}
+            loading={statsLoading && !realTimeStats}
             onClick={() => setModalType('winrate')}
           />
           <StatCard
             title="Opportunities"
-            value={simStats?.stats_json?.total_opportunities_seen?.toString() || '0'}
+            value={totalOpportunities.toString()}
             subtitle="Detected"
             icon={Activity}
             color="pink"
-            loading={statsLoading}
+            loading={statsLoading && !realTimeStats}
             onClick={() => setModalType('opportunities')}
           />
         </div>

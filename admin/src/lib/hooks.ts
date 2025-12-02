@@ -120,6 +120,74 @@ export function useOpportunities(limit: number = 100) {
   });
 }
 
+// Compute real-time stats directly from trades (more accurate than stats table)
+export function useRealTimeStats() {
+  const { data: trades = [] } = useSimulatedTrades(500);
+  const { data: opportunities = [] } = useOpportunities(1000);
+  const { data: simStats } = useSimulationStats();
+  
+  return useQuery({
+    queryKey: ['realTimeStats', trades.length, opportunities.length],
+    queryFn: () => {
+      // Filter out failed executions for main stats
+      const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
+      const wonTrades = validTrades.filter(t => t.outcome === 'won');
+      const lostTrades = validTrades.filter(t => t.outcome === 'lost');
+      const pendingTrades = validTrades.filter(t => t.outcome === 'pending');
+      
+      // Calculate P&L from actual trade data
+      const totalPnl = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+      
+      // Starting balance from stats or default
+      const startingBalance = simStats?.stats_json?.simulated_starting_balance 
+        ? parseFloat(simStats.stats_json.simulated_starting_balance) 
+        : 1000;
+      
+      const currentBalance = startingBalance + totalPnl;
+      const roiPct = (totalPnl / startingBalance) * 100;
+      
+      // Win rate based on resolved trades only
+      const resolvedTrades = wonTrades.length + lostTrades.length;
+      const winRate = resolvedTrades > 0 ? (wonTrades.length / resolvedTrades) * 100 : 0;
+      
+      // Best/worst trades
+      const bestTrade = validTrades.reduce((best, t) => 
+        (t.actual_profit_usd || 0) > (best?.actual_profit_usd || 0) ? t : best, 
+        validTrades[0]
+      );
+      const worstTrade = validTrades.reduce((worst, t) => 
+        (t.actual_profit_usd || 0) < (worst?.actual_profit_usd || 0) ? t : worst,
+        validTrades[0]
+      );
+      
+      return {
+        // Core metrics - computed from actual trades
+        simulated_balance: currentBalance,
+        total_pnl: totalPnl,
+        total_trades: validTrades.length,
+        win_rate: winRate,
+        
+        // Detailed counts
+        winning_trades: wonTrades.length,
+        losing_trades: lostTrades.length,
+        pending_trades: pendingTrades.length,
+        failed_executions: trades.filter(t => t.outcome === 'failed_execution').length,
+        
+        // Derived metrics
+        roi_pct: roiPct,
+        total_opportunities_seen: opportunities.length,
+        best_trade_profit: bestTrade?.actual_profit_usd || 0,
+        worst_trade_loss: worstTrade?.actual_profit_usd || 0,
+        
+        // Keep original stats for anything not computed
+        stats_json: simStats?.stats_json,
+      };
+    },
+    enabled: trades.length >= 0, // Always run
+    refetchInterval: 5000,
+  });
+}
+
 // Fetch opportunity stats for charts
 export function useOpportunityStats() {
   return useQuery({

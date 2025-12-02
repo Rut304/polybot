@@ -22,7 +22,7 @@ export interface SimulatedTrade {
   position_size_usd: number;
   expected_profit_usd: number;
   expected_profit_pct: number;
-  outcome: 'pending' | 'won' | 'lost' | 'expired';
+  outcome: 'pending' | 'won' | 'lost' | 'expired' | 'failed_execution';
   actual_profit_usd: number | null;
   resolved_at: string | null;
   market_result: string | null;

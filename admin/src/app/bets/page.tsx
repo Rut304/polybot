@@ -43,7 +43,7 @@ interface BetCardProps {
     position_size_usd: number;
     expected_profit_usd: number;
     expected_profit_pct: number;
-    outcome: 'pending' | 'won' | 'lost' | 'expired';
+    outcome: 'pending' | 'won' | 'lost' | 'expired' | 'failed_execution';
     actual_profit_usd: number | null;
     created_at: string;
     is_automated?: boolean;
@@ -70,6 +70,7 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
     won: 'bg-green-500/20 text-green-400 border-green-500/30',
     lost: 'bg-red-500/20 text-red-400 border-red-500/30',
     expired: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+    failed_execution: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   };
 
   const hasPosition = bet.outcome === 'pending';
@@ -368,13 +369,17 @@ export default function BetsPage() {
     return true;
   });
 
-  // Stats
+  // Stats - separate valid trades from failed executions
+  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
+  const failedTrades = trades.filter(t => t.outcome === 'failed_execution');
+  
   const stats = {
-    totalBets: trades.length,
-    pending: trades.filter(t => t.outcome === 'pending').length,
-    won: trades.filter(t => t.outcome === 'won').length,
-    lost: trades.filter(t => t.outcome === 'lost').length,
-    totalPnL: trades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0),
+    totalBets: validTrades.length,
+    pending: validTrades.filter(t => t.outcome === 'pending').length,
+    won: validTrades.filter(t => t.outcome === 'won').length,
+    lost: validTrades.filter(t => t.outcome === 'lost').length,
+    failed: failedTrades.length,
+    totalPnL: validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0),
   };
 
   return (
