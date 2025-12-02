@@ -1,0 +1,81 @@
+'use client';
+
+import { createContext, useContext } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from './supabase';
+
+export type UserRole = 'admin' | 'readonly';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface AuthContextType {
+  user: AuthUser | null;
+  session: Session | null;
+  isLoading: boolean;
+  isAdmin: boolean;
+  isReadOnly: boolean;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signOut: () => Promise<void>;
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
+
+// Helper to check if user can perform write operations
+export function useCanWrite() {
+  const { isAdmin } = useAuth();
+  return isAdmin;
+}
+
+// Auth helper functions
+export async function signInWithEmail(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+  return { data, error };
+}
+
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  return { error };
+}
+
+export async function getCurrentUser() {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
+
+export async function getCurrentSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session;
+}
+
+// Get user role from user metadata or database
+export async function getUserRole(userId: string): Promise<UserRole> {
+  // First check user metadata
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user?.user_metadata?.role) {
+    return user.user_metadata.role as UserRole;
+  }
+  
+  // Then check database
+  const { data } = await supabase
+    .from('polybot_users')
+    .select('role')
+    .eq('user_id', userId)
+    .single();
+  
+  return (data?.role as UserRole) || 'readonly';
+}

@@ -18,6 +18,7 @@ import {
   Ban,
   ShoppingCart,
   Plus,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSimulatedTrades, usePositions, useDisabledMarkets, useManualTrades } from '@/lib/hooks';
@@ -25,6 +26,7 @@ import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
+import { useAuth } from '@/lib/auth';
 
 type FilterType = 'all' | 'automated' | 'manual' | 'polymarket' | 'kalshi';
 type StatusFilter = 'all' | 'pending' | 'won' | 'lost';
@@ -282,6 +284,8 @@ function SellConfirmModal({
 
 export default function BetsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { data: trades = [] } = useSimulatedTrades(100);
   const { data: manualTrades = [] } = useManualTrades(50);
   const { data: disabledMarkets = [] } = useDisabledMarkets();
@@ -376,13 +380,20 @@ export default function BetsPage() {
             </h1>
             <p className="text-gray-400 mt-2">View and manage your automated and manual positions</p>
           </div>
-          <button
-            onClick={() => setShowTradeModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-green text-white font-semibold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            New Trade
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={() => setShowTradeModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-green text-white font-semibold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" />
+              New Trade
+            </button>
+          ) : (
+            <div className="px-6 py-3 bg-dark-card border border-dark-border text-gray-500 font-semibold rounded-xl flex items-center gap-2 cursor-not-allowed">
+              <Lock className="w-5 h-5" />
+              Read-Only Mode
+            </div>
+          )}
         </div>
 
         {/* Quick Stats */}

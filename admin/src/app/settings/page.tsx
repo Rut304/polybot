@@ -12,12 +12,14 @@ import {
   Shield,
   Save,
   RotateCcw,
+  Lock,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBotStatus, useBotConfig } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 
 // Platform logos as SVG components
 const PolymarketLogo = () => (
@@ -74,6 +76,8 @@ function ToggleSwitch({ enabled, onToggle, disabled, size = 'md' }: ToggleSwitch
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { data: botStatus } = useBotStatus();
   const { data: config } = useBotConfig();
   
@@ -149,6 +153,21 @@ export default function SettingsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
+      {/* Read-Only Mode Banner */}
+      {!isAdmin && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3"
+        >
+          <Lock className="w-5 h-5 text-yellow-500" />
+          <div>
+            <p className="font-semibold text-yellow-500">Read-Only Mode</p>
+            <p className="text-sm text-yellow-500/70">You can view settings but cannot make changes. Contact an admin to modify settings.</p>
+          </div>
+        </motion.div>
+      )}
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <Settings className="w-8 h-8 text-neon-purple" />
@@ -185,7 +204,7 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            <ToggleSwitch enabled={botEnabled} onToggle={handleBotToggle} size="lg" />
+            <ToggleSwitch enabled={botEnabled} onToggle={handleBotToggle} size="lg" disabled={!isAdmin} />
           </div>
 
           {/* Dry Run Mode */}
@@ -201,7 +220,7 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
-            <ToggleSwitch enabled={dryRunMode} onToggle={() => setDryRunMode(!dryRunMode)} size="lg" />
+            <ToggleSwitch enabled={dryRunMode} onToggle={() => setDryRunMode(!dryRunMode)} size="lg" disabled={!isAdmin} />
           </div>
         </div>
       </motion.div>
@@ -231,7 +250,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-400">USDC on Polygon</p>
                 </div>
               </div>
-              <ToggleSwitch enabled={polymarketEnabled} onToggle={() => setPolymarketEnabled(!polymarketEnabled)} />
+              <ToggleSwitch enabled={polymarketEnabled} onToggle={() => setPolymarketEnabled(!polymarketEnabled)} disabled={!isAdmin} />
             </div>
             <div className="text-xs text-gray-500">
               {polymarketEnabled ? '✓ Trading enabled' : '○ Trading disabled'}
@@ -253,7 +272,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-400">USD Direct</p>
                 </div>
               </div>
-              <ToggleSwitch enabled={kalshiEnabled} onToggle={() => setKalshiEnabled(!kalshiEnabled)} />
+              <ToggleSwitch enabled={kalshiEnabled} onToggle={() => setKalshiEnabled(!kalshiEnabled)} disabled={!isAdmin} />
             </div>
             <div className="text-xs text-gray-500">
               {kalshiEnabled ? '✓ Trading enabled' : '○ Trading disabled'}
@@ -344,21 +363,30 @@ export default function SettingsPage() {
 
       {/* Save Button */}
       <div className="flex items-center gap-4">
-        <button
-          onClick={handleSaveSettings}
-          disabled={saving}
-          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-neon-green to-neon-blue text-dark-bg font-semibold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          <Save className="w-5 h-5" />
-          {saving ? 'Saving...' : 'Save Settings'}
-        </button>
-        <button
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-2 px-6 py-3 bg-dark-border text-gray-300 font-semibold rounded-xl hover:bg-dark-border/80 transition-colors"
-        >
-          <RotateCcw className="w-5 h-5" />
-          Reset
-        </button>
+        {isAdmin ? (
+          <>
+            <button
+              onClick={handleSaveSettings}
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-neon-green to-neon-blue text-dark-bg font-semibold rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              <Save className="w-5 h-5" />
+              {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex items-center gap-2 px-6 py-3 bg-dark-border text-gray-300 font-semibold rounded-xl hover:bg-dark-border/80 transition-colors"
+            >
+              <RotateCcw className="w-5 h-5" />
+              Reset
+            </button>
+          </>
+        ) : (
+          <div className="flex items-center gap-2 px-6 py-3 bg-dark-border/50 text-gray-500 font-semibold rounded-xl cursor-not-allowed">
+            <Lock className="w-5 h-5" />
+            Read-Only Mode - Cannot Save
+          </div>
+        )}
       </div>
 
       {/* Confirmation Modal */}

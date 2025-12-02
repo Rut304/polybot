@@ -11,9 +11,13 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  LogOut,
+  Eye,
+  Shield,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,6 +30,7 @@ const navItems = [
 export function Navigation() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { user, isAdmin, isReadOnly, signOut } = useAuth();
 
   return (
     <aside 
@@ -52,10 +57,33 @@ export function Navigation() {
         <button 
           onClick={() => setCollapsed(!collapsed)}
           className="p-1.5 hover:bg-dark-border rounded-lg transition-colors"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
       </div>
+
+      {/* User Badge */}
+      {!collapsed && user && (
+        <div className="px-4 py-3 border-b border-dark-border">
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-lg",
+            isAdmin ? "bg-neon-green/10 border border-neon-green/30" : "bg-neon-blue/10 border border-neon-blue/30"
+          )}>
+            {isAdmin ? (
+              <Shield className="w-4 h-4 text-neon-green" />
+            ) : (
+              <Eye className="w-4 h-4 text-neon-blue" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className={cn("text-xs font-medium", isAdmin ? "text-neon-green" : "text-neon-blue")}>
+                {isAdmin ? 'Admin' : 'Read Only'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">{user.email}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Nav Items */}
       <nav className="p-3 space-y-1">
@@ -81,27 +109,38 @@ export function Navigation() {
         })}
       </nav>
 
-      {/* Platform Logos at bottom */}
-      {!collapsed && (
-        <div className="absolute bottom-4 left-0 right-0 px-4">
-          <div className="flex items-center justify-center gap-4 py-3 px-4 bg-dark-border/50 rounded-lg">
-            {/* Polymarket Logo */}
+      {/* Logout & Platform Logos */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 space-y-3 border-t border-dark-border bg-dark-card/50">
+        {/* Logout Button */}
+        <button
+          onClick={() => signOut()}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all",
+            collapsed && "justify-center"
+          )}
+        >
+          <LogOut className="w-5 h-5" />
+          {!collapsed && <span className="font-medium">Sign Out</span>}
+        </button>
+
+        {/* Platform Logos */}
+        {!collapsed && (
+          <div className="flex items-center justify-center gap-4 py-2 px-4 bg-dark-border/50 rounded-lg">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-polymarket flex items-center justify-center">
+              <div className="w-5 h-5 rounded bg-polymarket flex items-center justify-center">
                 <span className="text-xs font-bold text-white">P</span>
               </div>
-              <span className="text-xs text-gray-400">Polymarket</span>
+              <span className="text-xs text-gray-500">Poly</span>
             </div>
-            {/* Kalshi Logo */}
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded bg-kalshi flex items-center justify-center">
+              <div className="w-5 h-5 rounded bg-kalshi flex items-center justify-center">
                 <span className="text-xs font-bold text-white">K</span>
               </div>
-              <span className="text-xs text-gray-400">Kalshi</span>
+              <span className="text-xs text-gray-500">Kalshi</span>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }
