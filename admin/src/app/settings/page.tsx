@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useBotStatus, useBotConfig, useDisabledMarkets } from '@/lib/hooks';
+import { useBotStatus, useBotConfig, useDisabledMarkets, useResetSimulation } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -97,7 +97,9 @@ export default function SettingsPage() {
 
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  
+  // Use the reset simulation hook
+  const resetSimulation = useResetSimulation();
 
   // Mutation to update bot status
   const updateBotStatus = useMutation({
@@ -156,29 +158,11 @@ export default function SettingsPage() {
 
   // Reset simulation - clears all trades and resets balance
   const handleResetSimulation = async () => {
-    setResetting(true);
     try {
-      // Delete all simulated trades
-      await supabase.from('polybot_simulated_trades').delete().neq('id', 0);
-      // Delete all manual trades
-      await supabase.from('polybot_manual_trades').delete().neq('id', 0);
-      // Reset the balance in status
-      await supabase.from('polybot_status').update({ 
-        simulated_balance: 1000,
-        total_pnl: 0,
-        trades_today: 0,
-        wins: 0,
-        losses: 0,
-      }).eq('id', 1);
-      // Invalidate queries to refresh UI
-      queryClient.invalidateQueries({ queryKey: ['simulatedTrades'] });
-      queryClient.invalidateQueries({ queryKey: ['manualTrades'] });
-      queryClient.invalidateQueries({ queryKey: ['botStatus'] });
+      await resetSimulation.mutateAsync();
       setShowConfirm(null);
     } catch (error) {
       console.error('Reset failed:', error);
-    } finally {
-      setResetting(false);
     }
   };
 
@@ -506,11 +490,11 @@ export default function SettingsPage() {
                     setShowConfirm(null);
                   }
                 }}
-                disabled={resetting}
+                disabled={resetSimulation.isPending}
                 className="flex-1 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
               >
                 {showConfirm === 'reset' 
-                  ? (resetting ? 'Resetting...' : 'Yes, Reset Everything')
+                  ? (resetSimulation.isPending ? 'Resetting...' : 'Yes, Reset Everything')
                   : 'Yes, Disable'}
               </button>
               <button

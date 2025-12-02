@@ -435,3 +435,80 @@ export function useToggleMarketDisabled() {
   });
 }
 
+// Reset simulation - clears all trades and resets balance to $1,000
+export function useResetSimulation() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async () => {
+      // Delete all simulated trades
+      const { error: tradesError } = await supabase
+        .from('polybot_simulated_trades')
+        .delete()
+        .neq('id', 0); // Delete all
+      
+      if (tradesError) throw tradesError;
+      
+      // Delete all simulation history
+      const { error: historyError } = await supabase
+        .from('polybot_simulation_stats')
+        .delete()
+        .neq('id', 0); // Delete all
+      
+      if (historyError) throw historyError;
+      
+      // Delete all opportunities
+      const { error: oppsError } = await supabase
+        .from('polybot_opportunities')
+        .delete()
+        .neq('id', 0); // Delete all
+      
+      if (oppsError) throw oppsError;
+      
+      // Insert fresh starting stats
+      const { error: statsError } = await supabase
+        .from('polybot_simulation_stats')
+        .insert({
+          snapshot_at: new Date().toISOString(),
+          simulated_balance: 1000,
+          total_pnl: 0,
+          total_trades: 0,
+          win_rate: 0,
+          stats_json: {
+            total_opportunities_seen: 0,
+            total_simulated_trades: 0,
+            simulated_starting_balance: '1000.00',
+            simulated_current_balance: '1000.00',
+            total_pnl: '0.00',
+            winning_trades: 0,
+            losing_trades: 0,
+            pending_trades: 0,
+            win_rate_pct: 0,
+            roi_pct: 0,
+            best_trade_profit: '0.00',
+            worst_trade_loss: '0.00',
+            largest_opportunity_seen_pct: '0.00',
+            first_opportunity_at: null,
+            last_opportunity_at: null,
+            execution_success_rate_pct: 100,
+            total_fees_paid: '0.00',
+            total_losses: '0.00',
+            failed_executions: 0,
+            avg_trade_pnl: '0.00',
+          },
+        });
+      
+      if (statsError) throw statsError;
+      
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['simulationStats'] });
+      queryClient.invalidateQueries({ queryKey: ['simulationHistory'] });
+      queryClient.invalidateQueries({ queryKey: ['simulatedTrades'] });
+      queryClient.invalidateQueries({ queryKey: ['opportunities'] });
+      queryClient.invalidateQueries({ queryKey: ['aggregateStats'] });
+    },
+  });
+}
+
