@@ -59,17 +59,17 @@ export interface SimulationStats {
 export interface BotStatus {
   id: number;
   is_running: boolean;
-  dry_run_mode: boolean;
-  last_heartbeat_at: string;
-  total_opportunities_detected: number;
-  total_trades_executed: number;
-  total_profit: number;
-  daily_profit: number;
-  max_trade_size: number;
-  min_profit_threshold: number;
-  is_paused: boolean;
-  pause_reason: string | null;
-  updated_at: string;
+  mode: string;
+  last_heartbeat_at?: string;
+  last_scan_at?: string;
+  current_action?: string;
+  error_message?: string;
+  polymarket_connected: boolean;
+  kalshi_connected: boolean;
+  opportunities_this_session?: number;
+  trades_this_session?: number;
+  started_at?: string;
+  updated_at?: string;
 }
 
 export interface Opportunity {
@@ -128,4 +128,39 @@ export interface Position {
   is_automated: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ManualTrade {
+  id: number;
+  created_at: string;
+  platform: 'polymarket' | 'kalshi';
+  market_id: string;
+  market_title: string;
+  side: 'yes' | 'no';
+  action: 'buy' | 'sell';
+  quantity: number;
+  price: number;
+  total_cost: number;
+  status: 'pending' | 'filled' | 'failed' | 'cancelled';
+  filled_at?: string;
+  filled_price?: number;
+  filled_quantity?: number;
+  notes?: string;
+}
+
+export interface MarketCache {
+  id: number;
+  platform: 'polymarket' | 'kalshi';
+  market_id: string;
+  title: string;
+  question?: string;
+  description?: string;
+  category?: string;
+  yes_price: number;
+  no_price: number;
+  volume?: number;
+  liquidity?: number;
+  close_time?: string;
+  status: string;
+  last_updated: string;
 }

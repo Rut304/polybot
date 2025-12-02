@@ -81,7 +81,7 @@ export default function SettingsPage() {
   const [botEnabled, setBotEnabled] = useState(botStatus?.is_running ?? false);
   const [polymarketEnabled, setPolymarketEnabled] = useState(config?.polymarket_enabled ?? true);
   const [kalshiEnabled, setKalshiEnabled] = useState(config?.kalshi_enabled ?? true);
-  const [dryRunMode, setDryRunMode] = useState(botStatus?.dry_run_mode ?? true);
+  const [dryRunMode, setDryRunMode] = useState(botStatus?.mode === 'simulation');
   
   // Trading parameters
   const [minProfitPercent, setMinProfitPercent] = useState(config?.min_profit_percent ?? 1.0);
@@ -124,7 +124,7 @@ export default function SettingsPage() {
     try {
       await updateBotStatus.mutateAsync({
         is_running: botEnabled,
-        dry_run_mode: dryRunMode,
+        mode: dryRunMode ? 'simulation' : 'live',
       });
       await updateConfig.mutateAsync({
         polymarket_enabled: polymarketEnabled,

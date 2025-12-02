@@ -17,12 +17,14 @@ import {
   Zap,
   Ban,
   ShoppingCart,
+  Plus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useSimulatedTrades, usePositions, useDisabledMarkets } from '@/lib/hooks';
+import { useSimulatedTrades, usePositions, useDisabledMarkets, useManualTrades } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { ManualTradeModal } from '@/components/ManualTradeModal';
 
 type FilterType = 'all' | 'automated' | 'manual' | 'polymarket' | 'kalshi';
 type StatusFilter = 'all' | 'pending' | 'won' | 'lost';
@@ -281,12 +283,14 @@ function SellConfirmModal({
 export default function BetsPage() {
   const queryClient = useQueryClient();
   const { data: trades = [] } = useSimulatedTrades(100);
+  const { data: manualTrades = [] } = useManualTrades(50);
   const { data: disabledMarkets = [] } = useDisabledMarkets();
   
   const [filter, setFilter] = useState<FilterType>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
   const [confirmSell, setConfirmSell] = useState<BetCardProps['bet'] | null>(null);
+  const [showTradeModal, setShowTradeModal] = useState(false);
 
   const disabledIds = new Set(disabledMarkets.map((m: { market_id: string }) => m.market_id));
 
@@ -364,12 +368,21 @@ export default function BetsPage() {
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Wallet className="w-8 h-8 text-neon-blue" />
-            My Bets
-          </h1>
-          <p className="text-gray-400 mt-2">View and manage your automated and manual positions</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <Wallet className="w-8 h-8 text-neon-blue" />
+              My Bets
+            </h1>
+            <p className="text-gray-400 mt-2">View and manage your automated and manual positions</p>
+          </div>
+          <button
+            onClick={() => setShowTradeModal(true)}
+            className="px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-green text-white font-semibold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            New Trade
+          </button>
         </div>
 
         {/* Quick Stats */}
@@ -481,6 +494,12 @@ export default function BetsPage() {
             onCancel={() => setConfirmSell(null)}
           />
         )}
+
+        {/* Manual Trade Modal */}
+        <ManualTradeModal
+          isOpen={showTradeModal}
+          onClose={() => setShowTradeModal(false)}
+        />
       </div>
     </div>
   );
