@@ -174,3 +174,35 @@ export interface MarketCache {
   status: string;
   last_updated: string;
 }
+
+// Watchlist for tracking markets
+export interface WatchlistItem {
+  id: number;
+  market_id: string;
+  platform: 'polymarket' | 'kalshi';
+  market_title: string;
+  category?: string;
+  added_at: string;
+  notes?: string;
+  alert_above?: number;
+  alert_below?: number;
+  // Joined data from price tracking
+  current_yes_price?: number;
+  current_no_price?: number;
+  price_change_24h?: number;
+}
+
+// Per-market analytics
+export interface MarketPerformance {
+  market_id: string;
+  market_title: string;
+  platform: string;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  total_pnl: number;
+  win_rate: number;
+  avg_trade_size: number;
+  first_trade_at: string;
+  last_trade_at: string;
+}

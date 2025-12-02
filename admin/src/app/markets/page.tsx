@@ -15,10 +15,12 @@ import {
   Star,
   StarOff,
   Plus,
+  Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, cn, timeAgo } from '@/lib/utils';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
+import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/lib/hooks';
 
 interface Market {
   id: string;
@@ -60,7 +62,13 @@ export default function MarketsPage() {
   const [totalMarkets, setTotalMarkets] = useState(0);
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  
+  // Watchlist hooks
+  const { data: watchlist = [] } = useWatchlist();
+  const addToWatchlist = useAddToWatchlist();
+  const removeFromWatchlist = useRemoveFromWatchlist();
+  
+  const watchlistIds = new Set(watchlist.map(w => w.market_id));
 
   // Fetch markets from Polymarket API
   const fetchPolymarketMarkets = useCallback(async () => {
@@ -148,26 +156,21 @@ export default function MarketsPage() {
     };
 
     loadMarkets();
-
-    // Load favorites from localStorage
-    const savedFavorites = localStorage.getItem('polybot_favorites');
-    if (savedFavorites) {
-      setFavorites(new Set(JSON.parse(savedFavorites)));
-    }
   }, [fetchPolymarketMarkets, fetchKalshiMarkets]);
 
-  // Save favorites to localStorage
-  const toggleFavorite = (marketId: string) => {
-    setFavorites(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(marketId)) {
-        newFavorites.delete(marketId);
-      } else {
-        newFavorites.add(marketId);
-      }
-      localStorage.setItem('polybot_favorites', JSON.stringify([...newFavorites]));
-      return newFavorites;
-    });
+  // Toggle watchlist
+  const toggleWatchlist = (market: Market) => {
+    const isWatched = watchlistIds.has(market.id);
+    if (isWatched) {
+      removeFromWatchlist.mutate(market.id);
+    } else {
+      addToWatchlist.mutate({
+        market_id: market.id,
+        platform: market.platform,
+        market_title: market.question,
+        category: market.category,
+      });
+    }
   };
 
   // Filter and sort markets
@@ -386,10 +389,16 @@ export default function MarketsPage() {
                       </div>
                       
                       <button
-                        onClick={() => toggleFavorite(market.id)}
-                        className="p-1 hover:bg-dark-border rounded transition-colors"
+                        onClick={() => toggleWatchlist(market)}
+                        className={cn(
+                          "p-1.5 rounded transition-colors",
+                          watchlistIds.has(market.id) 
+                            ? "bg-yellow-500/20 hover:bg-yellow-500/30"
+                            : "hover:bg-dark-border"
+                        )}
+                        title={watchlistIds.has(market.id) ? "Remove from watchlist" : "Add to watchlist"}
                       >
-                        {favorites.has(market.id) 
+                        {watchlistIds.has(market.id) 
                           ? <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                           : <StarOff className="w-4 h-4 text-gray-500" />
                         }

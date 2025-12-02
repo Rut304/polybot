@@ -512,3 +512,460 @@ export function useResetSimulation() {
   });
 }
 
+// ==================== WATCHLIST ====================
+
+// Fetch watchlist items
+export function useWatchlist() {
+  return useQuery({
+    queryKey: ['watchlist'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('polybot_watchlist')
+        .select('*')
+        .order('added_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching watchlist:', error);
+        return [];
+      }
+      return data || [];
+    },
+    refetchInterval: 30000,
+  });
+}
+
+// Add to watchlist
+export function useAddToWatchlist() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (item: {
+      market_id: string;
+      platform: 'polymarket' | 'kalshi';
+      market_title: string;
+      category?: string;
+      notes?: string;
+      alert_above?: number;
+      alert_below?: number;
+    }) => {
+      const { error } = await supabase
+        .from('polybot_watchlist')
+        .insert({
+          ...item,
+          added_at: new Date().toISOString(),
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
+    },
+  });
+}
+
+// Remove from watchlist
+export function useRemoveFromWatchlist() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (marketId: string) => {
+      const { error } = await supabase
+        .from('polybot_watchlist')
+        .delete()
+        .eq('market_id', marketId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
+    },
+  });
+}
+
+// Update watchlist item (notes, alerts)
+export function useUpdateWatchlistItem() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ marketId, updates }: {
+      marketId: string;
+      updates: {
+        notes?: string;
+        alert_above?: number;
+        alert_below?: number;
+      };
+    }) => {
+      const { error } = await supabase
+        .from('polybot_watchlist')
+        .update(updates)
+        .eq('market_id', marketId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] });
+    },
+  });
+}
+
+// ==================== PER-MARKET ANALYTICS ====================
+
+// Get performance stats grouped by market
+export function useMarketPerformance() {
+  return useQuery({
+    queryKey: ['marketPerformance'],
+    queryFn: async () => {
+      const { data: trades, error } = await supabase
+        .from('polybot_simulated_trades')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching trades for performance:', error);
+        return [];
+      }
+      
+      // Group trades by market
+      const marketMap = new Map<string, {
+        market_id: string;
+        market_title: string;
+        platform: string;
+        trades: typeof trades;
+      }>();
+      
+      trades?.forEach(trade => {
+        const marketId = trade.polymarket_token_id || trade.kalshi_ticker || 'unknown';
+        const marketTitle = trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown Market';
+        const platform = trade.polymarket_token_id ? 'polymarket' : 'kalshi';
+        
+        if (!marketMap.has(marketId)) {
+          marketMap.set(marketId, {
+            market_id: marketId,
+            market_title: marketTitle,
+            platform,
+            trades: [],
+          });
+        }
+        marketMap.get(marketId)!.trades.push(trade);
+      });
+      
+      // Calculate stats for each market
+      const performance = Array.from(marketMap.values()).map(({ market_id, market_title, platform, trades }) => {
+        const completedTrades = trades.filter(t => t.outcome !== 'pending');
+        const wins = completedTrades.filter(t => t.outcome === 'won').length;
+        const losses = completedTrades.filter(t => t.outcome === 'lost').length;
+        const totalPnl = completedTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+        const avgSize = trades.length > 0 
+          ? trades.reduce((sum, t) => sum + (t.position_size_usd || 0), 0) / trades.length 
+          : 0;
+        
+        return {
+          market_id,
+          market_title,
+          platform,
+          total_trades: trades.length,
+          winning_trades: wins,
+          losing_trades: losses,
+          pending_trades: trades.filter(t => t.outcome === 'pending').length,
+          total_pnl: totalPnl,
+          win_rate: completedTrades.length > 0 ? (wins / completedTrades.length) * 100 : 0,
+          avg_trade_size: avgSize,
+          first_trade_at: trades[trades.length - 1]?.created_at,
+          last_trade_at: trades[0]?.created_at,
+        };
+      });
+      
+      // Sort by total trades descending
+      return performance.sort((a, b) => b.total_trades - a.total_trades);
+    },
+    refetchInterval: 30000,
+  });
+}
+
+// Get trades for a specific market
+export function useMarketTrades(marketId: string) {
+  return useQuery({
+    queryKey: ['marketTrades', marketId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('polybot_simulated_trades')
+        .select('*')
+        .or(`polymarket_token_id.eq.${marketId},kalshi_ticker.eq.${marketId}`)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching market trades:', error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!marketId,
+    refetchInterval: 10000,
+  });
+}
+
+// ==================== ADVANCED PORTFOLIO ANALYTICS ====================
+
+interface AdvancedMetrics {
+  // Risk metrics
+  sharpeRatio: number;
+  sortinoRatio: number;
+  maxDrawdown: number;
+  maxDrawdownPct: number;
+  currentDrawdown: number;
+  currentDrawdownPct: number;
+  
+  // Performance metrics
+  totalReturn: number;
+  totalReturnPct: number;
+  annualizedReturn: number;
+  avgDailyReturn: number;
+  volatility: number;
+  
+  // Trade metrics
+  avgWin: number;
+  avgLoss: number;
+  profitFactor: number;
+  expectancy: number;
+  payoffRatio: number;
+  
+  // Streak analysis
+  currentStreak: number;
+  currentStreakType: 'win' | 'loss' | 'none';
+  longestWinStreak: number;
+  longestLoseStreak: number;
+  
+  // Time-based
+  tradingDays: number;
+  avgTradesPerDay: number;
+  bestDay: { date: string; pnl: number };
+  worstDay: { date: string; pnl: number };
+  
+  // Drawdown history for charting
+  drawdownHistory: Array<{ date: string; drawdown: number; drawdownPct: number }>;
+}
+
+export function useAdvancedAnalytics(startingBalance: number = 1000) {
+  const { data: trades = [] } = useSimulatedTrades(1000);
+  const { data: history = [] } = useSimulationHistory(2160); // 90 days
+  
+  return useQuery({
+    queryKey: ['advancedAnalytics', trades.length, history.length],
+    queryFn: (): AdvancedMetrics => {
+      // Sort trades by date
+      const sortedTrades = [...trades]
+        .filter(t => t.outcome !== 'pending')
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      
+      if (sortedTrades.length === 0) {
+        return getEmptyMetrics();
+      }
+      
+      // Calculate daily returns
+      const dailyReturns: Map<string, number> = new Map();
+      sortedTrades.forEach(trade => {
+        const day = trade.created_at.slice(0, 10);
+        const pnl = trade.actual_profit_usd || 0;
+        dailyReturns.set(day, (dailyReturns.get(day) || 0) + pnl);
+      });
+      
+      const returnsArray = Array.from(dailyReturns.values());
+      const datesArray = Array.from(dailyReturns.keys());
+      
+      // Calculate equity curve
+      let peak = startingBalance;
+      let maxDrawdown = 0;
+      let maxDrawdownPct = 0;
+      let currentBalance = startingBalance;
+      const drawdownHistory: Array<{ date: string; drawdown: number; drawdownPct: number }> = [];
+      
+      datesArray.forEach((date, i) => {
+        currentBalance += returnsArray[i];
+        
+        // Update peak
+        if (currentBalance > peak) {
+          peak = currentBalance;
+        }
+        
+        // Calculate drawdown
+        const drawdown = peak - currentBalance;
+        const drawdownPct = peak > 0 ? (drawdown / peak) * 100 : 0;
+        
+        if (drawdown > maxDrawdown) {
+          maxDrawdown = drawdown;
+          maxDrawdownPct = drawdownPct;
+        }
+        
+        drawdownHistory.push({ date, drawdown, drawdownPct });
+      });
+      
+      // Current drawdown
+      const currentDrawdown = peak - currentBalance;
+      const currentDrawdownPct = peak > 0 ? (currentDrawdown / peak) * 100 : 0;
+      
+      // Total return
+      const totalReturn = currentBalance - startingBalance;
+      const totalReturnPct = (totalReturn / startingBalance) * 100;
+      
+      // Trading days
+      const tradingDays = dailyReturns.size;
+      const avgDailyReturn = returnsArray.length > 0 
+        ? returnsArray.reduce((a, b) => a + b, 0) / returnsArray.length 
+        : 0;
+      
+      // Volatility (standard deviation of daily returns)
+      const variance = returnsArray.length > 1
+        ? returnsArray.reduce((sum, r) => sum + Math.pow(r - avgDailyReturn, 2), 0) / (returnsArray.length - 1)
+        : 0;
+      const volatility = Math.sqrt(variance);
+      
+      // Downside volatility (for Sortino)
+      const negativeReturns = returnsArray.filter(r => r < 0);
+      const downsideVariance = negativeReturns.length > 1
+        ? negativeReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / negativeReturns.length
+        : 0;
+      const downsideVolatility = Math.sqrt(downsideVariance);
+      
+      // Annualized metrics (assuming 365 trading days)
+      const annualizedReturn = avgDailyReturn * 365;
+      const annualizedVolatility = volatility * Math.sqrt(365);
+      
+      // Risk-free rate approximation (4% annual)
+      const dailyRiskFree = 0.04 / 365;
+      
+      // Sharpe Ratio (annualized)
+      const sharpeRatio = annualizedVolatility > 0
+        ? ((avgDailyReturn - dailyRiskFree) * 365) / annualizedVolatility
+        : 0;
+      
+      // Sortino Ratio (annualized)
+      const sortinoRatio = downsideVolatility > 0
+        ? ((avgDailyReturn - dailyRiskFree) * 365) / (downsideVolatility * Math.sqrt(365))
+        : 0;
+      
+      // Win/Loss analysis
+      const wins = sortedTrades.filter(t => t.outcome === 'won');
+      const losses = sortedTrades.filter(t => t.outcome === 'lost');
+      
+      const totalWins = wins.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+      const totalLosses = Math.abs(losses.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0));
+      
+      const avgWin = wins.length > 0 ? totalWins / wins.length : 0;
+      const avgLoss = losses.length > 0 ? totalLosses / losses.length : 0;
+      
+      // Profit Factor
+      const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
+      
+      // Payoff Ratio (avg win / avg loss)
+      const payoffRatio = avgLoss > 0 ? avgWin / avgLoss : avgWin > 0 ? Infinity : 0;
+      
+      // Expectancy (expected $ per trade)
+      const winRate = sortedTrades.length > 0 ? wins.length / sortedTrades.length : 0;
+      const expectancy = (winRate * avgWin) - ((1 - winRate) * avgLoss);
+      
+      // Streak analysis
+      let currentStreak = 0;
+      let currentStreakType: 'win' | 'loss' | 'none' = 'none';
+      let longestWinStreak = 0;
+      let longestLoseStreak = 0;
+      let tempWinStreak = 0;
+      let tempLoseStreak = 0;
+      
+      sortedTrades.forEach(trade => {
+        if (trade.outcome === 'won') {
+          tempWinStreak++;
+          tempLoseStreak = 0;
+          if (tempWinStreak > longestWinStreak) longestWinStreak = tempWinStreak;
+        } else if (trade.outcome === 'lost') {
+          tempLoseStreak++;
+          tempWinStreak = 0;
+          if (tempLoseStreak > longestLoseStreak) longestLoseStreak = tempLoseStreak;
+        }
+      });
+      
+      // Current streak from most recent trades
+      for (let i = sortedTrades.length - 1; i >= 0; i--) {
+        const outcome = sortedTrades[i].outcome;
+        if (currentStreakType === 'none') {
+          currentStreakType = outcome as 'win' | 'loss';
+          currentStreak = 1;
+        } else if (outcome === currentStreakType.replace('win', 'won').replace('loss', 'lost')) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+      
+      // Best/worst day
+      let bestDay = { date: '', pnl: -Infinity };
+      let worstDay = { date: '', pnl: Infinity };
+      
+      dailyReturns.forEach((pnl, date) => {
+        if (pnl > bestDay.pnl) bestDay = { date, pnl };
+        if (pnl < worstDay.pnl) worstDay = { date, pnl };
+      });
+      
+      if (bestDay.pnl === -Infinity) bestDay = { date: '', pnl: 0 };
+      if (worstDay.pnl === Infinity) worstDay = { date: '', pnl: 0 };
+      
+      return {
+        sharpeRatio,
+        sortinoRatio,
+        maxDrawdown,
+        maxDrawdownPct,
+        currentDrawdown,
+        currentDrawdownPct,
+        totalReturn,
+        totalReturnPct,
+        annualizedReturn,
+        avgDailyReturn,
+        volatility,
+        avgWin,
+        avgLoss,
+        profitFactor,
+        expectancy,
+        payoffRatio,
+        currentStreak,
+        currentStreakType,
+        longestWinStreak,
+        longestLoseStreak,
+        tradingDays,
+        avgTradesPerDay: tradingDays > 0 ? sortedTrades.length / tradingDays : 0,
+        bestDay,
+        worstDay,
+        drawdownHistory,
+      };
+    },
+    enabled: trades.length > 0,
+  });
+}
+
+function getEmptyMetrics(): AdvancedMetrics {
+  return {
+    sharpeRatio: 0,
+    sortinoRatio: 0,
+    maxDrawdown: 0,
+    maxDrawdownPct: 0,
+    currentDrawdown: 0,
+    currentDrawdownPct: 0,
+    totalReturn: 0,
+    totalReturnPct: 0,
+    annualizedReturn: 0,
+    avgDailyReturn: 0,
+    volatility: 0,
+    avgWin: 0,
+    avgLoss: 0,
+    profitFactor: 0,
+    expectancy: 0,
+    payoffRatio: 0,
+    currentStreak: 0,
+    currentStreakType: 'none',
+    longestWinStreak: 0,
+    longestLoseStreak: 0,
+    tradingDays: 0,
+    avgTradesPerDay: 0,
+    bestDay: { date: '', pnl: 0 },
+    worstDay: { date: '', pnl: 0 },
+    drawdownHistory: [],
+  };
+}

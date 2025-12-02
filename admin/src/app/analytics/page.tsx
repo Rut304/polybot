@@ -40,6 +40,7 @@ import {
   useSimulationHistory, 
   useSimulatedTrades, 
   useOpportunities,
+  useAdvancedAnalytics,
   useSimulationStats,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
@@ -100,6 +101,7 @@ export default function AnalyticsPage() {
   const { data: trades = [] } = useSimulatedTrades(500);
   const { data: opportunities = [] } = useOpportunities(1000);
   const { data: stats } = useSimulationStats();
+  const { data: advancedMetrics } = useAdvancedAnalytics();
 
   // Process P&L trend data
   const pnlTrendData = useMemo(() => {
@@ -250,6 +252,169 @@ export default function AnalyticsPage() {
             ))}
           </div>
         </div>
+
+        {/* Advanced Risk & Performance Metrics */}
+        {advancedMetrics && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6"
+          >
+            {/* Sharpe Ratio */}
+            <div className="card bg-gradient-to-br from-neon-green/10 to-transparent">
+              <div className="text-xs text-gray-400 mb-1">Sharpe Ratio</div>
+              <div className={cn(
+                "text-2xl font-bold",
+                advancedMetrics.sharpeRatio >= 1 ? "text-neon-green" : 
+                advancedMetrics.sharpeRatio >= 0 ? "text-yellow-400" : "text-red-400"
+              )}>
+                {advancedMetrics.sharpeRatio.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {advancedMetrics.sharpeRatio >= 2 ? '🔥 Excellent' : 
+                 advancedMetrics.sharpeRatio >= 1 ? '✅ Good' : 
+                 advancedMetrics.sharpeRatio >= 0 ? '⚠️ Moderate' : '❌ Poor'}
+              </div>
+            </div>
+
+            {/* Max Drawdown */}
+            <div className="card bg-gradient-to-br from-red-500/10 to-transparent">
+              <div className="text-xs text-gray-400 mb-1">Max Drawdown</div>
+              <div className="text-2xl font-bold text-red-400">
+                {advancedMetrics.maxDrawdownPct.toFixed(1)}%
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {formatCurrency(advancedMetrics.maxDrawdown)}
+              </div>
+            </div>
+
+            {/* Profit Factor */}
+            <div className="card bg-gradient-to-br from-neon-blue/10 to-transparent">
+              <div className="text-xs text-gray-400 mb-1">Profit Factor</div>
+              <div className={cn(
+                "text-2xl font-bold",
+                advancedMetrics.profitFactor >= 1.5 ? "text-neon-green" : 
+                advancedMetrics.profitFactor >= 1 ? "text-yellow-400" : "text-red-400"
+              )}>
+                {advancedMetrics.profitFactor === Infinity ? '∞' : advancedMetrics.profitFactor.toFixed(2)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Win$/Loss$
+              </div>
+            </div>
+
+            {/* Expectancy */}
+            <div className="card bg-gradient-to-br from-neon-purple/10 to-transparent">
+              <div className="text-xs text-gray-400 mb-1">Expectancy</div>
+              <div className={cn(
+                "text-2xl font-bold",
+                advancedMetrics.expectancy > 0 ? "text-neon-green" : "text-red-400"
+              )}>
+                {formatCurrency(advancedMetrics.expectancy)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Expected per trade
+              </div>
+            </div>
+
+            {/* Current Streak */}
+            <div className="card bg-gradient-to-br from-yellow-500/10 to-transparent">
+              <div className="text-xs text-gray-400 mb-1">Current Streak</div>
+              <div className={cn(
+                "text-2xl font-bold flex items-center gap-1",
+                advancedMetrics.currentStreakType === 'win' ? "text-neon-green" : 
+                advancedMetrics.currentStreakType === 'loss' ? "text-red-400" : "text-gray-400"
+              )}>
+                {advancedMetrics.currentStreak}
+                {advancedMetrics.currentStreakType === 'win' && <TrendingUp className="w-5 h-5" />}
+                {advancedMetrics.currentStreakType === 'loss' && <TrendingDown className="w-5 h-5" />}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Best: {advancedMetrics.longestWinStreak}W / Worst: {advancedMetrics.longestLoseStreak}L
+              </div>
+            </div>
+
+            {/* Volatility */}
+            <div className="card bg-gradient-to-br from-pink-500/10 to-transparent">
+              <div className="text-xs text-gray-400 mb-1">Daily Volatility</div>
+              <div className="text-2xl font-bold text-pink-400">
+                {formatCurrency(advancedMetrics.volatility)}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Avg {formatCurrency(advancedMetrics.avgDailyReturn)}/day
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Win/Loss Analysis Cards */}
+        {advancedMetrics && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="card"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-400">Avg Win</span>
+                <TrendingUp className="w-4 h-4 text-neon-green" />
+              </div>
+              <div className="text-xl font-bold text-neon-green">
+                {formatCurrency(advancedMetrics.avgWin)}
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="card"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-400">Avg Loss</span>
+                <TrendingDown className="w-4 h-4 text-red-400" />
+              </div>
+              <div className="text-xl font-bold text-red-400">
+                -{formatCurrency(advancedMetrics.avgLoss)}
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="card"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-400">Payoff Ratio</span>
+                <Activity className="w-4 h-4 text-neon-blue" />
+              </div>
+              <div className="text-xl font-bold text-neon-blue">
+                {advancedMetrics.payoffRatio === Infinity ? '∞' : advancedMetrics.payoffRatio.toFixed(2)}x
+              </div>
+              <div className="text-xs text-gray-500">Avg Win / Avg Loss</div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="card"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-400">Trading Days</span>
+                <Calendar className="w-4 h-4 text-neon-purple" />
+              </div>
+              <div className="text-xl font-bold text-white">
+                {advancedMetrics.tradingDays}
+              </div>
+              <div className="text-xs text-gray-500">
+                {advancedMetrics.avgTradesPerDay.toFixed(1)} trades/day
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* Main P&L Chart */}
         <motion.div 
