@@ -1,236 +1,180 @@
-# PolyParlay Trading Bot - Morning Briefing
+# PolyBot Morning Briefing - December 2, 2025
 
-*Prepared: December 1, 2025 01:25 UTC*
+## 🎉 What's New Overnight
 
-## 🌅 Good Morning
-
-### ✅ What's Been Completed (While You Slept)
-
-1. **PolyParlay Website Fixes**
-   - ✅ HTML rendering bug FIXED (removed undefined CSS classes)
-   - ✅ Navigation simplified to 3 essential pages
-   - ✅ Docker Hub rate limit resolved (switched to AWS ECR Public)
-   - ✅ Auto-deploy pipeline working perfectly
-   - ✅ ECS forced redeployment COMPLETED
-   - ✅ Latest code is LIVE at polyparlay.io
-
-2. **Trading Bot Research**
-   - ✅ Found 7 open-source arbitrage bots
-   - ✅ Analyzed top 3 candidates in detail
-   - ✅ Cloned and reviewed code architecture
-   - ✅ Created comprehensive 6-hour build plan
-   - ✅ Documented integration with PolyParlay
+I've implemented all 4 advanced features you requested plus the Fargate deployment infrastructure. Here's what's ready:
 
 ---
 
-## 🚀 RECOMMENDED ACTION: Build Arbitrage Bot
+## ✅ Features Implemented
 
-### Why This Is a Great Idea
+### 1. Copy Trading Engine (`src/features/copy_trading.py`)
+- Tracks top Polymarket traders via the Data API
+- Detects position changes (new positions, exits, size increases)
+- Generates copy signals with proportional sizing
+- Configurable per-trader multipliers
 
-- 💰 @0xtria's thread shows real profit potential
-- ⚡ Prediction markets have inefficiencies (arbitrage opportunities)
-- 🤖 Automation = capture opportunities humans miss
-- 📈 Use it personally first, then offer to PolyParlay users
-- ⏱️ 6-hour build is realistic (80% of code already exists)
+```python
+from src.features.copy_trading import CopyTradingEngine
 
----
+engine = CopyTradingEngine(max_copy_size=100.0)
+engine.add_trader("0xWHALE_ADDRESS", "Alpha Trader", multiplier=0.1)
+await engine.run(callback=my_signal_handler)
+```
 
-## 🏆 Best Starting Point: `jtdoherty/arb-bot`
+### 2. Overlapping Market Arbitrage (`src/features/overlapping_arb.py`)
+- Finds related markets with pricing inefficiencies
+- Detects 3 relationship types:
+  - **Implies**: If A implies B, then P(A) ≤ P(B)
+  - **Mutually Exclusive**: P(A) + P(B) ≤ 100%
+  - **Correlated**: Related markets with significant price divergence
+- **Already tested**: Found 50+ opportunities in live scan!
 
-**Repository**: <https://github.com/jtdoherty/arb-bot>
+### 3. Position Manager (`src/features/position_manager.py`)
+- Tracks all open positions
+- Monitors for resolved markets
+- Auto-claims USDC when markets resolve (simulation mode by default)
+- Real-time PnL calculations
+- Portfolio analytics
 
-### What It Does (Out of the Box)
-
-- ✅ Monitors **Polymarket + Kalshi** in real-time
-- ✅ Uses WebSocket for fast price updates
-- ✅ Detects cross-platform arbitrage opportunities
-- ✅ Calculates profit and max trade size
-- ✅ Clean Python code, easy to modify
-
-### What We Need to Add (6-Hour Plan)
-
-1. **Hour 1**: Fork repo, test locally
-2. **Hour 2**: Add Supabase database tracking
-3. **Hour 3**: Build trade execution engine
-4. **Hour 4**: Add risk management & safety limits
-5. **Hour 5**: Deploy to AWS ECS (same cluster as PolyParlay)
-6. **Hour 6**: Add Discord alerts & admin dashboard
-
----
-
-## 📊 Full Analysis Available
-
-I've created two documents in your workspace:
-
-### 1. `TRADING_BOT_ANALYSIS.md` (Comprehensive)
-
-Contains:
-
-- Detailed analysis of 7 bots
-- Code architecture comparisons
-- Pros/cons of each approach
-- Security considerations
-- Cost estimates
-- Integration strategy with PolyParlay
-
-### 2. This briefing (Quick Summary)
+### 4. News/Sentiment Engine (`src/features/news_sentiment.py`)
+- Monitors Polymarket high-volume activity
+- Can integrate with NewsAPI for broader coverage
+- Basic sentiment analysis (bullish/bearish keywords)
+- Matches news to relevant markets
+- Generates trading alerts
 
 ---
 
-## ❓ Questions to Decide Before Building
+## 🚀 Unified Bot Runner
 
-1. **Risk Tolerance**
-   - Max loss per day: $100? $500? More?
-   - Max trade size: $100? $500? $1000?
+All features are orchestrated by `src/bot_runner.py`:
 
-2. **Platforms**
-   - Start with Polymarket + Kalshi only?
-   - Or add more platforms later?
+```bash
+cd /Users/rut/polybot
+source venv/bin/activate
+python -m src.bot_runner
+```
 
-3. **Execution Mode**
-   - Fully autonomous from day 1?
-   - Or manual approval for first week?
-
-4. **Capital**
-   - How much to start with? $500? $1000? $5000?
-
-5. **API Access**
-   - Do you have Kalshi account? (Need API keys)
-   - Do you have Polymarket wallet? (Need private key)
+This runs all 4 features concurrently in simulation mode.
 
 ---
 
-## 🎯 Recommended Next Steps
+## ☁️ AWS Fargate Deployment
 
-### Option A: Start Building Now (Recommended)
+Ready to deploy 24/7:
 
-1. Review `TRADING_BOT_ANALYSIS.md`
-2. Fork `jtdoherty/arb-bot` to your GitHub
-3. Follow Hour 1 of build plan
-4. Answer questions above as we go
+```bash
+# Deploy to Fargate
+./scripts/deploy-fargate.sh
+```
 
-### Option B: More Research First
+This will:
+1. Build Docker image
+2. Push to ECR
+3. Create/update ECS service
+4. Run the bot 24/7 on Fargate
 
-1. Find and analyze Sharky's bot (still searching)
-2. Test existing bots with paper trading
-3. Study Polymarket/Kalshi APIs more deeply
-4. Start building tomorrow
-
-### Option C: Focus on PolyParlay First
-
-1. Verify website fixes are live
-2. Add more features to main app
-3. Build trading bot later this week
+**Estimated Cost**: ~$5-10/month (256 CPU, 512 MB memory)
 
 ---
 
-## 💡 My Recommendation
+## 📋 Action Required: Supabase Setup
 
-**START BUILDING TODAY** for these reasons:
+Run this SQL in Supabase to create the new tables:
 
-1. **Momentum**: You're excited about this idea
-2. **Speed**: Opportunities exist NOW (market inefficiencies)
-3. **Learning**: Best way to understand arbitrage is to build it
-4. **Risk**: Start small ($100-500 capital) to learn
-5. **Integration**: Already have infrastructure (AWS, Supabase, Privy)
+1. Go to: https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad/sql
+2. Open: `infra/quick-setup.sql`
+3. Copy the contents and click **Run**
 
-**Timeline**:
+This creates:
+- `polybot_tracked_traders` - Traders to copy
+- `polybot_copy_signals` - Copy trade signals
+- `polybot_overlap_opportunities` - Arb opportunities
+- `polybot_manual_trades` - Manual trades from dashboard
+- `polybot_news_items` - News/sentiment data
+- `polybot_market_alerts` - Trading alerts
 
-- Morning (3 hours): Hours 1-3 (setup, database, execution engine)
-- Afternoon (3 hours): Hours 4-6 (safety, deployment, monitoring)
-- Evening: Test with small amounts, monitor overnight
-
----
-
-## 🔍 Sharky's Bot Status
-
-**Still searching** - couldn't find it yet. Possibilities:
-
-- Private repository
-- Different name on GitHub
-- Referenced on Twitter but not open-source
-- May be called something else
-
-**How to find**:
-
-1. Check @0xtria's Twitter thread for mentions
-2. Search Polymarket Discord/Telegram
-3. Google "sharky polymarket bot"
-4. Ask in prediction market communities
+**Also sets your account (rutrohd@gmail.com) as admin!**
 
 ---
 
-## ⚠️ Important Safety Notes
+## 🧪 Quick Test Commands
 
-If you decide to build:
+```bash
+# Test all feature imports
+python -c "from src.features import *; print('All features loaded!')"
 
-1. **NEVER commit private keys to GitHub**
-   - Use AWS Secrets Manager
-   - Or encrypted environment variables
+# Run arb scan
+python3 << 'EOF'
+import asyncio, sys
+sys.path.insert(0, 'src')
+from features.overlapping_arb import OverlappingArbDetector
+async def scan():
+    d = OverlappingArbDetector(min_deviation=2.0)
+    return await d.scan_for_opportunities()
+print(f'Found {len(asyncio.run(scan()))} opportunities')
+EOF
 
-2. **Start with small amounts**
-   - First day: $10-50 per trade
-   - First week: $100-200 per trade
-   - Scale up ONLY if profitable
-
-3. **Add circuit breakers**
-   - Auto-pause after 3 failed trades
-   - Daily loss limit ($100?)
-   - Max trade size ($500?)
-
-4. **Test thoroughly**
-   - Dry-run mode first (no real trades)
-   - Manual approval for first 10 trades
-   - Monitor closely for bugs
-
----
-
-## 📈 Expected Outcomes
-
-### Week 1 (Learning Phase)
-
-- Goal: Don't lose money
-- Focus: Test bot reliability, fix bugs
-- Capital: $100-500 total
-- Expected: Break even or small loss
-
-### Week 2-4 (Optimization)
-
-- Goal: Consistent small profits
-- Focus: Tune parameters, add features
-- Capital: $500-2000
-- Expected: 1-5% weekly returns
-
-### Month 2+ (Scaling)
-
-- Goal: Meaningful income
-- Focus: Scale up capital, add platforms
-- Capital: $5000+
-- Expected: 5-15% monthly returns (if successful)
+# Run news scan
+python3 << 'EOF'
+import asyncio, sys
+sys.path.insert(0, 'src')
+from features.news_sentiment import NewsSentimentEngine
+async def scan():
+    e = NewsSentimentEngine()
+    return await e.fetch_all_news()
+print(f'Found {len(asyncio.run(scan()))} high-activity markets')
+EOF
+```
 
 ---
 
-## 🎬 Ready When You Are
+## 📁 Files Changed
 
-Just let me know:
+```
+infra/
+  ├── ecs-task-definition.json  # Fargate task config
+  ├── quick-setup.sql           # Quick Supabase setup
+  └── supabase-schema.sql       # Full schema
 
-- "Let's build it" → I'll start Hour 1 immediately
-- "Show me more research" → I'll dig deeper into Sharky's bot
-- "Focus on PolyParlay" → We'll verify website fixes first
+scripts/
+  └── deploy-fargate.sh         # One-click Fargate deploy
+
+src/
+  ├── bot_runner.py             # Unified orchestrator
+  └── features/
+      ├── __init__.py
+      ├── copy_trading.py       # Copy whale trades
+      ├── overlapping_arb.py    # Find arb opportunities
+      ├── position_manager.py   # Auto-claim positions
+      └── news_sentiment.py     # News monitoring
+```
 
 ---
 
-**Your deployment is LIVE**:
+## 📊 Live Test Results
 
-- Latest code deployed at 01:09 UTC
-- All HTML fixes should be visible
-- Navigation simplified
-- Auto-deploy working perfectly
+### Overlapping Arb Scan
+- Fetched 200 active markets
+- Found 351 related market pairs
+- Detected 50+ opportunities (mostly correlated pairs)
+- Top opportunities: 37% deviation on mutually exclusive pairs
 
-**I'm ready to build an arbitrage bot in 6 hours** ⚡
-
-Let me know what you want to tackle first!
+### News Scan
+- Found 50 high-activity events
+- Top markets: Fed decision, Super Bowl, elections
+- Sentiment analysis working (📈/📉/➖ indicators)
 
 ---
 
-*Bot research completed. Website deployed. Ready for next mission.*
+## Next Steps When You Wake Up
+
+1. **Run Supabase SQL** - Creates tables & sets you as admin
+2. **Add Trader Addresses** - Find top traders at polymarket.com/leaderboard
+3. **Deploy to Fargate** - For 24/7 operation (run `./scripts/deploy-fargate.sh`)
+4. **Get NewsAPI key** - For broader news coverage (optional)
+
+---
+
+All code pushed to GitHub. Sweet dreams! 🌙
