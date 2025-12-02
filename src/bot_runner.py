@@ -71,6 +71,9 @@ class PolybotRunner:
         # Initialize database
         self.db = Database()
         
+        # Blacklisted markets (fetched from Supabase)
+        self.blacklisted_markets: set = set()
+        
         # Initialize API clients for balance tracking
         self.polymarket_client = PolymarketClient()
         self.kalshi_client = KalshiClient(
@@ -136,6 +139,36 @@ class PolybotRunner:
         
         return balances
 
+    async def refresh_blacklist(self):
+        """Fetch blacklisted markets from Supabase."""
+        try:
+            if self.db and hasattr(self.db, '_client') and self.db._client:
+                result = self.db._client.table(
+                    "polybot_disabled_markets"
+                ).select("market_id").execute()
+                if result.data:
+                    self.blacklisted_markets = {
+                        m['market_id'] for m in result.data
+                    }
+                    logger.info(
+                        f"📋 Loaded {len(self.blacklisted_markets)} "
+                        f"blacklisted markets"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not fetch blacklist: {e}")
+
+    def is_market_blacklisted(self, market_id: str, title: str = "") -> bool:
+        """Check if a market is blacklisted."""
+        # Check by ID
+        if market_id in self.blacklisted_markets:
+            return True
+        # Check if any blacklisted term appears in title
+        title_lower = title.lower()
+        for blacklisted in self.blacklisted_markets:
+            if blacklisted.lower() in title_lower:
+                return True
+        return False
+
     async def initialize(self):
         """Initialize all enabled features."""
         logger.info("Initializing PolyBot features...")
@@ -143,6 +176,9 @@ class PolybotRunner:
         # Fetch initial balances
         logger.info("Fetching wallet balances...")
         await self.fetch_balances()
+        
+        # Fetch blacklisted markets
+        await self.refresh_blacklist()
         
         if self.enable_copy_trading:
             self.copy_trading = CopyTradingEngine(
@@ -256,6 +292,16 @@ class PolybotRunner:
             })
         except Exception as e:
             logger.error(f"Error logging arb opportunity: {e}")
+        
+        # Check if market is blacklisted
+        market_a_id = opp.market_a.condition_id or "unknown"
+        market_b_id = opp.market_b.condition_id or "unknown"
+        if self.is_market_blacklisted(market_a_id, opp.market_a.question):
+            logger.info(f"⛔ Skipping blacklisted market: {opp.market_a.question[:50]}...")
+            return
+        if self.is_market_blacklisted(market_b_id, opp.market_b.question):
+            logger.info(f"⛔ Skipping blacklisted market: {opp.market_b.question[:50]}...")
+            return
         
         # Paper trade if in simulation mode
         if self.simulation_mode and self.paper_trader:

@@ -63,19 +63,23 @@ export interface SimulationStats {
 }
 
 export interface BotStatus {
-  id: number;
+  id: number | string;
   is_running: boolean;
-  mode: string;
+  dry_run_mode?: boolean;
+  mode?: string;
+  require_approval?: boolean;
   last_heartbeat_at?: string;
   last_scan_at?: string;
   current_action?: string;
   error_message?: string;
-  polymarket_connected: boolean;
-  kalshi_connected: boolean;
+  polymarket_connected?: boolean;
+  kalshi_connected?: boolean;
   opportunities_this_session?: number;
   trades_this_session?: number;
   started_at?: string;
   updated_at?: string;
+  max_trade_size?: number;
+  min_profit_threshold?: number;
 }
 
 export interface Opportunity {

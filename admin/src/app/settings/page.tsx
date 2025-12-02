@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useBotStatus, useBotConfig } from '@/lib/hooks';
+import { useBotStatus, useBotConfig, useDisabledMarkets } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -86,7 +86,8 @@ export default function SettingsPage() {
   const [botEnabled, setBotEnabled] = useState(botStatus?.is_running ?? false);
   const [polymarketEnabled, setPolymarketEnabled] = useState(config?.polymarket_enabled ?? true);
   const [kalshiEnabled, setKalshiEnabled] = useState(config?.kalshi_enabled ?? true);
-  const [dryRunMode, setDryRunMode] = useState(botStatus?.mode === 'simulation');
+  const [dryRunMode, setDryRunMode] = useState(botStatus?.dry_run_mode ?? true);
+  const [requireApproval, setRequireApproval] = useState(false); // Will be stored in localStorage until DB column is added
   
   // Trading parameters
   const [minProfitPercent, setMinProfitPercent] = useState(config?.min_profit_percent ?? 1.0);
@@ -130,7 +131,7 @@ export default function SettingsPage() {
     try {
       await updateBotStatus.mutateAsync({
         is_running: botEnabled,
-        mode: dryRunMode ? 'simulation' : 'live',
+        dry_run_mode: dryRunMode,
       });
       await updateConfig.mutateAsync({
         polymarket_enabled: polymarketEnabled,
@@ -251,6 +252,27 @@ export default function SettingsPage() {
               </div>
             </div>
             <ToggleSwitch enabled={dryRunMode} onToggle={() => setDryRunMode(!dryRunMode)} size="lg" disabled={!isAdmin} />
+          </div>
+
+          {/* Approval Queue Mode */}
+          <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center",
+                requireApproval ? "bg-neon-purple/20" : "bg-gray-500/20"
+              )}>
+                <Lock className={cn("w-6 h-6", requireApproval ? "text-neon-purple" : "text-gray-500")} />
+              </div>
+              <div>
+                <h3 className="font-semibold">Require Manual Approval</h3>
+                <p className="text-sm text-gray-400">
+                  {requireApproval 
+                    ? 'All trades must be approved before execution' 
+                    : 'Bot trades autonomously without approval'}
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch enabled={requireApproval} onToggle={() => setRequireApproval(!requireApproval)} size="lg" disabled={!isAdmin} />
           </div>
         </div>
       </motion.div>
