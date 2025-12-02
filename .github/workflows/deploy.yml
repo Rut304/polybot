@@ -101,19 +101,66 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       
-      - name: Download task definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition $ECS_TASK_DEFINITION \
-            --query taskDefinition > task-definition.json
-      
       - name: Update image in task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          task-definition: task-definition.json
+          task-definition: aws/ecs-task-definition.json
           container-name: polybot
           image: ${{ needs.build.outputs.image }}
+      
+      - name: Create ECS service if not exists
+        run: |
+          # Check if polybot-service exists (only polybot, not other services)
+          SERVICE_EXISTS=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --query 'services[?serviceName==`polybot-service` && status==`ACTIVE`].serviceName' \
+            --output text || echo "")
+          
+          if [ -z "$SERVICE_EXISTS" ]; then
+            echo "Creating polybot-service for first time..."
+            
+            # Get default VPC and subnets
+            VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
+            SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[*].SubnetId' --output text | tr '\t' ',')
+            
+            # Get or create security group for polybot
+            SG_ID=$(aws ec2 describe-security-groups \
+              --filters "Name=group-name,Values=polybot-ecs-sg" "Name=vpc-id,Values=$VPC_ID" \
+              --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+            
+            if [ "$SG_ID" == "None" ] || [ -z "$SG_ID" ]; then
+              echo "Creating security group for polybot..."
+              SG_ID=$(aws ec2 create-security-group \
+                --group-name polybot-ecs-sg \
+                --description "Security group for PolyBot ECS tasks" \
+                --vpc-id $VPC_ID \
+                --query 'GroupId' --output text)
+              
+              # Allow outbound traffic only (bot doesn't need inbound)
+              aws ec2 authorize-security-group-egress \
+                --group-id $SG_ID \
+                --protocol -1 \
+                --cidr 0.0.0.0/0 2>/dev/null || true
+            fi
+            
+            # Register task definition first
+            aws ecs register-task-definition --cli-input-json file://aws/ecs-task-definition.json
+            
+            # Create the service
+            aws ecs create-service \
+              --cluster $ECS_CLUSTER \
+              --service-name $ECS_SERVICE \
+              --task-definition $ECS_TASK_DEFINITION \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}"
+            
+            echo "✅ polybot-service created successfully"
+          else
+            echo "polybot-service already exists, will update"
+          fi
       
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1

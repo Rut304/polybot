@@ -4,61 +4,44 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/polybotTaskRole",
+  "executionRoleArn": "arn:aws:iam::250935838858:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::250935838858:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "polybot",
-      "image": "YOUR_ECR_URL/polybot:latest",
+      "image": "250935838858.dkr.ecr.us-east-1.amazonaws.com/polybot:latest",
       "essential": true,
-      "portMappings": [
-        {
-          "containerPort": 8080,
-          "protocol": "tcp"
-        }
-      ],
       "environment": [
-        {
-          "name": "DRY_RUN",
-          "value": "true"
-        },
-        {
-          "name": "MIN_PROFIT_PERCENT",
-          "value": "1.0"
-        },
-        {
-          "name": "MAX_TRADE_SIZE",
-          "value": "100.0"
-        },
-        {
-          "name": "MAX_DAILY_LOSS",
-          "value": "50.0"
-        }
+        { "name": "DRY_RUN", "value": "true" },
+        { "name": "MIN_PROFIT_PERCENT", "value": "1.0" },
+        { "name": "MAX_TRADE_SIZE", "value": "100.0" },
+        { "name": "MAX_DAILY_LOSS", "value": "50.0" },
+        { "name": "SCAN_INTERVAL", "value": "2.0" }
       ],
       "secrets": [
         {
-          "name": "POLYMARKET_PRIVATE_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/polymarket-key"
+          "name": "POLYMARKET_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:250935838858:secret:polybot/polymarket-api-key-zrdOhf"
+        },
+        {
+          "name": "POLYMARKET_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:250935838858:secret:polybot/polymarket-secret-PId1jD"
         },
         {
           "name": "KALSHI_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/kalshi-api-key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:250935838858:secret:polybot/kalshi-api-key-3eDaUX"
         },
         {
           "name": "KALSHI_PRIVATE_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/kalshi-private-key"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:250935838858:secret:polybot/kalshi-private-key-U5bjhk"
         },
         {
           "name": "SUPABASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/supabase-url"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:250935838858:secret:polybot/supabase-url-wc3t4e"
         },
         {
           "name": "SUPABASE_KEY",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/supabase-key"
-        },
-        {
-          "name": "DISCORD_WEBHOOK",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:YOUR_ACCOUNT_ID:secret:polybot/discord-webhook"
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:250935838858:secret:polybot/supabase-key-WmEL8Z"
         }
       ],
       "logConfiguration": {
@@ -66,15 +49,9 @@
         "options": {
           "awslogs-group": "/ecs/polybot",
           "awslogs-region": "us-east-1",
-          "awslogs-stream-prefix": "ecs"
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
         }
-      },
-      "healthCheck": {
-        "command": ["CMD-SHELL", "python -c 'print(\"ok\")' || exit 1"],
-        "interval": 30,
-        "timeout": 5,
-        "retries": 3,
-        "startPeriod": 60
       }
     }
   ]
