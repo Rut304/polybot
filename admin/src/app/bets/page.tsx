@@ -205,24 +205,26 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
             >
               <div className="pt-4 mt-4 border-t border-dark-border space-y-3">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
+                  <div className="overflow-hidden">
                     <p className="text-gray-500">Trade Type</p>
-                    <p className="font-medium">{bet.trade_type}</p>
+                    <p className="font-medium truncate" title={bet.trade_type}>
+                      {bet.trade_type.replace('realistic_arb_', '').replace('_', ' → ')}
+                    </p>
                   </div>
                   <div>
                     <p className="text-gray-500">Expected ROI</p>
                     <p className="font-medium">{formatPercent(bet.expected_profit_pct)}</p>
                   </div>
                   {isPoly && (
-                    <div>
+                    <div className="overflow-hidden">
                       <p className="text-gray-500">Polymarket ID</p>
-                      <p className="font-mono text-xs truncate">{bet.polymarket_token_id}</p>
+                      <p className="font-mono text-xs truncate" title={bet.polymarket_token_id}>{bet.polymarket_token_id}</p>
                     </div>
                   )}
                   {isKalshi && (
-                    <div>
+                    <div className="overflow-hidden">
                       <p className="text-gray-500">Kalshi Ticker</p>
-                      <p className="font-mono text-xs">{bet.kalshi_ticker}</p>
+                      <p className="font-mono text-xs truncate" title={bet.kalshi_ticker}>{bet.kalshi_ticker}</p>
                     </div>
                   )}
                 </div>
@@ -349,9 +351,16 @@ export default function BetsPage() {
       if (!title.includes(searchLower)) return false;
     }
 
-    // Platform filter
-    if (filter === 'polymarket' && !bet.polymarket_token_id) return false;
-    if (filter === 'kalshi' && !bet.kalshi_ticker) return false;
+    // Platform filter - check trade_type for actual platform used
+    const tradeType = bet.trade_type?.toLowerCase() || '';
+    if (filter === 'polymarket') {
+      // Show only if it's purely polymarket or involves polymarket
+      if (!tradeType.includes('polymarket') && !bet.polymarket_token_id) return false;
+    }
+    if (filter === 'kalshi') {
+      // Show only if it involves kalshi
+      if (!tradeType.includes('kalshi') && !bet.kalshi_ticker) return false;
+    }
 
     // Status filter
     if (statusFilter !== 'all' && bet.outcome !== statusFilter) return false;

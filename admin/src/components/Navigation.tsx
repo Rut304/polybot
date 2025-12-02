@@ -14,6 +14,7 @@ import {
   LogOut,
   Eye,
   Shield,
+  Store,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,7 @@ import { useAuth } from '@/lib/auth';
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/bets', label: 'My Bets', icon: Wallet },
+  { href: '/markets', label: 'Markets', icon: Store },
   { href: '/analytics', label: 'Analytics', icon: TrendingUp },
   { href: '/insights', label: 'AI Insights', icon: Brain },
   { href: '/settings', label: 'Settings', icon: Settings },
