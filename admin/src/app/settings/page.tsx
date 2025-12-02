@@ -13,6 +13,7 @@ import {
   Save,
   RotateCcw,
   Lock,
+  Trash2,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -95,6 +96,7 @@ export default function SettingsPage() {
 
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   // Mutation to update bot status
   const updateBotStatus = useMutation({
@@ -148,6 +150,34 @@ export default function SettingsPage() {
       setShowConfirm('bot');
     } else {
       setBotEnabled(true);
+    }
+  };
+
+  // Reset simulation - clears all trades and resets balance
+  const handleResetSimulation = async () => {
+    setResetting(true);
+    try {
+      // Delete all simulated trades
+      await supabase.from('polybot_simulated_trades').delete().neq('id', 0);
+      // Delete all manual trades
+      await supabase.from('polybot_manual_trades').delete().neq('id', 0);
+      // Reset the balance in status
+      await supabase.from('polybot_status').update({ 
+        simulated_balance: 1000,
+        total_pnl: 0,
+        trades_today: 0,
+        wins: 0,
+        losses: 0,
+      }).eq('id', 1);
+      // Invalidate queries to refresh UI
+      queryClient.invalidateQueries({ queryKey: ['simulatedTrades'] });
+      queryClient.invalidateQueries({ queryKey: ['manualTrades'] });
+      queryClient.invalidateQueries({ queryKey: ['botStatus'] });
+      setShowConfirm(null);
+    } catch (error) {
+      console.error('Reset failed:', error);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -389,6 +419,39 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* Danger Zone - Reset Simulation */}
+      {isAdmin && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-8 card border-red-500/30"
+        >
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-red-400">
+            <AlertTriangle className="w-5 h-5" />
+            Danger Zone
+          </h2>
+          
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-red-400">Reset Simulation</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Delete all paper trades and reset balance to $1,000. This cannot be undone.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowConfirm('reset')}
+                className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Reset All Data
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
@@ -398,21 +461,35 @@ export default function SettingsPage() {
             className="bg-dark-card border border-dark-border rounded-2xl p-6 max-w-md mx-4"
           >
             <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="w-8 h-8 text-yellow-500" />
-              <h3 className="text-xl font-semibold">Confirm Action</h3>
+              <AlertTriangle className={cn(
+                "w-8 h-8",
+                showConfirm === 'reset' ? "text-red-500" : "text-yellow-500"
+              )} />
+              <h3 className="text-xl font-semibold">
+                {showConfirm === 'reset' ? 'Reset All Data?' : 'Confirm Action'}
+              </h3>
             </div>
             <p className="text-gray-400 mb-6">
-              Are you sure you want to disable the bot? Any pending trades will continue, but no new trades will be made.
+              {showConfirm === 'reset' 
+                ? 'This will delete ALL paper trades and reset your simulated balance to $1,000. This action cannot be undone!'
+                : 'Are you sure you want to disable the bot? Any pending trades will continue, but no new trades will be made.'}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setBotEnabled(false);
-                  setShowConfirm(null);
+                  if (showConfirm === 'reset') {
+                    handleResetSimulation();
+                  } else {
+                    setBotEnabled(false);
+                    setShowConfirm(null);
+                  }
                 }}
-                className="flex-1 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors"
+                disabled={resetting}
+                className="flex-1 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
               >
-                Yes, Disable
+                {showConfirm === 'reset' 
+                  ? (resetting ? 'Resetting...' : 'Yes, Reset Everything')
+                  : 'Yes, Disable'}
               </button>
               <button
                 onClick={() => setShowConfirm(null)}
