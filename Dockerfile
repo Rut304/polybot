@@ -48,6 +48,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
 # Environment variables (can be overridden)
 ENV PYTHONUNBUFFERED=1
 ENV DRY_RUN=true
+ENV PYTHONPATH=/app
 
-# Run the bot
-CMD ["python", "-m", "src.main"]
+# Run the unified bot runner
+CMD ["python", "-m", "src.bot_runner"]
