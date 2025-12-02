@@ -166,7 +166,9 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
   const worstTrade = parseFloat(statsJson?.worst_trade_loss || '0');
   const totalPnL = stats?.total_pnl || 0;
   const totalTrades = stats?.total_trades || 0;
-  const avgPnL = totalTrades > 0 ? totalPnL / totalTrades : 0;
+  const avgPnL = parseFloat(statsJson?.avg_trade_pnl || '0') || (totalTrades > 0 ? totalPnL / totalTrades : 0);
+  const totalLosses = parseFloat(statsJson?.total_losses || '0');
+  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
   
   const recentTrades = trades.slice(0, 10);
   const wonTrades = recentTrades.filter(t => t.outcome === 'won').length;
@@ -175,10 +177,12 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <StatBox label="Total P&L" value={formatCurrency(totalPnL)} color={totalPnL >= 0 ? 'green' : 'red'} />
-        <StatBox label="Avg P&L per Trade" value={formatCurrency(avgPnL)} color={avgPnL >= 0 ? 'green' : 'red'} />
-        <StatBox label="Best Trade" value={formatCurrency(bestTrade)} color="green" icon={TrendingUp} />
-        <StatBox label="Worst Trade" value={formatCurrency(Math.abs(worstTrade))} color="red" icon={TrendingDown} />
+        <StatBox label="Net P&L" value={formatCurrency(totalPnL)} color={totalPnL >= 0 ? 'green' : 'red'} />
+        <StatBox label="Total Losses" value={formatCurrency(totalLosses)} color="red" icon={TrendingDown} />
+        <StatBox label="Fees Paid" value={formatCurrency(totalFees)} color="yellow" />
+        <StatBox label="Avg P&L / Trade" value={formatCurrency(avgPnL)} color={avgPnL >= 0 ? 'green' : 'red'} />
+        <StatBox label="Best Trade" value={`+${formatCurrency(bestTrade)}`} color="green" icon={TrendingUp} />
+        <StatBox label="Worst Trade" value={`-${formatCurrency(Math.abs(worstTrade))}`} color="red" icon={TrendingDown} />
       </div>
 
       <div className="bg-dark-border/50 rounded-xl p-4">

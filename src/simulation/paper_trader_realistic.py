@@ -7,7 +7,9 @@ Simulates real trading conditions including:
 - Execution failures (opportunities disappear)
 - Partial fills (can't always get full size)
 - Platform fees (Polymarket/Kalshi fees)
-- Realistic profit expectations (most arb opportunities are thin)
+- Market resolution risk (markets can resolve against you)
+- Time decay and opportunity expiration
+- FALSE POSITIVE DETECTION - rejects unrealistic "opportunities"
 """
 
 import json
@@ -30,6 +32,7 @@ class TradeOutcome(Enum):
     FAILED_EXECUTION = "failed_execution"
     PARTIAL_FILL = "partial_fill"
     EXPIRED = "expired"
+    REJECTED_FALSE_POSITIVE = "rejected_false_positive"
 
 
 @dataclass
@@ -152,12 +155,18 @@ class RealisticStats:
             "win_rate_pct": round(self.win_rate, 2),
             "execution_success_rate_pct": round(self.execution_success_rate, 2),
             "total_fees_paid": str(self.total_fees_paid),
+            "total_losses": str(self.total_losses),
             "failed_executions": self.failed_executions,
             "best_trade_profit": str(self.best_trade_pnl),
             "worst_trade_loss": str(self.worst_trade_pnl),
+            "avg_trade_pnl": str(self.avg_trade_pnl),
             "largest_opportunity_seen_pct": "0",
-            "first_opportunity_at": self.first_trade_at.isoformat() if self.first_trade_at else None,
-            "last_opportunity_at": self.last_trade_at.isoformat() if self.last_trade_at else None,
+            "first_opportunity_at": (
+                self.first_trade_at.isoformat() if self.first_trade_at else None
+            ),
+            "last_opportunity_at": (
+                self.last_trade_at.isoformat() if self.last_trade_at else None
+            ),
         }
 
 
@@ -166,28 +175,42 @@ class RealisticPaperTrader:
     Realistic paper trading simulator that models real-world trading conditions.
     
     Key realistic factors:
-    1. Slippage: Prices move 0.5-3% by the time you execute
-    2. Spread cost: Bid-ask spread typically 1-2% on prediction markets
-    3. Execution failure: 20-40% of opportunities disappear before execution
-    4. Partial fills: Only get 50-100% of intended size
-    5. Platform fees: ~2% on Polymarket, ~7% on Kalshi profits
-    6. Minimum profit threshold: Need >3% to cover costs
+    1. FALSE POSITIVE FILTER: Rejects spreads > 15% as likely false correlations
+    2. Slippage: Prices move 0.5-3% by the time you execute
+    3. Spread cost: Bid-ask spread typically 1-2% on prediction markets
+    4. Execution failure: 20-40% of opportunities disappear before execution
+    5. Partial fills: Only get 50-100% of intended size
+    6. Platform fees: ~2% on Polymarket, ~7% on Kalshi profits
+    7. RESOLUTION RISK: 25% chance market resolves against your position
+    8. Minimum profit threshold: Need >3% to cover costs
     """
     
-    # Realistic simulation parameters
+    # ========== REALISTIC CONSTRAINTS ==========
+    # Maximum believable arbitrage spread (anything higher is likely false positive)
+    MAX_REALISTIC_SPREAD_PCT = 15.0  # Real arb opportunities are typically 0.5-10%
+    
+    # Minimum spread to bother trading (after costs)
+    MIN_PROFIT_THRESHOLD_PCT = 3.0  # Need at least 3% expected to trade
+    
+    # ========== EXECUTION SIMULATION ==========
     SLIPPAGE_MIN_PCT = 0.5      # Minimum price movement during execution
     SLIPPAGE_MAX_PCT = 3.0      # Maximum price movement
     SPREAD_COST_PCT = 1.5       # Average bid-ask spread cost
-    EXECUTION_FAILURE_RATE = 0.30  # 30% of trades fail to execute
+    EXECUTION_FAILURE_RATE = 0.35  # 35% of trades fail to execute
     PARTIAL_FILL_CHANCE = 0.25  # 25% chance of partial fill
     PARTIAL_FILL_MIN_PCT = 0.40 # Minimum fill is 40% of intended
     
-    # Platform fees (approximate)
+    # ========== MARKET RESOLUTION RISK ==========
+    # Even "arbitrage" bets can lose if markets are not truly correlated
+    RESOLUTION_LOSS_RATE = 0.25  # 25% of "arb" bets resolve as losses
+    LOSS_SEVERITY_MIN = 0.3     # Minimum loss is 30% of position
+    LOSS_SEVERITY_MAX = 1.0     # Maximum loss is 100% of position (total loss)
+    
+    # ========== PLATFORM FEES ==========
     POLYMARKET_FEE_PCT = 2.0    # ~2% on profits
     KALSHI_FEE_PCT = 7.0        # ~7% on profits (higher fees)
     
-    # Trading parameters
-    MIN_PROFIT_THRESHOLD_PCT = 2.0  # Need at least 2% expected to trade
+    # ========== POSITION SIZING ==========
     MAX_POSITION_PCT = 5.0      # Max 5% of balance per trade
     MAX_POSITION_USD = 50.0     # Cap at $50 per trade
     MIN_POSITION_USD = 5.0      # Minimum trade size
@@ -225,11 +248,16 @@ class RealisticPaperTrader:
     def _simulate_execution(
         self,
         original_spread_pct: Decimal,
-    ) -> tuple[bool, str, Decimal]:
+    ) -> tuple[bool, str, Decimal, bool]:
         """
         Simulate whether a trade executes successfully.
         
-        Returns: (success, reason, actual_profit_multiplier)
+        Returns: (success, reason, actual_profit_multiplier, is_loss)
+        
+        Key scenarios:
+        1. Execution failure (35%) - opportunity disappears
+        2. Successful but losing trade (25% of executed) - market resolves against
+        3. Successful winning trade (remaining) - profit after costs
         """
         # Check if opportunity still exists (execution failure)
         if random.random() < self.EXECUTION_FAILURE_RATE:
@@ -240,13 +268,36 @@ class RealisticPaperTrader:
                 "Order rejected by platform",
                 "Network delay caused missed opportunity",
             ]
-            return False, random.choice(reasons), Decimal("0")
+            return False, random.choice(reasons), Decimal("0"), False
         
-        # Calculate realistic profit after costs
+        # ========== MARKET RESOLUTION RISK ==========
+        # Even if we "execute" the arb, markets can resolve against us
+        # This happens when the "correlation" we detected was actually wrong
+        if random.random() < self.RESOLUTION_LOSS_RATE:
+            # Simulate a loss - market resolved against our position
+            loss_severity = random.uniform(
+                self.LOSS_SEVERITY_MIN,
+                self.LOSS_SEVERITY_MAX
+            )
+            loss_pct = Decimal(str(-loss_severity * 100))
+            
+            loss_reasons = [
+                "Market A resolved opposite to expected correlation",
+                "Market B moved against position before resolution",
+                "Detected correlation was spurious - not true arbitrage",
+                "Markets resolved independently - no actual relationship",
+                "Time decay eroded position before resolution",
+                "Liquidity dried up, forced to close at loss",
+            ]
+            return True, random.choice(loss_reasons), loss_pct, True
+        
+        # ========== CALCULATE REALISTIC PROFIT ==========
         # Original spread minus slippage, spread costs, and fees
-        avg_slippage = Decimal(str((self.SLIPPAGE_MIN_PCT + self.SLIPPAGE_MAX_PCT) / 2))
+        slippage_range = (self.SLIPPAGE_MIN_PCT + self.SLIPPAGE_MAX_PCT) / 2
+        avg_slippage = Decimal(str(slippage_range))
         spread_cost = Decimal(str(self.SPREAD_COST_PCT))
-        avg_fee = Decimal(str((self.POLYMARKET_FEE_PCT + self.KALSHI_FEE_PCT) / 2))
+        fee_range = (self.POLYMARKET_FEE_PCT + self.KALSHI_FEE_PCT) / 2
+        avg_fee = Decimal(str(fee_range))
         
         # Actual profit = original spread - slippage - spread - fees
         actual_profit_pct = original_spread_pct - avg_slippage - spread_cost
@@ -255,11 +306,11 @@ class RealisticPaperTrader:
         if actual_profit_pct > 0:
             actual_profit_pct = actual_profit_pct * (1 - avg_fee / 100)
         
-        # Determine if trade is profitable
+        # Determine if trade is profitable after costs
         if actual_profit_pct <= 0:
-            return True, "Executed but costs exceeded spread", actual_profit_pct
+            return True, "Costs exceeded spread - breakeven/loss", actual_profit_pct, True
         
-        return True, "Successful execution", actual_profit_pct
+        return True, "Successful execution", actual_profit_pct, False
     
     def _calculate_position_size(self) -> Decimal:
         """Calculate conservative position size"""
@@ -292,11 +343,13 @@ class RealisticPaperTrader:
         Simulate a realistic trade on an arbitrage opportunity.
         
         This applies all realistic factors:
+        - FALSE POSITIVE FILTER: Rejects unrealistically large spreads
         - Execution failure chance
         - Slippage on prices
         - Spread costs
         - Platform fees
         - Partial fills
+        - MARKET RESOLUTION RISK: Trades can lose money!
         """
         now = datetime.now(timezone.utc)
         
@@ -306,11 +359,24 @@ class RealisticPaperTrader:
             self.stats.first_trade_at = now
         self.stats.last_trade_at = now
         
+        # ========== FALSE POSITIVE FILTER ==========
+        # Reject opportunities with unrealistically large spreads
+        # Real arbitrage is typically 0.5-10%, anything >15% is likely
+        # a false positive from incorrectly correlated markets
+        if float(spread_pct) > self.MAX_REALISTIC_SPREAD_PCT:
+            self.stats.opportunities_skipped_too_small += 1
+            logger.info(
+                f"🚫 REJECTED (false positive): {spread_pct:.1f}% spread "
+                f"exceeds {self.MAX_REALISTIC_SPREAD_PCT}% max - "
+                f"likely not true arbitrage"
+            )
+            return None
+        
         # Skip if spread too small to be profitable after costs
         if float(spread_pct) < self.MIN_PROFIT_THRESHOLD_PCT:
             self.stats.opportunities_skipped_too_small += 1
             logger.debug(
-                f"Skipping opportunity: {spread_pct:.2f}% spread "
+                f"Skipping: {spread_pct:.2f}% spread "
                 f"below {self.MIN_PROFIT_THRESHOLD_PCT}% threshold"
             )
             return None
@@ -319,7 +385,9 @@ class RealisticPaperTrader:
         min_size = Decimal(str(self.MIN_POSITION_USD))
         if self.stats.current_balance < min_size:
             self.stats.opportunities_skipped_insufficient_funds += 1
-            logger.warning(f"Insufficient funds: ${self.stats.current_balance:.2f}")
+            logger.warning(
+                f"Insufficient funds: ${self.stats.current_balance:.2f}"
+            )
             return None
         
         # Calculate position size
@@ -328,8 +396,10 @@ class RealisticPaperTrader:
             self.stats.opportunities_skipped_insufficient_funds += 1
             return None
         
-        # Simulate execution
-        success, reason, actual_profit_pct = self._simulate_execution(spread_pct)
+        # Simulate execution (now returns is_loss flag)
+        success, reason, actual_profit_pct, is_loss = self._simulate_execution(
+            spread_pct
+        )
         
         # Create trade record
         trade = SimulatedTrade(
@@ -348,18 +418,18 @@ class RealisticPaperTrader:
         )
         
         if not success:
-            # Execution failed
+            # Execution failed - no money lost, opportunity just missed
             trade.outcome = TradeOutcome.FAILED_EXECUTION
             trade.outcome_reason = reason
             trade.resolved_at = now
             self.stats.failed_executions += 1
             
             logger.info(
-                f"❌ FAILED: {trade.id} | {reason} | "
-                f"Original spread: {spread_pct:.2f}%"
+                f"⚠️ FAILED: {trade.id} | {reason} | "
+                f"Spread was: {spread_pct:.2f}%"
             )
         else:
-            # Execution succeeded (may still be losing trade)
+            # Execution succeeded - but could be win or loss
             trade.executed_size_usd = position_size
             
             # Calculate slippage-adjusted prices
@@ -369,13 +439,16 @@ class RealisticPaperTrader:
             trade.executed_price_b = price_b + slippage_b
             
             # Calculate fees (on position size)
-            trade.fee_a_usd = position_size * Decimal(str(self.POLYMARKET_FEE_PCT / 100))
-            trade.fee_b_usd = position_size * Decimal(str(self.KALSHI_FEE_PCT / 100))
-            trade.total_fees_usd = (trade.fee_a_usd + trade.fee_b_usd) / 2  # Avg of both
+            fee_a = Decimal(str(self.POLYMARKET_FEE_PCT / 100))
+            fee_b = Decimal(str(self.KALSHI_FEE_PCT / 100))
+            trade.fee_a_usd = position_size * fee_a
+            trade.fee_b_usd = position_size * fee_b
+            trade.total_fees_usd = (trade.fee_a_usd + trade.fee_b_usd) / 2
             
             # Calculate P&L
-            trade.gross_profit_usd = position_size * actual_profit_pct / Decimal("100")
-            trade.net_profit_usd = trade.gross_profit_usd - trade.total_fees_usd
+            gross_pnl = position_size * actual_profit_pct / Decimal("100")
+            trade.gross_profit_usd = gross_pnl
+            trade.net_profit_usd = gross_pnl - trade.total_fees_usd
             
             if position_size > 0:
                 trade.net_profit_pct = (trade.net_profit_usd / position_size) * 100
@@ -383,12 +456,32 @@ class RealisticPaperTrader:
             trade.resolved_at = now
             trade.outcome_reason = reason
             
-            # Update stats based on outcome
+            # Update stats
             self.stats.successful_executions += 1
             self.stats.opportunities_traded += 1
             self.stats.total_fees_paid += trade.total_fees_usd
             
-            if trade.net_profit_usd > 0:
+            # ========== HANDLE WIN VS LOSS ==========
+            if is_loss or trade.net_profit_usd < 0:
+                # LOSING TRADE
+                trade.outcome = TradeOutcome.LOST
+                self.stats.losing_trades += 1
+                loss_amount = abs(trade.net_profit_usd)
+                self.stats.total_losses += loss_amount
+                self.stats.current_balance -= loss_amount
+                
+                if trade.net_profit_usd < self.stats.worst_trade_pnl:
+                    self.stats.worst_trade_pnl = trade.net_profit_usd
+                
+                logger.info(
+                    f"❌ LOST: {trade.id} | "
+                    f"Size: ${position_size:.2f} | "
+                    f"Loss: -${loss_amount:.2f} ({trade.net_profit_pct:.1f}%) | "
+                    f"Reason: {reason} | "
+                    f"Balance: ${self.stats.current_balance:.2f}"
+                )
+            elif trade.net_profit_usd > 0:
+                # WINNING TRADE
                 trade.outcome = TradeOutcome.WON
                 self.stats.winning_trades += 1
                 self.stats.total_gross_profit += trade.gross_profit_usd
@@ -401,28 +494,14 @@ class RealisticPaperTrader:
                 logger.info(
                     f"✅ WON: {trade.id} | "
                     f"Size: ${position_size:.2f} | "
-                    f"Net P&L: +${trade.net_profit_usd:.2f} ({trade.net_profit_pct:.1f}%) | "
-                    f"Fees: ${trade.total_fees_usd:.2f} | "
-                    f"Balance: ${self.stats.current_balance:.2f}"
-                )
-            elif trade.net_profit_usd < 0:
-                trade.outcome = TradeOutcome.LOST
-                self.stats.losing_trades += 1
-                self.stats.total_losses += abs(trade.net_profit_usd)
-                self.stats.current_balance += trade.net_profit_usd  # Subtract loss
-                
-                if trade.net_profit_usd < self.stats.worst_trade_pnl:
-                    self.stats.worst_trade_pnl = trade.net_profit_usd
-                
-                logger.info(
-                    f"❌ LOST: {trade.id} | "
-                    f"Size: ${position_size:.2f} | "
-                    f"Net P&L: ${trade.net_profit_usd:.2f} ({trade.net_profit_pct:.1f}%) | "
+                    f"Net P&L: +${trade.net_profit_usd:.2f} "
+                    f"({trade.net_profit_pct:.1f}%) | "
                     f"Fees: ${trade.total_fees_usd:.2f} | "
                     f"Balance: ${self.stats.current_balance:.2f}"
                 )
             else:
-                trade.outcome = TradeOutcome.WON  # Breakeven counts as win
+                # BREAKEVEN
+                trade.outcome = TradeOutcome.WON
                 self.stats.breakeven_trades += 1
                 logger.info(f"➖ BREAKEVEN: {trade.id}")
         
@@ -433,11 +512,10 @@ class RealisticPaperTrader:
         await self._save_trade_to_db(trade)
         
         # Update average trade P&L
-        total_trades = self.stats.winning_trades + self.stats.losing_trades
-        if total_trades > 0:
-            self.stats.avg_trade_pnl = (
-                self.stats.total_net_profit - self.stats.total_losses
-            ) / total_trades
+        total = self.stats.winning_trades + self.stats.losing_trades
+        if total > 0:
+            net = self.stats.total_net_profit - self.stats.total_losses
+            self.stats.avg_trade_pnl = net / total
         
         return trade
     

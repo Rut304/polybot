@@ -52,7 +52,9 @@ export interface SimulationStats {
     // Realistic paper trader fields
     execution_success_rate_pct?: number;
     total_fees_paid?: string;
+    total_losses?: string;
     failed_executions?: number;
+    avg_trade_pnl?: string;
   };
   simulated_balance: number;
   total_pnl: number;
