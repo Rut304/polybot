@@ -11,6 +11,7 @@ import signal
 import sys
 import os
 from datetime import datetime
+from decimal import Decimal
 
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,6 +20,7 @@ from src.config import config
 from src.clients import PolymarketClient, KalshiClient
 from src.arbitrage import ArbitrageDetector, TradeExecutor
 from src.database import Database
+from src.simulation import PaperTrader
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +43,7 @@ class PolyBot:
     - Arbitrage detector
     - Trade executor
     - Database persistence
+    - Paper trading simulator
     """
     
     def __init__(self):
@@ -80,8 +83,19 @@ class PolyBot:
             key=config.database.key,
         )
         
+        # Paper trader for simulation mode
+        self.paper_trader = PaperTrader(
+            db_client=self.database,
+            starting_balance=config.trading.max_trade_size * 10,  # $1000 default
+            min_profit_threshold=config.trading.min_profit_percent,
+        )
+        
         # Market pairs to monitor (will be populated dynamically)
         self.market_pairs = []
+        
+        # Stats tracking
+        self._stats_interval = 60  # Print stats every 60 seconds
+        self._last_stats_time = 0
     
     async def discover_markets(self):
         """Discover matching markets across platforms."""
@@ -127,6 +141,7 @@ class PolyBot:
     async def run_arbitrage_loop(self):
         """Main arbitrage detection and execution loop."""
         logger.info("Starting arbitrage loop...")
+        import time
         
         while not self._shutdown_event.is_set():
             try:
@@ -150,10 +165,25 @@ class PolyBot:
                         # Log to database
                         self.database.log_opportunity(opp.to_dict())
                         
-                        # Execute if conditions met
+                        # PAPER TRADING: Record for simulation
+                        await self.paper_trader.simulate_instant_profit(
+                            polymarket_token_id=opp.buy_market_id,
+                            polymarket_market_title=opp.buy_market_name or "",
+                            kalshi_ticker=opp.sell_market_id,
+                            kalshi_market_title=opp.sell_market_name or "",
+                            poly_yes=Decimal(str(opp.buy_price)),
+                            poly_no=Decimal(str(1 - opp.buy_price)),
+                            kalshi_yes=Decimal(str(opp.sell_price)),
+                            kalshi_no=Decimal(str(1 - opp.sell_price)),
+                            profit_pct=Decimal(str(opp.profit_percent)),
+                            trade_type=f"{opp.buy_platform}_to_{opp.sell_platform}",
+                        )
+                        
+                        # Execute if conditions met (only in non-dry-run mode)
                         can_trade, reason = self.executor.can_trade()
-                        if can_trade:
-                            buy_trade, sell_trade, status = await self.executor.execute_opportunity(opp)
+                        if can_trade and not config.trading.dry_run:
+                            buy_trade, sell_trade, status = \
+                                await self.executor.execute_opportunity(opp)
                             
                             if buy_trade:
                                 self.database.log_trade(buy_trade.to_dict())
@@ -168,6 +198,14 @@ class PolyBot:
                 # Update heartbeat
                 self.database.heartbeat()
                 
+                # Print paper trading stats periodically
+                current_time = time.time()
+                if current_time - self._last_stats_time > self._stats_interval:
+                    self._last_stats_time = current_time
+                    stats = self.paper_trader.get_stats_summary()
+                    logger.info(stats)
+                    await self.paper_trader.save_stats_to_db()
+                
                 # Wait before next scan
                 await asyncio.sleep(config.trading.scan_interval)
                 
@@ -175,6 +213,9 @@ class PolyBot:
                 break
             except Exception as e:
                 logger.error(f"Arbitrage loop error: {e}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(5)
                 await asyncio.sleep(5)
     
     async def start(self):
@@ -236,6 +277,10 @@ class PolyBot:
         try:
             await self._shutdown_event.wait()
         finally:
+            # Print final paper trading stats
+            logger.info("\n" + self.paper_trader.get_stats_summary())
+            await self.paper_trader.save_stats_to_db()
+            
             # Cleanup
             for task in tasks:
                 task.cancel()

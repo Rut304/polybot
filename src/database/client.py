@@ -292,6 +292,110 @@ class Database:
             
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")
+    
+    # ==================== Generic Async Operations ====================
+    
+    async def insert(self, table: str, data: Dict[str, Any]) -> Optional[Dict]:
+        """
+        Insert a row into a table (async-compatible wrapper).
+        
+        Args:
+            table: Table name
+            data: Data to insert
+            
+        Returns:
+            Inserted row or None if failed
+        """
+        if not self._client:
+            logger.debug(f"Database not connected, skipping insert to {table}")
+            return None
+        
+        try:
+            result = self._client.table(table).insert(data).execute()
+            if result.data:
+                return result.data[0]
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to insert into {table}: {e}")
+            return None
+    
+    async def update(
+        self,
+        table: str,
+        data: Dict[str, Any],
+        filters: Dict[str, Any],
+    ) -> bool:
+        """
+        Update rows in a table (async-compatible wrapper).
+        
+        Args:
+            table: Table name
+            data: Data to update
+            filters: Column filters (equality matches)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._client:
+            logger.debug(f"Database not connected, skipping update to {table}")
+            return False
+        
+        try:
+            query = self._client.table(table).update(data)
+            for col, val in filters.items():
+                query = query.eq(col, val)
+            query.execute()
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update {table}: {e}")
+            return False
+    
+    async def select(
+        self,
+        table: str,
+        columns: str = "*",
+        filters: Optional[Dict[str, Any]] = None,
+        order_by: Optional[str] = None,
+        desc: bool = True,
+        limit: int = 100,
+    ) -> List[Dict]:
+        """
+        Select rows from a table (async-compatible wrapper).
+        
+        Args:
+            table: Table name
+            columns: Columns to select
+            filters: Optional equality filters
+            order_by: Optional column to order by
+            desc: Descending order if True
+            limit: Max rows to return
+            
+        Returns:
+            List of matching rows
+        """
+        if not self._client:
+            return []
+        
+        try:
+            query = self._client.table(table).select(columns)
+            
+            if filters:
+                for col, val in filters.items():
+                    query = query.eq(col, val)
+            
+            if order_by:
+                query = query.order(order_by, desc=desc)
+            
+            query = query.limit(limit)
+            result = query.execute()
+            
+            return result.data or []
+            
+        except Exception as e:
+            logger.error(f"Failed to select from {table}: {e}")
+            return []
 
 
 # SQL to create tables (run this in Supabase SQL Editor)
@@ -372,4 +476,67 @@ INSERT INTO polybot_status (id) VALUES (1) ON CONFLICT DO NOTHING;
 -- ALTER TABLE polybot_opportunities ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE polybot_trades ENABLE ROW LEVEL SECURITY;
 -- ALTER TABLE polybot_status ENABLE ROW LEVEL SECURITY;
+
+-- PolyBot Simulated Trades Table (Paper Trading)
+CREATE TABLE IF NOT EXISTS polybot_simulated_trades (
+    id BIGSERIAL PRIMARY KEY,
+    position_id TEXT UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Market info
+    polymarket_token_id TEXT,
+    polymarket_market_title TEXT,
+    kalshi_ticker TEXT,
+    kalshi_market_title TEXT,
+    
+    -- Prices at detection
+    polymarket_yes_price NUMERIC(10, 6),
+    polymarket_no_price NUMERIC(10, 6),
+    kalshi_yes_price NUMERIC(10, 6),
+    kalshi_no_price NUMERIC(10, 6),
+    
+    -- Trade details
+    trade_type TEXT,
+    position_size_usd NUMERIC(10, 2),
+    expected_profit_usd NUMERIC(10, 4),
+    expected_profit_pct NUMERIC(10, 4),
+    
+    -- Resolution
+    outcome TEXT DEFAULT 'pending',
+    actual_profit_usd NUMERIC(10, 4),
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    market_result TEXT,
+    resolution_notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_polybot_simulated_trades_created 
+    ON polybot_simulated_trades(created_at DESC);
+
+-- PolyBot Simulation Stats Snapshots
+CREATE TABLE IF NOT EXISTS polybot_simulation_stats (
+    id BIGSERIAL PRIMARY KEY,
+    snapshot_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    stats_json JSONB,
+    simulated_balance NUMERIC(12, 2),
+    total_pnl NUMERIC(12, 2),
+    total_trades INTEGER,
+    win_rate NUMERIC(5, 2)
+);
+
+CREATE INDEX IF NOT EXISTS idx_polybot_simulation_stats_snapshot 
+    ON polybot_simulation_stats(snapshot_at DESC);
+
+-- PolyBot Market Pairs (matched markets between platforms)
+CREATE TABLE IF NOT EXISTS polybot_market_pairs (
+    id BIGSERIAL PRIMARY KEY,
+    polymarket_token_id TEXT NOT NULL,
+    polymarket_question TEXT,
+    kalshi_ticker TEXT NOT NULL,
+    kalshi_title TEXT,
+    match_confidence NUMERIC(5, 4) DEFAULT 1.0,
+    is_verified BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(polymarket_token_id, kalshi_ticker)
+);
 """
