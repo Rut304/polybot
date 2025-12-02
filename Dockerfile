@@ -1,7 +1,8 @@
 # PolyBot Docker Image
 # Multi-stage build for smaller image size
+# Using Amazon ECR Public Gallery to avoid Docker Hub rate limits
 
-FROM python:3.11-slim as builder
+FROM public.ecr.aws/docker/library/python:3.11-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,7 +21,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 
 # Production image
-FROM python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.11-slim
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash polybot
