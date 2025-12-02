@@ -4,6 +4,7 @@ Handles persistence of opportunities, trades, and bot state.
 """
 
 import logging
+import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -29,16 +30,21 @@ class Database:
     """
     
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
-        self.url = url
-        self.key = key
+        # Auto-fetch from environment if not provided
+        self.url = url or os.getenv("SUPABASE_URL")
+        self.key = key or os.getenv("SUPABASE_KEY")
         self._client: Optional[Client] = None
         
-        if url and key and SUPABASE_AVAILABLE:
+        if self.url and self.key and SUPABASE_AVAILABLE:
             try:
-                self._client = create_client(url, key)
-                logger.info("Supabase client initialized")
+                self._client = create_client(self.url, self.key)
+                logger.info("✓ Supabase client initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize Supabase client: {e}")
+        elif not SUPABASE_AVAILABLE:
+            logger.warning("Supabase package not available - database features disabled")
+        else:
+            logger.warning(f"Supabase credentials missing (URL: {'set' if self.url else 'missing'}, KEY: {'set' if self.key else 'missing'}) - database features disabled")
     
     @property
     def is_connected(self) -> bool:
