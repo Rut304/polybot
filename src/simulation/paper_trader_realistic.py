@@ -140,7 +140,7 @@ class RealisticStats:
     
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "starting_balance": str(self.starting_balance),
+            "simulated_starting_balance": str(self.starting_balance),
             "simulated_current_balance": str(self.current_balance),
             "total_pnl": str(self.total_pnl),
             "roi_pct": round(self.roi_pct, 2),
@@ -148,12 +148,14 @@ class RealisticStats:
             "total_simulated_trades": self.opportunities_traded,
             "winning_trades": self.winning_trades,
             "losing_trades": self.losing_trades,
+            "pending_trades": 0,
             "win_rate_pct": round(self.win_rate, 2),
             "execution_success_rate_pct": round(self.execution_success_rate, 2),
             "total_fees_paid": str(self.total_fees_paid),
             "failed_executions": self.failed_executions,
             "best_trade_profit": str(self.best_trade_pnl),
             "worst_trade_loss": str(self.worst_trade_pnl),
+            "largest_opportunity_seen_pct": "0",
             "first_opportunity_at": self.first_trade_at.isoformat() if self.first_trade_at else None,
             "last_opportunity_at": self.last_trade_at.isoformat() if self.last_trade_at else None,
         }
@@ -465,7 +467,9 @@ class RealisticPaperTrader:
             
             if self.db and hasattr(self.db, '_client') and self.db._client:
                 self.db._client.table("polybot_simulated_trades").insert(data).execute()
-                logger.debug(f"Saved trade {trade.id} to database")
+                logger.info(f"📝 DB TRADE: {trade.id} saved")
+            else:
+                logger.warning("DB client not available for saving trade")
         except Exception as e:
             logger.error(f"Failed to save trade to DB: {e}")
     
@@ -484,10 +488,15 @@ class RealisticPaperTrader:
             
             if self.db and hasattr(self.db, '_client') and self.db._client:
                 # Use upsert to update existing row
-                self.db._client.table("polybot_simulation_stats").upsert(
+                result = self.db._client.table("polybot_simulation_stats").upsert(
                     data, on_conflict="id"
                 ).execute()
-                logger.debug("Saved simulation stats to database")
+                logger.info(
+                    f"💾 DB SAVE: Balance=${self.stats.current_balance:.2f} "
+                    f"Trades={self.stats.opportunities_traded}"
+                )
+            else:
+                logger.warning("DB client not available for saving stats")
         except Exception as e:
             logger.error(f"Failed to save stats to DB: {e}")
     

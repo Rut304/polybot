@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { 
   Activity, 
   TrendingUp, 
@@ -29,6 +30,7 @@ import { OpportunityChart } from '@/components/charts/OpportunityChart';
 import { TradesList } from '@/components/TradesList';
 import { OpportunitiesFeed } from '@/components/OpportunitiesFeed';
 import { StatusIndicator } from '@/components/StatusIndicator';
+import { StatDetailModal } from '@/components/StatDetailModal';
 
 export default function Dashboard() {
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
@@ -36,6 +38,9 @@ export default function Dashboard() {
   const { data: trades } = useSimulatedTrades(20);
   const { data: opportunities } = useOpportunities(50);
   const { data: history } = useSimulationHistory(24);
+  
+  // Modal state
+  const [modalType, setModalType] = useState<'balance' | 'pnl' | 'winrate' | 'opportunities' | null>(null);
 
   const isOnline = !!(botStatus?.is_running && 
     botStatus?.last_heartbeat_at && 
@@ -43,6 +48,16 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
+      {/* Modal */}
+      <StatDetailModal
+        isOpen={modalType !== null}
+        onClose={() => setModalType(null)}
+        type={modalType || 'balance'}
+        stats={simStats || null}
+        trades={trades || []}
+        opportunities={opportunities || []}
+      />
+      
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -60,6 +75,7 @@ export default function Dashboard() {
             icon={DollarSign}
             color="green"
             loading={statsLoading}
+            onClick={() => setModalType('balance')}
           />
           <StatCard
             title="Total P&L"
@@ -68,6 +84,7 @@ export default function Dashboard() {
             icon={TrendingUp}
             color="blue"
             loading={statsLoading}
+            onClick={() => setModalType('pnl')}
           />
           <StatCard
             title="Win Rate"
@@ -76,6 +93,7 @@ export default function Dashboard() {
             icon={Target}
             color="purple"
             loading={statsLoading}
+            onClick={() => setModalType('winrate')}
           />
           <StatCard
             title="Opportunities"
@@ -84,6 +102,7 @@ export default function Dashboard() {
             icon={Activity}
             color="pink"
             loading={statsLoading}
+            onClick={() => setModalType('opportunities')}
           />
         </div>
 
@@ -172,7 +191,8 @@ function StatCard({
   subtitle,
   icon: Icon, 
   color,
-  loading 
+  loading,
+  onClick
 }: {
   title: string;
   value: string;
@@ -181,6 +201,7 @@ function StatCard({
   icon: React.ElementType;
   color: 'green' | 'blue' | 'purple' | 'pink';
   loading?: boolean;
+  onClick?: () => void;
 }) {
   const colorClasses = {
     green: 'text-neon-green glow-green',
@@ -200,7 +221,11 @@ function StatCard({
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="card relative overflow-hidden group"
+      onClick={onClick}
+      className={cn(
+        "card relative overflow-hidden group",
+        onClick && "cursor-pointer hover:ring-2 hover:ring-neon-blue/50 transition-all"
+      )}
     >
       {/* Background glow effect */}
       <div className={cn(

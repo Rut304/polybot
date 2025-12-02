@@ -49,6 +49,10 @@ export interface SimulationStats {
     largest_opportunity_seen_pct: string;
     first_opportunity_at: string | null;
     last_opportunity_at: string | null;
+    // Realistic paper trader fields
+    execution_success_rate_pct?: number;
+    total_fees_paid?: string;
+    failed_executions?: number;
   };
   simulated_balance: number;
   total_pnl: number;
