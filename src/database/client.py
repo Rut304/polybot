@@ -352,6 +352,35 @@ class Database:
             logger.error(f"Failed to update {table}: {e}")
             return False
     
+    async def upsert(
+        self,
+        table: str,
+        data: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Upsert a row into a table (insert or update on conflict).
+        
+        Args:
+            table: Table name
+            data: Data to upsert (must include primary key)
+            
+        Returns:
+            Upserted row or None if failed
+        """
+        if not self._client:
+            logger.debug(f"Database not connected, skipping upsert to {table}")
+            return None
+        
+        try:
+            result = self._client.table(table).upsert(data).execute()
+            if result.data:
+                return result.data[0]
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to upsert into {table}: {e}")
+            return None
+    
     async def select(
         self,
         table: str,

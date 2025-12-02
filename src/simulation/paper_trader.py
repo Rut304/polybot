@@ -379,15 +379,17 @@ class PaperTrader:
         """Save current paper trading stats to Supabase"""
         try:
             data = {
+                "id": 1,  # Always update the same row
                 "snapshot_at": datetime.now(timezone.utc).isoformat(),
-                "stats_json": json.dumps(self.stats.to_dict()),
+                "stats_json": self.stats.to_dict(),
                 "simulated_balance": float(self.stats.simulated_current_balance),
                 "total_pnl": float(self.stats.total_pnl),
                 "total_trades": self.stats.total_simulated_trades,
                 "win_rate": self.stats.win_rate,
             }
             
-            await self.db.insert("polybot_simulation_stats", data)
+            # Use upsert to update existing row or insert new one
+            await self.db.upsert("polybot_simulation_stats", data)
             
         except Exception as e:
             logger.error(f"Failed to save simulation stats: {e}")

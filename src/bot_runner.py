@@ -29,6 +29,9 @@ from src.features.position_manager import PositionManager, ClaimResult, Portfoli
 from src.features.news_sentiment import NewsSentimentEngine, MarketAlert
 from src.clients.polymarket_client import PolymarketClient
 from src.clients.kalshi_client import KalshiClient
+from src.simulation.paper_trader import PaperTrader
+from src.arbitrage.detector import ArbitrageDetector, Opportunity
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,10 @@ class PolybotRunner:
         self.arb_detector: Optional[OverlappingArbDetector] = None
         self.position_manager: Optional[PositionManager] = None
         self.news_engine: Optional[NewsSentimentEngine] = None
+        self.cross_platform_detector: Optional[ArbitrageDetector] = None
+        
+        # Paper trading simulator (for simulation mode)
+        self.paper_trader: Optional[PaperTrader] = None
         
         # Default tracked traders (can be updated from Supabase)
         self.tracked_traders = tracked_traders or []
@@ -179,6 +186,24 @@ class PolybotRunner:
             )
             logger.info("✓ News/Sentiment Engine initialized")
         
+        # Initialize cross-platform arbitrage detector
+        self.cross_platform_detector = ArbitrageDetector(
+            min_profit_percent=0.5,  # 0.5% minimum profit to consider
+            min_confidence=0.3,
+        )
+        logger.info("✓ Cross-Platform Arbitrage Detector initialized")
+        
+        # Initialize paper trader for simulation mode
+        if self.simulation_mode:
+            self.paper_trader = PaperTrader(
+                db_client=self.db,
+                starting_balance=Decimal("1000.00"),
+                max_position_pct=10.0,  # Max 10% per trade
+                min_profit_threshold=0.5,  # Only trade 0.5%+ opportunities
+            )
+            logger.info("✓ Paper Trader initialized (Simulation Mode)")
+            logger.info("📊 Starting balance: $1,000.00")
+        
         logger.info("All features initialized!")
     
     async def on_copy_signal(self, signal: CopySignal):
@@ -232,6 +257,24 @@ class PolybotRunner:
             })
         except Exception as e:
             logger.error(f"Error logging arb opportunity: {e}")
+        
+        # Paper trade if in simulation mode
+        if self.simulation_mode and self.paper_trader:
+            try:
+                await self.paper_trader.simulate_instant_profit(
+                    polymarket_token_id=opp.market_a.condition_id or "unknown",
+                    polymarket_market_title=opp.market_a.question[:200],
+                    kalshi_ticker=opp.market_b.condition_id or "overlapping",
+                    kalshi_market_title=opp.market_b.question[:200],
+                    poly_yes=Decimal(str(opp.market_a.yes_price or 0.5)),
+                    poly_no=Decimal(str(opp.market_a.no_price or 0.5)),
+                    kalshi_yes=Decimal(str(opp.market_b.yes_price or 0.5)),
+                    kalshi_no=Decimal(str(opp.market_b.no_price or 0.5)),
+                    profit_pct=Decimal(str(opp.deviation)),
+                    trade_type=f"overlapping_{opp.relationship}",
+                )
+            except Exception as e:
+                logger.error(f"Error paper trading arb: {e}")
     
     async def on_position_claim(self, result: ClaimResult):
         """Handle position claim results."""
@@ -325,6 +368,29 @@ class PolybotRunner:
             # Check every 5 minutes
             await asyncio.sleep(300)
 
+    async def run_paper_trading_stats(self):
+        """Periodically save paper trading stats and print summary."""
+        while self._running:
+            await asyncio.sleep(60)  # Save stats every minute
+            
+            if self.paper_trader:
+                try:
+                    # Save stats to database
+                    await self.paper_trader.save_stats_to_db()
+                    
+                    # Log summary every 5 minutes
+                    stats = self.paper_trader.stats
+                    if stats.total_opportunities_seen > 0:
+                        logger.info(
+                            f"📊 PAPER TRADING: "
+                            f"Balance: ${stats.simulated_current_balance:.2f} | "
+                            f"P&L: ${stats.total_pnl:+.2f} ({stats.roi_percent:+.1f}%) | "
+                            f"Trades: {stats.total_simulated_trades} | "
+                            f"Win Rate: {stats.win_rate:.0f}%"
+                        )
+                except Exception as e:
+                    logger.error(f"Error saving paper trading stats: {e}")
+
     async def run(self):
         """Run all enabled features concurrently."""
         await self.initialize()
@@ -357,6 +423,10 @@ class PolybotRunner:
         
         # Always run balance tracker
         tasks.append(asyncio.create_task(self.run_balance_tracker()))
+        
+        # Run paper trading stats saver if in simulation mode
+        if self.simulation_mode and self.paper_trader:
+            tasks.append(asyncio.create_task(self.run_paper_trading_stats()))
         
         self._tasks = tasks
         

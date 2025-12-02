@@ -45,6 +45,14 @@
         {
           "name": "PRIVATE_KEY",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:polybot/private-key"
+        },
+        {
+          "name": "KALSHI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:polybot/kalshi-api-key"
+        },
+        {
+          "name": "KALSHI_PRIVATE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:${AWS_ACCOUNT_ID}:secret:polybot/kalshi-private-key"
         }
       ],
       "healthCheck": {
