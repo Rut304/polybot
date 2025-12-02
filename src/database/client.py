@@ -230,6 +230,8 @@ class Database:
         self,
         is_running: bool = True,
         dry_run: bool = True,
+        max_trade_size: float = None,
+        min_profit_threshold: float = None,
         **kwargs,
     ) -> bool:
         """Update bot status record."""
@@ -239,16 +241,20 @@ class Database:
         try:
             update_data = {
                 "is_running": is_running,
-                "dry_run": dry_run,
-                "last_heartbeat": datetime.utcnow().isoformat(),
-                **kwargs,
+                "dry_run_mode": dry_run,  # Match table column name
+                "last_heartbeat_at": datetime.utcnow().isoformat(),
             }
+            if max_trade_size is not None:
+                update_data["max_trade_size"] = max_trade_size
+            if min_profit_threshold is not None:
+                update_data["min_profit_threshold"] = min_profit_threshold
             
-            # Upsert with id=1 (single row for bot status)
-            self._client.table("polybot_status").upsert({
-                "id": 1,
-                **update_data,
-            }).execute()
+            # Update the first (and only) status row
+            result = self._client.table("polybot_status").select("id").limit(1).execute()
+            if result.data:
+                self._client.table("polybot_status").update(
+                    update_data
+                ).eq("id", result.data[0]["id"]).execute()
             
             return True
             
@@ -278,9 +284,11 @@ class Database:
             return
         
         try:
-            self._client.table("polybot_status").update({
-                "last_heartbeat": datetime.utcnow().isoformat(),
-            }).eq("id", 1).execute()
+            result = self._client.table("polybot_status").select("id").limit(1).execute()
+            if result.data:
+                self._client.table("polybot_status").update({
+                    "last_heartbeat_at": datetime.utcnow().isoformat(),
+                }).eq("id", result.data[0]["id"]).execute()
             
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")

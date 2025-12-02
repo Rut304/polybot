@@ -304,9 +304,10 @@ class KalshiClient:
         headers = self._get_auth_headers()
         
         try:
+            # Use additional_headers for newer websockets versions
             async with websockets.connect(
                 self.ws_url,
-                extra_headers=headers,
+                additional_headers=headers,
                 ping_interval=10,
             ) as websocket:
                 self._is_running = True

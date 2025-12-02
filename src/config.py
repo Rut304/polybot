@@ -87,7 +87,13 @@ class KalshiConfig:
     
     def __post_init__(self):
         self.api_key = os.getenv("KALSHI_API_KEY")
+        # Try direct key first, then file path
         self.private_key = os.getenv("KALSHI_PRIVATE_KEY")
+        if not self.private_key:
+            key_path = os.getenv("KALSHI_PRIVATE_KEY_PATH")
+            if key_path and os.path.exists(key_path):
+                with open(key_path, "r") as f:
+                    self.private_key = f.read()
 
 
 @dataclass

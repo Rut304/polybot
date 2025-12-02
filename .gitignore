@@ -80,3 +80,4 @@ logs/
 # Keys
 *.pem
 *.key
+keys/
