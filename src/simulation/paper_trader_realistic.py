@@ -10,8 +10,9 @@ Simulates real trading conditions including:
 - Realistic profit expectations (most arb opportunities are thin)
 """
 
+import json
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN
 from enum import Enum
