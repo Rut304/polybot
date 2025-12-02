@@ -42,46 +42,15 @@ export default function Dashboard() {
     isRecent(botStatus.last_heartbeat_at, 30000));
 
   return (
-    <div className="min-h-screen bg-dark-bg">
-      {/* Header */}
-      <header className="border-b border-dark-border bg-dark-card/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-[1800px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-green to-neon-blue flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-dark-bg" />
-                </div>
-                {isOnline && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-neon-green rounded-full animate-pulse" />
-                )}
-              </div>
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-neon-green via-neon-blue to-neon-purple bg-clip-text text-transparent">
-                  PolyBot Control Center
-                </h1>
-                <p className="text-xs text-gray-500">Prediction Market Arbitrage</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-6">
-              <StatusIndicator 
-                isOnline={isOnline} 
-                lastHeartbeat={botStatus?.last_heartbeat_at}
-                dryRun={botStatus?.dry_run_mode}
-              />
-              
-              <button className="px-4 py-2 rounded-lg bg-dark-border hover:bg-dark-border/80 transition-colors flex items-center gap-2">
-                <RefreshCw className="w-4 h-4" />
-                <span className="text-sm">Refresh</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-[1800px] mx-auto px-6 py-8">
+    <div className="p-8">
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <Activity className="w-8 h-8 text-neon-green" />
+          Dashboard
+        </h1>
+        <p className="text-gray-400 mt-2">Real-time overview of your arbitrage bot</p>
+      </div>
         {/* Top Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
@@ -191,8 +160,7 @@ export default function Dashboard() {
             <TradesList trades={trades || []} />
           </motion.div>
         </div>
-      </main>
-    </div>
+      </div>
   );
 }
 

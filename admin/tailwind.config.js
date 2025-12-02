@@ -17,6 +17,9 @@ module.exports = {
         'dark-bg': '#0a0a0f',
         'dark-card': '#12121a',
         'dark-border': '#1f1f2e',
+        // Platform colors
+        'polymarket': '#5865F2',
+        'kalshi': '#00C853',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
