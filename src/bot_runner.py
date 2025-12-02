@@ -17,14 +17,16 @@ import os
 from datetime import datetime
 from typing import Optional
 
-# Add parent to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add src to path for imports when running as module
+src_dir = os.path.dirname(os.path.abspath(__file__))
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
 
-from database.client import Database
-from features.copy_trading import CopyTradingEngine, CopySignal
-from features.overlapping_arb import OverlappingArbDetector, OverlapOpportunity
-from features.position_manager import PositionManager, ClaimResult, PortfolioSummary
-from features.news_sentiment import NewsSentimentEngine, MarketAlert
+from src.database.client import Database
+from src.features.copy_trading import CopyTradingEngine, CopySignal
+from src.features.overlapping_arb import OverlappingArbDetector, OverlapOpportunity
+from src.features.position_manager import PositionManager, ClaimResult, PortfolioSummary
+from src.features.news_sentiment import NewsSentimentEngine, MarketAlert
 
 logger = logging.getLogger(__name__)
 
