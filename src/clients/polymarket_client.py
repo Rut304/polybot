@@ -386,3 +386,72 @@ class PolymarketClient:
             "update_count": self._update_count,
             "last_update": self._last_update_time,
         }
+
+    def get_balance(self, wallet_address: str) -> dict:
+        """
+        Get wallet balance from Polymarket.
+        
+        Args:
+            wallet_address: Ethereum wallet address
+            
+        Returns:
+            Dict with balance info: {
+                "usdc_balance": float,  # USDC balance in dollars
+                "positions_value": float,  # Total value of positions
+                "total_value": float,  # Total portfolio value
+                "positions": list,  # List of positions
+            }
+        """
+        try:
+            # Get positions/portfolio from the data API
+            response = requests.get(
+                f"https://data-api.polymarket.com/positions",
+                params={"user": wallet_address.lower()},
+                timeout=10,
+            )
+            response.raise_for_status()
+            positions = response.json()
+            
+            positions_value = 0.0
+            position_list = []
+            
+            for pos in positions:
+                try:
+                    size = float(pos.get("size", 0))
+                    current_price = float(pos.get("currentPrice", 0))
+                    value = size * current_price
+                    positions_value += value
+                    
+                    position_list.append({
+                        "market": pos.get("title", pos.get("slug", "Unknown")),
+                        "outcome": pos.get("outcome", "Yes"),
+                        "size": size,
+                        "avg_price": float(pos.get("avgPrice", 0)),
+                        "current_price": current_price,
+                        "value": value,
+                        "pnl": value - (size * float(pos.get("avgPrice", current_price))),
+                    })
+                except (ValueError, TypeError):
+                    continue
+            
+            # Note: USDC balance requires on-chain query or authenticated API
+            # For now, we return positions value
+            return {
+                "usdc_balance": 0.0,  # Would need web3 to get on-chain USDC balance
+                "positions_value": round(positions_value, 2),
+                "total_value": round(positions_value, 2),
+                "positions": position_list,
+                "position_count": len(position_list),
+            }
+            
+        except requests.RequestException as e:
+            logger.error(f"Failed to get Polymarket balance: {e}")
+            return {
+                "usdc_balance": 0.0,
+                "positions_value": 0.0,
+                "total_value": 0.0,
+                "positions": [],
+                "position_count": 0,
+                "error": str(e),
+            }
+

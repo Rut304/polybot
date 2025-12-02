@@ -378,3 +378,91 @@ class KalshiClient:
             "update_count": self._update_count,
             "last_update": self._last_update_time,
         }
+
+    def get_balance(self) -> dict:
+        """
+        Get account balance from Kalshi.
+        
+        Requires valid API credentials.
+        
+        Returns:
+            Dict with balance info: {
+                "balance": float,  # Cash balance in dollars
+                "portfolio_value": float,  # Total value of positions  
+                "total_value": float,  # Total account value
+                "positions": list,  # List of positions
+            }
+        """
+        if not self.is_authenticated:
+            return {
+                "balance": 0.0,
+                "portfolio_value": 0.0,
+                "total_value": 0.0,
+                "positions": [],
+                "error": "Not authenticated - API key required",
+            }
+        
+        try:
+            # Get account balance
+            headers = self._get_auth_headers("/trade-api/v2/portfolio/balance")
+            balance_response = requests.get(
+                f"{self.api_url}/portfolio/balance",
+                headers=headers,
+                timeout=10,
+            )
+            balance_response.raise_for_status()
+            balance_data = balance_response.json()
+            
+            # Balance is in cents
+            cash_balance = float(balance_data.get("balance", 0)) / 100.0
+            
+            # Get positions
+            headers = self._get_auth_headers("/trade-api/v2/portfolio/positions")
+            positions_response = requests.get(
+                f"{self.api_url}/portfolio/positions",
+                headers=headers,
+                timeout=10,
+            )
+            positions_response.raise_for_status()
+            positions_data = positions_response.json()
+            
+            positions_value = 0.0
+            position_list = []
+            
+            for pos in positions_data.get("market_positions", []):
+                try:
+                    # Kalshi positions
+                    ticker = pos.get("ticker", "")
+                    quantity = int(pos.get("position", 0))
+                    # Estimate value (would need market prices for accuracy)
+                    est_price = float(pos.get("market_exposure", 0)) / 100.0
+                    value = abs(quantity) * est_price if quantity else 0
+                    positions_value += value
+                    
+                    position_list.append({
+                        "ticker": ticker,
+                        "quantity": quantity,
+                        "side": "yes" if quantity > 0 else "no",
+                        "estimated_value": value,
+                    })
+                except (ValueError, TypeError):
+                    continue
+            
+            return {
+                "balance": round(cash_balance, 2),
+                "portfolio_value": round(positions_value, 2),
+                "total_value": round(cash_balance + positions_value, 2),
+                "positions": position_list,
+                "position_count": len(position_list),
+            }
+            
+        except requests.RequestException as e:
+            logger.error(f"Failed to get Kalshi balance: {e}")
+            return {
+                "balance": 0.0,
+                "portfolio_value": 0.0,
+                "total_value": 0.0,
+                "positions": [],
+                "error": str(e),
+            }
+

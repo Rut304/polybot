@@ -27,6 +27,8 @@ from src.features.copy_trading import CopyTradingEngine, CopySignal
 from src.features.overlapping_arb import OverlappingArbDetector, OverlapOpportunity
 from src.features.position_manager import PositionManager, ClaimResult, PortfolioSummary
 from src.features.news_sentiment import NewsSentimentEngine, MarketAlert
+from src.clients.polymarket_client import PolymarketClient
+from src.clients.kalshi_client import KalshiClient
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,8 @@ class PolybotRunner:
         self,
         wallet_address: Optional[str] = None,
         private_key: Optional[str] = None,
+        kalshi_api_key: Optional[str] = None,
+        kalshi_private_key: Optional[str] = None,
         news_api_key: Optional[str] = None,
         tracked_traders: Optional[list] = None,
         enable_copy_trading: bool = True,
@@ -50,6 +54,8 @@ class PolybotRunner:
     ):
         self.wallet_address = wallet_address or os.getenv("WALLET_ADDRESS", "")
         self.private_key = private_key or os.getenv("PRIVATE_KEY")
+        self.kalshi_api_key = kalshi_api_key or os.getenv("KALSHI_API_KEY")
+        self.kalshi_private_key = kalshi_private_key or os.getenv("KALSHI_PRIVATE_KEY")
         self.news_api_key = news_api_key or os.getenv("NEWS_API_KEY")
         self.simulation_mode = simulation_mode
         
@@ -61,6 +67,13 @@ class PolybotRunner:
         
         # Initialize database
         self.db = Database()
+        
+        # Initialize API clients for balance tracking
+        self.polymarket_client = PolymarketClient()
+        self.kalshi_client = KalshiClient(
+            api_key=self.kalshi_api_key,
+            private_key=self.kalshi_private_key,
+        )
         
         # Initialize feature engines
         self.copy_trading: Optional[CopyTradingEngine] = None
@@ -74,9 +87,55 @@ class PolybotRunner:
         self._running = False
         self._tasks = []
     
+    async def fetch_balances(self) -> dict:
+        """Fetch balances from both Polymarket and Kalshi."""
+        balances = {
+            "polymarket": {"total_value": 0.0, "positions": []},
+            "kalshi": {"total_value": 0.0, "positions": []},
+            "combined_total": 0.0,
+        }
+        
+        # Fetch Polymarket balance
+        if self.wallet_address:
+            try:
+                pm_balance = self.polymarket_client.get_balance(self.wallet_address)
+                balances["polymarket"] = pm_balance
+                logger.info(
+                    f"💰 Polymarket: ${pm_balance.get('total_value', 0):.2f} "
+                    f"({pm_balance.get('position_count', 0)} positions)"
+                )
+            except Exception as e:
+                logger.error(f"Failed to fetch Polymarket balance: {e}")
+        
+        # Fetch Kalshi balance
+        if self.kalshi_client.is_authenticated:
+            try:
+                k_balance = self.kalshi_client.get_balance()
+                balances["kalshi"] = k_balance
+                logger.info(
+                    f"💰 Kalshi: ${k_balance.get('total_value', 0):.2f} "
+                    f"(${k_balance.get('balance', 0):.2f} cash, "
+                    f"{k_balance.get('position_count', 0)} positions)"
+                )
+            except Exception as e:
+                logger.error(f"Failed to fetch Kalshi balance: {e}")
+        
+        # Calculate combined total
+        pm_total = balances["polymarket"].get("total_value", 0) or 0
+        k_total = balances["kalshi"].get("total_value", 0) or 0
+        balances["combined_total"] = pm_total + k_total
+        
+        logger.info(f"💎 Combined Portfolio Value: ${balances['combined_total']:.2f}")
+        
+        return balances
+
     async def initialize(self):
         """Initialize all enabled features."""
         logger.info("Initializing PolyBot features...")
+        
+        # Fetch initial balances
+        logger.info("Fetching wallet balances...")
+        await self.fetch_balances()
         
         if self.enable_copy_trading:
             self.copy_trading = CopyTradingEngine(
@@ -254,7 +313,18 @@ class PolybotRunner:
                 markets=markets,
                 on_alert=self.on_news_alert,
             )
-    
+
+    async def run_balance_tracker(self):
+        """Periodically fetch and log balances."""
+        while self._running:
+            try:
+                await self.fetch_balances()
+            except Exception as e:
+                logger.error(f"Error fetching balances: {e}")
+            
+            # Check every 5 minutes
+            await asyncio.sleep(300)
+
     async def run(self):
         """Run all enabled features concurrently."""
         await self.initialize()
@@ -284,6 +354,9 @@ class PolybotRunner:
         
         if self.enable_news_sentiment and self.news_engine:
             tasks.append(asyncio.create_task(self.run_news_sentiment()))
+        
+        # Always run balance tracker
+        tasks.append(asyncio.create_task(self.run_balance_tracker()))
         
         self._tasks = tasks
         

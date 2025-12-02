@@ -3,10 +3,25 @@
 -- https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad/sql
 -- ============================================
 
--- 1. Set your user as admin
-INSERT INTO polybot_user_profiles (email, role, display_name)
-VALUES ('rutrohd@gmail.com', 'admin', 'Rut (Admin)')
-ON CONFLICT (email) DO UPDATE SET role = 'admin';
+-- 1. Create admin profile linked to your auth user
+-- First, check if profile exists and update, otherwise insert with auth.users id
+DO $$ 
+DECLARE
+    auth_user_id UUID;
+BEGIN
+    -- Get your auth user ID
+    SELECT id INTO auth_user_id FROM auth.users WHERE email = 'rutrohd@gmail.com' LIMIT 1;
+    
+    IF auth_user_id IS NOT NULL THEN
+        -- User exists in auth, insert or update profile
+        INSERT INTO polybot_user_profiles (id, email, role, display_name)
+        VALUES (auth_user_id, 'rutrohd@gmail.com', 'admin', 'Rut (Admin)')
+        ON CONFLICT (id) DO UPDATE SET role = 'admin', display_name = 'Rut (Admin)';
+        RAISE NOTICE 'Admin profile set for user %', auth_user_id;
+    ELSE
+        RAISE NOTICE 'No auth user found for rutrohd@gmail.com - please log in first, then run this again';
+    END IF;
+END $$;
 
 -- 2. Create tracked traders table
 CREATE TABLE IF NOT EXISTS polybot_tracked_traders (
@@ -121,21 +136,36 @@ ALTER TABLE polybot_manual_trades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE polybot_news_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE polybot_market_alerts ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (to avoid conflicts)
+DROP POLICY IF EXISTS "authenticated_read" ON polybot_tracked_traders;
+DROP POLICY IF EXISTS "authenticated_read" ON polybot_copy_signals;
+DROP POLICY IF EXISTS "authenticated_read" ON polybot_overlap_opportunities;
+DROP POLICY IF EXISTS "authenticated_read" ON polybot_manual_trades;
+DROP POLICY IF EXISTS "authenticated_read" ON polybot_news_items;
+DROP POLICY IF EXISTS "authenticated_read" ON polybot_market_alerts;
+
+DROP POLICY IF EXISTS "service_all" ON polybot_tracked_traders;
+DROP POLICY IF EXISTS "service_all" ON polybot_copy_signals;
+DROP POLICY IF EXISTS "service_all" ON polybot_overlap_opportunities;
+DROP POLICY IF EXISTS "service_all" ON polybot_manual_trades;
+DROP POLICY IF EXISTS "service_all" ON polybot_news_items;
+DROP POLICY IF EXISTS "service_all" ON polybot_market_alerts;
+
 -- Allow authenticated users to read
-CREATE POLICY IF NOT EXISTS "authenticated_read" ON polybot_tracked_traders FOR SELECT TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "authenticated_read" ON polybot_copy_signals FOR SELECT TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "authenticated_read" ON polybot_overlap_opportunities FOR SELECT TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "authenticated_read" ON polybot_manual_trades FOR SELECT TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "authenticated_read" ON polybot_news_items FOR SELECT TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "authenticated_read" ON polybot_market_alerts FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated_read" ON polybot_tracked_traders FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated_read" ON polybot_copy_signals FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated_read" ON polybot_overlap_opportunities FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated_read" ON polybot_manual_trades FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated_read" ON polybot_news_items FOR SELECT TO authenticated USING (true);
+CREATE POLICY "authenticated_read" ON polybot_market_alerts FOR SELECT TO authenticated USING (true);
 
 -- Allow service role full access
-CREATE POLICY IF NOT EXISTS "service_all" ON polybot_tracked_traders FOR ALL TO service_role USING (true);
-CREATE POLICY IF NOT EXISTS "service_all" ON polybot_copy_signals FOR ALL TO service_role USING (true);
-CREATE POLICY IF NOT EXISTS "service_all" ON polybot_overlap_opportunities FOR ALL TO service_role USING (true);
-CREATE POLICY IF NOT EXISTS "service_all" ON polybot_manual_trades FOR ALL TO service_role USING (true);
-CREATE POLICY IF NOT EXISTS "service_all" ON polybot_news_items FOR ALL TO service_role USING (true);
-CREATE POLICY IF NOT EXISTS "service_all" ON polybot_market_alerts FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON polybot_tracked_traders FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON polybot_copy_signals FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON polybot_overlap_opportunities FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON polybot_manual_trades FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON polybot_news_items FOR ALL TO service_role USING (true);
+CREATE POLICY "service_all" ON polybot_market_alerts FOR ALL TO service_role USING (true);
 
 -- Verify
 SELECT 'Setup complete!' as result;
