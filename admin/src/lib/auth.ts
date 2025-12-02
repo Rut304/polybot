@@ -70,12 +70,19 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     return user.user_metadata.role as UserRole;
   }
   
-  // Then check database
-  const { data } = await supabase
-    .from('polybot_users')
+  // Then check database (polybot_user_profiles table)
+  const { data, error } = await supabase
+    .from('polybot_user_profiles')
     .select('role')
-    .eq('user_id', userId)
+    .eq('id', userId)
     .single();
   
-  return (data?.role as UserRole) || 'readonly';
+  if (error) {
+    console.error('Error fetching user role:', error);
+  }
+  
+  // Map 'viewer' to 'readonly' for consistency
+  const dbRole = data?.role;
+  if (dbRole === 'admin') return 'admin';
+  return 'readonly';
 }
