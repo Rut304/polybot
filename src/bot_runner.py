@@ -29,8 +29,8 @@ from src.features.position_manager import PositionManager, ClaimResult, Portfoli
 from src.features.news_sentiment import NewsSentimentEngine, MarketAlert
 from src.clients.polymarket_client import PolymarketClient
 from src.clients.kalshi_client import KalshiClient
-from src.simulation.paper_trader import PaperTrader
-from src.arbitrage.detector import ArbitrageDetector, Opportunity
+from src.simulation.paper_trader_realistic import RealisticPaperTrader
+from src.arbitrage.detector import ArbitrageDetector
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,7 @@ class PolybotRunner:
         self.cross_platform_detector: Optional[ArbitrageDetector] = None
         
         # Paper trading simulator (for simulation mode)
-        self.paper_trader: Optional[PaperTrader] = None
+        self.paper_trader: Optional[RealisticPaperTrader] = None
         
         # Default tracked traders (can be updated from Supabase)
         self.tracked_traders = tracked_traders or []
@@ -195,14 +195,13 @@ class PolybotRunner:
         
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
-            self.paper_trader = PaperTrader(
+            self.paper_trader = RealisticPaperTrader(
                 db_client=self.db,
                 starting_balance=Decimal("1000.00"),
-                max_position_pct=10.0,  # Max 10% per trade
-                min_profit_threshold=0.5,  # Only trade 0.5%+ opportunities
             )
-            logger.info("✓ Paper Trader initialized (Simulation Mode)")
+            logger.info("✓ Realistic Paper Trader initialized")
             logger.info("📊 Starting balance: $1,000.00")
+            logger.info("📉 Slippage, partial fills, failures enabled")
         
         logger.info("All features initialized!")
     
@@ -261,16 +260,16 @@ class PolybotRunner:
         # Paper trade if in simulation mode
         if self.simulation_mode and self.paper_trader:
             try:
-                await self.paper_trader.simulate_instant_profit(
-                    polymarket_token_id=opp.market_a.condition_id or "unknown",
-                    polymarket_market_title=opp.market_a.question[:200],
-                    kalshi_ticker=opp.market_b.condition_id or "overlapping",
-                    kalshi_market_title=opp.market_b.question[:200],
-                    poly_yes=Decimal(str(opp.market_a.yes_price or 0.5)),
-                    poly_no=Decimal(str(opp.market_a.no_price or 0.5)),
-                    kalshi_yes=Decimal(str(opp.market_b.yes_price or 0.5)),
-                    kalshi_no=Decimal(str(opp.market_b.no_price or 0.5)),
-                    profit_pct=Decimal(str(opp.deviation)),
+                await self.paper_trader.simulate_opportunity(
+                    market_a_id=opp.market_a.condition_id or "unknown",
+                    market_a_title=opp.market_a.question[:200],
+                    market_b_id=opp.market_b.condition_id or "overlapping",
+                    market_b_title=opp.market_b.question[:200],
+                    platform_a="polymarket",
+                    platform_b="polymarket",
+                    price_a=Decimal(str(opp.market_a.yes_price or 0.5)),
+                    price_b=Decimal(str(opp.market_b.yes_price or 0.5)),
+                    spread_pct=Decimal(str(opp.deviation)),
                     trade_type=f"overlapping_{opp.relationship}",
                 )
             except Exception as e:
@@ -378,15 +377,16 @@ class PolybotRunner:
                     # Save stats to database
                     await self.paper_trader.save_stats_to_db()
                     
-                    # Log summary every 5 minutes
+                    # Log summary
                     stats = self.paper_trader.stats
-                    if stats.total_opportunities_seen > 0:
+                    if stats.opportunities_seen > 0:
                         logger.info(
-                            f"📊 PAPER TRADING: "
-                            f"Balance: ${stats.simulated_current_balance:.2f} | "
-                            f"P&L: ${stats.total_pnl:+.2f} ({stats.roi_percent:+.1f}%) | "
-                            f"Trades: {stats.total_simulated_trades} | "
-                            f"Win Rate: {stats.win_rate:.0f}%"
+                            f"📊 REALISTIC SIM: "
+                            f"Balance: ${stats.current_balance:.2f} | "
+                            f"P&L: ${stats.total_pnl:+.2f} ({stats.roi_pct:+.1f}%) | "
+                            f"Trades: {stats.opportunities_traded} | "
+                            f"Win: {stats.win_rate:.0f}% | "
+                            f"Exec: {stats.execution_success_rate:.0f}%"
                         )
                 except Exception as e:
                     logger.error(f"Error saving paper trading stats: {e}")

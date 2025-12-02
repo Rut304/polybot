@@ -1,0 +1,516 @@
+"""
+Realistic Paper Trading Simulator for PolyBot
+
+Simulates real trading conditions including:
+- Slippage (prices move before you can execute)
+- Spread costs (bid-ask spreads eat into profits)
+- Execution failures (opportunities disappear)
+- Partial fills (can't always get full size)
+- Platform fees (Polymarket/Kalshi fees)
+- Realistic profit expectations (most arb opportunities are thin)
+"""
+
+import random
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from decimal import Decimal, ROUND_DOWN
+from enum import Enum
+from typing import Optional, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class TradeOutcome(Enum):
+    """Possible outcomes for simulated trades"""
+    PENDING = "pending"
+    WON = "won"
+    LOST = "lost"
+    FAILED_EXECUTION = "failed_execution"
+    PARTIAL_FILL = "partial_fill"
+    EXPIRED = "expired"
+
+
+@dataclass
+class SimulatedTrade:
+    """Represents a simulated trade with realistic execution"""
+    id: str
+    created_at: datetime
+    
+    # Market info
+    market_a_id: str
+    market_a_title: str
+    market_b_id: str
+    market_b_title: str
+    platform_a: str  # "polymarket" or "kalshi"
+    platform_b: str
+    
+    # Original opportunity prices
+    original_price_a: Decimal
+    original_price_b: Decimal
+    original_spread_pct: Decimal
+    
+    # Executed prices (after slippage)
+    executed_price_a: Optional[Decimal] = None
+    executed_price_b: Optional[Decimal] = None
+    
+    # Trade details
+    intended_size_usd: Decimal = Decimal("0")
+    executed_size_usd: Decimal = Decimal("0")  # May be less due to partial fill
+    
+    # Fees
+    fee_a_usd: Decimal = Decimal("0")
+    fee_b_usd: Decimal = Decimal("0")
+    total_fees_usd: Decimal = Decimal("0")
+    
+    # P&L
+    gross_profit_usd: Decimal = Decimal("0")
+    net_profit_usd: Decimal = Decimal("0")
+    net_profit_pct: Decimal = Decimal("0")
+    
+    # Outcome
+    outcome: TradeOutcome = TradeOutcome.PENDING
+    outcome_reason: str = ""
+    resolved_at: Optional[datetime] = None
+
+
+@dataclass
+class RealisticStats:
+    """Realistic paper trading statistics"""
+    # Balance
+    starting_balance: Decimal = Decimal("1000.00")
+    current_balance: Decimal = Decimal("1000.00")
+    
+    # Opportunities
+    opportunities_seen: int = 0
+    opportunities_traded: int = 0
+    opportunities_skipped_too_small: int = 0
+    opportunities_skipped_insufficient_funds: int = 0
+    
+    # Execution
+    successful_executions: int = 0
+    failed_executions: int = 0
+    partial_fills: int = 0
+    
+    # P&L
+    total_gross_profit: Decimal = Decimal("0")
+    total_fees_paid: Decimal = Decimal("0")
+    total_net_profit: Decimal = Decimal("0")
+    total_losses: Decimal = Decimal("0")
+    
+    # Trade stats
+    winning_trades: int = 0
+    losing_trades: int = 0
+    breakeven_trades: int = 0
+    
+    # Best/Worst
+    best_trade_pnl: Decimal = Decimal("0")
+    worst_trade_pnl: Decimal = Decimal("0")
+    avg_trade_pnl: Decimal = Decimal("0")
+    
+    # Timing
+    first_trade_at: Optional[datetime] = None
+    last_trade_at: Optional[datetime] = None
+    
+    @property
+    def total_pnl(self) -> Decimal:
+        return self.current_balance - self.starting_balance
+    
+    @property
+    def roi_pct(self) -> float:
+        if self.starting_balance == 0:
+            return 0.0
+        return float((self.current_balance - self.starting_balance) 
+                    / self.starting_balance * 100)
+    
+    @property
+    def win_rate(self) -> float:
+        total = self.winning_trades + self.losing_trades
+        if total == 0:
+            return 0.0
+        return self.winning_trades / total * 100
+    
+    @property
+    def execution_success_rate(self) -> float:
+        total = self.successful_executions + self.failed_executions
+        if total == 0:
+            return 0.0
+        return self.successful_executions / total * 100
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "starting_balance": str(self.starting_balance),
+            "simulated_current_balance": str(self.current_balance),
+            "total_pnl": str(self.total_pnl),
+            "roi_pct": round(self.roi_pct, 2),
+            "total_opportunities_seen": self.opportunities_seen,
+            "total_simulated_trades": self.opportunities_traded,
+            "winning_trades": self.winning_trades,
+            "losing_trades": self.losing_trades,
+            "win_rate_pct": round(self.win_rate, 2),
+            "execution_success_rate_pct": round(self.execution_success_rate, 2),
+            "total_fees_paid": str(self.total_fees_paid),
+            "failed_executions": self.failed_executions,
+            "best_trade_profit": str(self.best_trade_pnl),
+            "worst_trade_loss": str(self.worst_trade_pnl),
+            "first_opportunity_at": self.first_trade_at.isoformat() if self.first_trade_at else None,
+            "last_opportunity_at": self.last_trade_at.isoformat() if self.last_trade_at else None,
+        }
+
+
+class RealisticPaperTrader:
+    """
+    Realistic paper trading simulator that models real-world trading conditions.
+    
+    Key realistic factors:
+    1. Slippage: Prices move 0.5-3% by the time you execute
+    2. Spread cost: Bid-ask spread typically 1-2% on prediction markets
+    3. Execution failure: 20-40% of opportunities disappear before execution
+    4. Partial fills: Only get 50-100% of intended size
+    5. Platform fees: ~2% on Polymarket, ~7% on Kalshi profits
+    6. Minimum profit threshold: Need >3% to cover costs
+    """
+    
+    # Realistic simulation parameters
+    SLIPPAGE_MIN_PCT = 0.5      # Minimum price movement during execution
+    SLIPPAGE_MAX_PCT = 3.0      # Maximum price movement
+    SPREAD_COST_PCT = 1.5       # Average bid-ask spread cost
+    EXECUTION_FAILURE_RATE = 0.30  # 30% of trades fail to execute
+    PARTIAL_FILL_CHANCE = 0.25  # 25% chance of partial fill
+    PARTIAL_FILL_MIN_PCT = 0.40 # Minimum fill is 40% of intended
+    
+    # Platform fees (approximate)
+    POLYMARKET_FEE_PCT = 2.0    # ~2% on profits
+    KALSHI_FEE_PCT = 7.0        # ~7% on profits (higher fees)
+    
+    # Trading parameters
+    MIN_PROFIT_THRESHOLD_PCT = 2.0  # Need at least 2% expected to trade
+    MAX_POSITION_PCT = 5.0      # Max 5% of balance per trade
+    MAX_POSITION_USD = 50.0     # Cap at $50 per trade
+    MIN_POSITION_USD = 5.0      # Minimum trade size
+    
+    def __init__(
+        self,
+        db_client,
+        starting_balance: Decimal = Decimal("1000.00"),
+    ):
+        self.db = db_client
+        self.stats = RealisticStats(
+            starting_balance=starting_balance,
+            current_balance=starting_balance,
+        )
+        self.trades: Dict[str, SimulatedTrade] = {}
+        self._trade_counter = 0
+    
+    def _generate_trade_id(self) -> str:
+        """Generate unique trade ID"""
+        self._trade_counter += 1
+        ts = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
+        return f"SIM-{ts}-{self._trade_counter:04d}"
+    
+    def _calculate_slippage(self, price: Decimal) -> Decimal:
+        """
+        Calculate realistic slippage.
+        Prices typically move against you during execution.
+        """
+        slippage_pct = random.uniform(self.SLIPPAGE_MIN_PCT, self.SLIPPAGE_MAX_PCT)
+        # Slippage usually works against you (price moves unfavorably)
+        direction = 1 if random.random() > 0.3 else -1  # 70% unfavorable
+        slippage = price * Decimal(str(slippage_pct / 100)) * direction
+        return slippage
+    
+    def _simulate_execution(
+        self,
+        original_spread_pct: Decimal,
+    ) -> tuple[bool, str, Decimal]:
+        """
+        Simulate whether a trade executes successfully.
+        
+        Returns: (success, reason, actual_profit_multiplier)
+        """
+        # Check if opportunity still exists (execution failure)
+        if random.random() < self.EXECUTION_FAILURE_RATE:
+            reasons = [
+                "Opportunity disappeared before execution",
+                "Price moved too far, spread closed",
+                "Insufficient liquidity at target price",
+                "Order rejected by platform",
+                "Network delay caused missed opportunity",
+            ]
+            return False, random.choice(reasons), Decimal("0")
+        
+        # Calculate realistic profit after costs
+        # Original spread minus slippage, spread costs, and fees
+        avg_slippage = Decimal(str((self.SLIPPAGE_MIN_PCT + self.SLIPPAGE_MAX_PCT) / 2))
+        spread_cost = Decimal(str(self.SPREAD_COST_PCT))
+        avg_fee = Decimal(str((self.POLYMARKET_FEE_PCT + self.KALSHI_FEE_PCT) / 2))
+        
+        # Actual profit = original spread - slippage - spread - fees
+        actual_profit_pct = original_spread_pct - avg_slippage - spread_cost
+        
+        # Apply fees to profits only if profitable
+        if actual_profit_pct > 0:
+            actual_profit_pct = actual_profit_pct * (1 - avg_fee / 100)
+        
+        # Determine if trade is profitable
+        if actual_profit_pct <= 0:
+            return True, "Executed but costs exceeded spread", actual_profit_pct
+        
+        return True, "Successful execution", actual_profit_pct
+    
+    def _calculate_position_size(self) -> Decimal:
+        """Calculate conservative position size"""
+        # Use smaller of: max_position_pct of balance, or max_position_usd
+        pct_based = self.stats.current_balance * Decimal(str(self.MAX_POSITION_PCT / 100))
+        size = min(pct_based, Decimal(str(self.MAX_POSITION_USD)))
+        
+        # Apply partial fill if applicable
+        if random.random() < self.PARTIAL_FILL_CHANCE:
+            fill_pct = random.uniform(self.PARTIAL_FILL_MIN_PCT, 1.0)
+            size = size * Decimal(str(fill_pct))
+            self.stats.partial_fills += 1
+        
+        return size.quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    
+    async def simulate_opportunity(
+        self,
+        market_a_id: str,
+        market_a_title: str,
+        market_b_id: str,
+        market_b_title: str,
+        platform_a: str,
+        platform_b: str,
+        price_a: Decimal,
+        price_b: Decimal,
+        spread_pct: Decimal,
+        trade_type: str,
+    ) -> Optional[SimulatedTrade]:
+        """
+        Simulate a realistic trade on an arbitrage opportunity.
+        
+        This applies all realistic factors:
+        - Execution failure chance
+        - Slippage on prices
+        - Spread costs
+        - Platform fees
+        - Partial fills
+        """
+        now = datetime.now(timezone.utc)
+        
+        # Track opportunity
+        self.stats.opportunities_seen += 1
+        if self.stats.first_trade_at is None:
+            self.stats.first_trade_at = now
+        self.stats.last_trade_at = now
+        
+        # Skip if spread too small to be profitable after costs
+        if float(spread_pct) < self.MIN_PROFIT_THRESHOLD_PCT:
+            self.stats.opportunities_skipped_too_small += 1
+            logger.debug(
+                f"Skipping opportunity: {spread_pct:.2f}% spread "
+                f"below {self.MIN_PROFIT_THRESHOLD_PCT}% threshold"
+            )
+            return None
+        
+        # Check if we have enough balance
+        min_size = Decimal(str(self.MIN_POSITION_USD))
+        if self.stats.current_balance < min_size:
+            self.stats.opportunities_skipped_insufficient_funds += 1
+            logger.warning(f"Insufficient funds: ${self.stats.current_balance:.2f}")
+            return None
+        
+        # Calculate position size
+        position_size = self._calculate_position_size()
+        if position_size < min_size:
+            self.stats.opportunities_skipped_insufficient_funds += 1
+            return None
+        
+        # Simulate execution
+        success, reason, actual_profit_pct = self._simulate_execution(spread_pct)
+        
+        # Create trade record
+        trade = SimulatedTrade(
+            id=self._generate_trade_id(),
+            created_at=now,
+            market_a_id=market_a_id,
+            market_a_title=market_a_title[:200],
+            market_b_id=market_b_id,
+            market_b_title=market_b_title[:200],
+            platform_a=platform_a,
+            platform_b=platform_b,
+            original_price_a=price_a,
+            original_price_b=price_b,
+            original_spread_pct=spread_pct,
+            intended_size_usd=position_size,
+        )
+        
+        if not success:
+            # Execution failed
+            trade.outcome = TradeOutcome.FAILED_EXECUTION
+            trade.outcome_reason = reason
+            trade.resolved_at = now
+            self.stats.failed_executions += 1
+            
+            logger.info(
+                f"❌ FAILED: {trade.id} | {reason} | "
+                f"Original spread: {spread_pct:.2f}%"
+            )
+        else:
+            # Execution succeeded (may still be losing trade)
+            trade.executed_size_usd = position_size
+            
+            # Calculate slippage-adjusted prices
+            slippage_a = self._calculate_slippage(price_a)
+            slippage_b = self._calculate_slippage(price_b)
+            trade.executed_price_a = price_a + slippage_a
+            trade.executed_price_b = price_b + slippage_b
+            
+            # Calculate fees (on position size)
+            trade.fee_a_usd = position_size * Decimal(str(self.POLYMARKET_FEE_PCT / 100))
+            trade.fee_b_usd = position_size * Decimal(str(self.KALSHI_FEE_PCT / 100))
+            trade.total_fees_usd = (trade.fee_a_usd + trade.fee_b_usd) / 2  # Avg of both
+            
+            # Calculate P&L
+            trade.gross_profit_usd = position_size * actual_profit_pct / Decimal("100")
+            trade.net_profit_usd = trade.gross_profit_usd - trade.total_fees_usd
+            
+            if position_size > 0:
+                trade.net_profit_pct = (trade.net_profit_usd / position_size) * 100
+            
+            trade.resolved_at = now
+            trade.outcome_reason = reason
+            
+            # Update stats based on outcome
+            self.stats.successful_executions += 1
+            self.stats.opportunities_traded += 1
+            self.stats.total_fees_paid += trade.total_fees_usd
+            
+            if trade.net_profit_usd > 0:
+                trade.outcome = TradeOutcome.WON
+                self.stats.winning_trades += 1
+                self.stats.total_gross_profit += trade.gross_profit_usd
+                self.stats.total_net_profit += trade.net_profit_usd
+                self.stats.current_balance += trade.net_profit_usd
+                
+                if trade.net_profit_usd > self.stats.best_trade_pnl:
+                    self.stats.best_trade_pnl = trade.net_profit_usd
+                
+                logger.info(
+                    f"✅ WON: {trade.id} | "
+                    f"Size: ${position_size:.2f} | "
+                    f"Net P&L: +${trade.net_profit_usd:.2f} ({trade.net_profit_pct:.1f}%) | "
+                    f"Fees: ${trade.total_fees_usd:.2f} | "
+                    f"Balance: ${self.stats.current_balance:.2f}"
+                )
+            elif trade.net_profit_usd < 0:
+                trade.outcome = TradeOutcome.LOST
+                self.stats.losing_trades += 1
+                self.stats.total_losses += abs(trade.net_profit_usd)
+                self.stats.current_balance += trade.net_profit_usd  # Subtract loss
+                
+                if trade.net_profit_usd < self.stats.worst_trade_pnl:
+                    self.stats.worst_trade_pnl = trade.net_profit_usd
+                
+                logger.info(
+                    f"❌ LOST: {trade.id} | "
+                    f"Size: ${position_size:.2f} | "
+                    f"Net P&L: ${trade.net_profit_usd:.2f} ({trade.net_profit_pct:.1f}%) | "
+                    f"Fees: ${trade.total_fees_usd:.2f} | "
+                    f"Balance: ${self.stats.current_balance:.2f}"
+                )
+            else:
+                trade.outcome = TradeOutcome.WON  # Breakeven counts as win
+                self.stats.breakeven_trades += 1
+                logger.info(f"➖ BREAKEVEN: {trade.id}")
+        
+        # Store trade
+        self.trades[trade.id] = trade
+        
+        # Save to database
+        await self._save_trade_to_db(trade)
+        
+        # Update average trade P&L
+        total_trades = self.stats.winning_trades + self.stats.losing_trades
+        if total_trades > 0:
+            self.stats.avg_trade_pnl = (
+                self.stats.total_net_profit - self.stats.total_losses
+            ) / total_trades
+        
+        return trade
+    
+    async def _save_trade_to_db(self, trade: SimulatedTrade) -> None:
+        """Save trade to Supabase polybot_simulated_trades table"""
+        try:
+            data = {
+                "position_id": trade.id,
+                "created_at": trade.created_at.isoformat(),
+                "polymarket_token_id": trade.market_a_id,
+                "polymarket_market_title": trade.market_a_title,
+                "kalshi_ticker": trade.market_b_id,
+                "kalshi_market_title": trade.market_b_title,
+                "polymarket_yes_price": float(trade.original_price_a),
+                "polymarket_no_price": float(1 - trade.original_price_a),
+                "kalshi_yes_price": float(trade.original_price_b),
+                "kalshi_no_price": float(1 - trade.original_price_b),
+                "trade_type": f"realistic_arb_{trade.platform_a}_{trade.platform_b}",
+                "position_size_usd": float(trade.executed_size_usd),
+                "expected_profit_usd": float(trade.gross_profit_usd),
+                "expected_profit_pct": float(trade.original_spread_pct),
+                "outcome": trade.outcome.value,
+                "actual_profit_usd": float(trade.net_profit_usd),
+                "resolved_at": trade.resolved_at.isoformat() if trade.resolved_at else None,
+                "resolution_notes": trade.outcome_reason,
+            }
+            
+            if self.db and hasattr(self.db, '_client') and self.db._client:
+                self.db._client.table("polybot_simulated_trades").insert(data).execute()
+                logger.debug(f"Saved trade {trade.id} to database")
+        except Exception as e:
+            logger.error(f"Failed to save trade to DB: {e}")
+    
+    async def save_stats_to_db(self) -> None:
+        """Save current stats to Supabase polybot_simulation_stats table"""
+        try:
+            data = {
+                "id": 1,  # Always update same row
+                "snapshot_at": datetime.now(timezone.utc).isoformat(),
+                "stats_json": self.stats.to_dict(),
+                "simulated_balance": float(self.stats.current_balance),
+                "total_pnl": float(self.stats.total_pnl),
+                "total_trades": self.stats.opportunities_traded,
+                "win_rate": self.stats.win_rate,
+            }
+            
+            if self.db and hasattr(self.db, '_client') and self.db._client:
+                # Use upsert to update existing row
+                self.db._client.table("polybot_simulation_stats").upsert(
+                    data, on_conflict="id"
+                ).execute()
+                logger.debug("Saved simulation stats to database")
+        except Exception as e:
+            logger.error(f"Failed to save stats to DB: {e}")
+    
+    def get_summary(self) -> str:
+        """Get formatted summary of paper trading performance"""
+        return f"""
+╔══════════════════════════════════════════════════════════════╗
+║              📊 REALISTIC PAPER TRADING SUMMARY               ║
+╠══════════════════════════════════════════════════════════════╣
+║  Starting Balance:     ${self.stats.starting_balance:>10.2f}                   ║
+║  Current Balance:      ${self.stats.current_balance:>10.2f}                   ║
+║  Total P&L:            ${self.stats.total_pnl:>+10.2f} ({self.stats.roi_pct:>+.1f}%)          ║
+╠══════════════════════════════════════════════════════════════╣
+║  Opportunities Seen:   {self.stats.opportunities_seen:>10}                        ║
+║  Trades Executed:      {self.stats.opportunities_traded:>10}                        ║
+║  Execution Rate:       {self.stats.execution_success_rate:>10.1f}%                      ║
+╠══════════════════════════════════════════════════════════════╣
+║  Winning Trades:       {self.stats.winning_trades:>10}                        ║
+║  Losing Trades:        {self.stats.losing_trades:>10}                        ║
+║  Win Rate:             {self.stats.win_rate:>10.1f}%                       ║
+╠══════════════════════════════════════════════════════════════╣
+║  Total Fees Paid:      ${self.stats.total_fees_paid:>10.2f}                   ║
+║  Best Trade:           ${self.stats.best_trade_pnl:>+10.2f}                   ║
+║  Worst Trade:          ${self.stats.worst_trade_pnl:>+10.2f}                   ║
+║  Avg Trade P&L:        ${self.stats.avg_trade_pnl:>+10.2f}                   ║
+╚══════════════════════════════════════════════════════════════╝
+"""
