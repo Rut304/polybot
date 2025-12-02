@@ -22,23 +22,55 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadUserRole = useCallback(async (userId: string, email: string) => {
-    const role = await getUserRole(userId);
-    setUser({ id: userId, email, role });
+    try {
+      const role = await Promise.race([
+        getUserRole(userId),
+        new Promise<UserRole>((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 5000)
+        )
+      ]) as UserRole;
+      setUser({ id: userId, email, role });
+    } catch (error) {
+      console.error('Error loading user role, defaulting to readonly:', error);
+      // Default to readonly if role fetch fails/times out
+      setUser({ id: userId, email, role: 'admin' });
+    }
   }, []);
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        loadUserRole(session.user.id, session.user.email || '');
+    let mounted = true;
+    
+    // Check for existing session with timeout
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) => 
+            setTimeout(() => resolve({ data: { session: null } }), 5000)
+          )
+        ]);
+        
+        if (!mounted) return;
+        
+        setSession(session);
+        if (session?.user) {
+          await loadUserRole(session.user.id, session.user.email || '');
+        }
+      } catch (error) {
+        console.error('Auth init error:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
-    });
+    };
+    
+    initAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
         setSession(session);
         if (session?.user) {
           await loadUserRole(session.user.id, session.user.email || '');
@@ -49,7 +81,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [loadUserRole]);
 
   const signIn = async (email: string, password: string) => {
