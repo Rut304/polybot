@@ -112,7 +112,7 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
                   <WinRateDetails stats={stats} statsJson={statsJson} />
                 )}
                 {type === 'opportunities' && (
-                  <OpportunityDetails statsJson={statsJson} opportunities={opportunities} />
+                  <OpportunityDetails statsJson={statsJson} opportunities={opportunities} trades={trades} />
                 )}
               </div>
             </div>
@@ -257,9 +257,14 @@ function WinRateDetails({ stats, statsJson }: { stats: SimulationStats | null; s
   );
 }
 
-function OpportunityDetails({ statsJson, opportunities }: { statsJson: SimulationStats['stats_json'] | undefined; opportunities: Opportunity[] }) {
-  const totalSeen = statsJson?.total_opportunities_seen || 0;
-  const totalTraded = statsJson?.total_simulated_trades || 0;
+function OpportunityDetails({ statsJson, opportunities, trades }: { statsJson: SimulationStats['stats_json'] | undefined; opportunities: Opportunity[]; trades: SimulatedTrade[] }) {
+  // Use actual trade count (excluding failed executions)
+  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
+  const totalTraded = validTrades.length;
+  
+  // For total seen, use opportunities array length (current session)
+  // If no opportunities in current session, show message
+  const totalSeen = opportunities.length;
   const conversionRate = totalSeen > 0 ? (totalTraded / totalSeen) * 100 : 0;
   
   const byStrategy = opportunities.reduce((acc, opp) => {
