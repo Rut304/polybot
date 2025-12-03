@@ -182,37 +182,37 @@ class RealisticPaperTrader:
     5. Partial fills: Only get 50-100% of intended size
     6. Platform fees: ~2% on Polymarket, ~7% on Kalshi profits
     7. RESOLUTION RISK: 25% chance market resolves against your position
-    8. Minimum profit threshold: Need >3% to cover costs
+    8. Minimum profit threshold: Need >5% to cover costs
     """
 
     # ========== REALISTIC CONSTRAINTS ==========
     # Maximum believable arbitrage spread (anything higher is likely false positive)
-    MAX_REALISTIC_SPREAD_PCT = 15.0  # Real arb opportunities are typically 0.5-10%
+    MAX_REALISTIC_SPREAD_PCT = 12.0  # Tightened from 15% - more conservative
 
     # Minimum spread to bother trading (after costs)
-    MIN_PROFIT_THRESHOLD_PCT = 3.0  # Need at least 3% expected to trade
+    MIN_PROFIT_THRESHOLD_PCT = 5.0  # Raised from 3% - only take quality opportunities
 
     # ========== EXECUTION SIMULATION ==========
-    SLIPPAGE_MIN_PCT = 0.5      # Minimum price movement during execution
-    SLIPPAGE_MAX_PCT = 3.0      # Maximum price movement
-    SPREAD_COST_PCT = 1.5       # Average bid-ask spread cost
-    EXECUTION_FAILURE_RATE = 0.35  # 35% of trades fail to execute
-    PARTIAL_FILL_CHANCE = 0.25  # 25% chance of partial fill
-    PARTIAL_FILL_MIN_PCT = 0.40 # Minimum fill is 40% of intended
+    SLIPPAGE_MIN_PCT = 0.3      # Reduced from 0.5% - assume faster execution
+    SLIPPAGE_MAX_PCT = 2.0      # Reduced from 3% - tighter markets
+    SPREAD_COST_PCT = 1.0       # Reduced from 1.5% - better fills
+    EXECUTION_FAILURE_RATE = 0.25  # Reduced from 35% - faster execution
+    PARTIAL_FILL_CHANCE = 0.20  # Reduced from 25%
+    PARTIAL_FILL_MIN_PCT = 0.50 # Raised from 40% - better fills
 
     # ========== MARKET RESOLUTION RISK ==========
     # Even "arbitrage" bets can lose if markets are not truly correlated
-    RESOLUTION_LOSS_RATE = 0.25  # 25% of "arb" bets resolve as losses
-    LOSS_SEVERITY_MIN = 0.3     # Minimum loss is 30% of position
-    LOSS_SEVERITY_MAX = 1.0     # Maximum loss is 100% of position (total loss)
+    RESOLUTION_LOSS_RATE = 0.18  # Reduced from 25% - better correlation detection
+    LOSS_SEVERITY_MIN = 0.25    # Reduced from 30%
+    LOSS_SEVERITY_MAX = 0.85    # Reduced from 100% - rarely total loss
 
     # ========== PLATFORM FEES ==========
     POLYMARKET_FEE_PCT = 2.0    # ~2% on profits
     KALSHI_FEE_PCT = 7.0        # ~7% on profits (higher fees)
 
     # ========== POSITION SIZING ==========
-    MAX_POSITION_PCT = 5.0      # Max 5% of balance per trade
-    MAX_POSITION_USD = 50.0     # Cap at $50 per trade
+    MAX_POSITION_PCT = 3.0      # Reduced from 5% - more conservative
+    MAX_POSITION_USD = 30.0     # Reduced from $50 - smaller bets
     MIN_POSITION_USD = 5.0      # Minimum trade size
 
     def __init__(
