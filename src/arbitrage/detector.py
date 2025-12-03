@@ -713,7 +713,7 @@ class CrossPlatformScanner:
         self,
         poly_markets: List[Dict],
         kalshi_markets: List[Dict],
-        min_similarity: float = 0.35,  # Raised for stricter matching
+        min_similarity: float = 0.3,  # Balanced: not too loose, not too strict
     ) -> List[Dict]:
         """
         Find matching markets between platforms based on title similarity.
@@ -737,11 +737,11 @@ class CrossPlatformScanner:
                 
                 score = self._calculate_similarity(poly_question, kalshi_title)
                 
-                # Log potential matches for debugging
-                if score >= 0.15:  # Log anything close
-                    logger.debug(
-                        f"Similarity {score:.2f}: Poly='{poly_question[:40]}' "
-                        f"vs Kalshi='{kalshi_title[:40]}'"
+                # Log near-matches for debugging (INFO level)
+                if score >= 0.2:
+                    logger.info(
+                        f"🔎 Sim={score:.2f}: '{poly_question[:35]}' "
+                        f"vs '{kalshi_title[:35]}'"
                     )
                 
                 if score > best_score and score >= min_similarity:
