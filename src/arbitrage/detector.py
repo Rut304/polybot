@@ -775,9 +775,8 @@ class CrossPlatformScanner:
         """
         Analyze a matched pair for arbitrage opportunity.
         
-        Strategy:
-        - If Poly YES < Kalshi YES: Buy Poly, Sell Kalshi
-        - If Kalshi YES < Poly YES: Buy Kalshi, Sell Poly
+        Note: profit_percent is the SPREAD (absolute difference) not ROI.
+        E.g., buy at $0.01, sell at $0.09 = 8% spread (not 800% ROI).
         """
         poly = match["polymarket"]
         kalshi = match["kalshi"]
@@ -785,15 +784,24 @@ class CrossPlatformScanner:
         poly_yes = match["poly_yes"]
         kalshi_yes = match["kalshi_yes"]
         
+        # Use SPREAD (absolute difference) for consistency with paper trader
+        spread = abs(kalshi_yes - poly_yes)
+        spread_pct = spread * 100  # Convert to percentage points
+        
+        # Log match details for debugging
+        logger.info(
+            f"📊 Match: Poly '{poly['question'][:40]}' @ {poly_yes:.0%} "
+            f"vs Kalshi '{kalshi['question'][:40]}' @ {kalshi_yes:.0%} "
+            f"(spread={spread_pct:.1f}%)"
+        )
+        
         # Strategy 1: Buy Poly YES (cheaper), Sell Kalshi YES (expensive)
         if poly_yes < kalshi_yes:
-            profit = kalshi_yes - poly_yes
-            profit_pct = (profit / poly_yes) * 100 if poly_yes > 0 else 0
-            
-            # Apply asymmetric threshold (buying Poly is cheap)
-            if profit_pct >= self.min_profit_percent:
+            if spread_pct >= self.min_profit_percent:
+                opp_id = f"XP-{datetime.utcnow().strftime('%H%M%S')}"
+                vol = min(poly.get("volume", 0), kalshi.get("volume", 0))
                 return Opportunity(
-                    id=f"XP-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{len(poly['id'][:8])}",
+                    id=opp_id,
                     detected_at=datetime.utcnow(),
                     buy_platform="polymarket",
                     sell_platform="kalshi",
@@ -803,24 +811,23 @@ class CrossPlatformScanner:
                     sell_market_name=kalshi["question"][:100],
                     buy_price=poly_yes,
                     sell_price=kalshi_yes,
-                    profit_per_contract=profit,
-                    profit_percent=profit_pct,
-                    max_size=min(poly.get("volume", 0), kalshi.get("volume", 0)) / 1000,
-                    total_profit=profit * 100,  # Assume $100 position
+                    profit_per_contract=spread,
+                    profit_percent=spread_pct,  # Use SPREAD not ROI
+                    max_size=vol / 1000,
+                    total_profit=spread * 100,  # $100 position
                     confidence=match["similarity"],
-                    strategy=f"Buy Poly YES @{poly_yes:.2f}, Sell Kalshi YES @{kalshi_yes:.2f}",
+                    strategy=f"Buy Poly @{poly_yes:.0%}, Sell Kalshi @{kalshi_yes:.0%}",
                 )
         
         # Strategy 2: Buy Kalshi YES (cheaper), Sell Poly YES (expensive)
         elif kalshi_yes < poly_yes:
-            profit = poly_yes - kalshi_yes
-            profit_pct = (profit / kalshi_yes) * 100 if kalshi_yes > 0 else 0
-            
-            # Apply asymmetric threshold (buying Kalshi is expensive - need 5%+)
+            # Kalshi has 7% fees, so need higher spread threshold
             min_threshold = max(self.min_profit_percent, 5.0)
-            if profit_pct >= min_threshold:
+            if spread_pct >= min_threshold:
+                opp_id = f"XP-{datetime.utcnow().strftime('%H%M%S')}"
+                vol = min(poly.get("volume", 0), kalshi.get("volume", 0))
                 return Opportunity(
-                    id=f"XP-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{len(kalshi['id'][:8])}",
+                    id=opp_id,
                     detected_at=datetime.utcnow(),
                     buy_platform="kalshi",
                     sell_platform="polymarket",
@@ -830,12 +837,12 @@ class CrossPlatformScanner:
                     sell_market_name=poly["question"][:100],
                     buy_price=kalshi_yes,
                     sell_price=poly_yes,
-                    profit_per_contract=profit,
-                    profit_percent=profit_pct,
-                    max_size=min(poly.get("volume", 0), kalshi.get("volume", 0)) / 1000,
-                    total_profit=profit * 100,
+                    profit_per_contract=spread,
+                    profit_percent=spread_pct,  # Use SPREAD not ROI
+                    max_size=vol / 1000,
+                    total_profit=spread * 100,
                     confidence=match["similarity"],
-                    strategy=f"Buy Kalshi YES @{kalshi_yes:.2f}, Sell Poly YES @{poly_yes:.2f}",
+                    strategy=f"Buy Kalshi @{kalshi_yes:.0%}, Sell Poly @{poly_yes:.0%}",
                 )
         
         return None
