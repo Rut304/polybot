@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Search, 
   TrendingUp, 
@@ -70,89 +70,21 @@ export default function MarketsPage() {
   
   const watchlistIds = new Set(watchlist.map(w => w.market_id));
 
-  // Fetch markets from Polymarket Gamma API (active markets)
-  const fetchPolymarketMarkets = useCallback(async () => {
-    try {
-      // Using Polymarket's Gamma API which returns active markets
-      const response = await fetch(
-        'https://gamma-api.polymarket.com/markets?limit=500&closed=false&active=true',
-        { headers: { 'Accept': 'application/json' } }
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch Polymarket markets');
-      
-      const data = await response.json();
-      
-      // Filter to only include markets that are truly open (not closed)
-      const activeMarkets = (data || []).filter((m: any) => !m.closed && m.active);
-      
-      return activeMarkets.map((m: any) => ({
-        id: m.conditionId || m.condition_id || m.id,
-        question: m.question || m.title,
-        description: m.description,
-        category: m.events?.[0]?.title?.split(' ')[0] || 'Other',
-        yes_price: parseFloat(m.outcomePrices ? JSON.parse(m.outcomePrices)[0] : m.bestAsk || '0.5'),
-        no_price: parseFloat(m.outcomePrices ? JSON.parse(m.outcomePrices)[1] : (1 - (m.bestAsk || 0.5)).toString()),
-        volume: parseFloat(m.volume || m.volumeNum || '0'),
-        liquidity: parseFloat(m.liquidity || m.liquidityNum || '0'),
-        end_date: m.endDate || m.end_date_iso,
-        platform: 'polymarket' as const,
-        url: `https://polymarket.com/event/${m.slug || m.conditionId || m.id}`,
-      }));
-    } catch (e) {
-      console.error('Polymarket fetch error:', e);
-      return [];
-    }
-  }, []);
-
-  // Fetch markets from Kalshi API (updated endpoint)
-  const fetchKalshiMarkets = useCallback(async () => {
-    try {
-      // Kalshi API has moved to new endpoint
-      const response = await fetch(
-        'https://api.elections.kalshi.com/trade-api/v2/markets?limit=500&status=active',
-        { headers: { 'Accept': 'application/json' } }
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch Kalshi markets');
-      
-      const data = await response.json();
-      
-      return (data.markets || []).map((m: any) => ({
-        id: m.ticker,
-        question: m.title || m.subtitle,
-        description: m.rules_primary,
-        category: m.event_ticker?.split('-')[0] || 'Other',
-        yes_price: (m.yes_bid || m.last_price || 50) / 100, // Kalshi uses cents
-        no_price: (m.no_bid || (100 - (m.last_price || 50))) / 100,
-        volume: m.volume || 0,
-        liquidity: (m.liquidity || m.open_interest || 0) / 100, // Convert from cents
-        end_date: m.close_time || m.expiration_time,
-        platform: 'kalshi' as const,
-        url: `https://kalshi.com/markets/${m.ticker}`,
-      }));
-    } catch (e) {
-      console.error('Kalshi fetch error:', e);
-      return [];
-    }
-  }, []);
-
-  // Load markets on mount
+  // Load markets from our API route (bypasses CORS)
   useEffect(() => {
     const loadMarkets = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        const [polyMarkets, kalshiMarkets] = await Promise.all([
-          fetchPolymarketMarkets(),
-          fetchKalshiMarkets(),
-        ]);
+        const response = await fetch('/api/markets');
+        if (!response.ok) throw new Error('Failed to fetch markets');
         
-        const combined = [...polyMarkets, ...kalshiMarkets];
-        setMarkets(combined);
-        setTotalMarkets(combined.length);
+        const data = await response.json();
+        setMarkets(data.markets || []);
+        setTotalMarkets(data.total || 0);
       } catch (e) {
+        console.error('Failed to load markets:', e);
         setError('Failed to load markets. Please try again.');
       } finally {
         setLoading(false);
@@ -160,7 +92,7 @@ export default function MarketsPage() {
     };
 
     loadMarkets();
-  }, [fetchPolymarketMarkets, fetchKalshiMarkets]);
+  }, []);
 
   // Toggle watchlist
   const toggleWatchlist = (market: Market) => {

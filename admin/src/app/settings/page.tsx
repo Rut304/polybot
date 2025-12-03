@@ -783,13 +783,13 @@ export default function SettingsPage() {
                           <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
                             u.role === 'admin' ? 'bg-neon-purple/20 text-neon-purple' :
-                            u.role === 'readonly' ? 'bg-gray-500/20 text-gray-400' :
+                            (u.role === 'readonly' || u.role === 'viewer') ? 'bg-gray-500/20 text-gray-400' :
                             'bg-neon-green/20 text-neon-green'
                           )}>
-                            {u.username?.[0]?.toUpperCase() || u.email?.[0]?.toUpperCase() || '?'}
+                            {u.display_name?.[0]?.toUpperCase() || u.email?.[0]?.toUpperCase() || '?'}
                           </div>
                           <div>
-                            <p className="font-medium">{u.username || u.email}</p>
+                            <p className="font-medium">{u.display_name || u.email}</p>
                             <p className="text-xs text-gray-500">{u.email}</p>
                           </div>
                         </div>
@@ -809,13 +809,12 @@ export default function SettingsPage() {
                             className="bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50"
                           >
                             <option value="admin">Admin</option>
-                            <option value="user">User</option>
-                            <option value="readonly">Read Only</option>
+                            <option value="viewer">Read Only</option>
                           </select>
                           {u.id !== user?.id && (
                             <button
                               onClick={async () => {
-                                if (confirm(`Delete user ${u.username || u.email}?`)) {
+                                if (confirm(`Delete user ${u.display_name || u.email}?`)) {
                                   await supabase
                                     .from('polybot_user_profiles')
                                     .delete()
