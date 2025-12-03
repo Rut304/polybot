@@ -711,7 +711,16 @@ class CrossPlatformScanner:
         # Sort by price difference (potential profit)
         matches.sort(key=lambda x: x["price_diff_pct"], reverse=True)
         
-        logger.info(f"Found {len(matches)} matched market pairs")
+        if matches:
+            logger.info(f"Found {len(matches)} matched market pairs")
+            # Log the best match for visibility
+            best = matches[0]
+            logger.info(
+                f"Best match: Poly={best['poly_yes']:.0%} vs Kalshi={best['kalshi_yes']:.0%} "
+                f"(diff={best['price_diff_pct']:.1f}%, sim={best['similarity']:.2f})"
+            )
+        else:
+            logger.info("No matched market pairs found between platforms")
         return matches
     
     def analyze_opportunity(self, match: Dict) -> Optional[Opportunity]:
