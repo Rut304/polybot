@@ -135,6 +135,43 @@ export default function SettingsPage() {
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
+  // Sync state when config loads from database
+  useEffect(() => {
+    if (config) {
+      // Basic trading parameters
+      if (config.min_profit_percent !== undefined) setMinProfitPercent(config.min_profit_percent);
+      if (config.max_trade_size !== undefined) setMaxTradeSize(config.max_trade_size);
+      if (config.max_daily_loss !== undefined) setMaxDailyLoss(config.max_daily_loss);
+      if (config.scan_interval !== undefined) setScanInterval(config.scan_interval);
+      if (config.polymarket_enabled !== undefined) setPolymarketEnabled(config.polymarket_enabled);
+      if (config.kalshi_enabled !== undefined) setKalshiEnabled(config.kalshi_enabled);
+      
+      // Advanced parameters
+      if (config.max_realistic_spread_pct !== undefined) setMaxRealisticSpreadPct(config.max_realistic_spread_pct);
+      if (config.min_profit_threshold_pct !== undefined) setMinProfitThresholdPct(config.min_profit_threshold_pct);
+      if (config.slippage_min_pct !== undefined) setSlippageMinPct(config.slippage_min_pct);
+      if (config.slippage_max_pct !== undefined) setSlippageMaxPct(config.slippage_max_pct);
+      if (config.spread_cost_pct !== undefined) setSpreadCostPct(config.spread_cost_pct);
+      if (config.execution_failure_rate !== undefined) setExecutionFailureRate(config.execution_failure_rate);
+      if (config.partial_fill_chance !== undefined) setPartialFillChance(config.partial_fill_chance);
+      if (config.partial_fill_min_pct !== undefined) setPartialFillMinPct(config.partial_fill_min_pct);
+      if (config.resolution_loss_rate !== undefined) setResolutionLossRate(config.resolution_loss_rate);
+      if (config.loss_severity_min !== undefined) setLossSeverityMin(config.loss_severity_min);
+      if (config.loss_severity_max !== undefined) setLossSeverityMax(config.loss_severity_max);
+      if (config.max_position_pct !== undefined) setMaxPositionPct(config.max_position_pct);
+      if (config.max_position_usd !== undefined) setMaxPositionUsd(config.max_position_usd);
+      if (config.min_position_usd !== undefined) setMinPositionUsd(config.min_position_usd);
+    }
+  }, [config]);
+  
+  // Sync bot status state when it loads
+  useEffect(() => {
+    if (botStatus) {
+      if (botStatus.is_running !== undefined) setBotEnabled(botStatus.is_running);
+      if (botStatus.dry_run_mode !== undefined) setDryRunMode(botStatus.dry_run_mode);
+    }
+  }, [botStatus]);
+  
   // Use the reset simulation hook
   const resetSimulation = useResetSimulation();
   
