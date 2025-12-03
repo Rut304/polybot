@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Settings, 
   Power, 
@@ -14,9 +14,17 @@ import {
   RotateCcw,
   Lock,
   Trash2,
+  Users,
+  UserPlus,
+  UserMinus,
+  ChevronDown,
+  ChevronUp,
+  Activity,
+  Target,
+  TrendingDown,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useBotStatus, useBotConfig, useDisabledMarkets, useResetSimulation } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -89,17 +97,58 @@ export default function SettingsPage() {
   const [dryRunMode, setDryRunMode] = useState(botStatus?.dry_run_mode ?? true);
   const [requireApproval, setRequireApproval] = useState(false); // Will be stored in localStorage until DB column is added
   
-  // Trading parameters
+  // Basic trading parameters
   const [minProfitPercent, setMinProfitPercent] = useState(config?.min_profit_percent ?? 1.0);
   const [maxTradeSize, setMaxTradeSize] = useState(config?.max_trade_size ?? 100);
   const [maxDailyLoss, setMaxDailyLoss] = useState(config?.max_daily_loss ?? 50);
   const [scanInterval, setScanInterval] = useState(config?.scan_interval ?? 2);
+  
+  // REALISTIC PAPER TRADING PARAMETERS
+  // Spread constraints
+  const [maxRealisticSpreadPct, setMaxRealisticSpreadPct] = useState(config?.max_realistic_spread_pct ?? 12.0);
+  const [minProfitThresholdPct, setMinProfitThresholdPct] = useState(config?.min_profit_threshold_pct ?? 5.0);
+  
+  // Execution simulation
+  const [slippageMinPct, setSlippageMinPct] = useState(config?.slippage_min_pct ?? 0.3);
+  const [slippageMaxPct, setSlippageMaxPct] = useState(config?.slippage_max_pct ?? 2.0);
+  const [spreadCostPct, setSpreadCostPct] = useState(config?.spread_cost_pct ?? 1.0);
+  const [executionFailureRate, setExecutionFailureRate] = useState(config?.execution_failure_rate ?? 0.25);
+  const [partialFillChance, setPartialFillChance] = useState(config?.partial_fill_chance ?? 0.20);
+  const [partialFillMinPct, setPartialFillMinPct] = useState(config?.partial_fill_min_pct ?? 0.50);
+  
+  // Market resolution risk
+  const [resolutionLossRate, setResolutionLossRate] = useState(config?.resolution_loss_rate ?? 0.18);
+  const [lossSeverityMin, setLossSeverityMin] = useState(config?.loss_severity_min ?? 0.25);
+  const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.85);
+  
+  // Position sizing
+  const [maxPositionPct, setMaxPositionPct] = useState(config?.max_position_pct ?? 3.0);
+  const [maxPositionUsd, setMaxPositionUsd] = useState(config?.max_position_usd ?? 30.0);
+  const [minPositionUsd, setMinPositionUsd] = useState(config?.min_position_usd ?? 5.0);
+  
+  // UI state
+  const [showAdvancedParams, setShowAdvancedParams] = useState(false);
+  const [showUserAdmin, setShowUserAdmin] = useState(false);
 
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
   // Use the reset simulation hook
   const resetSimulation = useResetSimulation();
+  
+  // Fetch users for admin
+  const { data: users = [], refetch: refetchUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
 
   // Mutation to update bot status
   const updateBotStatus = useMutation({
@@ -142,6 +191,21 @@ export default function SettingsPage() {
         max_trade_size: maxTradeSize,
         max_daily_loss: maxDailyLoss,
         scan_interval: scanInterval,
+        // Realistic paper trading parameters
+        max_realistic_spread_pct: maxRealisticSpreadPct,
+        min_profit_threshold_pct: minProfitThresholdPct,
+        slippage_min_pct: slippageMinPct,
+        slippage_max_pct: slippageMaxPct,
+        spread_cost_pct: spreadCostPct,
+        execution_failure_rate: executionFailureRate,
+        partial_fill_chance: partialFillChance,
+        partial_fill_min_pct: partialFillMinPct,
+        resolution_loss_rate: resolutionLossRate,
+        loss_severity_min: lossSeverityMin,
+        loss_severity_max: lossSeverityMax,
+        max_position_pct: maxPositionPct,
+        max_position_usd: maxPositionUsd,
+        min_position_usd: minPositionUsd,
       });
     } finally {
       setSaving(false);
@@ -396,6 +460,389 @@ export default function SettingsPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Advanced Realistic Trading Parameters */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25 }}
+        className="card mb-6"
+      >
+        <button
+          onClick={() => setShowAdvancedParams(!showAdvancedParams)}
+          className="w-full flex items-center justify-between"
+          type="button"
+          title="Toggle advanced parameters"
+        >
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Activity className="w-5 h-5 text-neon-purple" />
+            Advanced Simulation Parameters
+          </h2>
+          {showAdvancedParams ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        <p className="text-sm text-gray-500 mt-1">Fine-tune realistic paper trading simulation</p>
+
+        <AnimatePresence>
+          {showAdvancedParams && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              {/* Spread Constraints */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <h3 className="text-lg font-medium flex items-center gap-2 mb-4">
+                  <Target className="w-4 h-4 text-neon-green" />
+                  Spread Constraints
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
+                      Max Realistic Spread %
+                    </label>
+                    <input
+                      type="number"
+                      value={maxRealisticSpreadPct}
+                      onChange={(e) => setMaxRealisticSpreadPct(parseFloat(e.target.value))}
+                      step="0.5"
+                      min="1"
+                      max="50"
+                      disabled={!isAdmin}
+                      placeholder="12.0"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Reject spreads above this (likely false positive)</p>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
+                      Min Profit Threshold %
+                    </label>
+                    <input
+                      type="number"
+                      value={minProfitThresholdPct}
+                      onChange={(e) => setMinProfitThresholdPct(parseFloat(e.target.value))}
+                      step="0.5"
+                      min="0"
+                      max="20"
+                      disabled={!isAdmin}
+                      placeholder="5.0"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Only trade when profit exceeds this after costs</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Execution Simulation */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <h3 className="text-lg font-medium flex items-center gap-2 mb-4">
+                  <Zap className="w-4 h-4 text-yellow-500" />
+                  Execution Simulation
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Slippage Min %</label>
+                    <input
+                      type="number"
+                      value={slippageMinPct}
+                      onChange={(e) => setSlippageMinPct(parseFloat(e.target.value))}
+                      step="0.1"
+                      min="0"
+                      max="5"
+                      disabled={!isAdmin}
+                      placeholder="0.3"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Slippage Max %</label>
+                    <input
+                      type="number"
+                      value={slippageMaxPct}
+                      onChange={(e) => setSlippageMaxPct(parseFloat(e.target.value))}
+                      step="0.1"
+                      min="0"
+                      max="10"
+                      disabled={!isAdmin}
+                      placeholder="2.0"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Spread Cost %</label>
+                    <input
+                      type="number"
+                      value={spreadCostPct}
+                      onChange={(e) => setSpreadCostPct(parseFloat(e.target.value))}
+                      step="0.1"
+                      min="0"
+                      max="5"
+                      disabled={!isAdmin}
+                      placeholder="1.0"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Execution Failure Rate</label>
+                    <input
+                      type="number"
+                      value={executionFailureRate}
+                      onChange={(e) => setExecutionFailureRate(parseFloat(e.target.value))}
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      disabled={!isAdmin}
+                      placeholder="0.25"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">0 = never fails, 1 = always fails</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Partial Fill Chance</label>
+                    <input
+                      type="number"
+                      value={partialFillChance}
+                      onChange={(e) => setPartialFillChance(parseFloat(e.target.value))}
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      disabled={!isAdmin}
+                      placeholder="0.20"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Partial Fill Min %</label>
+                    <input
+                      type="number"
+                      value={partialFillMinPct}
+                      onChange={(e) => setPartialFillMinPct(parseFloat(e.target.value))}
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      disabled={!isAdmin}
+                      placeholder="0.50"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Market Resolution Risk */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <h3 className="text-lg font-medium flex items-center gap-2 mb-4">
+                  <TrendingDown className="w-4 h-4 text-red-500" />
+                  Market Resolution Risk
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Resolution Loss Rate</label>
+                    <input
+                      type="number"
+                      value={resolutionLossRate}
+                      onChange={(e) => setResolutionLossRate(parseFloat(e.target.value))}
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      disabled={!isAdmin}
+                      placeholder="0.18"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Chance market resolves against you</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Loss Severity Min</label>
+                    <input
+                      type="number"
+                      value={lossSeverityMin}
+                      onChange={(e) => setLossSeverityMin(parseFloat(e.target.value))}
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      disabled={!isAdmin}
+                      placeholder="0.25"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Loss Severity Max</label>
+                    <input
+                      type="number"
+                      value={lossSeverityMax}
+                      onChange={(e) => setLossSeverityMax(parseFloat(e.target.value))}
+                      step="0.05"
+                      min="0"
+                      max="1"
+                      disabled={!isAdmin}
+                      placeholder="0.85"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Position Sizing */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <h3 className="text-lg font-medium flex items-center gap-2 mb-4">
+                  <DollarSign className="w-4 h-4 text-neon-blue" />
+                  Position Sizing
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Max Position % of Balance</label>
+                    <input
+                      type="number"
+                      value={maxPositionPct}
+                      onChange={(e) => setMaxPositionPct(parseFloat(e.target.value))}
+                      step="0.5"
+                      min="0.5"
+                      max="25"
+                      disabled={!isAdmin}
+                      placeholder="3.0"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Max Position USD</label>
+                    <input
+                      type="number"
+                      value={maxPositionUsd}
+                      onChange={(e) => setMaxPositionUsd(parseFloat(e.target.value))}
+                      step="5"
+                      min="1"
+                      max="1000"
+                      disabled={!isAdmin}
+                      placeholder="30"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-400 mb-2 block">Min Position USD</label>
+                    <input
+                      type="number"
+                      value={minPositionUsd}
+                      onChange={(e) => setMinPositionUsd(parseFloat(e.target.value))}
+                      step="1"
+                      min="1"
+                      max="100"
+                      disabled={!isAdmin}
+                      placeholder="5"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* User Administration */}
+      {isAdmin && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="card mb-6"
+        >
+          <button
+            onClick={() => setShowUserAdmin(!showUserAdmin)}
+            className="w-full flex items-center justify-between"
+            type="button"
+            title="Toggle user administration"
+          >
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Users className="w-5 h-5 text-neon-blue" />
+              User Administration
+            </h2>
+            {showUserAdmin ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </button>
+
+          <AnimatePresence>
+            {showUserAdmin && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-4 pt-4 border-t border-dark-border">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-gray-400">Manage user access and permissions</p>
+                  </div>
+                  
+                  {/* Users List */}
+                  <div className="space-y-2">
+                    {users.map((u: any) => (
+                      <div 
+                        key={u.id}
+                        className="flex items-center justify-between p-3 bg-dark-border/30 rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
+                            u.role === 'admin' ? 'bg-neon-purple/20 text-neon-purple' :
+                            u.role === 'readonly' ? 'bg-gray-500/20 text-gray-400' :
+                            'bg-neon-green/20 text-neon-green'
+                          )}>
+                            {u.username?.[0]?.toUpperCase() || u.email?.[0]?.toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium">{u.username || u.email}</p>
+                            <p className="text-xs text-gray-500">{u.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={u.role}
+                            onChange={async (e) => {
+                              const newRole = e.target.value;
+                              await supabase
+                                .from('user_profiles')
+                                .update({ role: newRole })
+                                .eq('id', u.id);
+                              refetchUsers();
+                            }}
+                            disabled={u.id === user?.id}
+                            title="Change user role"
+                            className="bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="user">User</option>
+                            <option value="readonly">Read Only</option>
+                          </select>
+                          {u.id !== user?.id && (
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Delete user ${u.username || u.email}?`)) {
+                                  await supabase
+                                    .from('user_profiles')
+                                    .delete()
+                                    .eq('id', u.id);
+                                  refetchUsers();
+                                }
+                              }}
+                              className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                              title="Delete user"
+                            >
+                              <UserMinus className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {users.length === 0 && (
+                    <p className="text-center text-gray-500 py-4">No users found</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      )}
 
       {/* Save Button */}
       <div className="flex items-center gap-4">
