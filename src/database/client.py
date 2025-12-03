@@ -288,7 +288,7 @@ class Database:
         """Update heartbeat timestamp."""
         if not self._client:
             return
-        
+
         try:
             result = self._client.table("polybot_status").select("id").limit(1).execute()
             if result.data:
@@ -299,7 +299,60 @@ class Database:
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")
     
-    # ==================== Generic Async Operations ====================
+    # ==================== Trading Config ====================
+    
+    def get_trading_config(self) -> Optional[Dict]:
+        """
+        Get trading configuration from polybot_config table.
+        
+        Returns:
+            Config dict with trading parameters, or None if not available
+        """
+        if not self._client:
+            logger.debug("Database not connected, using default config")
+            return None
+        
+        try:
+            result = self._client.table("polybot_config").select(
+                "*"
+            ).eq("id", 1).single().execute()
+            
+            if result.data:
+                logger.info("✓ Loaded trading config from database")
+                return result.data
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Failed to get trading config: {e}")
+            return None
+    
+    def update_trading_config(self, config_data: Dict[str, Any]) -> bool:
+        """
+        Update trading configuration in polybot_config table.
+        
+        Args:
+            config_data: Dict of config fields to update
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._client:
+            return False
+        
+        try:
+            # Add updated_at timestamp
+            config_data["updated_at"] = datetime.utcnow().isoformat()
+            
+            self._client.table("polybot_config").update(
+                config_data
+            ).eq("id", 1).execute()
+            
+            logger.info("✓ Updated trading config in database")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update trading config: {e}")
+            return False    # ==================== Generic Async Operations ====================
     
     async def insert(self, table: str, data: Dict[str, Any]) -> Optional[Dict]:
         """

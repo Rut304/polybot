@@ -109,21 +109,21 @@ export default function SettingsPage() {
   const [minProfitThresholdPct, setMinProfitThresholdPct] = useState(config?.min_profit_threshold_pct ?? 5.0);
   
   // Execution simulation
-  const [slippageMinPct, setSlippageMinPct] = useState(config?.slippage_min_pct ?? 0.3);
-  const [slippageMaxPct, setSlippageMaxPct] = useState(config?.slippage_max_pct ?? 2.0);
-  const [spreadCostPct, setSpreadCostPct] = useState(config?.spread_cost_pct ?? 1.0);
-  const [executionFailureRate, setExecutionFailureRate] = useState(config?.execution_failure_rate ?? 0.25);
-  const [partialFillChance, setPartialFillChance] = useState(config?.partial_fill_chance ?? 0.20);
-  const [partialFillMinPct, setPartialFillMinPct] = useState(config?.partial_fill_min_pct ?? 0.50);
+  const [slippageMinPct, setSlippageMinPct] = useState(config?.slippage_min_pct ?? 0.2);
+  const [slippageMaxPct, setSlippageMaxPct] = useState(config?.slippage_max_pct ?? 1.0);
+  const [spreadCostPct, setSpreadCostPct] = useState(config?.spread_cost_pct ?? 0.5);
+  const [executionFailureRate, setExecutionFailureRate] = useState(config?.execution_failure_rate ?? 0.15);
+  const [partialFillChance, setPartialFillChance] = useState(config?.partial_fill_chance ?? 0.15);
+  const [partialFillMinPct, setPartialFillMinPct] = useState(config?.partial_fill_min_pct ?? 0.70);
   
   // Market resolution risk
-  const [resolutionLossRate, setResolutionLossRate] = useState(config?.resolution_loss_rate ?? 0.18);
-  const [lossSeverityMin, setLossSeverityMin] = useState(config?.loss_severity_min ?? 0.25);
-  const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.85);
+  const [resolutionLossRate, setResolutionLossRate] = useState(config?.resolution_loss_rate ?? 0.08);
+  const [lossSeverityMin, setLossSeverityMin] = useState(config?.loss_severity_min ?? 0.10);
+  const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.40);
   
   // Position sizing
-  const [maxPositionPct, setMaxPositionPct] = useState(config?.max_position_pct ?? 3.0);
-  const [maxPositionUsd, setMaxPositionUsd] = useState(config?.max_position_usd ?? 30.0);
+  const [maxPositionPct, setMaxPositionPct] = useState(config?.max_position_pct ?? 5.0);
+  const [maxPositionUsd, setMaxPositionUsd] = useState(config?.max_position_usd ?? 50.0);
   const [minPositionUsd, setMinPositionUsd] = useState(config?.min_position_usd ?? 5.0);
   
   // UI state

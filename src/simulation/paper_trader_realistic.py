@@ -185,7 +185,7 @@ class RealisticPaperTrader:
     8. Minimum profit threshold: Need >5% to cover costs
     """
 
-    # ========== REALISTIC CONSTRAINTS ==========
+    # ========== DEFAULT VALUES (overridden by database config) ==========
     # Maximum believable arbitrage spread (anything higher is likely false positive)
     MAX_REALISTIC_SPREAD_PCT = 12.0  # Tightened from 15% - more conservative
 
@@ -228,6 +228,69 @@ class RealisticPaperTrader:
         )
         self.trades: Dict[str, SimulatedTrade] = {}
         self._trade_counter = 0
+        
+        # Load config from database (overrides class defaults)
+        self._load_config_from_db()
+
+    def _load_config_from_db(self):
+        """
+        Load trading configuration from database.
+        Overrides class defaults with values from polybot_config table.
+        Falls back to class defaults if database is unavailable or values missing.
+        """
+        try:
+            config = self.db.get_trading_config()
+            if not config:
+                logger.info("No database config found, using defaults")
+                return
+            
+            # Map database columns to instance attributes
+            config_mapping = {
+                'max_realistic_spread_pct': 'MAX_REALISTIC_SPREAD_PCT',
+                'min_profit_threshold_pct': 'MIN_PROFIT_THRESHOLD_PCT',
+                'slippage_min_pct': 'SLIPPAGE_MIN_PCT',
+                'slippage_max_pct': 'SLIPPAGE_MAX_PCT',
+                'spread_cost_pct': 'SPREAD_COST_PCT',
+                'execution_failure_rate': 'EXECUTION_FAILURE_RATE',
+                'partial_fill_chance': 'PARTIAL_FILL_CHANCE',
+                'partial_fill_min_pct': 'PARTIAL_FILL_MIN_PCT',
+                'resolution_loss_rate': 'RESOLUTION_LOSS_RATE',
+                'loss_severity_min': 'LOSS_SEVERITY_MIN',
+                'loss_severity_max': 'LOSS_SEVERITY_MAX',
+                'max_position_pct': 'MAX_POSITION_PCT',
+                'max_position_usd': 'MAX_POSITION_USD',
+                'min_position_usd': 'MIN_POSITION_USD',
+            }
+            
+            loaded_count = 0
+            for db_col, attr_name in config_mapping.items():
+                if db_col in config and config[db_col] is not None:
+                    value = float(config[db_col])
+                    setattr(self, attr_name, value)
+                    loaded_count += 1
+                    logger.debug(f"Loaded {attr_name} = {value} from database")
+            
+            # Also load basic settings if present
+            if config.get('min_profit_percent') is not None:
+                self.MIN_PROFIT_THRESHOLD_PCT = float(config['min_profit_percent'])
+                loaded_count += 1
+            
+            if config.get('max_trade_size') is not None:
+                self.MAX_POSITION_USD = float(config['max_trade_size'])
+                loaded_count += 1
+            
+            logger.info(f"✓ Loaded {loaded_count} config values from database")
+            
+            # Log current settings
+            logger.info(f"  Max spread: {self.MAX_REALISTIC_SPREAD_PCT}%")
+            logger.info(f"  Min profit: {self.MIN_PROFIT_THRESHOLD_PCT}%")
+            logger.info(f"  Max position: ${self.MAX_POSITION_USD}")
+            logger.info(f"  Exec failure rate: {self.EXECUTION_FAILURE_RATE*100:.0f}%")
+            logger.info(f"  Resolution loss rate: {self.RESOLUTION_LOSS_RATE*100:.0f}%")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load config from database: {e}")
+            logger.info("Using default configuration values")
 
     def _generate_trade_id(self) -> str:
         """Generate unique trade ID"""
