@@ -1,4 +1,5 @@
 # Prediction Market Arbitrage Strategy Analysis
+
 ## Polymarket vs Kalshi: Comprehensive Research & Actionable Insights
 
 *Generated: December 2, 2025*
@@ -10,6 +11,7 @@
 Cross-platform prediction market arbitrage between Polymarket and Kalshi presents real opportunities but faces significant structural challenges. This analysis synthesizes academic research, platform mechanics, and practical trading considerations to provide actionable strategies for improving arbitrage profitability.
 
 ### Key Findings
+
 | Dimension | Finding | Implication |
 |-----------|---------|-------------|
 | **Fee Structure** | Polymarket: 0% fees, Kalshi: ~7-8% on expected winnings | Polymarket is strongly preferred for taker trades |
@@ -43,12 +45,14 @@ The SSRN paper **"Price Discovery and Trading in Prediction Markets"** (Ng, Peng
 ### Arbitrage Decay Rates
 
 Based on observed patterns:
+
 - **Sub-1% opportunities**: Close in <30 seconds
 - **1-3% opportunities**: 30 seconds to 2 minutes
 - **3-5% opportunities**: 2-5 minutes (rare, usually execution risk)
 - **>5% opportunities**: Likely market mismatch or data staleness
 
 ### Actionable Insight
+
 ```
 STRATEGY: Monitor high-profile news sources (AP, Reuters, official 
 Twitter accounts) for breaking news. Position bots to detect Polymarket 
@@ -88,6 +92,7 @@ SPLIT_MARKET_PRIORITY = [
 ```
 
 ### Actionable Insight
+
 ```
 STRATEGY: Focus 70% of capital on elections during election season, 
 then rotate to crypto/sports. Maintain watchlist of 20-30 high-volume 
@@ -124,6 +129,7 @@ Hour (EST)    Polymarket      Kalshi          Best For
 | >$10,000 | Market make instead | N/A |
 
 ### Actionable Insight
+
 ```
 STRATEGY: Execute trades during 9am-12pm EST when both platforms 
 have deep books. For larger trades ($1k+), use limit orders at 
@@ -147,12 +153,14 @@ market orders with minimal slippage.
 ### The 9% Problem
 
 Hypothetical $0.50 → $1.00 trade on Kalshi:
+
 - Entry: Buy at $0.50
 - Expected Profit: $0.50 per contract
 - Kalshi Fee: ~7% × $0.50 = $0.035
 - **Effective Cost**: 7% of edge
 
 For cross-platform arbitrage:
+
 - If you buy Kalshi at $0.48, sell Polymarket at $0.52
 - Gross profit: $0.04 (8%)
 - Kalshi fee: ~$0.025 (if winning)
@@ -161,6 +169,7 @@ For cross-platform arbitrage:
 ### Fee Minimization Strategies
 
 #### Strategy 1: Polymarket-First Execution
+
 ```python
 # Preference order for trade execution
 EXECUTION_PREFERENCE = {
@@ -170,6 +179,7 @@ EXECUTION_PREFERENCE = {
 ```
 
 #### Strategy 2: Maker Orders on Kalshi
+
 Kalshi offers reduced fees for maker orders. Adjust your detector:
 
 ```python
@@ -184,12 +194,15 @@ def calculate_effective_profit(self, opportunity):
 ```
 
 #### Strategy 3: Position Offsetting
+
 Instead of settling, offset positions:
+
 - Hold Kalshi YES + Polymarket NO = hedged position
 - Wait for convergence, exit both at mid-price
 - Avoids settlement fees entirely
 
 #### Strategy 4: High-Probability Skew
+
 ```python
 # Prefer trades where Kalshi side is more likely to expire worthless
 # (You pay 0% on losing Kalshi trades)
@@ -205,6 +218,7 @@ def prefer_kalshi_loss_side(opportunity):
 ```
 
 ### Actionable Insight
+
 ```
 STRATEGY: 
 1. Always prefer buying on Polymarket (0% fee)
@@ -246,6 +260,7 @@ Arbitrage Size    Time to 50% Closure    Time to 90% Closure
 ### Speed Optimization Recommendations
 
 #### Current Bottlenecks (from your code)
+
 ```python
 # In detector.py, max_data_age_seconds = 30 is too lenient
 # Recommendation: Reduce to 5-10 seconds for fresh data
@@ -260,6 +275,7 @@ class ArbitrageDetector:
 ```
 
 #### Pre-Authorization Pattern
+
 ```python
 # Maintain hot signatures for both platforms
 class TradingSession:
@@ -275,6 +291,7 @@ class TradingSession:
 ```
 
 ### Actionable Insight
+
 ```
 STRATEGY: Speed matters but you're not competing with HFT firms.
 Your current async architecture is sufficient. Focus on:
@@ -295,12 +312,14 @@ You DON'T need co-location or sub-millisecond optimization.
 Polymarket offers **liquidity rewards** for providing tight quotes. This is potentially more profitable than arbitrage with lower risk.
 
 #### Program Details
+
 - Daily rewards pool varies by market ($50-$500/day for popular markets)
 - Rewards proportional to: order size × time at quote × tightness to mid
 - Minimum spread to qualify: typically 3¢ from midpoint
 - Minimum size: varies by market
 
 #### Expected Returns
+
 ```
 Market Type        Daily Volume    Reward Pool    Est. LP Return
 Major Election     $1-5M           $200-500       10-20% APR
@@ -362,6 +381,7 @@ class HybridStrategy:
 ```
 
 ### Actionable Insight
+
 ```
 STRATEGY: Consider a hybrid approach:
 1. Market make on Polymarket for steady 10-15% APR
@@ -378,12 +398,14 @@ This generates consistent income while waiting for arb opportunities.
 ### Elections
 
 **Characteristics:**
+
 - Highest volume and liquidity
 - Long-duration markets (months)
 - News-driven volatility spikes
 - Polymarket significantly leads Kalshi
 
 **Optimal Strategy:**
+
 ```python
 ELECTION_CONFIG = {
     "min_profit_percent": 2.0,  # Can be tighter due to volume
@@ -396,12 +418,14 @@ ELECTION_CONFIG = {
 ### Sports
 
 **Characteristics:**
+
 - Short duration (game day)
 - Efficient pricing (Vegas expertise)
 - Live odds create brief opportunities
 - Lower overall volume than elections
 
 **Optimal Strategy:**
+
 ```python
 SPORTS_CONFIG = {
     "min_profit_percent": 3.5,  # Wider due to fast movement
@@ -414,12 +438,14 @@ SPORTS_CONFIG = {
 ### Crypto
 
 **Characteristics:**
+
 - 24/7 markets
 - High correlation with spot prices
 - Kalshi updates lag significantly
 - BTC/ETH most liquid
 
 **Optimal Strategy:**
+
 ```python
 CRYPTO_CONFIG = {
     "min_profit_percent": 2.5,
@@ -432,12 +458,14 @@ CRYPTO_CONFIG = {
 ### Economic (Fed Rates, GDP)
 
 **Characteristics:**
+
 - Highly efficient markets
 - Professional trader dominated
 - Event-based (FOMC meetings)
 - Low arbitrage opportunities
 
 **Optimal Strategy:**
+
 ```python
 ECONOMIC_CONFIG = {
     "min_profit_percent": 4.0,  # Require larger edge
@@ -463,6 +491,7 @@ ECONOMIC_CONFIG = {
 ### Lead-Lag Relationship
 
 From the SSRN research:
+
 - **Polymarket leads Kalshi by 5-30 minutes** on average
 - Lead time increases during high-volatility periods
 - Large trades on Polymarket predict Kalshi price movement
@@ -494,6 +523,7 @@ def detect_correlation_break(poly_price, kalshi_price, historical_spread):
 ```
 
 ### Actionable Insight
+
 ```
 STRATEGY: Track 24-hour rolling spread between platforms.
 When spread exceeds 2 standard deviations from normal:
@@ -542,12 +572,14 @@ This is more reliable than pure price-level arbitrage.
 ### Immediate Improvements (< 1 day)
 
 1. **Reduce data staleness threshold**
+
    ```python
    # In detector.py
    max_data_age_seconds = 10.0  # Down from 30.0
    ```
 
 2. **Adjust minimum profit for fee impact**
+
    ```python
    # For Kalshi-buy trades
    min_profit_percent = 3.5  # Up from 1.0
@@ -557,6 +589,7 @@ This is more reliable than pure price-level arbitrage.
    ```
 
 3. **Add category-specific configs**
+
    ```python
    CATEGORY_CONFIGS = {
        "elections": {"min_profit": 2.0, "max_position": 500},
@@ -598,6 +631,7 @@ This is more reliable than pure price-level arbitrage.
 ## Appendix A: Fee Calculation Reference
 
 ### Kalshi Fee Formula
+
 ```python
 def kalshi_fee(entry_price: float, exit_price: float, contracts: int) -> float:
     """
@@ -614,6 +648,7 @@ def kalshi_fee(entry_price: float, exit_price: float, contracts: int) -> float:
 ```
 
 ### Polymarket Fee Formula
+
 ```python
 def polymarket_fee(entry_price: float, exit_price: float, contracts: int) -> float:
     """Polymarket has 0% trading fees."""
@@ -621,6 +656,7 @@ def polymarket_fee(entry_price: float, exit_price: float, contracts: int) -> flo
 ```
 
 ### Net Profit Calculator
+
 ```python
 def calculate_net_profit(
     buy_platform: str,
@@ -692,6 +728,7 @@ Prediction market arbitrage between Polymarket and Kalshi is viable but requires
 5. **Speed** - Fast enough matters (seconds, not milliseconds)
 
 Your current implementation is well-architected. The primary improvements are:
+
 - Tighten data freshness requirements
 - Increase minimum profit thresholds
 - Add category-specific configurations
