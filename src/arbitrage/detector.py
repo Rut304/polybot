@@ -681,7 +681,7 @@ class CrossPlatformScanner:
         return ' '.join(words)
     
     def _calculate_similarity(self, text1: str, text2: str) -> float:
-        """Calculate text similarity score (0-1)."""
+        """Calculate text similarity score (0-1) with stricter matching."""
         norm1 = self._normalize_text(text1)
         norm2 = self._normalize_text(text2)
         
@@ -694,17 +694,26 @@ class CrossPlatformScanner:
         if not words1 or not words2:
             return 0.0
         
-        # Jaccard similarity
-        intersection = len(words1 & words2)
+        # Find common words
+        common = words1 & words2
+        
+        # Filter out very short words and common names that cause false matches
+        common = {w for w in common if len(w) > 2}
+        
+        # Require at least 2 meaningful words in common
+        if len(common) < 2:
+            return 0.0
+        
+        # Jaccard similarity on remaining words
         union = len(words1 | words2)
         
-        return intersection / union if union > 0 else 0.0
+        return len(common) / union if union > 0 else 0.0
     
     async def find_matching_markets(
         self,
         poly_markets: List[Dict],
         kalshi_markets: List[Dict],
-        min_similarity: float = 0.25,  # Lowered from 0.4 for better cross-platform matching
+        min_similarity: float = 0.35,  # Raised for stricter matching
     ) -> List[Dict]:
         """
         Find matching markets between platforms based on title similarity.
