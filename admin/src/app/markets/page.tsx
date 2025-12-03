@@ -70,12 +70,12 @@ export default function MarketsPage() {
   
   const watchlistIds = new Set(watchlist.map(w => w.market_id));
 
-  // Fetch markets from Polymarket API
+  // Fetch markets from Polymarket Gamma API (active markets)
   const fetchPolymarketMarkets = useCallback(async () => {
     try {
-      // Using Polymarket's public CLOB API
+      // Using Polymarket's Gamma API which returns active markets
       const response = await fetch(
-        'https://clob.polymarket.com/markets?limit=500&active=true',
+        'https://gamma-api.polymarket.com/markets?limit=500&closed=false&active=true',
         { headers: { 'Accept': 'application/json' } }
       );
       
@@ -83,18 +83,21 @@ export default function MarketsPage() {
       
       const data = await response.json();
       
-      return (data || []).map((m: any) => ({
-        id: m.condition_id || m.id,
+      // Filter to only include markets that are truly open (not closed)
+      const activeMarkets = (data || []).filter((m: any) => !m.closed && m.active);
+      
+      return activeMarkets.map((m: any) => ({
+        id: m.conditionId || m.condition_id || m.id,
         question: m.question || m.title,
         description: m.description,
-        category: m.category || 'Other',
-        yes_price: parseFloat(m.tokens?.[0]?.price || m.outcomePrices?.[0] || '0.5'),
-        no_price: parseFloat(m.tokens?.[1]?.price || m.outcomePrices?.[1] || '0.5'),
+        category: m.events?.[0]?.title?.split(' ')[0] || 'Other',
+        yes_price: parseFloat(m.outcomePrices ? JSON.parse(m.outcomePrices)[0] : m.bestAsk || '0.5'),
+        no_price: parseFloat(m.outcomePrices ? JSON.parse(m.outcomePrices)[1] : (1 - (m.bestAsk || 0.5)).toString()),
         volume: parseFloat(m.volume || m.volumeNum || '0'),
-        liquidity: parseFloat(m.liquidity || '0'),
-        end_date: m.end_date_iso || m.endDate,
+        liquidity: parseFloat(m.liquidity || m.liquidityNum || '0'),
+        end_date: m.endDate || m.end_date_iso,
         platform: 'polymarket' as const,
-        url: `https://polymarket.com/event/${m.condition_id || m.id}`,
+        url: `https://polymarket.com/event/${m.slug || m.conditionId || m.id}`,
       }));
     } catch (e) {
       console.error('Polymarket fetch error:', e);
@@ -102,11 +105,12 @@ export default function MarketsPage() {
     }
   }, []);
 
-  // Fetch markets from Kalshi API (public)
+  // Fetch markets from Kalshi API (updated endpoint)
   const fetchKalshiMarkets = useCallback(async () => {
     try {
+      // Kalshi API has moved to new endpoint
       const response = await fetch(
-        'https://trading-api.kalshi.com/trade-api/v2/markets?limit=500&status=open',
+        'https://api.elections.kalshi.com/trade-api/v2/markets?limit=500&status=active',
         { headers: { 'Accept': 'application/json' } }
       );
       
@@ -118,12 +122,12 @@ export default function MarketsPage() {
         id: m.ticker,
         question: m.title || m.subtitle,
         description: m.rules_primary,
-        category: m.category || 'Other',
-        yes_price: m.yes_bid || m.last_price || 0.5,
-        no_price: m.no_bid || (1 - (m.last_price || 0.5)),
+        category: m.event_ticker?.split('-')[0] || 'Other',
+        yes_price: (m.yes_bid || m.last_price || 50) / 100, // Kalshi uses cents
+        no_price: (m.no_bid || (100 - (m.last_price || 50))) / 100,
         volume: m.volume || 0,
-        liquidity: m.open_interest || 0,
-        end_date: m.close_time,
+        liquidity: (m.liquidity || m.open_interest || 0) / 100, // Convert from cents
+        end_date: m.close_time || m.expiration_time,
         platform: 'kalshi' as const,
         url: `https://kalshi.com/markets/${m.ticker}`,
       }));
