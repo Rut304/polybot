@@ -1,10 +1,15 @@
 """
 Arbitrage opportunity detection across Polymarket and Kalshi.
 Finds cross-platform price discrepancies and calculates profit potential.
+
+Key optimizations:
+- Asymmetric profit thresholds (fee-aware)
+- Tighter data freshness requirements (10s vs 30s)
+- Buy Polymarket (0% fee) preferred over buy Kalshi (7% fee)
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Tuple
 from datetime import datetime
 
@@ -112,13 +117,24 @@ class ArbitrageDetector:
     Supports:
     1. Simple cross-platform arbitrage (same market, different prices)
     2. Split market arbitrage (one platform splits outcomes that another combines)
+    
+    Fee-aware thresholds:
+    - Polymarket: ~0% trading fee (2% on winning)
+    - Kalshi: ~7% on profits
+    - Uses asymmetric thresholds based on buy platform
     """
+    
+    # Asymmetric minimum profit thresholds based on fee structure
+    # Buying on Polymarket (0% fee) is cheaper, so lower threshold
+    # Buying on Kalshi (7% fee) requires higher profit to cover costs
+    MIN_PROFIT_BUY_POLYMARKET = 3.0  # Lower threshold - cheaper fees
+    MIN_PROFIT_BUY_KALSHI = 5.0      # Higher threshold - expensive fees
     
     def __init__(
         self,
-        min_profit_percent: float = 1.0,
+        min_profit_percent: float = 1.0,  # Base threshold (overridden by asymmetric)
         min_confidence: float = 0.5,
-        max_data_age_seconds: float = 30.0,
+        max_data_age_seconds: float = 10.0,  # Tightened from 30s - stale data kills arb
     ):
         self.min_profit_percent = min_profit_percent
         self.min_confidence = min_confidence
@@ -126,6 +142,19 @@ class ArbitrageDetector:
         
         # Opportunity counter for unique IDs
         self._opportunity_counter = 0
+    
+    def _get_min_profit_for_direction(self, buy_platform: str) -> float:
+        """
+        Get minimum profit threshold based on which platform we're buying from.
+        
+        Rationale:
+        - Buying on Polymarket (0% fee) → Selling on Kalshi: 3% min
+        - Buying on Kalshi (7% fee) → Selling on Polymarket: 5% min
+        """
+        if buy_platform == "polymarket":
+            return max(self.min_profit_percent, self.MIN_PROFIT_BUY_POLYMARKET)
+        else:  # kalshi
+            return max(self.min_profit_percent, self.MIN_PROFIT_BUY_KALSHI)
     
     def _generate_opportunity_id(self) -> str:
         """Generate unique opportunity ID."""
@@ -142,6 +171,9 @@ class ArbitrageDetector:
         """
         Calculate confidence score based on data freshness.
         Returns value between 0 and 1.
+        
+        Fresher data = higher confidence = better arb opportunity.
+        Stale data (>10s) = likely opportunity already gone.
         """
         poly_age = current_time - poly_last_update
         kalshi_age = current_time - kalshi_last_update
@@ -179,19 +211,26 @@ class ArbitrageDetector:
         )
         
         if confidence < self.min_confidence:
-            logger.debug(f"Skipping {market_name}: low confidence {confidence:.2f}")
+            logger.debug(
+                f"Skipping {market_name}: low confidence {confidence:.2f}"
+            )
             return opportunities
         
         # Strategy 1: Buy Kalshi ask, Sell Polymarket bid
+        # Higher threshold needed (Kalshi has 7% fees)
         if kalshi_asks and polymarket_bids:
             kalshi_ask_price, kalshi_ask_size = kalshi_asks[0]
             poly_bid_price, poly_bid_size = polymarket_bids[0]
             
             profit = poly_bid_price - kalshi_ask_price
-            profit_percent = (profit / kalshi_ask_price) * 100 if kalshi_ask_price > 0 else 0
+            profit_percent = (
+                (profit / kalshi_ask_price) * 100 if kalshi_ask_price > 0 else 0
+            )
             max_size = min(kalshi_ask_size, poly_bid_size)
             
-            if profit_percent >= self.min_profit_percent:
+            # Use asymmetric threshold - buying Kalshi needs higher profit
+            min_threshold = self._get_min_profit_for_direction("kalshi")
+            if profit_percent >= min_threshold:
                 opportunities.append(Opportunity(
                     id=self._generate_opportunity_id(),
                     detected_at=datetime.utcnow(),
@@ -212,15 +251,20 @@ class ArbitrageDetector:
                 ))
         
         # Strategy 2: Buy Polymarket ask, Sell Kalshi bid
+        # Lower threshold (Polymarket has 0% trading fees)
         if polymarket_asks and kalshi_bids:
             poly_ask_price, poly_ask_size = polymarket_asks[0]
             kalshi_bid_price, kalshi_bid_size = kalshi_bids[0]
             
             profit = kalshi_bid_price - poly_ask_price
-            profit_percent = (profit / poly_ask_price) * 100 if poly_ask_price > 0 else 0
+            profit_percent = (
+                (profit / poly_ask_price) * 100 if poly_ask_price > 0 else 0
+            )
             max_size = min(poly_ask_size, kalshi_bid_size)
             
-            if profit_percent >= self.min_profit_percent:
+            # Use asymmetric threshold - buying Polymarket is cheaper
+            min_threshold = self._get_min_profit_for_direction("polymarket")
+            if profit_percent >= min_threshold:
                 opportunities.append(Opportunity(
                     id=self._generate_opportunity_id(),
                     detected_at=datetime.utcnow(),
@@ -278,6 +322,8 @@ class ArbitrageDetector:
             return opportunities
         
         # Strategy 1: Buy Kalshi ask, Sell combined Polymarket bids
+        # Strategy 1: Buy Kalshi combined ask, Sell Polymarket split bids
+        # Higher threshold (Kalshi 7% fees)
         if kalshi_asks:
             kalshi_ask_price, kalshi_ask_size = kalshi_asks[0]
             
@@ -288,17 +334,21 @@ class ArbitrageDetector:
             for market in poly_markets:
                 bids = market.get("bids", [])
                 if bids:
-                    poly_bid_sum += bids[0][0]  # Best bid price
-                    poly_min_size = min(poly_min_size, bids[0][1])  # Minimum size
+                    poly_bid_sum += bids[0][0]
+                    poly_min_size = min(poly_min_size, bids[0][1])
             
             if poly_min_size == float('inf'):
                 poly_min_size = 0
             
             profit = poly_bid_sum - kalshi_ask_price
-            profit_percent = (profit / kalshi_ask_price) * 100 if kalshi_ask_price > 0 else 0
+            profit_percent = (
+                (profit / kalshi_ask_price) * 100 if kalshi_ask_price > 0 else 0
+            )
             max_size = min(kalshi_ask_size, poly_min_size)
             
-            if profit_percent >= self.min_profit_percent:
+            # Use asymmetric threshold - buying Kalshi needs higher profit
+            min_threshold = self._get_min_profit_for_direction("kalshi")
+            if profit_percent >= min_threshold:
                 poly_token_ids = [m.get("token_id", "") for m in poly_markets]
                 opportunities.append(Opportunity(
                     id=self._generate_opportunity_id(),
@@ -316,10 +366,11 @@ class ArbitrageDetector:
                     max_size=max_size,
                     total_profit=profit * max_size,
                     confidence=confidence,
-                    strategy="Buy Kalshi combined ask, Sell Polymarket split bids",
+                    strategy="Buy Kalshi combined, Sell Polymarket split",
                 ))
         
         # Strategy 2: Buy combined Polymarket asks, Sell Kalshi bid
+        # Lower threshold (Polymarket 0% fees)
         if kalshi_bids:
             kalshi_bid_price, kalshi_bid_size = kalshi_bids[0]
             
@@ -330,17 +381,21 @@ class ArbitrageDetector:
             for market in poly_markets:
                 asks = market.get("asks", [])
                 if asks:
-                    poly_ask_sum += asks[0][0]  # Best ask price
-                    poly_min_size = min(poly_min_size, asks[0][1])  # Minimum size
+                    poly_ask_sum += asks[0][0]
+                    poly_min_size = min(poly_min_size, asks[0][1])
             
             if poly_min_size == float('inf'):
                 poly_min_size = 0
             
             profit = kalshi_bid_price - poly_ask_sum
-            profit_percent = (profit / poly_ask_sum) * 100 if poly_ask_sum > 0 else 0
+            profit_percent = (
+                (profit / poly_ask_sum) * 100 if poly_ask_sum > 0 else 0
+            )
             max_size = min(kalshi_bid_size, poly_min_size)
             
-            if profit_percent >= self.min_profit_percent:
+            # Use asymmetric threshold - buying Polymarket is cheaper
+            min_threshold = self._get_min_profit_for_direction("polymarket")
+            if profit_percent >= min_threshold:
                 poly_token_ids = [m.get("token_id", "") for m in poly_markets]
                 opportunities.append(Opportunity(
                     id=self._generate_opportunity_id(),
@@ -358,7 +413,7 @@ class ArbitrageDetector:
                     max_size=max_size,
                     total_profit=profit * max_size,
                     confidence=confidence,
-                    strategy="Buy Polymarket split asks, Sell Kalshi combined bid",
+                    strategy="Buy Polymarket split, Sell Kalshi combined",
                 ))
         
         return opportunities
