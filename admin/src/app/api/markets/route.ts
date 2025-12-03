@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // Fetch from both APIs in parallel
+    // Fetch from both APIs in parallel - get more markets
     const [polymarketData, kalshiData] = await Promise.all([
       fetchPolymarketMarkets(),
       fetchKalshiMarkets(),
     ]);
 
     const combined = [...polymarketData, ...kalshiData];
+    
+    // Sort by volume (most liquid first)
+    combined.sort((a, b) => (b.volume || 0) - (a.volume || 0));
     
     return NextResponse.json({
       markets: combined,
@@ -22,23 +25,38 @@ export async function GET() {
 
 async function fetchPolymarketMarkets() {
   try {
-    const response = await fetch(
-      'https://gamma-api.polymarket.com/markets?limit=500&closed=false&active=true',
-      { 
-        headers: { 'Accept': 'application/json' },
-        next: { revalidate: 60 } // Cache for 60 seconds
-      }
-    );
+    // Fetch multiple pages to get more markets
+    const allMarkets: any[] = [];
+    let offset = 0;
+    const limit = 500;
+    const maxPages = 4; // Up to 2000 markets
     
-    if (!response.ok) {
-      console.error('Polymarket API error:', response.status);
-      return [];
+    for (let page = 0; page < maxPages; page++) {
+      const response = await fetch(
+        `https://gamma-api.polymarket.com/markets?limit=${limit}&offset=${offset}&closed=false&active=true`,
+        { 
+          headers: { 'Accept': 'application/json' },
+          next: { revalidate: 60 }
+        }
+      );
+      
+      if (!response.ok) {
+        console.error('Polymarket API error:', response.status);
+        break;
+      }
+      
+      const data = await response.json();
+      if (!data || data.length === 0) break;
+      
+      allMarkets.push(...data);
+      offset += limit;
+      
+      // If we got fewer than requested, we've reached the end
+      if (data.length < limit) break;
     }
     
-    const data = await response.json();
-    
     // Filter to only include markets that are truly open
-    const activeMarkets = (data || []).filter((m: any) => !m.closed && m.active);
+    const activeMarkets = allMarkets.filter((m: any) => !m.closed && m.active);
     
     return activeMarkets.map((m: any) => {
       let yesPrice = 0.5;
@@ -79,22 +97,38 @@ async function fetchPolymarketMarkets() {
 
 async function fetchKalshiMarkets() {
   try {
-    const response = await fetch(
-      'https://api.elections.kalshi.com/trade-api/v2/markets?limit=500&status=active',
-      { 
+    // Fetch multiple pages using cursor pagination
+    const allMarkets: any[] = [];
+    let cursor: string | undefined;
+    const limit = 500;
+    const maxPages = 4; // Up to 2000 markets
+    
+    for (let page = 0; page < maxPages; page++) {
+      const url = cursor 
+        ? `https://api.elections.kalshi.com/trade-api/v2/markets?limit=${limit}&status=active&cursor=${cursor}`
+        : `https://api.elections.kalshi.com/trade-api/v2/markets?limit=${limit}&status=active`;
+      
+      const response = await fetch(url, { 
         headers: { 'Accept': 'application/json' },
         next: { revalidate: 60 }
+      });
+      
+      if (!response.ok) {
+        console.error('Kalshi API error:', response.status);
+        break;
       }
-    );
-    
-    if (!response.ok) {
-      console.error('Kalshi API error:', response.status);
-      return [];
+      
+      const data = await response.json();
+      if (!data.markets || data.markets.length === 0) break;
+      
+      allMarkets.push(...data.markets);
+      cursor = data.cursor;
+      
+      // If no cursor or fewer than requested, we've reached the end
+      if (!cursor || data.markets.length < limit) break;
     }
     
-    const data = await response.json();
-    
-    return (data.markets || []).map((m: any) => ({
+    return allMarkets.map((m: any) => ({
       id: m.ticker,
       question: m.title || m.subtitle,
       description: m.rules_primary,

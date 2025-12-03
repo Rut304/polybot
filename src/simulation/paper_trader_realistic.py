@@ -181,7 +181,7 @@ class RealisticPaperTrader:
     4. Execution failure: 20-40% of opportunities disappear before execution
     5. Partial fills: Only get 50-100% of intended size
     6. Platform fees: ~2% on Polymarket, ~7% on Kalshi profits
-    7. RESOLUTION RISK: 25% chance market resolves against your position
+    7. RESOLUTION RISK: Small chance market resolves against your position
     8. Minimum profit threshold: Need >5% to cover costs
     """
 
@@ -193,26 +193,27 @@ class RealisticPaperTrader:
     MIN_PROFIT_THRESHOLD_PCT = 5.0  # Raised from 3% - only take quality opportunities
 
     # ========== EXECUTION SIMULATION ==========
-    SLIPPAGE_MIN_PCT = 0.3      # Reduced from 0.5% - assume faster execution
-    SLIPPAGE_MAX_PCT = 2.0      # Reduced from 3% - tighter markets
-    SPREAD_COST_PCT = 1.0       # Reduced from 1.5% - better fills
-    EXECUTION_FAILURE_RATE = 0.25  # Reduced from 35% - faster execution
-    PARTIAL_FILL_CHANCE = 0.20  # Reduced from 25%
-    PARTIAL_FILL_MIN_PCT = 0.50 # Raised from 40% - better fills
+    SLIPPAGE_MIN_PCT = 0.2      # Minimal slippage for fast execution
+    SLIPPAGE_MAX_PCT = 1.0      # Reduced - tighter markets
+    SPREAD_COST_PCT = 0.5       # Reduced - better fills
+    EXECUTION_FAILURE_RATE = 0.15  # Reduced - faster execution
+    PARTIAL_FILL_CHANCE = 0.15  # Reduced - better liquidity
+    PARTIAL_FILL_MIN_PCT = 0.70 # Raised - better fills when partial
 
     # ========== MARKET RESOLUTION RISK ==========
-    # Even "arbitrage" bets can lose if markets are not truly correlated
-    RESOLUTION_LOSS_RATE = 0.18  # Reduced from 25% - better correlation detection
-    LOSS_SEVERITY_MIN = 0.25    # Reduced from 30%
-    LOSS_SEVERITY_MAX = 0.85    # Reduced from 100% - rarely total loss
+    # Arbitrage should rarely lose if both legs execute properly
+    # Loss only happens if markets diverge unexpectedly
+    RESOLUTION_LOSS_RATE = 0.08  # Reduced to 8% - true arbitrage rarely loses
+    LOSS_SEVERITY_MIN = 0.10    # Reduced - losses are usually partial
+    LOSS_SEVERITY_MAX = 0.40    # Capped at 40% - never total loss on arb
 
     # ========== PLATFORM FEES ==========
     POLYMARKET_FEE_PCT = 2.0    # ~2% on profits
     KALSHI_FEE_PCT = 7.0        # ~7% on profits (higher fees)
 
     # ========== POSITION SIZING ==========
-    MAX_POSITION_PCT = 3.0      # Reduced from 5% - more conservative
-    MAX_POSITION_USD = 30.0     # Reduced from $50 - smaller bets
+    MAX_POSITION_PCT = 5.0      # Increased - can take larger positions
+    MAX_POSITION_USD = 50.0     # Increased - larger bets on good opps
     MIN_POSITION_USD = 5.0      # Minimum trade size
 
     def __init__(
