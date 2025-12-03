@@ -578,9 +578,29 @@ class CrossPlatformScanner:
             return []
     
     async def fetch_kalshi_markets(self) -> List[Dict]:
-        """Fetch active markets from Kalshi."""
+        """
+        Fetch active markets from Kalshi.
+        
+        Focus on event-based markets (not multi-leg parlays) for better
+        matching with Polymarket.
+        """
         try:
             client = await self._get_http_client()
+            
+            # First fetch events to get proper titles
+            events_resp = await client.get(
+                f"{self.KALSHI_API}/events",
+                params={"limit": 100}
+            )
+            events_resp.raise_for_status()
+            events_data = events_resp.json()
+            
+            # Build event title lookup
+            event_titles = {}
+            for e in events_data.get("events", []):
+                event_titles[e.get("event_ticker")] = e.get("title", "")
+            
+            # Now fetch markets
             response = await client.get(
                 f"{self.KALSHI_API}/markets",
                 params={"limit": 200}
@@ -594,6 +614,11 @@ class CrossPlatformScanner:
                     if m.get("status") != "active":
                         continue
                     
+                    # Skip multi-leg/parlay markets (they have MVE in ticker)
+                    ticker = m.get("ticker", "")
+                    if "MVE" in ticker or "MULTIGAME" in ticker.upper():
+                        continue
+                    
                     volume = int(m.get("volume", 0) or 0)
                     if volume < self.MIN_LIQUIDITY_KALSHI:
                         continue
@@ -601,15 +626,24 @@ class CrossPlatformScanner:
                     # Kalshi prices are in cents (0-100)
                     yes_bid = float(m.get("yes_bid", 0) or 0) / 100
                     yes_ask = float(m.get("yes_ask", 0) or 0) / 100
-                    no_bid = float(m.get("no_bid", 0) or 0) / 100
                     last_price = float(m.get("last_price", 50) or 50) / 100
                     
                     # Use mid price if no bid/ask
                     yes_price = (yes_bid + yes_ask) / 2 if yes_bid and yes_ask else last_price
                     
+                    # Get proper title from event if available
+                    event_ticker = m.get("event_ticker", "")
+                    title = event_titles.get(event_ticker, "")
+                    if not title:
+                        title = m.get("subtitle", "") or m.get("title", "")
+                    
+                    # Skip if title looks like multi-leg (contains "yes X:" patterns)
+                    if "yes " in title.lower() and ":" in title:
+                        continue
+                    
                     filtered.append({
-                        "id": m.get("ticker"),
-                        "question": m.get("title", "") or m.get("subtitle", ""),
+                        "id": ticker,
+                        "question": title,
                         "yes_price": yes_price,
                         "no_price": 1 - yes_price,
                         "yes_bid": yes_bid,
