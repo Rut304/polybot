@@ -10,12 +10,19 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from 'recharts';
-import { SimulationStats } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 
+// Simple interface for P&L data points
+interface PnLDataPoint {
+  snapshot_at: string;
+  total_pnl: number;
+  simulated_balance: number;
+  total_trades: number;
+}
+
 interface PnLChartProps {
-  data: SimulationStats[];
+  data: PnLDataPoint[];
 }
 
 export function PnLChart({ data }: PnLChartProps) {
@@ -23,6 +30,16 @@ export function PnLChart({ data }: PnLChartProps) {
     return (
       <div className="h-[300px] flex items-center justify-center text-gray-500">
         <p>No data available yet. Run the bot to start collecting stats.</p>
+      </div>
+    );
+  }
+
+  // Check if there's only the starting point with no trades
+  const hasNoTrades = data.length === 1 && data[0].total_trades === 0;
+  if (hasNoTrades) {
+    return (
+      <div className="h-[300px] flex items-center justify-center text-gray-500">
+        <p>Waiting for trades to display P&L history...</p>
       </div>
     );
   }

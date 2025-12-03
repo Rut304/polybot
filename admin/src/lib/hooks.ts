@@ -120,6 +120,58 @@ export function useOpportunities(limit: number = 100) {
   });
 }
 
+// Compute P&L history from actual trades (accurate, not stale stats table)
+export function usePnLHistory(hours: number = 24) {
+  const { data: trades = [] } = useSimulatedTrades(500);
+  const { data: simStats } = useSimulationStats();
+  
+  return useQuery({
+    queryKey: ['pnlHistory', trades.length, hours],
+    queryFn: () => {
+      // Get starting balance
+      const startingBalance = simStats?.stats_json?.simulated_starting_balance 
+        ? parseFloat(simStats.stats_json.simulated_starting_balance) 
+        : 1000;
+      
+      // Filter trades within the time window
+      const since = new Date();
+      since.setHours(since.getHours() - hours);
+      
+      // Sort trades by time ascending
+      const sortedTrades = [...trades]
+        .filter(t => t.outcome !== 'failed_execution')
+        .filter(t => new Date(t.created_at) >= since)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      
+      // Build cumulative P&L data points
+      let cumulativePnl = 0;
+      const dataPoints = sortedTrades.map(trade => {
+        cumulativePnl += (trade.actual_profit_usd || 0);
+        return {
+          snapshot_at: trade.created_at,
+          total_pnl: cumulativePnl,
+          simulated_balance: startingBalance + cumulativePnl,
+          total_trades: sortedTrades.indexOf(trade) + 1,
+        };
+      });
+      
+      // If no trades, return starting point
+      if (dataPoints.length === 0) {
+        return [{
+          snapshot_at: new Date().toISOString(),
+          total_pnl: 0,
+          simulated_balance: startingBalance,
+          total_trades: 0,
+        }];
+      }
+      
+      return dataPoints;
+    },
+    enabled: trades.length >= 0,
+    refetchInterval: 5000,
+  });
+}
+
 // Compute real-time stats directly from trades (more accurate than stats table)
 export function useRealTimeStats() {
   const { data: trades = [] } = useSimulatedTrades(500);

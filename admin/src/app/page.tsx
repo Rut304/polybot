@@ -22,7 +22,7 @@ import {
   useSimulationStats, 
   useSimulatedTrades,
   useOpportunities,
-  useSimulationHistory,
+  usePnLHistory,
   useRealTimeStats,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, isRecent, cn } from '@/lib/utils';
@@ -39,7 +39,7 @@ export default function Dashboard() {
   const { data: realTimeStats } = useRealTimeStats();
   const { data: trades } = useSimulatedTrades(20);
   const { data: opportunities } = useOpportunities(50);
-  const { data: history } = useSimulationHistory(24);
+  const { data: pnlHistory } = usePnLHistory(24);
   
   // Prefer real-time computed stats (more accurate)
   const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 1000;
@@ -136,7 +136,7 @@ export default function Dashboard() {
                 <option value="720">30 Days</option>
               </select>
             </div>
-            <PnLChart data={history || []} />
+            <PnLChart data={pnlHistory || []} />
           </motion.div>
 
           <motion.div 
