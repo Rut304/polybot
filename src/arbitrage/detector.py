@@ -581,13 +581,13 @@ class CrossPlatformScanner:
         """
         Fetch active markets from Kalshi.
         
-        Focus on event-based markets (not multi-leg parlays) for better
-        matching with Polymarket.
+        Uses the events API to get proper market titles,
+        then fetches markets for each event.
         """
         try:
             client = await self._get_http_client()
             
-            # First fetch events to get proper titles
+            # Fetch events
             events_resp = await client.get(
                 f"{self.KALSHI_API}/events",
                 params={"limit": 100}
@@ -595,66 +595,73 @@ class CrossPlatformScanner:
             events_resp.raise_for_status()
             events_data = events_resp.json()
             
-            # Build event title lookup
-            event_titles = {}
-            for e in events_data.get("events", []):
-                event_titles[e.get("event_ticker")] = e.get("title", "")
-            
-            # Now fetch markets
-            response = await client.get(
-                f"{self.KALSHI_API}/markets",
-                params={"limit": 200}
-            )
-            response.raise_for_status()
-            data = response.json()
-            
             filtered = []
-            for m in data.get("markets", []):
-                try:
-                    if m.get("status") != "active":
-                        continue
-                    
-                    # Skip multi-leg/parlay markets (they have MVE in ticker)
-                    ticker = m.get("ticker", "")
-                    if "MVE" in ticker or "MULTIGAME" in ticker.upper():
-                        continue
-                    
-                    volume = int(m.get("volume", 0) or 0)
-                    if volume < self.MIN_LIQUIDITY_KALSHI:
-                        continue
-                    
-                    # Kalshi prices are in cents (0-100)
-                    yes_bid = float(m.get("yes_bid", 0) or 0) / 100
-                    yes_ask = float(m.get("yes_ask", 0) or 0) / 100
-                    last_price = float(m.get("last_price", 50) or 50) / 100
-                    
-                    # Use mid price if no bid/ask
-                    yes_price = (yes_bid + yes_ask) / 2 if yes_bid and yes_ask else last_price
-                    
-                    # Get proper title from event if available
-                    event_ticker = m.get("event_ticker", "")
-                    title = event_titles.get(event_ticker, "")
-                    if not title:
-                        title = m.get("subtitle", "") or m.get("title", "")
-                    
-                    # Skip if title looks like multi-leg (contains "yes X:" patterns)
-                    if "yes " in title.lower() and ":" in title:
-                        continue
-                    
-                    filtered.append({
-                        "id": ticker,
-                        "question": title,
-                        "yes_price": yes_price,
-                        "no_price": 1 - yes_price,
-                        "yes_bid": yes_bid,
-                        "yes_ask": yes_ask,
-                        "volume": volume,
-                        "platform": "kalshi",
-                    })
-                except (ValueError, TypeError):
-                    continue
+            event_count = 0
             
-            logger.info(f"Fetched {len(filtered)} Kalshi markets (vol >= {self.MIN_LIQUIDITY_KALSHI})")
+            # Process each event and get its markets
+            for event in events_data.get("events", []):
+                event_ticker = event.get("event_ticker", "")
+                event_title = event.get("title", "")
+                
+                if not event_ticker:
+                    continue
+                
+                # Fetch markets for this event
+                try:
+                    markets_resp = await client.get(
+                        f"{self.KALSHI_API}/markets",
+                        params={"event_ticker": event_ticker}
+                    )
+                    markets_resp.raise_for_status()
+                    markets = markets_resp.json().get("markets", [])
+                except Exception:
+                    continue
+                
+                for m in markets:
+                    try:
+                        if m.get("status") != "active":
+                            continue
+                        
+                        volume = int(m.get("volume", 0) or 0)
+                        if volume < self.MIN_LIQUIDITY_KALSHI:
+                            continue
+                        
+                        # Skip MVE/parlay markets
+                        ticker = m.get("ticker", "")
+                        if "MVE" in ticker:
+                            continue
+                        
+                        # Kalshi prices are in cents (0-100)
+                        yes_bid = float(m.get("yes_bid", 0) or 0) / 100
+                        yes_ask = float(m.get("yes_ask", 0) or 0) / 100
+                        last_price = float(m.get("last_price", 50) or 50) / 100
+                        
+                        # Use mid price if no bid/ask
+                        if yes_bid and yes_ask:
+                            yes_price = (yes_bid + yes_ask) / 2
+                        else:
+                            yes_price = last_price
+                        
+                        # Use event title as the question (better for matching)
+                        filtered.append({
+                            "id": ticker,
+                            "question": event_title,
+                            "yes_price": yes_price,
+                            "no_price": 1 - yes_price,
+                            "yes_bid": yes_bid,
+                            "yes_ask": yes_ask,
+                            "volume": volume,
+                            "platform": "kalshi",
+                        })
+                        event_count += 1
+                    except (ValueError, TypeError):
+                        continue
+                
+                # Limit API calls - stop after we have enough markets
+                if len(filtered) >= 50:
+                    break
+            
+            logger.info(f"Fetched {len(filtered)} Kalshi event markets")
             return filtered
             
         except Exception as e:
