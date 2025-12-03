@@ -137,4 +137,34 @@ export const METRIC_TOOLTIPS = {
   botRunning: "Whether the bot is actively scanning for opportunities and executing simulated trades.",
   dryRunMode: "When enabled, the bot simulates trades without real money. Always keep this ON until you're confident.",
   lastHeartbeat: "Last time the bot reported it was alive. If stale, the bot may have crashed.",
+  
+  // Analytics - Risk & Performance Metrics
+  sharpeRatio: "Risk-adjusted return metric. Measures excess return per unit of risk. >1 is good, >2 is excellent, <0 means returns don't justify the risk taken.",
+  maxDrawdown: "The largest peak-to-trough decline in portfolio value. Shows worst-case scenario and helps assess risk tolerance.",
+  profitFactor: "Gross profits divided by gross losses. >1 means profitable overall. >1.5 is good, >2 is excellent.",
+  expectancy: "Average expected profit per trade. Positive means you should make money over time. Calculated as (Win% × AvgWin) - (Loss% × AvgLoss).",
+  currentStreak: "Consecutive wins or losses in a row. Long losing streaks may indicate strategy issues or bad luck.",
+  dailyVolatility: "Standard deviation of daily returns. Higher volatility means more unpredictable swings in your balance.",
+  
+  // Analytics - Win/Loss Analysis
+  avgWin: "Average profit when a trade wins. Compare to avgLoss to understand your risk/reward profile.",
+  avgLoss: "Average loss when a trade loses. Should be smaller than avgWin for a sustainable strategy.",
+  payoffRatio: "Average win divided by average loss. >1 means your wins are bigger than your losses on average.",
+  tradingDays: "Total number of days with at least one trade. More data = more reliable statistics.",
+  tradesPerDay: "Average number of trades executed per active trading day.",
+  
+  // Analytics - Charts
+  pnlTrend: "Shows your cumulative profit/loss and balance over time. Upward slope = making money. Look for consistency.",
+  tradeOutcomes: "Pie chart showing won, lost, and pending trades. Aim for more green (wins) than red (losses).",
+  platformDistribution: "Breakdown of trades by platform - Polymarket only, Kalshi only, or cross-platform arbitrage.",
+  spreadDistribution: "Histogram of opportunity spreads. Shows how profitable the detected opportunities are.",
+  hourlyActivity: "Heatmap showing when most trades occur. Helps identify your most active trading hours.",
+  winRateBySize: "Win rate broken down by trade size. Helps identify if larger or smaller trades perform better.",
+  
+  // Analytics - Best/Worst Trades
+  bestTrades: "Your most profitable trades. Study these to understand what worked well.",
+  worstTrades: "Your biggest losses. Analyze these to avoid similar mistakes.",
+  
+  // Time Range
+  timeRange: "Filter data by time period. Shorter periods show recent performance, longer periods show overall trends.",
 };

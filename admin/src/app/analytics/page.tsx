@@ -13,6 +13,7 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownRight,
+  HelpCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -28,7 +29,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
   ComposedChart,
@@ -45,6 +46,7 @@ import {
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { format, subDays, subHours, startOfDay, startOfHour } from 'date-fns';
+import { Tooltip, LabelWithTooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
 type TimeRange = '24h' | '7d' | '30d' | 'all';
 
@@ -91,6 +93,18 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
     </div>
   );
 };
+
+// Helper component for metric cards with tooltip
+function MetricLabel({ label, tooltip }: { label: string; tooltip: string }) {
+  return (
+    <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+      <span>{label}</span>
+      <Tooltip content={tooltip} position="top">
+        <HelpCircle className="w-3 h-3 text-gray-500 hover:text-gray-300 cursor-help" />
+      </Tooltip>
+    </div>
+  );
+}
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
@@ -262,7 +276,7 @@ export default function AnalyticsPage() {
           >
             {/* Sharpe Ratio */}
             <div className="card bg-gradient-to-br from-neon-green/10 to-transparent">
-              <div className="text-xs text-gray-400 mb-1">Sharpe Ratio</div>
+              <MetricLabel label="Sharpe Ratio" tooltip={METRIC_TOOLTIPS.sharpeRatio} />
               <div className={cn(
                 "text-2xl font-bold",
                 advancedMetrics.sharpeRatio >= 1 ? "text-neon-green" : 
@@ -279,7 +293,7 @@ export default function AnalyticsPage() {
 
             {/* Max Drawdown */}
             <div className="card bg-gradient-to-br from-red-500/10 to-transparent">
-              <div className="text-xs text-gray-400 mb-1">Max Drawdown</div>
+              <MetricLabel label="Max Drawdown" tooltip={METRIC_TOOLTIPS.maxDrawdown} />
               <div className="text-2xl font-bold text-red-400">
                 {advancedMetrics.maxDrawdownPct.toFixed(1)}%
               </div>
@@ -290,7 +304,7 @@ export default function AnalyticsPage() {
 
             {/* Profit Factor */}
             <div className="card bg-gradient-to-br from-neon-blue/10 to-transparent">
-              <div className="text-xs text-gray-400 mb-1">Profit Factor</div>
+              <MetricLabel label="Profit Factor" tooltip={METRIC_TOOLTIPS.profitFactor} />
               <div className={cn(
                 "text-2xl font-bold",
                 advancedMetrics.profitFactor >= 1.5 ? "text-neon-green" : 
@@ -305,7 +319,7 @@ export default function AnalyticsPage() {
 
             {/* Expectancy */}
             <div className="card bg-gradient-to-br from-neon-purple/10 to-transparent">
-              <div className="text-xs text-gray-400 mb-1">Expectancy</div>
+              <MetricLabel label="Expectancy" tooltip={METRIC_TOOLTIPS.expectancy} />
               <div className={cn(
                 "text-2xl font-bold",
                 advancedMetrics.expectancy > 0 ? "text-neon-green" : "text-red-400"
@@ -319,7 +333,7 @@ export default function AnalyticsPage() {
 
             {/* Current Streak */}
             <div className="card bg-gradient-to-br from-yellow-500/10 to-transparent">
-              <div className="text-xs text-gray-400 mb-1">Current Streak</div>
+              <MetricLabel label="Current Streak" tooltip={METRIC_TOOLTIPS.currentStreak} />
               <div className={cn(
                 "text-2xl font-bold flex items-center gap-1",
                 advancedMetrics.currentStreakType === 'win' ? "text-neon-green" : 
@@ -336,7 +350,7 @@ export default function AnalyticsPage() {
 
             {/* Volatility */}
             <div className="card bg-gradient-to-br from-pink-500/10 to-transparent">
-              <div className="text-xs text-gray-400 mb-1">Daily Volatility</div>
+              <MetricLabel label="Daily Volatility" tooltip={METRIC_TOOLTIPS.dailyVolatility} />
               <div className="text-2xl font-bold text-pink-400">
                 {formatCurrency(advancedMetrics.volatility)}
               </div>
@@ -357,7 +371,12 @@ export default function AnalyticsPage() {
               className="card"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Avg Win</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-400">Avg Win</span>
+                  <Tooltip content={METRIC_TOOLTIPS.avgWin} position="top">
+                    <HelpCircle className="w-3 h-3 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </Tooltip>
+                </div>
                 <TrendingUp className="w-4 h-4 text-neon-green" />
               </div>
               <div className="text-xl font-bold text-neon-green">
@@ -372,7 +391,12 @@ export default function AnalyticsPage() {
               className="card"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Avg Loss</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-400">Avg Loss</span>
+                  <Tooltip content={METRIC_TOOLTIPS.avgLoss} position="top">
+                    <HelpCircle className="w-3 h-3 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </Tooltip>
+                </div>
                 <TrendingDown className="w-4 h-4 text-red-400" />
               </div>
               <div className="text-xl font-bold text-red-400">
@@ -387,7 +411,12 @@ export default function AnalyticsPage() {
               className="card"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Payoff Ratio</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-400">Payoff Ratio</span>
+                  <Tooltip content={METRIC_TOOLTIPS.payoffRatio} position="top">
+                    <HelpCircle className="w-3 h-3 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </Tooltip>
+                </div>
                 <Activity className="w-4 h-4 text-neon-blue" />
               </div>
               <div className="text-xl font-bold text-neon-blue">
@@ -403,7 +432,12 @@ export default function AnalyticsPage() {
               className="card"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-400">Trading Days</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-400">Trading Days</span>
+                  <Tooltip content={METRIC_TOOLTIPS.tradingDays} position="top">
+                    <HelpCircle className="w-3 h-3 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </Tooltip>
+                </div>
                 <Calendar className="w-4 h-4 text-neon-purple" />
               </div>
               <div className="text-xl font-bold text-white">
@@ -426,6 +460,9 @@ export default function AnalyticsPage() {
             <h2 className="text-xl font-semibold flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-neon-green" />
               P&L Trend
+              <Tooltip content={METRIC_TOOLTIPS.pnlTrend} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -465,7 +502,7 @@ export default function AnalyticsPage() {
                   tickLine={false}
                   tickFormatter={(v) => `$${v}`}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <RechartsTooltip content={<CustomTooltip />} />
                 <Area
                   yAxisId="left"
                   type="monotone"
@@ -501,6 +538,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Target className="w-5 h-5 text-neon-purple" />
               Trade Outcomes
+              <Tooltip content={METRIC_TOOLTIPS.tradeOutcomes} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -518,7 +558,7 @@ export default function AnalyticsPage() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <RechartsTooltip content={<CustomTooltip />} />
                   <Legend 
                     verticalAlign="bottom"
                     iconType="circle"
@@ -539,6 +579,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5 text-neon-blue" />
               Platform Distribution
+              <Tooltip content={METRIC_TOOLTIPS.platformDistribution} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -556,7 +599,7 @@ export default function AnalyticsPage() {
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <RechartsTooltip content={<CustomTooltip />} />
                   <Legend 
                     verticalAlign="bottom"
                     iconType="circle"
@@ -577,6 +620,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-neon-pink" />
               Opportunity Spreads
+              <Tooltip content={METRIC_TOOLTIPS.spreadDistribution} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -584,7 +630,7 @@ export default function AnalyticsPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f1f2e" />
                   <XAxis dataKey="range" stroke="#6b7280" fontSize={12} />
                   <YAxis stroke="#6b7280" fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <RechartsTooltip content={<CustomTooltip />} />
                   <Bar dataKey="count" fill={COLORS.purple} radius={[4, 4, 0, 0]} name="Opportunities" />
                 </BarChart>
               </ResponsiveContainer>
@@ -604,6 +650,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Clock className="w-5 h-5 text-yellow-500" />
               Trading Activity by Hour
+              <Tooltip content={METRIC_TOOLTIPS.hourlyActivity} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -616,7 +665,7 @@ export default function AnalyticsPage() {
                     interval={2}
                   />
                   <YAxis stroke="#6b7280" fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <RechartsTooltip content={<CustomTooltip />} />
                   <Bar dataKey="trades" fill={COLORS.green} radius={[2, 2, 0, 0]} name="Trades" />
                 </BarChart>
               </ResponsiveContainer>
@@ -633,6 +682,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Target className="w-5 h-5 text-neon-green" />
               Win Rate by Position Size
+              <Tooltip content={METRIC_TOOLTIPS.winRateBySize} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -645,7 +697,7 @@ export default function AnalyticsPage() {
                     tickFormatter={(v) => `${v}%`}
                     domain={[0, 100]}
                   />
-                  <Tooltip 
+                  <RechartsTooltip 
                     content={<CustomTooltip />}
                     formatter={(value: number) => [`${value.toFixed(1)}%`, 'Win Rate']}
                   />
@@ -668,6 +720,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <ArrowUpRight className="w-5 h-5 text-neon-green" />
               Best Trades
+              <Tooltip content={METRIC_TOOLTIPS.bestTrades} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="space-y-3">
               {extremeTrades.best.map((trade, i) => (
@@ -704,6 +759,9 @@ export default function AnalyticsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <ArrowDownRight className="w-5 h-5 text-red-400" />
               Worst Trades
+              <Tooltip content={METRIC_TOOLTIPS.worstTrades} position="right">
+                <HelpCircle className="w-4 h-4 text-gray-500 hover:text-gray-300 cursor-help" />
+              </Tooltip>
             </h2>
             <div className="space-y-3">
               {extremeTrades.worst.map((trade, i) => (
