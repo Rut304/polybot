@@ -508,7 +508,8 @@ class CrossPlatformScanner:
     
     # Minimum thresholds
     MIN_PROFIT_PERCENT = 3.0  # Minimum profit to report
-    MIN_LIQUIDITY = 1000  # Minimum volume/liquidity
+    MIN_LIQUIDITY_POLY = 1000  # Minimum volume for Polymarket (in USD)
+    MIN_LIQUIDITY_KALSHI = 100  # Minimum volume for Kalshi (in contracts)
     
     def __init__(
         self,
@@ -548,7 +549,7 @@ class CrossPlatformScanner:
             for m in markets:
                 try:
                     volume = float(m.get("volume", 0) or 0)
-                    if volume >= self.MIN_LIQUIDITY:
+                    if volume >= self.MIN_LIQUIDITY_POLY:
                         # Parse prices
                         prices = m.get("outcomePrices", "[]")
                         if isinstance(prices, str):
@@ -569,7 +570,7 @@ class CrossPlatformScanner:
                 except (ValueError, IndexError, TypeError):
                     continue
             
-            logger.info(f"Fetched {len(filtered)} Polymarket markets (volume >= ${self.MIN_LIQUIDITY})")
+            logger.info(f"Fetched {len(filtered)} Polymarket markets (vol >= ${self.MIN_LIQUIDITY_POLY})")
             return filtered
             
         except Exception as e:
@@ -594,7 +595,7 @@ class CrossPlatformScanner:
                         continue
                     
                     volume = int(m.get("volume", 0) or 0)
-                    if volume < self.MIN_LIQUIDITY:
+                    if volume < self.MIN_LIQUIDITY_KALSHI:
                         continue
                     
                     # Kalshi prices are in cents (0-100)
@@ -619,7 +620,7 @@ class CrossPlatformScanner:
                 except (ValueError, TypeError):
                     continue
             
-            logger.info(f"Fetched {len(filtered)} Kalshi markets (volume >= {self.MIN_LIQUIDITY})")
+            logger.info(f"Fetched {len(filtered)} Kalshi markets (vol >= {self.MIN_LIQUIDITY_KALSHI})")
             return filtered
             
         except Exception as e:
