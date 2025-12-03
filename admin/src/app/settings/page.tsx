@@ -141,7 +141,7 @@ export default function SettingsPage() {
     queryKey: ['users'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('polybot_user_profiles')
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -799,7 +799,7 @@ export default function SettingsPage() {
                             onChange={async (e) => {
                               const newRole = e.target.value;
                               await supabase
-                                .from('user_profiles')
+                                .from('polybot_user_profiles')
                                 .update({ role: newRole })
                                 .eq('id', u.id);
                               refetchUsers();
@@ -817,7 +817,7 @@ export default function SettingsPage() {
                               onClick={async () => {
                                 if (confirm(`Delete user ${u.username || u.email}?`)) {
                                   await supabase
-                                    .from('user_profiles')
+                                    .from('polybot_user_profiles')
                                     .delete()
                                     .eq('id', u.id);
                                   refetchUsers();
