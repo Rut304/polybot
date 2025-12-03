@@ -104,9 +104,10 @@ async function fetchKalshiMarkets() {
     const maxPages = 4; // Up to 2000 markets
     
     for (let page = 0; page < maxPages; page++) {
+      // Note: Kalshi API doesn't accept status=active filter, we filter client-side
       const url = cursor 
-        ? `https://api.elections.kalshi.com/trade-api/v2/markets?limit=${limit}&status=active&cursor=${cursor}`
-        : `https://api.elections.kalshi.com/trade-api/v2/markets?limit=${limit}&status=active`;
+        ? `https://api.elections.kalshi.com/trade-api/v2/markets?limit=${limit}&cursor=${cursor}`
+        : `https://api.elections.kalshi.com/trade-api/v2/markets?limit=${limit}`;
       
       const response = await fetch(url, { 
         headers: { 'Accept': 'application/json' },
@@ -128,7 +129,10 @@ async function fetchKalshiMarkets() {
       if (!cursor || data.markets.length < limit) break;
     }
     
-    return allMarkets.map((m: any) => ({
+    // Filter to only active markets (since API doesn't support status filter)
+    const activeMarkets = allMarkets.filter((m: any) => m.status === 'active');
+    
+    return activeMarkets.map((m: any) => ({
       id: m.ticker,
       question: m.title || m.subtitle,
       description: m.rules_primary,
