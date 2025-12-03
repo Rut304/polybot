@@ -810,6 +810,14 @@ class CrossPlatformScanner:
             logger.warning("Missing market data - cannot scan for opportunities")
             return []
         
+        # Log sample titles for debugging
+        if poly_markets:
+            sample_poly = poly_markets[0].get("question", "")[:80]
+            logger.info(f"Sample Poly: {sample_poly}...")
+        if kalshi_markets:
+            sample_kalshi = kalshi_markets[0].get("question", "")[:80]
+            logger.info(f"Sample Kalshi: {sample_kalshi}...")
+        
         # Find matching markets (refresh periodically)
         current_time = time.time()
         if (current_time - self._last_match_time) > self._match_refresh_interval or not self._matched_pairs:
