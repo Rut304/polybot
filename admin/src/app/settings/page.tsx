@@ -22,6 +22,7 @@ import {
   Activity,
   Target,
   TrendingDown,
+  HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -29,6 +30,7 @@ import { useBotStatus, useBotConfig, useDisabledMarkets, useResetSimulation } fr
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { Tooltip, LabelWithTooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
 // Platform logos as SVG components
 const PolymarketLogo = () => (
@@ -277,7 +279,12 @@ export default function SettingsPage() {
                 <Zap className={cn("w-6 h-6", botEnabled ? "text-neon-green" : "text-red-500")} />
               </div>
               <div>
-                <h3 className="font-semibold">Bot Status</h3>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-semibold">Bot Status</h3>
+                  <Tooltip content={METRIC_TOOLTIPS.botRunning} position="right">
+                    <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </Tooltip>
+                </div>
                 <p className="text-sm text-gray-400">
                   {botEnabled ? 'Bot is actively scanning for opportunities' : 'Bot is paused'}
                 </p>
@@ -293,7 +300,12 @@ export default function SettingsPage() {
                 <Shield className="w-6 h-6 text-yellow-500" />
               </div>
               <div>
-                <h3 className="font-semibold">Simulation Mode (Dry Run)</h3>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-semibold">Simulation Mode (Dry Run)</h3>
+                  <Tooltip content={METRIC_TOOLTIPS.dryRunMode} position="right">
+                    <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help" />
+                  </Tooltip>
+                </div>
                 <p className="text-sm text-gray-400">
                   {dryRunMode ? 'Paper trading - no real money' : '⚠️ LIVE TRADING - Real money at risk!'}
                 </p>
@@ -346,7 +358,12 @@ export default function SettingsPage() {
                   <span className="text-lg font-bold text-white">P</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold">Polymarket</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-semibold">Polymarket</h3>
+                    <Tooltip content={METRIC_TOOLTIPS.polymarketEnabled} position="right">
+                      <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </Tooltip>
+                  </div>
                   <p className="text-xs text-gray-400">USDC on Polygon</p>
                 </div>
               </div>
@@ -368,7 +385,12 @@ export default function SettingsPage() {
                   <span className="text-lg font-bold text-white">K</span>
                 </div>
                 <div>
-                  <h3 className="font-semibold">Kalshi</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-semibold">Kalshi</h3>
+                    <Tooltip content={METRIC_TOOLTIPS.kalshiEnabled} position="right">
+                      <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help" />
+                    </Tooltip>
+                  </div>
                   <p className="text-xs text-gray-400">USD Direct</p>
                 </div>
               </div>
@@ -394,7 +416,7 @@ export default function SettingsPage() {
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
               <Percent className="w-4 h-4" />
-              Minimum Profit %
+              <LabelWithTooltip label="Minimum Profit %" tooltip={METRIC_TOOLTIPS.minProfitPercent} />
             </label>
             <input
               type="number"
@@ -405,13 +427,12 @@ export default function SettingsPage() {
               max="10"
               className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green"
             />
-            <p className="text-xs text-gray-500 mt-1">Only trade when profit exceeds this %</p>
           </div>
 
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
               <DollarSign className="w-4 h-4" />
-              Max Trade Size ($)
+              <LabelWithTooltip label="Max Trade Size ($)" tooltip={METRIC_TOOLTIPS.maxTradeSize} />
             </label>
             <input
               type="number"
@@ -422,13 +443,12 @@ export default function SettingsPage() {
               max="10000"
               className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green"
             />
-            <p className="text-xs text-gray-500 mt-1">Maximum position size per trade</p>
           </div>
 
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
               <AlertTriangle className="w-4 h-4" />
-              Max Daily Loss ($)
+              <LabelWithTooltip label="Max Daily Loss ($)" tooltip={METRIC_TOOLTIPS.maxDailyLoss} />
             </label>
             <input
               type="number"
@@ -439,13 +459,12 @@ export default function SettingsPage() {
               max="1000"
               className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green"
             />
-            <p className="text-xs text-gray-500 mt-1">Stop trading if daily loss exceeds this</p>
           </div>
 
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
               <Clock className="w-4 h-4" />
-              Scan Interval (seconds)
+              <LabelWithTooltip label="Scan Interval (seconds)" tooltip={METRIC_TOOLTIPS.scanInterval} />
             </label>
             <input
               type="number"
@@ -498,9 +517,11 @@ export default function SettingsPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
-                      Max Realistic Spread %
-                    </label>
+                    <LabelWithTooltip 
+                      label="Max Realistic Spread %" 
+                      tooltip={METRIC_TOOLTIPS.maxRealisticSpreadPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={maxRealisticSpreadPct}
@@ -512,12 +533,13 @@ export default function SettingsPage() {
                       placeholder="12.0"
                       className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Reject spreads above this (likely false positive)</p>
                   </div>
                   <div>
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-400 mb-2">
-                      Min Profit Threshold %
-                    </label>
+                    <LabelWithTooltip 
+                      label="Min Profit Threshold %" 
+                      tooltip={METRIC_TOOLTIPS.minProfitThresholdPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={minProfitThresholdPct}
@@ -529,7 +551,6 @@ export default function SettingsPage() {
                       placeholder="5.0"
                       className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-3 focus:outline-none focus:border-neon-green disabled:opacity-50"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Only trade when profit exceeds this after costs</p>
                   </div>
                 </div>
               </div>
@@ -542,7 +563,11 @@ export default function SettingsPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Slippage Min %</label>
+                    <LabelWithTooltip 
+                      label="Slippage Min %" 
+                      tooltip={METRIC_TOOLTIPS.slippageMinPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={slippageMinPct}
@@ -556,7 +581,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Slippage Max %</label>
+                    <LabelWithTooltip 
+                      label="Slippage Max %" 
+                      tooltip={METRIC_TOOLTIPS.slippageMaxPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={slippageMaxPct}
@@ -570,7 +599,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Spread Cost %</label>
+                    <LabelWithTooltip 
+                      label="Spread Cost %" 
+                      tooltip={METRIC_TOOLTIPS.spreadCostPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={spreadCostPct}
@@ -584,7 +617,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Execution Failure Rate</label>
+                    <LabelWithTooltip 
+                      label="Execution Failure Rate" 
+                      tooltip={METRIC_TOOLTIPS.executionFailureRate} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={executionFailureRate}
@@ -599,7 +636,11 @@ export default function SettingsPage() {
                     <p className="text-xs text-gray-500 mt-1">0 = never fails, 1 = always fails</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Partial Fill Chance</label>
+                    <LabelWithTooltip 
+                      label="Partial Fill Chance" 
+                      tooltip={METRIC_TOOLTIPS.partialFillChance} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={partialFillChance}
@@ -613,7 +654,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Partial Fill Min %</label>
+                    <LabelWithTooltip 
+                      label="Partial Fill Min %" 
+                      tooltip={METRIC_TOOLTIPS.partialFillMinPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={partialFillMinPct}
@@ -637,7 +682,11 @@ export default function SettingsPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Resolution Loss Rate</label>
+                    <LabelWithTooltip 
+                      label="Resolution Loss Rate" 
+                      tooltip={METRIC_TOOLTIPS.resolutionLossRate} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={resolutionLossRate}
@@ -652,7 +701,11 @@ export default function SettingsPage() {
                     <p className="text-xs text-gray-500 mt-1">Chance market resolves against you</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Loss Severity Min</label>
+                    <LabelWithTooltip 
+                      label="Loss Severity Min" 
+                      tooltip={METRIC_TOOLTIPS.lossSeverityMin} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={lossSeverityMin}
@@ -666,7 +719,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Loss Severity Max</label>
+                    <LabelWithTooltip 
+                      label="Loss Severity Max" 
+                      tooltip={METRIC_TOOLTIPS.lossSeverityMax} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={lossSeverityMax}
@@ -690,7 +747,11 @@ export default function SettingsPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Max Position % of Balance</label>
+                    <LabelWithTooltip 
+                      label="Max Position % of Balance" 
+                      tooltip={METRIC_TOOLTIPS.maxPositionPct} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={maxPositionPct}
@@ -704,7 +765,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Max Position USD</label>
+                    <LabelWithTooltip 
+                      label="Max Position USD" 
+                      tooltip={METRIC_TOOLTIPS.maxPositionUsd} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={maxPositionUsd}
@@ -718,7 +783,11 @@ export default function SettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-400 mb-2 block">Min Position USD</label>
+                    <LabelWithTooltip 
+                      label="Min Position USD" 
+                      tooltip={METRIC_TOOLTIPS.minPositionUsd} 
+                      className="text-sm font-medium text-gray-400 mb-2"
+                    />
                     <input
                       type="number"
                       value={minPositionUsd}

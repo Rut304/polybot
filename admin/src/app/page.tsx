@@ -15,6 +15,7 @@ import {
   Pause,
   Play,
   RefreshCw,
+  HelpCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { 
@@ -32,6 +33,7 @@ import { TradesList } from '@/components/TradesList';
 import { OpportunitiesFeed } from '@/components/OpportunitiesFeed';
 import { StatusIndicator } from '@/components/StatusIndicator';
 import { StatDetailModal } from '@/components/StatDetailModal';
+import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
 export default function Dashboard() {
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
@@ -82,6 +84,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Simulated Balance"
+            tooltip={METRIC_TOOLTIPS.simulatedBalance}
             value={formatCurrency(balance)}
             change={roiPct}
             icon={DollarSign}
@@ -91,6 +94,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Total P&L"
+            tooltip={METRIC_TOOLTIPS.totalPnL}
             value={formatCurrency(totalPnl)}
             subtitle={`${totalTrades} trades`}
             icon={TrendingUp}
@@ -100,6 +104,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Win Rate"
+            tooltip={METRIC_TOOLTIPS.winRate}
             value={`${winRate.toFixed(1)}%`}
             subtitle={`${winningTrades}W / ${losingTrades}L`}
             icon={Target}
@@ -109,6 +114,7 @@ export default function Dashboard() {
           />
           <StatCard
             title="Opportunities"
+            tooltip={METRIC_TOOLTIPS.opportunities}
             value={totalOpportunities.toString()}
             subtitle="Detected"
             icon={Activity}
@@ -198,6 +204,7 @@ export default function Dashboard() {
 // Stat Card Component
 function StatCard({ 
   title, 
+  tooltip,
   value, 
   change, 
   subtitle,
@@ -207,6 +214,7 @@ function StatCard({
   onClick
 }: {
   title: string;
+  tooltip?: string;
   value: string;
   change?: number;
   subtitle?: string;
@@ -248,7 +256,14 @@ function StatCard({
       <div className="relative">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-gray-400 mb-1">{title}</p>
+            <div className="flex items-center gap-1.5 mb-1">
+              <p className="text-sm text-gray-400">{title}</p>
+              {tooltip && (
+                <Tooltip content={tooltip} position="right">
+                  <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help transition-colors" />
+                </Tooltip>
+              )}
+            </div>
             {loading ? (
               <div className="h-8 w-24 bg-dark-border rounded animate-pulse" />
             ) : (

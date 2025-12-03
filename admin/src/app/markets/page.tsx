@@ -16,11 +16,13 @@ import {
   StarOff,
   Plus,
   Check,
+  HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, cn, timeAgo } from '@/lib/utils';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/lib/hooks';
+import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
 interface Market {
   id: string;
@@ -348,32 +350,38 @@ export default function MarketsPage() {
 
                     {/* Prices */}
                     <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="bg-green-500/10 rounded-lg p-3 text-center">
-                        <p className="text-xs text-gray-400 mb-1">Yes</p>
-                        <p className="text-xl font-bold text-green-400">
-                          {(market.yes_price * 100).toFixed(0)}¢
-                        </p>
-                      </div>
-                      <div className="bg-red-500/10 rounded-lg p-3 text-center">
-                        <p className="text-xs text-gray-400 mb-1">No</p>
-                        <p className="text-xl font-bold text-red-400">
-                          {(market.no_price * 100).toFixed(0)}¢
-                        </p>
-                      </div>
+                      <Tooltip content={METRIC_TOOLTIPS.yesPrice} position="bottom">
+                        <div className="bg-green-500/10 rounded-lg p-3 text-center w-full cursor-help">
+                          <p className="text-xs text-gray-400 mb-1">Yes</p>
+                          <p className="text-xl font-bold text-green-400">
+                            {(market.yes_price * 100).toFixed(0)}¢
+                          </p>
+                        </div>
+                      </Tooltip>
+                      <Tooltip content={METRIC_TOOLTIPS.noPrice} position="bottom">
+                        <div className="bg-red-500/10 rounded-lg p-3 text-center w-full cursor-help">
+                          <p className="text-xs text-gray-400 mb-1">No</p>
+                          <p className="text-xl font-bold text-red-400">
+                            {(market.no_price * 100).toFixed(0)}¢
+                          </p>
+                        </div>
+                      </Tooltip>
                     </div>
 
                     {/* Stats */}
                     <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
                       {market.volume !== undefined && (
-                        <span className="flex items-center gap-1">
-                          <DollarSign className="w-3 h-3" />
-                          {market.volume >= 1000000 
-                            ? `${(market.volume / 1000000).toFixed(1)}M` 
-                            : market.volume >= 1000
-                              ? `${(market.volume / 1000).toFixed(0)}K`
-                              : market.volume.toFixed(0)
-                          } vol
-                        </span>
+                        <Tooltip content={METRIC_TOOLTIPS.volume} position="top">
+                          <span className="flex items-center gap-1 cursor-help">
+                            <DollarSign className="w-3 h-3" />
+                            {market.volume >= 1000000 
+                              ? `${(market.volume / 1000000).toFixed(1)}M` 
+                              : market.volume >= 1000
+                                ? `${(market.volume / 1000).toFixed(0)}K`
+                                : market.volume.toFixed(0)
+                            } vol
+                          </span>
+                        </Tooltip>
                       )}
                       {market.end_date && (
                         <span className="flex items-center gap-1">
