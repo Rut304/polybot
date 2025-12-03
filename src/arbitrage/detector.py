@@ -490,3 +490,397 @@ class ArbitrageDetector:
         all_opportunities.sort(key=lambda x: x.profit_percent, reverse=True)
         
         return all_opportunities
+
+
+class CrossPlatformScanner:
+    """
+    Scans Polymarket and Kalshi for matching markets and arbitrage opportunities.
+    
+    This is a higher-level scanner that:
+    1. Fetches markets from both platforms
+    2. Matches them by title similarity
+    3. Compares prices for arbitrage opportunities
+    4. Reports findings via callback
+    """
+    
+    POLYMARKET_API = "https://gamma-api.polymarket.com"
+    KALSHI_API = "https://api.elections.kalshi.com/trade-api/v2"
+    
+    # Minimum thresholds
+    MIN_PROFIT_PERCENT = 3.0  # Minimum profit to report
+    MIN_LIQUIDITY = 1000  # Minimum volume/liquidity
+    
+    def __init__(
+        self,
+        min_profit_percent: float = 3.0,
+        scan_interval: int = 120,  # Scan every 2 minutes
+    ):
+        self.min_profit_percent = min_profit_percent
+        self.scan_interval = scan_interval
+        self._running = False
+        self._http_client = None
+        
+        # Cache for matched markets
+        self._matched_pairs: List[Dict] = []
+        self._last_match_time = 0
+        self._match_refresh_interval = 300  # Refresh matches every 5 min
+    
+    async def _get_http_client(self):
+        """Get or create HTTP client."""
+        if self._http_client is None:
+            import httpx
+            self._http_client = httpx.AsyncClient(timeout=30.0)
+        return self._http_client
+    
+    async def fetch_polymarket_markets(self) -> List[Dict]:
+        """Fetch active markets from Polymarket."""
+        try:
+            client = await self._get_http_client()
+            response = await client.get(
+                f"{self.POLYMARKET_API}/markets",
+                params={"limit": 200, "active": "true", "closed": "false"}
+            )
+            response.raise_for_status()
+            markets = response.json()
+            
+            # Filter to high-liquidity markets
+            filtered = []
+            for m in markets:
+                try:
+                    volume = float(m.get("volume", 0) or 0)
+                    if volume >= self.MIN_LIQUIDITY:
+                        # Parse prices
+                        prices = m.get("outcomePrices", "[]")
+                        if isinstance(prices, str):
+                            import json
+                            prices = json.loads(prices)
+                        
+                        yes_price = float(prices[0]) if prices else 0.5
+                        no_price = float(prices[1]) if len(prices) > 1 else 1 - yes_price
+                        
+                        filtered.append({
+                            "id": m.get("conditionId", m.get("id")),
+                            "question": m.get("question", ""),
+                            "yes_price": yes_price,
+                            "no_price": no_price,
+                            "volume": volume,
+                            "platform": "polymarket",
+                        })
+                except (ValueError, IndexError, TypeError):
+                    continue
+            
+            logger.info(f"Fetched {len(filtered)} Polymarket markets (volume >= ${self.MIN_LIQUIDITY})")
+            return filtered
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch Polymarket markets: {e}")
+            return []
+    
+    async def fetch_kalshi_markets(self) -> List[Dict]:
+        """Fetch active markets from Kalshi."""
+        try:
+            client = await self._get_http_client()
+            response = await client.get(
+                f"{self.KALSHI_API}/markets",
+                params={"limit": 200}
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            filtered = []
+            for m in data.get("markets", []):
+                try:
+                    if m.get("status") != "active":
+                        continue
+                    
+                    volume = int(m.get("volume", 0) or 0)
+                    if volume < self.MIN_LIQUIDITY:
+                        continue
+                    
+                    # Kalshi prices are in cents (0-100)
+                    yes_bid = float(m.get("yes_bid", 0) or 0) / 100
+                    yes_ask = float(m.get("yes_ask", 0) or 0) / 100
+                    no_bid = float(m.get("no_bid", 0) or 0) / 100
+                    last_price = float(m.get("last_price", 50) or 50) / 100
+                    
+                    # Use mid price if no bid/ask
+                    yes_price = (yes_bid + yes_ask) / 2 if yes_bid and yes_ask else last_price
+                    
+                    filtered.append({
+                        "id": m.get("ticker"),
+                        "question": m.get("title", "") or m.get("subtitle", ""),
+                        "yes_price": yes_price,
+                        "no_price": 1 - yes_price,
+                        "yes_bid": yes_bid,
+                        "yes_ask": yes_ask,
+                        "volume": volume,
+                        "platform": "kalshi",
+                    })
+                except (ValueError, TypeError):
+                    continue
+            
+            logger.info(f"Fetched {len(filtered)} Kalshi markets (volume >= {self.MIN_LIQUIDITY})")
+            return filtered
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch Kalshi markets: {e}")
+            return []
+    
+    def _normalize_text(self, text: str) -> str:
+        """Normalize text for matching."""
+        import re
+        text = text.lower().strip()
+        # Remove common words and punctuation
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text)
+        # Remove common filler words
+        stopwords = {'will', 'the', 'be', 'a', 'an', 'by', 'in', 'on', 'at', 'to', 'of', 'for'}
+        words = [w for w in text.split() if w not in stopwords]
+        return ' '.join(words)
+    
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Calculate text similarity score (0-1)."""
+        norm1 = self._normalize_text(text1)
+        norm2 = self._normalize_text(text2)
+        
+        if not norm1 or not norm2:
+            return 0.0
+        
+        words1 = set(norm1.split())
+        words2 = set(norm2.split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        # Jaccard similarity
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+        
+        return intersection / union if union > 0 else 0.0
+    
+    async def find_matching_markets(
+        self,
+        poly_markets: List[Dict],
+        kalshi_markets: List[Dict],
+        min_similarity: float = 0.4,
+    ) -> List[Dict]:
+        """
+        Find matching markets between platforms based on title similarity.
+        
+        Returns list of matched pairs with price comparison.
+        """
+        matches = []
+        
+        for poly in poly_markets:
+            poly_question = poly.get("question", "")
+            if not poly_question:
+                continue
+            
+            best_match = None
+            best_score = 0.0
+            
+            for kalshi in kalshi_markets:
+                kalshi_title = kalshi.get("question", "")
+                if not kalshi_title:
+                    continue
+                
+                score = self._calculate_similarity(poly_question, kalshi_title)
+                
+                if score > best_score and score >= min_similarity:
+                    best_score = score
+                    best_match = kalshi
+            
+            if best_match:
+                # Calculate price difference
+                poly_yes = poly.get("yes_price", 0.5)
+                kalshi_yes = best_match.get("yes_price", 0.5)
+                price_diff = abs(poly_yes - kalshi_yes)
+                price_diff_pct = price_diff * 100
+                
+                matches.append({
+                    "polymarket": poly,
+                    "kalshi": best_match,
+                    "similarity": best_score,
+                    "poly_yes": poly_yes,
+                    "kalshi_yes": kalshi_yes,
+                    "price_diff": price_diff,
+                    "price_diff_pct": price_diff_pct,
+                })
+        
+        # Sort by price difference (potential profit)
+        matches.sort(key=lambda x: x["price_diff_pct"], reverse=True)
+        
+        logger.info(f"Found {len(matches)} matched market pairs")
+        return matches
+    
+    def analyze_opportunity(self, match: Dict) -> Optional[Opportunity]:
+        """
+        Analyze a matched pair for arbitrage opportunity.
+        
+        Strategy:
+        - If Poly YES < Kalshi YES: Buy Poly, Sell Kalshi
+        - If Kalshi YES < Poly YES: Buy Kalshi, Sell Poly
+        """
+        poly = match["polymarket"]
+        kalshi = match["kalshi"]
+        
+        poly_yes = match["poly_yes"]
+        kalshi_yes = match["kalshi_yes"]
+        
+        # Strategy 1: Buy Poly YES (cheaper), Sell Kalshi YES (expensive)
+        if poly_yes < kalshi_yes:
+            profit = kalshi_yes - poly_yes
+            profit_pct = (profit / poly_yes) * 100 if poly_yes > 0 else 0
+            
+            # Apply asymmetric threshold (buying Poly is cheap)
+            if profit_pct >= self.min_profit_percent:
+                return Opportunity(
+                    id=f"XP-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{len(poly['id'][:8])}",
+                    detected_at=datetime.utcnow(),
+                    buy_platform="polymarket",
+                    sell_platform="kalshi",
+                    buy_market_id=poly["id"],
+                    sell_market_id=kalshi["id"],
+                    buy_market_name=poly["question"][:100],
+                    sell_market_name=kalshi["question"][:100],
+                    buy_price=poly_yes,
+                    sell_price=kalshi_yes,
+                    profit_per_contract=profit,
+                    profit_percent=profit_pct,
+                    max_size=min(poly.get("volume", 0), kalshi.get("volume", 0)) / 1000,
+                    total_profit=profit * 100,  # Assume $100 position
+                    confidence=match["similarity"],
+                    strategy=f"Buy Poly YES @{poly_yes:.2f}, Sell Kalshi YES @{kalshi_yes:.2f}",
+                )
+        
+        # Strategy 2: Buy Kalshi YES (cheaper), Sell Poly YES (expensive)
+        elif kalshi_yes < poly_yes:
+            profit = poly_yes - kalshi_yes
+            profit_pct = (profit / kalshi_yes) * 100 if kalshi_yes > 0 else 0
+            
+            # Apply asymmetric threshold (buying Kalshi is expensive - need 5%+)
+            min_threshold = max(self.min_profit_percent, 5.0)
+            if profit_pct >= min_threshold:
+                return Opportunity(
+                    id=f"XP-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{len(kalshi['id'][:8])}",
+                    detected_at=datetime.utcnow(),
+                    buy_platform="kalshi",
+                    sell_platform="polymarket",
+                    buy_market_id=kalshi["id"],
+                    sell_market_id=poly["id"],
+                    buy_market_name=kalshi["question"][:100],
+                    sell_market_name=poly["question"][:100],
+                    buy_price=kalshi_yes,
+                    sell_price=poly_yes,
+                    profit_per_contract=profit,
+                    profit_percent=profit_pct,
+                    max_size=min(poly.get("volume", 0), kalshi.get("volume", 0)) / 1000,
+                    total_profit=profit * 100,
+                    confidence=match["similarity"],
+                    strategy=f"Buy Kalshi YES @{kalshi_yes:.2f}, Sell Poly YES @{poly_yes:.2f}",
+                )
+        
+        return None
+    
+    async def scan_for_opportunities(self) -> List[Opportunity]:
+        """
+        Perform a full scan for cross-platform arbitrage opportunities.
+        
+        Returns list of detected opportunities.
+        """
+        import time
+        
+        # Fetch markets from both platforms
+        poly_markets, kalshi_markets = await asyncio.gather(
+            self.fetch_polymarket_markets(),
+            self.fetch_kalshi_markets(),
+        )
+        
+        if not poly_markets or not kalshi_markets:
+            logger.warning("Missing market data - cannot scan for opportunities")
+            return []
+        
+        # Find matching markets (refresh periodically)
+        current_time = time.time()
+        if (current_time - self._last_match_time) > self._match_refresh_interval or not self._matched_pairs:
+            self._matched_pairs = await self.find_matching_markets(poly_markets, kalshi_markets)
+            self._last_match_time = current_time
+        
+        # Analyze each match for opportunities
+        opportunities = []
+        for match in self._matched_pairs:
+            opp = self.analyze_opportunity(match)
+            if opp:
+                opportunities.append(opp)
+        
+        # Sort by profit percentage
+        opportunities.sort(key=lambda x: x.profit_percent, reverse=True)
+        
+        return opportunities
+    
+    async def run(
+        self,
+        callback=None,
+    ) -> None:
+        """
+        Run continuous scanning for cross-platform arbitrage.
+        
+        Args:
+            callback: Async function called with each Opportunity found
+        """
+        import asyncio
+        
+        self._running = True
+        logger.info("🔍 Starting Cross-Platform Arbitrage Scanner")
+        logger.info(f"   Min profit threshold: {self.min_profit_percent}%")
+        logger.info(f"   Scan interval: {self.scan_interval}s")
+        
+        while self._running:
+            try:
+                opportunities = await self.scan_for_opportunities()
+                
+                if opportunities:
+                    logger.info(f"🎯 Found {len(opportunities)} cross-platform opportunities!")
+                    
+                    for opp in opportunities:
+                        logger.info(
+                            f"   💰 {opp.profit_percent:.1f}% profit: "
+                            f"{opp.buy_platform}→{opp.sell_platform} | "
+                            f"{opp.buy_market_name[:40]}..."
+                        )
+                        
+                        if callback:
+                            try:
+                                result = callback(opp)
+                                if asyncio.iscoroutine(result):
+                                    await result
+                            except Exception as e:
+                                logger.error(f"Callback error: {e}")
+                else:
+                    logger.debug("No cross-platform opportunities found this scan")
+                
+                logger.info(
+                    f"Cross-platform scan complete. "
+                    f"Found {len(opportunities)} opportunities. "
+                    f"Next scan in {self.scan_interval}s"
+                )
+                
+            except Exception as e:
+                logger.error(f"Error in cross-platform scan: {e}")
+            
+            await asyncio.sleep(self.scan_interval)
+    
+    def stop(self) -> None:
+        """Stop the scanner."""
+        self._running = False
+        logger.info("Stopping Cross-Platform Arbitrage Scanner")
+    
+    async def close(self) -> None:
+        """Close HTTP client."""
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
+
+
+# Make asyncio available for the run method
+import asyncio

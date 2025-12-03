@@ -30,7 +30,7 @@ from src.features.news_sentiment import NewsSentimentEngine, MarketAlert
 from src.clients.polymarket_client import PolymarketClient
 from src.clients.kalshi_client import KalshiClient
 from src.simulation.paper_trader_realistic import RealisticPaperTrader
-from src.arbitrage.detector import ArbitrageDetector
+from src.arbitrage.detector import ArbitrageDetector, CrossPlatformScanner, Opportunity
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,7 @@ class PolybotRunner:
         self.position_manager: Optional[PositionManager] = None
         self.news_engine: Optional[NewsSentimentEngine] = None
         self.cross_platform_detector: Optional[ArbitrageDetector] = None
+        self.cross_platform_scanner: Optional[CrossPlatformScanner] = None
         
         # Paper trading simulator (for simulation mode)
         self.paper_trader: Optional[RealisticPaperTrader] = None
@@ -229,6 +230,13 @@ class PolybotRunner:
         )
         logger.info("✓ Cross-Platform Arbitrage Detector initialized")
         
+        # Initialize cross-platform scanner (the REAL arbitrage finder)
+        self.cross_platform_scanner = CrossPlatformScanner(
+            min_profit_percent=3.0,  # 3% minimum for Poly buy, 5% for Kalshi buy
+            scan_interval=120,  # Scan every 2 minutes
+        )
+        logger.info("✓ Cross-Platform Scanner initialized (Polymarket↔Kalshi)")
+        
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
             self.paper_trader = RealisticPaperTrader(
@@ -321,6 +329,53 @@ class PolybotRunner:
             except Exception as e:
                 logger.error(f"Error paper trading arb: {e}")
     
+    async def on_cross_platform_opportunity(self, opp: Opportunity):
+        """Handle cross-platform arbitrage opportunities (Polymarket↔Kalshi)."""
+        logger.info(
+            f"🎯 [CROSS-ARB] {opp.profit_percent:.1f}% profit: "
+            f"Buy {opp.buy_platform} @ {opp.buy_price:.2f} → "
+            f"Sell {opp.sell_platform} @ {opp.sell_price:.2f}"
+        )
+        logger.info(f"   Market: {opp.buy_market_name[:60]}...")
+        
+        # Log to database
+        try:
+            self.db.log_opportunity({
+                "type": "cross_platform_arb",
+                "buy_platform": opp.buy_platform,
+                "sell_platform": opp.sell_platform,
+                "buy_market_id": opp.buy_market_id,
+                "sell_market_id": opp.sell_market_id,
+                "buy_market_name": opp.buy_market_name[:200],
+                "sell_market_name": opp.sell_market_name[:200],
+                "buy_price": opp.buy_price,
+                "sell_price": opp.sell_price,
+                "profit_percent": opp.profit_percent,
+                "confidence": opp.confidence,
+                "strategy": opp.strategy,
+                "detected_at": opp.detected_at.isoformat(),
+            })
+        except Exception as e:
+            logger.error(f"Error logging cross-platform opportunity: {e}")
+        
+        # Paper trade if in simulation mode
+        if self.simulation_mode and self.paper_trader:
+            try:
+                await self.paper_trader.simulate_opportunity(
+                    market_a_id=opp.buy_market_id,
+                    market_a_title=opp.buy_market_name[:200],
+                    market_b_id=opp.sell_market_id,
+                    market_b_title=opp.sell_market_name[:200],
+                    platform_a=opp.buy_platform,
+                    platform_b=opp.sell_platform,
+                    price_a=Decimal(str(opp.buy_price)),
+                    price_b=Decimal(str(opp.sell_price)),
+                    spread_pct=Decimal(str(opp.profit_percent)),
+                    trade_type=f"cross_platform_{opp.buy_platform}_to_{opp.sell_platform}",
+                )
+            except Exception as e:
+                logger.error(f"Error paper trading cross-platform arb: {e}")
+    
     async def on_position_claim(self, result: ClaimResult):
         """Handle position claim results."""
         if result.success:
@@ -376,6 +431,13 @@ class PolybotRunner:
         """Run arbitrage detection."""
         if self.arb_detector:
             await self.arb_detector.run(callback=self.on_arb_opportunity)
+    
+    async def run_cross_platform_scanner(self):
+        """Run cross-platform arbitrage scanner (Polymarket↔Kalshi)."""
+        if self.cross_platform_scanner:
+            await self.cross_platform_scanner.run(
+                callback=self.on_cross_platform_opportunity
+            )
     
     async def run_position_manager(self):
         """Run position manager."""
@@ -445,9 +507,10 @@ class PolybotRunner:
         logger.info("=" * 60)
         logger.info("PolyBot Starting!")
         logger.info(f"Mode: {'SIMULATION' if self.simulation_mode else 'LIVE'}")
-        logger.info(f"Features enabled:")
+        logger.info("Features enabled:")
         logger.info(f"  - Copy Trading: {self.enable_copy_trading}")
         logger.info(f"  - Arb Detection: {self.enable_arb_detection}")
+        logger.info(f"  - Cross-Platform Arb: True")  # Always enabled
         logger.info(f"  - Position Manager: {self.enable_position_manager}")
         logger.info(f"  - News/Sentiment: {self.enable_news_sentiment}")
         logger.info("=" * 60)
@@ -460,6 +523,10 @@ class PolybotRunner:
         
         if self.enable_arb_detection and self.arb_detector:
             tasks.append(asyncio.create_task(self.run_arb_detection()))
+        
+        # Always run cross-platform scanner - this is the MAIN arbitrage feature
+        if self.cross_platform_scanner:
+            tasks.append(asyncio.create_task(self.run_cross_platform_scanner()))
         
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))
@@ -498,6 +565,8 @@ class PolybotRunner:
             self.copy_trading.stop()
         if self.arb_detector:
             self.arb_detector.stop()
+        if self.cross_platform_scanner:
+            self.cross_platform_scanner.stop()
         if self.position_manager:
             self.position_manager.stop()
         if self.news_engine:
