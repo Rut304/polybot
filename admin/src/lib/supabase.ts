@@ -28,6 +28,8 @@ export interface SimulatedTrade {
   market_result: string | null;
   resolution_notes: string | null;
   is_automated?: boolean;
+  strategy?: 'poly_single' | 'kalshi_single' | 'cross_platform' | 'manual';
+  platform?: string;
 }
 
 export interface SimulationStats {

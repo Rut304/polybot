@@ -67,7 +67,7 @@ class TradingConfig:
     poly_single_min_profit_pct: float = 0.3    # Aggressive: capture micro-arb (research shows 0.3%+ profitable)
     poly_single_max_spread_pct: float = 12.0   # Reject >12% (likely stale data or illiquid)
     poly_single_max_position_usd: float = 100.0 # Increased - single-plat is safest
-    poly_single_scan_interval_sec: int = 30    # Faster scans - opportunities close in <60s
+    poly_single_scan_interval_sec: int = 10    # FAST: every 10 seconds - catch more edges
     poly_single_min_conditions: int = 2        # Prioritize 3+ condition markets (more errors)
     
     # =========================================================================
@@ -77,7 +77,7 @@ class TradingConfig:
     kalshi_single_min_profit_pct: float = 8.0  # RAISED: 7% fees + 1% net = 8% minimum
     kalshi_single_max_spread_pct: float = 15.0
     kalshi_single_max_position_usd: float = 30.0  # REDUCED: higher risk due to fees
-    kalshi_single_scan_interval_sec: int = 60
+    kalshi_single_scan_interval_sec: int = 15  # FAST: every 15 seconds
     
     # =========================================================================
     # CROSS-PLATFORM - Asymmetric by buy platform (fee optimization)
@@ -87,7 +87,7 @@ class TradingConfig:
     cross_plat_min_profit_buy_poly_pct: float = 2.5   # Lower (Poly has 0% fees)
     cross_plat_min_profit_buy_kalshi_pct: float = 9.0 # RAISED: must cover 7% Kalshi fee
     cross_plat_max_position_usd: float = 75.0   # Reduced from 100 - execution risk
-    cross_plat_scan_interval_sec: int = 90      # Slightly faster than before
+    cross_plat_scan_interval_sec: int = 20      # FAST: every 20 seconds
     cross_plat_min_similarity: float = 0.35     # Stricter matching (fewer false positives)
     
     # =========================================================================

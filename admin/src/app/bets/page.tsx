@@ -30,6 +30,8 @@ import { useAuth } from '@/lib/auth';
 
 type FilterType = 'all' | 'automated' | 'manual' | 'polymarket' | 'kalshi';
 type StatusFilter = 'all' | 'pending' | 'won' | 'lost';
+type StrategyFilter = 'all' | 'poly_single' | 'kalshi_single' | 'cross_platform' | 'manual';
+type TimeFilter = 'all' | '1h' | '24h' | '7d' | '30d';
 
 interface BetCardProps {
   bet: {
@@ -47,6 +49,7 @@ interface BetCardProps {
     actual_profit_usd: number | null;
     created_at: string;
     is_automated?: boolean;
+    strategy?: string;
   };
   onDisable: (id: string, hasPosition: boolean) => void;
   isDisabled?: boolean;
@@ -124,6 +127,22 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
               <div className="px-2 py-0.5 bg-neon-blue/20 rounded-full flex items-center gap-1">
                 <Zap className="w-3 h-3 text-neon-blue" />
                 <span className="text-xs text-neon-blue font-medium">Auto</span>
+              </div>
+            )}
+            
+            {/* Strategy badge */}
+            {bet.strategy && (
+              <div className={cn(
+                "px-2 py-0.5 rounded-full text-xs font-medium",
+                bet.strategy === 'poly_single' && "bg-polymarket/20 text-polymarket",
+                bet.strategy === 'kalshi_single' && "bg-kalshi/20 text-kalshi",
+                bet.strategy === 'cross_platform' && "bg-purple-500/20 text-purple-400",
+                bet.strategy === 'manual' && "bg-gray-500/20 text-gray-400",
+              )}>
+                {bet.strategy === 'poly_single' ? 'Poly Single' :
+                 bet.strategy === 'kalshi_single' ? 'Kalshi Single' :
+                 bet.strategy === 'cross_platform' ? 'Cross-Plat' :
+                 bet.strategy === 'manual' ? 'Manual' : bet.strategy}
               </div>
             )}
           </div>
@@ -295,6 +314,8 @@ export default function BetsPage() {
   
   const [filter, setFilter] = useState<FilterType>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [strategyFilter, setStrategyFilter] = useState<StrategyFilter>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [search, setSearch] = useState('');
   const [confirmSell, setConfirmSell] = useState<BetCardProps['bet'] | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
@@ -365,6 +386,26 @@ export default function BetsPage() {
 
     // Status filter
     if (statusFilter !== 'all' && bet.outcome !== statusFilter) return false;
+    
+    // Strategy filter
+    if (strategyFilter !== 'all') {
+      const strategy = bet.strategy || (bet.is_automated === false ? 'manual' : 'unknown');
+      if (strategy !== strategyFilter) return false;
+    }
+    
+    // Time filter
+    if (timeFilter !== 'all') {
+      const createdAt = new Date(bet.created_at).getTime();
+      const now = Date.now();
+      const hourMs = 60 * 60 * 1000;
+      const cutoff = {
+        '1h': now - hourMs,
+        '24h': now - 24 * hourMs,
+        '7d': now - 7 * 24 * hourMs,
+        '30d': now - 30 * 24 * hourMs,
+      }[timeFilter];
+      if (createdAt < cutoff) return false;
+    }
 
     return true;
   });
@@ -482,6 +523,46 @@ export default function BetsPage() {
                 )}
               >
                 {s.charAt(0).toUpperCase() + s.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Strategy filter */}
+          <div className="flex bg-dark-card rounded-lg border border-dark-border p-1">
+            {(['all', 'poly_single', 'kalshi_single', 'cross_platform', 'manual'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStrategyFilter(s)}
+                className={cn(
+                  "px-2 py-1.5 rounded-md text-xs transition-colors",
+                  strategyFilter === s 
+                    ? s === 'poly_single' ? 'bg-polymarket text-white'
+                      : s === 'kalshi_single' ? 'bg-kalshi text-white'
+                      : s === 'cross_platform' ? 'bg-purple-500 text-white'
+                      : 'bg-dark-border text-white'
+                    : 'text-gray-400 hover:text-white'
+                )}
+              >
+                {s === 'all' ? 'All Strats' : 
+                 s === 'poly_single' ? 'Poly' :
+                 s === 'kalshi_single' ? 'Kalshi' :
+                 s === 'cross_platform' ? 'Cross' : 'Manual'}
+              </button>
+            ))}
+          </div>
+
+          {/* Time filter */}
+          <div className="flex bg-dark-card rounded-lg border border-dark-border p-1">
+            {(['all', '1h', '24h', '7d', '30d'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTimeFilter(t)}
+                className={cn(
+                  "px-2 py-1.5 rounded-md text-xs transition-colors",
+                  timeFilter === t ? 'bg-dark-border text-white' : 'text-gray-400 hover:text-white'
+                )}
+              >
+                {t === 'all' ? 'All Time' : t}
               </button>
             ))}
           </div>
