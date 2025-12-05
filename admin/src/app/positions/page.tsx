@@ -17,9 +17,12 @@ import {
   Activity,
   Eye,
   Target,
+  HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
+import { usePositions } from '@/lib/hooks';
+import { Tooltip } from '@/components/Tooltip';
 
 interface Position {
   id: string;
@@ -71,7 +74,7 @@ const strategyColors: Record<string, string> = {
   manual: 'bg-gray-500/20 text-gray-400',
 };
 
-// Sample data for demo (will be replaced with real data from bot)
+// Sample data for demo - used when no real positions exist
 const samplePositions: Position[] = [
   {
     id: '1',
@@ -118,75 +121,56 @@ const samplePositions: Position[] = [
   },
 ];
 
+// Tooltips for position fields
+const FIELD_TOOLTIPS = {
+  size: 'Total USD value of this position',
+  entry: 'Price when position was opened',
+  current: 'Current market price',
+  pnl: 'Unrealized profit/loss = (Current - Entry) × Size',
+  strategy: 'Trading strategy that opened this position',
+  side: 'YES/NO for predictions, LONG/SHORT for perpetuals',
+};
+
 export default function PositionsPage() {
-  const [positions, setPositions] = useState<Position[]>(samplePositions);
-  const [stats, setStats] = useState<PositionStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: dbPositions, isLoading, refetch } = usePositions();
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'prediction' | 'crypto' | 'stock'>('all');
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
+  
+  // Use database positions if available, otherwise sample data
+  const positions: Position[] = (dbPositions && dbPositions.length > 0) 
+    ? dbPositions.map((p: any) => ({
+        id: p.id || p.position_id,
+        platform: p.platform || 'Unknown',
+        market: p.market_title || p.market || 'Unknown',
+        market_slug: p.market_id,
+        side: p.side || 'buy',
+        size: parseFloat(p.current_value) || parseFloat(p.cost_basis) || 0,
+        entry_price: parseFloat(p.avg_price) || 0,
+        current_price: parseFloat(p.current_price) || parseFloat(p.avg_price) || 0,
+        unrealized_pnl: parseFloat(p.unrealized_pnl) || 0,
+        unrealized_pnl_pct: p.cost_basis > 0 ? (parseFloat(p.unrealized_pnl) / parseFloat(p.cost_basis)) * 100 : 0,
+        strategy: p.strategy || (p.is_automated ? 'automated' : 'manual'),
+        opened_at: p.created_at,
+        status: 'open' as const,
+      }))
+    : samplePositions;
 
-  useEffect(() => {
-    fetchPositions();
-  }, []);
-
-  const fetchPositions = async () => {
-    try {
-      // Try to fetch real positions from Supabase
-      const { data: tradesData, error } = await supabase
-        .from('trades')
-        .select('*')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false });
-
-      if (!error && tradesData && tradesData.length > 0) {
-        const mappedPositions: Position[] = tradesData.map((trade: any) => ({
-          id: trade.id,
-          platform: trade.platform || 'Unknown',
-          market: trade.market_question || trade.market || 'Unknown',
-          market_slug: trade.market_slug,
-          side: trade.side || 'buy',
-          size: parseFloat(trade.size_usd) || 0,
-          entry_price: parseFloat(trade.price) || 0,
-          current_price: parseFloat(trade.current_price) || parseFloat(trade.price) || 0,
-          unrealized_pnl: parseFloat(trade.unrealized_pnl) || 0,
-          unrealized_pnl_pct: parseFloat(trade.unrealized_pnl_pct) || 0,
-          strategy: trade.strategy || 'manual',
-          opened_at: trade.created_at,
-          status: trade.status || 'open',
-        }));
-        setPositions(mappedPositions);
-      }
-
-      // Calculate stats
-      calculateStats(positions);
-    } catch (err) {
-      console.error('Error fetching positions:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateStats = (pos: Position[]) => {
-    const openPositions = pos.filter(p => p.status === 'open');
-    const totalValue = openPositions.reduce((sum, p) => sum + p.size, 0);
-    const totalPnl = openPositions.reduce((sum, p) => sum + (p.unrealized_pnl || 0), 0);
-    const winning = openPositions.filter(p => (p.unrealized_pnl || 0) > 0).length;
-    const losing = openPositions.filter(p => (p.unrealized_pnl || 0) < 0).length;
-
-    setStats({
-      total_positions: openPositions.length,
-      total_value: totalValue,
-      total_pnl: totalPnl,
-      total_pnl_pct: totalValue > 0 ? (totalPnl / totalValue) * 100 : 0,
-      winning_positions: winning,
-      losing_positions: losing,
-    });
+  // Calculate stats
+  const stats = {
+    total_positions: positions.length,
+    total_value: positions.reduce((sum, p) => sum + p.size, 0),
+    total_pnl: positions.reduce((sum, p) => sum + (p.unrealized_pnl || 0), 0),
+    total_pnl_pct: positions.reduce((sum, p) => sum + p.size, 0) > 0 
+      ? (positions.reduce((sum, p) => sum + (p.unrealized_pnl || 0), 0) / positions.reduce((sum, p) => sum + p.size, 0)) * 100 
+      : 0,
+    winning_positions: positions.filter(p => (p.unrealized_pnl || 0) > 0).length,
+    losing_positions: positions.filter(p => (p.unrealized_pnl || 0) < 0).length,
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchPositions();
+    await refetch();
     setRefreshing(false);
   };
 
@@ -202,7 +186,7 @@ export default function PositionsPage() {
   // Get unique strategies for filter
   const strategies = [...new Set(positions.map(p => p.strategy))];
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="p-8 flex items-center justify-center">
         <RefreshCw className="w-8 h-8 animate-spin text-gray-500" />
@@ -234,30 +218,29 @@ export default function PositionsPage() {
       </div>
 
       {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="card"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-400">Open Positions</p>
-                <p className="text-2xl font-bold mt-1">{stats.total_positions}</p>
-              </div>
-              <Activity className="w-8 h-8 text-blue-500/50" />
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-400">Open Positions</p>
+              <p className="text-2xl font-bold mt-1">{stats.total_positions}</p>
             </div>
-          </motion.div>
+            <Activity className="w-8 h-8 text-blue-500/50" />
+          </div>
+        </motion.div>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="card"
-          >
-            <div className="flex items-center justify-between">
-              <div>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between">
+            <div>
                 <p className="text-sm text-gray-400">Total Value</p>
                 <p className="text-2xl font-bold mt-1">
                   ${stats.total_value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -321,7 +304,6 @@ export default function PositionsPage() {
             </div>
           </motion.div>
         </div>
-      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
@@ -374,12 +356,54 @@ export default function PositionsPage() {
               <tr className="border-b border-gray-700 text-left text-sm text-gray-400">
                 <th className="px-4 py-3">Platform</th>
                 <th className="px-4 py-3">Market</th>
-                <th className="px-4 py-3">Side</th>
-                <th className="px-4 py-3">Size</th>
-                <th className="px-4 py-3">Entry</th>
-                <th className="px-4 py-3">Current</th>
-                <th className="px-4 py-3">P&L</th>
-                <th className="px-4 py-3">Strategy</th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    Side
+                    <Tooltip content={FIELD_TOOLTIPS.side}>
+                      <HelpCircle className="w-3 h-3 text-gray-500 cursor-help" />
+                    </Tooltip>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    Size
+                    <Tooltip content={FIELD_TOOLTIPS.size}>
+                      <HelpCircle className="w-3 h-3 text-gray-500 cursor-help" />
+                    </Tooltip>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    Entry
+                    <Tooltip content={FIELD_TOOLTIPS.entry}>
+                      <HelpCircle className="w-3 h-3 text-gray-500 cursor-help" />
+                    </Tooltip>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    Current
+                    <Tooltip content={FIELD_TOOLTIPS.current}>
+                      <HelpCircle className="w-3 h-3 text-gray-500 cursor-help" />
+                    </Tooltip>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    P&L
+                    <Tooltip content={FIELD_TOOLTIPS.pnl}>
+                      <HelpCircle className="w-3 h-3 text-gray-500 cursor-help" />
+                    </Tooltip>
+                  </div>
+                </th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center gap-1">
+                    Strategy
+                    <Tooltip content={FIELD_TOOLTIPS.strategy}>
+                      <HelpCircle className="w-3 h-3 text-gray-500 cursor-help" />
+                    </Tooltip>
+                  </div>
+                </th>
                 <th className="px-4 py-3">Opened</th>
               </tr>
             </thead>
