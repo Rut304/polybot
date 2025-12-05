@@ -1179,16 +1179,21 @@ export default function SettingsPage() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              {/* Market Making Strategy */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-neon-green" />
-                      Market Making
-                      <span className="text-xs bg-neon-green/20 text-neon-green px-2 py-0.5 rounded-full">HIGH CONFIDENCE</span>
-                    </h3>
-                    <p className="text-sm text-gray-500">Provide liquidity, earn spread + Polymarket rewards. Expected: 10-20% APR</p>
+              {/* Market Making Strategy - Full Card Layout */}
+              <div className="mt-6 rounded-xl border-2 border-neon-green overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-neon-green/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-neon-green flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-black" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Market Making
+                        <span className="text-xs bg-neon-green/30 text-neon-green px-2 py-0.5 rounded-full">HIGH CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-neon-green">Provide liquidity • Earn spreads + rewards</p>
+                    </div>
                   </div>
                   <ToggleSwitch 
                     enabled={enableMarketMaking} 
@@ -1198,8 +1203,30 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                {enableMarketMaking && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-neon-green/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Posts simultaneous buy/sell orders around the current price. You profit from the bid-ask spread when both sides fill.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Polymarket offers <span className="text-neon-green font-semibold">liquidity mining rewards</span> (extra USDC) to market makers. You earn spread + rewards with minimal directional risk.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-neon-green font-semibold">10-20% APR</span> from spreads + rewards.
+                        Risk: inventory accumulation if market moves sharply.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-neon-green/5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-sm font-medium text-gray-400 mb-2 block">
                         Target Spread (bps)
@@ -1301,19 +1328,24 @@ export default function SettingsPage() {
                       <p className="text-xs text-gray-500 mt-1">Concurrent markets</p>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* News Arbitrage Strategy */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                      News Arbitrage
-                      <span className="text-xs bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded-full">MEDIUM CONFIDENCE</span>
-                    </h3>
-                    <p className="text-sm text-gray-500">Trade Polymarket→Kalshi lag during news events. Expected: 5-30% per event</p>
+              {/* News Arbitrage Strategy - Full Card Layout */}
+              <div className="mt-6 rounded-xl border-2 border-yellow-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-yellow-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-yellow-500 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-black" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        News Arbitrage
+                        <span className="text-xs bg-yellow-500/30 text-yellow-400 px-2 py-0.5 rounded-full">MEDIUM CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-yellow-400">Exploit Polymarket→Kalshi price lag on breaking news</p>
+                    </div>
                   </div>
                   <ToggleSwitch 
                     enabled={enableNewsArbitrage} 
@@ -1323,75 +1355,100 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                {enableNewsArbitrage && (
-                  <div className="space-y-4 mt-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-400 mb-2 block">
-                          Min Spread (%)
-                        </label>
-                        <input
-                          type="number"
-                          value={newsMinSpreadPct}
-                          onChange={(e) => setNewsMinSpreadPct(parseFloat(e.target.value))}
-                          step="0.5"
-                          min="1"
-                          max="20"
-                          disabled={!isAdmin}
-                          placeholder="3.0"
-                          className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Trigger threshold</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-400 mb-2 block">
-                          Position Size ($)
-                        </label>
-                        <input
-                          type="number"
-                          value={newsPositionSizeUsd}
-                          onChange={(e) => setNewsPositionSizeUsd(parseFloat(e.target.value))}
-                          step="10"
-                          min="5"
-                          max="500"
-                          disabled={!isAdmin}
-                          placeholder="50"
-                          className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-400 mb-2 block">
-                          Scan Interval (sec)
-                        </label>
-                        <input
-                          type="number"
-                          value={newsScanIntervalSec}
-                          onChange={(e) => setNewsScanIntervalSec(parseInt(e.target.value))}
-                          step="5"
-                          min="10"
-                          max="300"
-                          disabled={!isAdmin}
-                          placeholder="30"
-                          className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
-                        />
-                      </div>
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-yellow-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">When breaking news hits, Polymarket (crypto-fast) reprices before Kalshi (regulated, slower). Bot buys on Kalshi before it catches up.</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
-                        Keywords to Watch (comma-separated)
-                      </label>
-                      <input
-                        type="text"
-                        value={newsKeywords}
-                        onChange={(e) => setNewsKeywords(e.target.value)}
-                        disabled={!isAdmin}
-                        placeholder="election,fed,trump,bitcoin,crypto,verdict"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Markets containing these keywords will be monitored for price divergence</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">The Timing Edge</p>
+                      <p className="text-gray-300">Polymarket moves in <span className="text-yellow-400 font-semibold">10-30 seconds</span>. Kalshi often lags by <span className="text-yellow-400 font-semibold">2-5 minutes</span> on major events (earnings, court rulings, Fed announcements).</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-yellow-400 font-semibold">5-30% per event</span>.
+                        Rare but lucrative. Requires fast execution during high-volatility moments.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-yellow-500/5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Spread (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={newsMinSpreadPct}
+                        onChange={(e) => setNewsMinSpreadPct(parseFloat(e.target.value))}
+                        step="0.5"
+                        min="1"
+                        max="20"
+                        disabled={!isAdmin}
+                        placeholder="3.0"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Trigger threshold</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input
+                        type="number"
+                        value={newsPositionSizeUsd}
+                        onChange={(e) => setNewsPositionSizeUsd(parseFloat(e.target.value))}
+                        step="10"
+                        min="5"
+                        max="500"
+                        disabled={!isAdmin}
+                        placeholder="50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Per trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Scan Interval (sec)
+                      </label>
+                      <input
+                        type="number"
+                        value={newsScanIntervalSec}
+                        onChange={(e) => setNewsScanIntervalSec(parseInt(e.target.value))}
+                        step="5"
+                        min="10"
+                        max="300"
+                        disabled={!isAdmin}
+                        placeholder="30"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Price comparison</p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                      Keywords to Watch (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={newsKeywords}
+                      onChange={(e) => setNewsKeywords(e.target.value)}
+                      disabled={!isAdmin}
+                      placeholder="election,fed,trump,bitcoin,crypto,verdict"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">Markets containing these keywords will be monitored for price divergence</p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1428,16 +1485,21 @@ export default function SettingsPage() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              {/* Funding Rate Arbitrage (85% Confidence) */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <Percent className="w-4 h-4 text-neon-green" />
-                      Funding Rate Arbitrage
-                      <span className="text-xs bg-neon-green/20 text-neon-green px-2 py-0.5 rounded-full">85% CONFIDENCE</span>
-                    </h3>
-                    <p className="text-sm text-gray-500">Delta-neutral: Long spot, short perp, collect funding. Expected: 15-50% APY</p>
+              {/* Funding Rate Arbitrage - Full Card Layout */}
+              <div className="mt-6 rounded-xl border-2 border-neon-green overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-neon-green/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-neon-green flex items-center justify-center">
+                      <Percent className="w-5 h-5 text-black" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Funding Rate Arbitrage
+                        <span className="text-xs bg-neon-green/30 text-neon-green px-2 py-0.5 rounded-full">85% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-neon-green">Delta-neutral • Via CCXT (100+ exchanges)</p>
+                    </div>
                   </div>
                   <ToggleSwitch 
                     enabled={enableFundingRateArb} 
@@ -1447,10 +1509,33 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                {enableFundingRateArb && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-neon-green/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Buy spot (BTC), short perpetual futures (BTC-PERP). When funding is positive, shorts collect from longs every 8h. Zero directional risk.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">In bull markets, longs pay shorts <span className="text-neon-green font-semibold">0.01-0.1% every 8h</span> (30-100%+ APY annualized). CCXT connects to Binance, Bybit, OKX, etc.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-neon-green font-semibold">15-50% APY</span> consistently.
+                        Risk: exchange failure, liquidation if not properly hedged.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-neon-green/5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
                         Min Funding Rate (%)
                       </label>
                       <input
@@ -1462,12 +1547,13 @@ export default function SettingsPage() {
                         max="0.5"
                         disabled={!isAdmin}
                         placeholder="0.03"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Per 8h period</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Per 8h period</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
                         Min APY (%)
                       </label>
                       <input
@@ -1479,12 +1565,13 @@ export default function SettingsPage() {
                         max="100"
                         disabled={!isAdmin}
                         placeholder="30"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Entry threshold</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Entry threshold</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
                         Max Position ($)
                       </label>
                       <input
@@ -1496,11 +1583,12 @@ export default function SettingsPage() {
                         max="10000"
                         disabled={!isAdmin}
                         placeholder="1000"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">Per pair</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Max Positions
                       </label>
                       <input
@@ -1512,12 +1600,12 @@ export default function SettingsPage() {
                         max="10"
                         disabled={!isAdmin}
                         placeholder="3"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Concurrent positions</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Concurrent</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Max Leverage
                       </label>
                       <input
@@ -1529,12 +1617,13 @@ export default function SettingsPage() {
                         max="10"
                         disabled={!isAdmin}
                         placeholder="3"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Futures leg</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Futures leg</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
                         Scan Interval (sec)
                       </label>
                       <input
@@ -1546,23 +1635,29 @@ export default function SettingsPage() {
                         max="900"
                         disabled={!isAdmin}
                         placeholder="300"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-green text-sm disabled:opacity-50"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">Rate check</p>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Grid Trading (75% Confidence) */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-blue-500" />
-                      Grid Trading
-                      <span className="text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded-full">75% CONFIDENCE</span>
-                    </h3>
-                    <p className="text-sm text-gray-500">Profit from sideways price oscillation. Expected: 20-60% APY in ranging markets</p>
+              {/* Grid Trading - Full Card Layout */}
+              <div className="mt-6 rounded-xl border-2 border-blue-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-blue-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Grid Trading
+                        <span className="text-xs bg-blue-500/30 text-blue-400 px-2 py-0.5 rounded-full">75% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-blue-400">Profit from sideways markets • Via CCXT</p>
+                    </div>
                   </div>
                   <ToggleSwitch 
                     enabled={enableGridTrading} 
@@ -1572,10 +1667,33 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                {enableGridTrading && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-blue-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Places buy orders below current price and sell orders above. As price oscillates, bot continuously buys low and sells high.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Best Market Conditions</p>
+                      <p className="text-gray-300">Works best in <span className="text-blue-400 font-semibold">ranging/sideways markets</span>. BTC often moves ±10% and returns. Grid captures every oscillation.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-blue-400 font-semibold">20-60% APY</span> in ranging markets.
+                        Risk: loses if price trends strongly in one direction (breakout).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-blue-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
                         Range (±%)
                       </label>
                       <input
@@ -1587,12 +1705,12 @@ export default function SettingsPage() {
                         max="30"
                         disabled={!isAdmin}
                         placeholder="10"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Price range from current</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Price range from current</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Grid Levels
                       </label>
                       <input
@@ -1604,12 +1722,13 @@ export default function SettingsPage() {
                         max="100"
                         disabled={!isAdmin}
                         placeholder="20"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Buy/sell orders</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Buy/sell orders</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
                         Investment ($)
                       </label>
                       <input
@@ -1621,12 +1740,12 @@ export default function SettingsPage() {
                         max="5000"
                         disabled={!isAdmin}
                         placeholder="500"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Per grid</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Per grid</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Max Grids
                       </label>
                       <input
@@ -1638,12 +1757,13 @@ export default function SettingsPage() {
                         max="10"
                         disabled={!isAdmin}
                         placeholder="3"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Concurrent grids</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Concurrent</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <TrendingDown className="w-3 h-3" />
                         Stop Loss (%)
                       </label>
                       <input
@@ -1655,12 +1775,13 @@ export default function SettingsPage() {
                         max="30"
                         disabled={!isAdmin}
                         placeholder="15"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Breakout exit</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Breakout exit</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
                         Take Profit (%)
                       </label>
                       <input
@@ -1672,23 +1793,29 @@ export default function SettingsPage() {
                         max="100"
                         disabled={!isAdmin}
                         placeholder="50"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">Close grid</p>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
-              {/* Pairs Trading (65% Confidence) */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <Target className="w-4 h-4 text-orange-500" />
-                      Pairs Trading
-                      <span className="text-xs bg-orange-500/20 text-orange-500 px-2 py-0.5 rounded-full">65% CONFIDENCE</span>
-                    </h3>
-                    <p className="text-sm text-gray-500">Statistical arb on correlated pairs (BTC/ETH). Expected: 10-25% APY</p>
+              {/* Pairs Trading - Full Card Layout */}
+              <div className="mt-6 rounded-xl border-2 border-orange-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-orange-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center">
+                      <Target className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Pairs Trading
+                        <span className="text-xs bg-orange-500/30 text-orange-400 px-2 py-0.5 rounded-full">65% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-orange-400">Statistical arbitrage on correlated pairs</p>
+                    </div>
                   </div>
                   <ToggleSwitch 
                     enabled={enablePairsTrading} 
@@ -1698,10 +1825,32 @@ export default function SettingsPage() {
                   />
                 </div>
                 
-                {enablePairsTrading && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-orange-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">BTC and ETH are ~90% correlated. When their ratio deviates (z-score {">"}2), bet on mean reversion: long the underperformer, short the outperformer.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">The Statistical Edge</p>
+                      <p className="text-gray-300">Uses <span className="text-orange-400 font-semibold">z-score analysis</span>: when the BTC/ETH ratio is 2+ standard deviations from mean, it almost always reverts within 1-3 days.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-orange-400 font-semibold">10-25% APY</span> with low volatility.
+                        Market-neutral strategy (hedged against overall market direction).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-orange-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Entry Z-Score
                       </label>
                       <input
@@ -1713,12 +1862,12 @@ export default function SettingsPage() {
                         max="4"
                         disabled={!isAdmin}
                         placeholder="2.0"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Enter when |z| &gt; this</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Enter when |z| {">"} this</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Exit Z-Score
                       </label>
                       <input
@@ -1730,12 +1879,13 @@ export default function SettingsPage() {
                         max="2"
                         disabled={!isAdmin}
                         placeholder="0.5"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Exit when |z| &lt; this</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Exit when |z| {"<"} this</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
                         Position Size ($)
                       </label>
                       <input
@@ -1747,11 +1897,12 @@ export default function SettingsPage() {
                         max="5000"
                         disabled={!isAdmin}
                         placeholder="500"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">Per leg</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
                         Max Positions
                       </label>
                       <input
@@ -1763,11 +1914,13 @@ export default function SettingsPage() {
                         max="5"
                         disabled={!isAdmin}
                         placeholder="2"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
                       />
+                      <p className="text-[10px] text-gray-500 mt-1">Concurrent pairs</p>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-400 mb-2 block">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
                         Max Hold (hours)
                       </label>
                       <input
@@ -1779,12 +1932,12 @@ export default function SettingsPage() {
                         max="168"
                         disabled={!isAdmin}
                         placeholder="72"
-                        className="w-full bg-dark-border border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Time-based exit</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Time-based exit</p>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
             </motion.div>
           )}
