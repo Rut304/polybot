@@ -231,6 +231,33 @@ export default function SecretsPage() {
     }
   };
   
+  // Pull secrets from AWS Secrets Manager
+  const pullFromAWS = async () => {
+    setSyncing('aws');
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/secrets/pull-aws', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to pull from AWS');
+      }
+      
+      setSuccess(`✓ Imported ${result.imported} secrets from AWS`);
+      fetchSecrets(); // Refresh the list
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to pull from AWS');
+    } finally {
+      setSyncing(null);
+    }
+  };
+  
   // Sync secrets to AWS Secrets Manager
   const syncToAWS = async () => {
     requireReauth(async () => {
@@ -503,7 +530,20 @@ export default function SecretsPage() {
           </div>
           
           {/* Sync Buttons */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={pullFromAWS}
+              disabled={syncing === 'aws'}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 transition-colors disabled:opacity-50"
+              title="Import secrets from AWS Secrets Manager"
+            >
+              {syncing === 'aws' ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              Pull from AWS
+            </button>
             <button
               onClick={syncToAWS}
               disabled={syncing === 'aws'}

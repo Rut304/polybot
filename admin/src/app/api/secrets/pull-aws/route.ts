@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { SecretsManagerClient, GetSecretValueCommand, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
@@ -9,130 +10,186 @@ const supabaseAdmin = hasServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-// Map AWS secret names to our key structure
-const AWS_SECRET_MAPPING: Record<string, { key_name: string; category: string; description: string }> = {
-  'polybot/polymarket-api-key': {
-    key_name: 'polymarket_api_key',
-    category: 'prediction_markets',
-    description: 'Polymarket API key from your developer account',
-  },
-  'polybot/polymarket-secret': {
-    key_name: 'polymarket_secret',
-    category: 'prediction_markets',
-    description: 'Polymarket API secret',
-  },
-  'polybot/kalshi-api-key': {
-    key_name: 'kalshi_api_key',
-    category: 'prediction_markets',
-    description: 'Kalshi API key from your developer settings',
-  },
-  'polybot/kalshi-private-key': {
-    key_name: 'kalshi_private_key',
-    category: 'prediction_markets',
-    description: 'Kalshi RSA private key for signing requests',
-  },
-  'polybot/binance-api-key': {
+// AWS Configuration
+const awsRegion = process.env.AWS_REGION || 'us-east-2';
+const hasAwsConfig = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
+
+const secretsClient = hasAwsConfig ? new SecretsManagerClient({ 
+  region: awsRegion,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  }
+}) : null;
+
+// Map secret keys from AWS JSON to our DB structure
+interface SecretMapping {
+  key_name: string;
+  category: string;
+  description: string;
+}
+
+const KEY_MAPPINGS: Record<string, SecretMapping> = {
+  'BINANCE_API_KEY': {
     key_name: 'binance_api_key',
     category: 'crypto_exchanges',
     description: 'Binance API key with trading permissions',
   },
-  'polybot/binance-api-secret': {
+  'BINANCE_API_SECRET': {
     key_name: 'binance_api_secret',
     category: 'crypto_exchanges',
     description: 'Binance API secret',
   },
-  'polybot/bybit-api-key': {
+  'POLYMARKET_API_KEY': {
+    key_name: 'polymarket_api_key',
+    category: 'prediction_markets',
+    description: 'Polymarket API key',
+  },
+  'POLYMARKET_SECRET': {
+    key_name: 'polymarket_secret',
+    category: 'prediction_markets',
+    description: 'Polymarket API secret',
+  },
+  'KALSHI_API_KEY': {
+    key_name: 'kalshi_api_key',
+    category: 'prediction_markets',
+    description: 'Kalshi API key',
+  },
+  'KALSHI_PRIVATE_KEY': {
+    key_name: 'kalshi_private_key',
+    category: 'prediction_markets',
+    description: 'Kalshi RSA private key',
+  },
+  'BYBIT_API_KEY': {
     key_name: 'bybit_api_key',
     category: 'crypto_exchanges',
     description: 'Bybit API key',
   },
-  'polybot/bybit-api-secret': {
+  'BYBIT_API_SECRET': {
     key_name: 'bybit_api_secret',
     category: 'crypto_exchanges',
     description: 'Bybit API secret',
   },
-  'polybot/okx-api-key': {
+  'OKX_API_KEY': {
     key_name: 'okx_api_key',
     category: 'crypto_exchanges',
     description: 'OKX API key',
   },
-  'polybot/okx-api-secret': {
+  'OKX_API_SECRET': {
     key_name: 'okx_api_secret',
     category: 'crypto_exchanges',
     description: 'OKX API secret',
   },
-  'polybot/okx-passphrase': {
+  'OKX_PASSPHRASE': {
     key_name: 'okx_passphrase',
     category: 'crypto_exchanges',
     description: 'OKX API passphrase',
   },
-  'polybot/kraken-api-key': {
+  'KRAKEN_API_KEY': {
     key_name: 'kraken_api_key',
     category: 'crypto_exchanges',
     description: 'Kraken API key',
   },
-  'polybot/kraken-api-secret': {
+  'KRAKEN_API_SECRET': {
     key_name: 'kraken_api_secret',
     category: 'crypto_exchanges',
     description: 'Kraken API secret',
   },
-  'polybot/coinbase-api-key': {
+  'COINBASE_API_KEY': {
     key_name: 'coinbase_api_key',
     category: 'crypto_exchanges',
     description: 'Coinbase Advanced Trade API key',
   },
-  'polybot/coinbase-api-secret': {
+  'COINBASE_API_SECRET': {
     key_name: 'coinbase_api_secret',
     category: 'crypto_exchanges',
     description: 'Coinbase Advanced Trade API secret',
   },
-  'polybot/kucoin-api-key': {
+  'KUCOIN_API_KEY': {
     key_name: 'kucoin_api_key',
     category: 'crypto_exchanges',
     description: 'KuCoin API key',
   },
-  'polybot/kucoin-api-secret': {
+  'KUCOIN_API_SECRET': {
     key_name: 'kucoin_api_secret',
     category: 'crypto_exchanges',
     description: 'KuCoin API secret',
   },
-  'polybot/kucoin-passphrase': {
+  'KUCOIN_PASSPHRASE': {
     key_name: 'kucoin_passphrase',
     category: 'crypto_exchanges',
     description: 'KuCoin API passphrase',
   },
-  'polybot/alpaca-api-key': {
+  'ALPACA_API_KEY': {
     key_name: 'alpaca_api_key',
     category: 'stock_brokers',
     description: 'Alpaca API key',
   },
-  'polybot/alpaca-api-secret': {
+  'ALPACA_API_SECRET': {
     key_name: 'alpaca_api_secret',
     category: 'stock_brokers',
     description: 'Alpaca API secret',
   },
-  'polybot/wallet-address': {
+  'WALLET_ADDRESS': {
     key_name: 'wallet_address',
     category: 'prediction_markets',
     description: 'Ethereum wallet address for Polymarket',
   },
-  'polybot/private-key': {
+  'WALLET_PRIVATE_KEY': {
     key_name: 'wallet_private_key',
     category: 'prediction_markets',
     description: 'Wallet private key (keep secure!)',
   },
-  'polybot/supabase-url': {
-    key_name: 'supabase_url',
-    category: 'infrastructure',
-    description: 'Supabase project URL',
-  },
-  'polybot/supabase-key': {
-    key_name: 'supabase_anon_key',
-    category: 'infrastructure',
-    description: 'Supabase anon/public key',
-  },
 };
 
+// Fetch secrets from AWS and sync to Supabase
+async function fetchAwsSecrets(): Promise<Record<string, string>> {
+  if (!secretsClient) {
+    throw new Error('AWS not configured');
+  }
+  
+  const secrets: Record<string, string> = {};
+  
+  try {
+    // First, list all polybot secrets
+    const listCommand = new ListSecretsCommand({
+      Filters: [{ Key: 'name', Values: ['polybot/'] }],
+    });
+    const listResult = await secretsClient.send(listCommand);
+    
+    // Fetch each secret's value
+    for (const secret of listResult.SecretList || []) {
+      if (!secret.Name) continue;
+      
+      try {
+        const getCommand = new GetSecretValueCommand({ SecretId: secret.Name });
+        const getResult = await secretsClient.send(getCommand);
+        
+        if (getResult.SecretString) {
+          // Try to parse as JSON (our polybot/trading-keys format)
+          try {
+            const parsed = JSON.parse(getResult.SecretString);
+            Object.assign(secrets, parsed);
+          } catch {
+            // If not JSON, treat as single value
+            // Extract key name from secret name (e.g., polybot/binance-api-key -> BINANCE_API_KEY)
+            const keyName = secret.Name.replace('polybot/', '').toUpperCase().replace(/-/g, '_');
+            secrets[keyName] = getResult.SecretString;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to get secret ${secret.Name}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to list secrets:', err);
+    throw err;
+  }
+  
+  return secrets;
+}
+
+// POST - Pull secrets from AWS and sync to Supabase
 export async function POST(request: NextRequest) {
   if (!supabaseAdmin) {
     return NextResponse.json(
@@ -141,23 +198,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
-    const body = await request.json();
-    const awsSecrets = body.secrets as Record<string, string>;
-    
-    if (!awsSecrets || typeof awsSecrets !== 'object') {
-      return NextResponse.json(
-        { error: 'Invalid request. Expected { secrets: { name: value, ... } }' },
-        { status: 400 }
-      );
-    }
+  if (!secretsClient) {
+    return NextResponse.json(
+      { error: 'AWS not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.' },
+      { status: 500 }
+    );
+  }
 
+  try {
+    // Fetch secrets from AWS
+    const awsSecrets = await fetchAwsSecrets();
+    
     let imported = 0;
     let skipped = 0;
     const errors: string[] = [];
 
-    for (const [awsName, value] of Object.entries(awsSecrets)) {
-      const mapping = AWS_SECRET_MAPPING[awsName];
+    for (const [keyName, value] of Object.entries(awsSecrets)) {
+      const mapping = KEY_MAPPINGS[keyName];
       
       if (!mapping) {
         skipped++;
@@ -175,7 +232,6 @@ export async function POST(request: NextRequest) {
             description: mapping.description,
             is_configured: !!value,
             last_updated: new Date().toISOString(),
-            synced_aws: true,
           }, {
             onConflict: 'key_name',
           });
@@ -183,7 +239,7 @@ export async function POST(request: NextRequest) {
         if (upsertError) throw upsertError;
         imported++;
       } catch (err: any) {
-        errors.push(`${awsName}: ${err.message}`);
+        errors.push(`${keyName}: ${err.message}`);
       }
     }
 
@@ -191,19 +247,20 @@ export async function POST(request: NextRequest) {
       success: true,
       imported,
       skipped,
+      found_in_aws: Object.keys(awsSecrets).length,
       errors: errors.length > 0 ? errors : undefined,
-      message: `Imported ${imported} secrets from AWS`,
+      message: `Synced ${imported} secrets from AWS to Supabase`,
     });
   } catch (err: any) {
-    console.error('Error importing from AWS:', err);
+    console.error('Error syncing from AWS:', err);
     return NextResponse.json(
-      { error: err.message || 'Failed to import secrets' },
+      { error: err.message || 'Failed to sync secrets from AWS' },
       { status: 500 }
     );
   }
 }
 
-// GET - List expected secrets and their status
+// GET - List expected secrets and their current status
 export async function GET() {
   if (!supabaseAdmin) {
     return NextResponse.json(
@@ -216,25 +273,30 @@ export async function GET() {
     // Get all secrets from database
     const { data: existingSecrets } = await supabaseAdmin
       .from('polybot_secrets')
-      .select('key_name, is_configured');
+      .select('key_name, is_configured, last_updated');
 
     const existingMap = new Map(
-      (existingSecrets || []).map(s => [s.key_name, s.is_configured])
+      (existingSecrets || []).map(s => [s.key_name, s])
     );
 
     // Build status for all expected secrets
-    const secretStatus = Object.entries(AWS_SECRET_MAPPING).map(([awsName, mapping]) => ({
-      aws_name: awsName,
-      key_name: mapping.key_name,
-      category: mapping.category,
-      description: mapping.description,
-      is_configured: existingMap.get(mapping.key_name) || false,
-    }));
+    const secretStatus = Object.entries(KEY_MAPPINGS).map(([awsKey, mapping]) => {
+      const existing = existingMap.get(mapping.key_name);
+      return {
+        aws_key: awsKey,
+        key_name: mapping.key_name,
+        category: mapping.category,
+        description: mapping.description,
+        is_configured: existing?.is_configured || false,
+        last_updated: existing?.last_updated || null,
+      };
+    });
 
     return NextResponse.json({
       secrets: secretStatus,
       configured: secretStatus.filter(s => s.is_configured).length,
       total: secretStatus.length,
+      aws_configured: hasAwsConfig,
     });
   } catch (err: any) {
     return NextResponse.json(
