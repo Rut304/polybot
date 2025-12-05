@@ -555,7 +555,7 @@ export function useToggleMarketDisabled() {
   });
 }
 
-// Reset simulation - clears all trades and resets balance to $1,000
+// Reset simulation - clears all trades and resets balance to $5,000
 export function useResetSimulation() {
   const queryClient = useQueryClient();
   
@@ -585,20 +585,31 @@ export function useResetSimulation() {
       
       if (oppsError) throw oppsError;
       
-      // Insert fresh starting stats
+      // Reset bot status session counters
+      const { error: statusError } = await supabase
+        .from('polybot_status')
+        .update({
+          opportunities_this_session: 0,
+          trades_this_session: 0,
+        })
+        .neq('id', 0); // Update all rows
+      
+      if (statusError) console.warn('Could not reset status counters:', statusError);
+      
+      // Insert fresh starting stats with $5000 balance
       const { error: statsError } = await supabase
         .from('polybot_simulation_stats')
         .insert({
           snapshot_at: new Date().toISOString(),
-          simulated_balance: 1000,
+          simulated_balance: 5000,
           total_pnl: 0,
           total_trades: 0,
           win_rate: 0,
           stats_json: {
             total_opportunities_seen: 0,
             total_simulated_trades: 0,
-            simulated_starting_balance: '1000.00',
-            simulated_current_balance: '1000.00',
+            simulated_starting_balance: '5000.00',
+            simulated_current_balance: '5000.00',
             total_pnl: '0.00',
             winning_trades: 0,
             losing_trades: 0,
@@ -628,6 +639,8 @@ export function useResetSimulation() {
       queryClient.invalidateQueries({ queryKey: ['simulatedTrades'] });
       queryClient.invalidateQueries({ queryKey: ['opportunities'] });
       queryClient.invalidateQueries({ queryKey: ['aggregateStats'] });
+      queryClient.invalidateQueries({ queryKey: ['botStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['realTimeStats'] });
     },
   });
 }

@@ -2560,7 +2560,7 @@ export default function SettingsPage() {
               <div>
                 <h3 className="font-semibold text-red-400">Reset Simulation</h3>
                 <p className="text-sm text-gray-400 mt-1">
-                  Delete all paper trades and reset balance to $1,000. This cannot be undone.
+                  Delete all paper trades, opportunities, and reset balance to $5,000. This cannot be undone.
                 </p>
               </div>
               <button
@@ -2594,7 +2594,7 @@ export default function SettingsPage() {
             </div>
             <p className="text-gray-400 mb-6">
               {showConfirm === 'reset' 
-                ? 'This will delete ALL paper trades and reset your simulated balance to $1,000. This action cannot be undone!'
+                ? 'This will delete ALL paper trades, opportunities, and reset your simulated balance to $5,000. This action cannot be undone!'
                 : 'Are you sure you want to disable the bot? Any pending trades will continue, but no new trades will be made.'}
             </p>
             <div className="flex gap-3">
