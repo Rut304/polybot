@@ -20,6 +20,7 @@ import {
   KeyRound,
   Upload,
   Download,
+  Rocket,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -119,7 +120,7 @@ export default function SecretsPage() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState<'aws' | 'github' | null>(null);
+  const [syncing, setSyncing] = useState<'aws' | 'github' | 'redeploy' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -280,6 +281,34 @@ export default function SecretsPage() {
         setTimeout(() => setSuccess(null), 5000);
       } catch (err: any) {
         setError(err.message || 'Failed to sync to GitHub');
+      } finally {
+        setSyncing(null);
+      }
+    });
+  };
+  
+  // Redeploy bot with updated secrets (no Docker needed!)
+  const redeployBot = async () => {
+    requireReauth(async () => {
+      setSyncing('redeploy');
+      setError(null);
+      
+      try {
+        const response = await fetch('/api/secrets/redeploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to redeploy bot');
+        }
+        
+        setSuccess(`✓ ${result.message}`);
+        setTimeout(() => setSuccess(null), 10000);
+      } catch (err: any) {
+        setError(err.message || 'Failed to redeploy bot');
       } finally {
         setSyncing(null);
       }
@@ -498,6 +527,18 @@ export default function SecretsPage() {
                 <Github className="w-4 h-4" />
               )}
               Sync to GitHub
+            </button>
+            <button
+              onClick={redeployBot}
+              disabled={syncing === 'redeploy'}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neon-green/20 hover:bg-neon-green/30 text-neon-green transition-colors disabled:opacity-50"
+            >
+              {syncing === 'redeploy' ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Rocket className="w-4 h-4" />
+              )}
+              Redeploy Bot
             </button>
           </div>
         </div>
