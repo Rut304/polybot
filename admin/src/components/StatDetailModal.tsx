@@ -124,8 +124,8 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
 }
 
 function BalanceDetails({ stats, statsJson }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined }) {
-  const startingBalance = parseFloat(statsJson?.simulated_starting_balance || '1000');
-  const currentBalance = stats?.simulated_balance || 1000;
+  const startingBalance = parseFloat(statsJson?.simulated_starting_balance || '5000');
+  const currentBalance = stats?.simulated_balance || 5000;
   const totalPnL = stats?.total_pnl || 0;
   const roiPct = statsJson?.roi_pct || 0;
   const totalFees = parseFloat(statsJson?.total_fees_paid || '0');

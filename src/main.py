@@ -86,7 +86,7 @@ class PolyBot:
         # Paper trader for simulation mode
         self.paper_trader = PaperTrader(
             db_client=self.database,
-            starting_balance=config.trading.max_trade_size * 10,  # $1000 default
+            starting_balance=Decimal(str(config.trading.simulation_starting_balance)),  # $5000 default
             min_profit_threshold=config.trading.min_profit_percent,
         )
         

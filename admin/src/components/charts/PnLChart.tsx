@@ -47,7 +47,7 @@ export function PnLChart({ data }: PnLChartProps) {
   const chartData = data.map((stat) => ({
     time: new Date(stat.snapshot_at).getTime(),
     pnl: stat.total_pnl || 0,
-    balance: stat.simulated_balance || 1000,
+    balance: stat.simulated_balance || 5000,
     trades: stat.total_trades || 0,
   }));
 

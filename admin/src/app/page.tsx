@@ -44,7 +44,8 @@ export default function Dashboard() {
   const { data: pnlHistory } = usePnLHistory(24);
   
   // Prefer real-time computed stats (more accurate)
-  const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 1000;
+  const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 5000;
+  const isSimulation = botStatus?.dry_run_mode ?? true;
   const totalPnl = realTimeStats?.total_pnl ?? simStats?.total_pnl ?? 0;
   const totalTrades = realTimeStats?.total_trades ?? simStats?.total_trades ?? 0;
   const winRate = realTimeStats?.win_rate ?? simStats?.win_rate ?? 0;
@@ -83,14 +84,15 @@ export default function Dashboard() {
         {/* Top Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
-            title="Simulated Balance"
-            tooltip={METRIC_TOOLTIPS.simulatedBalance}
+            title={isSimulation ? "Simulated Balance" : "Real Balance"}
+            tooltip={isSimulation ? METRIC_TOOLTIPS.simulatedBalance : "Your actual exchange balance"}
             value={formatCurrency(balance)}
             change={roiPct}
             icon={DollarSign}
             color="green"
             loading={statsLoading && !realTimeStats}
             onClick={() => setModalType('balance')}
+            badge={isSimulation ? "PAPER" : "LIVE"}
           />
           <StatCard
             title="Total P&L"
@@ -211,7 +213,8 @@ function StatCard({
   icon: Icon, 
   color,
   loading,
-  onClick
+  onClick,
+  badge
 }: {
   title: string;
   tooltip?: string;
@@ -222,6 +225,7 @@ function StatCard({
   color: 'green' | 'blue' | 'purple' | 'pink';
   loading?: boolean;
   onClick?: () => void;
+  badge?: string;
 }) {
   const colorClasses = {
     green: 'text-neon-green glow-green',
@@ -258,6 +262,16 @@ function StatCard({
           <div>
             <div className="flex items-center gap-1.5 mb-1">
               <p className="text-sm text-gray-400">{title}</p>
+              {badge && (
+                <span className={cn(
+                  "px-1.5 py-0.5 text-[10px] font-bold rounded uppercase",
+                  badge === "LIVE" 
+                    ? "bg-neon-green/20 text-neon-green" 
+                    : "bg-yellow-500/20 text-yellow-400"
+                )}>
+                  {badge}
+                </span>
+              )}
               {tooltip && (
                 <Tooltip content={tooltip} position="right">
                   <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help transition-colors" />

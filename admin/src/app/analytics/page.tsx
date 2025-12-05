@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
     return history.map(h => ({
       time: format(new Date(h.snapshot_at), timeRange === '24h' ? 'HH:mm' : 'MMM dd'),
       pnl: h.total_pnl || 0,
-      balance: h.simulated_balance || 1000,
+      balance: h.simulated_balance || 5000,
       trades: h.total_trades || 0,
     }));
   }, [history, timeRange]);
