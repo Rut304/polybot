@@ -112,6 +112,15 @@ export interface BotConfig {
   max_daily_loss: number;
   scan_interval: number;
   updated_at: string;
+  // Per-strategy settings
+  poly_single_min_profit_pct?: number;
+  poly_single_max_spread_pct?: number;
+  poly_single_max_position_usd?: number;
+  kalshi_single_min_profit_pct?: number;
+  kalshi_single_max_spread_pct?: number;
+  kalshi_single_max_position_usd?: number;
+  cross_plat_min_profit_buy_poly_pct?: number;
+  cross_plat_min_profit_buy_kalshi_pct?: number;
 }
 
 export interface DisabledMarket {

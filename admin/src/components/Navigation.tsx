@@ -16,6 +16,12 @@ import {
   Shield,
   Store,
   Star,
+  Key,
+  GitBranch,
+  BookOpen,
+  Coins,
+  BarChart3,
+  Bell,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -26,9 +32,15 @@ const navItems = [
   { href: '/bets', label: 'My Bets', icon: Wallet },
   { href: '/markets', label: 'Markets', icon: Store },
   { href: '/watchlist', label: 'Watchlist', icon: Star },
+  { href: '/balances', label: 'Balances', icon: Coins },
+  { href: '/positions', label: 'Positions', icon: BarChart3 },
   { href: '/analytics', label: 'Analytics', icon: TrendingUp },
   { href: '/insights', label: 'AI Insights', icon: Brain },
+  { href: '/workflows', label: 'Workflows', icon: GitBranch },
+  { href: '/docs', label: 'Documentation', icon: BookOpen },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/secrets', label: 'API Keys', icon: Key, adminOnly: true },
 ];
 
 export function Navigation() {
@@ -91,7 +103,9 @@ export function Navigation() {
 
       {/* Nav Items */}
       <nav className="p-3 space-y-1">
-        {navItems.map((item) => {
+        {navItems
+          .filter(item => !item.adminOnly || isAdmin)
+          .map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           

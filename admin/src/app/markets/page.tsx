@@ -24,17 +24,25 @@ import { ManualTradeModal } from '@/components/ManualTradeModal';
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/lib/hooks';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
+// Asset types
+type AssetType = 'all' | 'prediction' | 'stock' | 'crypto';
+type Platform = 'all' | 'polymarket' | 'kalshi' | 'alpaca' | 'ccxt';
+
 interface Market {
   id: string;
   question: string;
+  symbol?: string;
   description?: string;
   category?: string;
   yes_price: number;
   no_price: number;
+  price?: number;
+  change_24h?: number;
   volume?: number;
   liquidity?: number;
   end_date?: string;
-  platform: 'polymarket' | 'kalshi';
+  platform: 'polymarket' | 'kalshi' | 'alpaca' | 'binance' | 'bybit' | 'okx';
+  asset_type: 'prediction' | 'stock' | 'crypto';
   url?: string;
 }
 
@@ -49,15 +57,27 @@ const CATEGORIES = [
   'Finance',
   'Entertainment',
   'Science',
+  'Tech',
   'Other',
 ];
+
+// Platform display info
+const PLATFORM_INFO: Record<string, { name: string; color: string; icon: string }> = {
+  polymarket: { name: 'Polymarket', color: 'bg-blue-500', icon: '🎯' },
+  kalshi: { name: 'Kalshi', color: 'bg-green-500', icon: '📊' },
+  alpaca: { name: 'Alpaca', color: 'bg-yellow-500', icon: '📈' },
+  binance: { name: 'Binance', color: 'bg-orange-500', icon: '₿' },
+  bybit: { name: 'Bybit', color: 'bg-purple-500', icon: '₿' },
+  okx: { name: 'OKX', color: 'bg-cyan-500', icon: '₿' },
+};
 
 export default function MarketsPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [platform, setPlatform] = useState<'all' | 'polymarket' | 'kalshi'>('all');
+  const [platform, setPlatform] = useState<Platform>('all');
+  const [assetType, setAssetType] = useState<AssetType>('all');
   const [category, setCategory] = useState('All');
   const [sortBy, setSortBy] = useState<'volume' | 'price' | 'recent'>('volume');
   const [page, setPage] = useState(1);
@@ -104,8 +124,8 @@ export default function MarketsPage() {
     } else {
       addToWatchlist.mutate({
         market_id: market.id,
-        platform: market.platform,
-        market_title: market.question,
+        platform: market.platform as 'polymarket' | 'kalshi',
+        market_title: market.question || market.symbol || '',
         category: market.category,
       });
     }
@@ -114,8 +134,18 @@ export default function MarketsPage() {
   // Filter and sort markets
   const filteredMarkets = markets
     .filter(m => {
+      // Asset type filter
+      if (assetType !== 'all' && m.asset_type !== assetType) return false;
+      
       // Platform filter
-      if (platform !== 'all' && m.platform !== platform) return false;
+      if (platform !== 'all') {
+        if (platform === 'ccxt') {
+          // CCXT includes all crypto exchanges
+          if (!['binance', 'bybit', 'okx'].includes(m.platform)) return false;
+        } else if (m.platform !== platform) {
+          return false;
+        }
+      }
       
       // Category filter
       if (category !== 'All' && m.category?.toLowerCase() !== category.toLowerCase()) return false;
@@ -123,8 +153,9 @@ export default function MarketsPage() {
       // Search filter
       if (search) {
         const searchLower = search.toLowerCase();
-        return m.question.toLowerCase().includes(searchLower) ||
-               m.description?.toLowerCase().includes(searchLower);
+        return (m.question?.toLowerCase().includes(searchLower) ||
+               m.symbol?.toLowerCase().includes(searchLower) ||
+               m.description?.toLowerCase().includes(searchLower));
       }
       
       return true;
@@ -169,7 +200,7 @@ export default function MarketsPage() {
             Markets Browser
           </h1>
           <p className="text-gray-400 mt-2">
-            Browse {totalMarkets.toLocaleString()}+ markets from Polymarket and Kalshi
+            Browse {totalMarkets.toLocaleString()}+ markets from Polymarket, Kalshi, Alpaca, and crypto exchanges
           </p>
         </div>
 
@@ -179,7 +210,9 @@ export default function MarketsPage() {
             {/* Search */}
             <div className="relative flex-1 min-w-[250px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <label htmlFor="market-search" className="sr-only">Search markets</label>
               <input
+                id="market-search"
                 type="text"
                 placeholder="Search markets..."
                 value={search}
@@ -188,30 +221,61 @@ export default function MarketsPage() {
               />
             </div>
 
-            {/* Platform filter */}
+            {/* Asset Type filter */}
             <div className="flex bg-dark-bg rounded-lg border border-dark-border p-1">
-              {(['all', 'polymarket', 'kalshi'] as const).map((p) => (
+              {([
+                { value: 'all', label: 'All', icon: '📊' },
+                { value: 'prediction', label: 'Prediction', icon: '🎯' },
+                { value: 'stock', label: 'Stocks', icon: '📈' },
+                { value: 'crypto', label: 'Crypto', icon: '₿' },
+              ] as const).map((t) => (
                 <button
-                  key={p}
-                  onClick={() => setPlatform(p)}
+                  key={t.value}
+                  onClick={() => setAssetType(t.value)}
+                  title={`Filter by ${t.label}`}
                   className={cn(
-                    "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                    platform === p 
-                      ? p === 'polymarket' ? 'bg-polymarket text-white'
-                        : p === 'kalshi' ? 'bg-kalshi text-white'
-                        : 'bg-dark-border text-white'
+                    "px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                    assetType === t.value 
+                      ? 'bg-neon-purple text-white'
                       : 'text-gray-400 hover:text-white'
                   )}
                 >
-                  {p === 'all' ? 'All' : p === 'polymarket' ? '🔵 Polymarket' : '🟢 Kalshi'}
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Platform filter */}
+            <div className="flex bg-dark-bg rounded-lg border border-dark-border p-1">
+              {([
+                { value: 'all', label: 'All', color: 'bg-dark-border' },
+                { value: 'polymarket', label: '🔵 Polymarket', color: 'bg-polymarket' },
+                { value: 'kalshi', label: '🟢 Kalshi', color: 'bg-kalshi' },
+                { value: 'alpaca', label: '📈 Alpaca', color: 'bg-yellow-500' },
+                { value: 'ccxt', label: '₿ Crypto', color: 'bg-orange-500' },
+              ] as const).map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setPlatform(p.value)}
+                  title={`Filter by ${p.label}`}
+                  className={cn(
+                    "px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                    platform === p.value 
+                      ? `${p.color} text-white`
+                      : 'text-gray-400 hover:text-white'
+                  )}
+                >
+                  {p.label}
                 </button>
               ))}
             </div>
 
             {/* Sort */}
+            <label htmlFor="sort-select" className="sr-only">Sort by</label>
             <select
+              id="sort-select"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="bg-dark-bg border border-dark-border rounded-lg px-4 py-2.5 focus:outline-none focus:border-neon-purple"
             >
               <option value="volume">Sort by Volume</option>
@@ -226,6 +290,7 @@ export default function MarketsPage() {
               <button
                 key={cat}
                 onClick={() => setCategory(cat)}
+                title={`Filter by ${cat} category`}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-sm transition-colors",
                   category === cat
@@ -488,8 +553,8 @@ export default function MarketsPage() {
         )}
       </div>
 
-      {/* Trade Modal */}
-      {selectedMarket && (
+      {/* Trade Modal - Only for prediction markets */}
+      {selectedMarket && (selectedMarket.platform === 'polymarket' || selectedMarket.platform === 'kalshi') && (
         <ManualTradeModal
           isOpen={showTradeModal}
           onClose={() => {
@@ -497,9 +562,9 @@ export default function MarketsPage() {
             setSelectedMarket(null);
           }}
           prefillMarket={{
-            platform: selectedMarket.platform,
+            platform: selectedMarket.platform as 'polymarket' | 'kalshi',
             market_id: selectedMarket.id,
-            market_title: selectedMarket.question,
+            market_title: selectedMarket.question || '',
             yes_price: selectedMarket.yes_price,
             no_price: selectedMarket.no_price,
           }}

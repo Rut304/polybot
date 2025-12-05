@@ -515,9 +515,11 @@ class CrossPlatformScanner:
         self,
         min_profit_percent: float = 3.0,
         scan_interval: int = 120,  # Scan every 2 minutes
+        db_client=None,  # Database client for logging ALL scans
     ):
         self.min_profit_percent = min_profit_percent
         self.scan_interval = scan_interval
+        self.db = db_client
         self._running = False
         self._http_client = None
         
@@ -780,6 +782,40 @@ class CrossPlatformScanner:
             logger.info("No matched market pairs found between platforms")
         return matches
     
+    async def _log_market_scan(
+        self,
+        poly_market: Dict,
+        kalshi_market: Dict,
+        spread_pct: float,
+        qualifies: bool,
+        rejection_reason: str = None,
+        opportunity_id: str = None,
+    ):
+        """Log ALL cross-platform market comparisons to database."""
+        if not self.db:
+            return
+        
+        try:
+            scan_data = {
+                "scanner_type": "cross_platform",
+                "platform": "polymarket",
+                "market_id": poly_market.get("id"),
+                "market_title": poly_market.get("question", "")[:500],
+                "yes_price": poly_market.get("yes_price"),
+                "other_platform": "kalshi",
+                "other_market_id": kalshi_market.get("id"),
+                "other_price": kalshi_market.get("yes_price"),
+                "spread_pct": spread_pct,
+                "potential_profit_pct": spread_pct,
+                "qualifies_for_trade": qualifies,
+                "rejection_reason": rejection_reason,
+                "opportunity_id": opportunity_id,
+            }
+            
+            await self.db.insert("polybot_market_scans", scan_data)
+        except Exception as e:
+            logger.debug(f"Failed to log cross-platform scan: {e}")
+    
     def analyze_opportunity(self, match: Dict) -> Optional[Opportunity]:
         """
         Analyze a matched pair for arbitrage opportunity.
@@ -827,6 +863,10 @@ class CrossPlatformScanner:
                     confidence=match["similarity"],
                     strategy=f"Buy Poly @{poly_yes:.0%}, Sell Kalshi @{kalshi_yes:.0%}",
                 )
+            else:
+                # Log rejected Poly-buy opportunity
+                return ("rejected", poly, kalshi, spread_pct, 
+                       f"Spread {spread_pct:.1f}% below Poly min {self.min_profit_percent}%")
         
         # Strategy 2: Buy Kalshi YES (cheaper), Sell Poly YES (expensive)
         elif kalshi_yes < poly_yes:
@@ -853,8 +893,14 @@ class CrossPlatformScanner:
                     confidence=match["similarity"],
                     strategy=f"Buy Kalshi @{kalshi_yes:.0%}, Sell Poly @{poly_yes:.0%}",
                 )
+            else:
+                # Log rejected Kalshi-buy opportunity
+                return ("rejected", poly, kalshi, spread_pct, 
+                       f"Spread {spread_pct:.1f}% below Kalshi min {min_threshold}%")
         
-        return None
+        # No opportunity found - prices too similar
+        return ("rejected", poly, kalshi, spread_pct, 
+               f"Spread {spread_pct:.1f}% below threshold")
     
     async def scan_for_opportunities(self) -> List[Opportunity]:
         """
@@ -891,9 +937,32 @@ class CrossPlatformScanner:
         # Analyze each match for opportunities
         opportunities = []
         for match in self._matched_pairs:
-            opp = self.analyze_opportunity(match)
-            if opp:
-                opportunities.append(opp)
+            result = self.analyze_opportunity(match)
+            
+            # Handle new return format (tuple for rejections, Opportunity for success)
+            if result is None:
+                continue
+            elif isinstance(result, Opportunity):
+                # Found a qualifying opportunity!
+                opportunities.append(result)
+                # Log to database
+                await self._log_market_scan(
+                    poly_market=match["polymarket"],
+                    kalshi_market=match["kalshi"],
+                    spread_pct=result.profit_percent,
+                    qualifies=True,
+                    opportunity_id=result.id,
+                )
+            elif isinstance(result, tuple) and result[0] == "rejected":
+                # Rejected scan - still log it
+                _, poly, kalshi, spread_pct, reason = result
+                await self._log_market_scan(
+                    poly_market=poly,
+                    kalshi_market=kalshi,
+                    spread_pct=spread_pct,
+                    qualifies=False,
+                    rejection_reason=reason,
+                )
         
         # Sort by profit percentage
         opportunities.sort(key=lambda x: x.profit_percent, reverse=True)

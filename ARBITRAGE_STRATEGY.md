@@ -163,6 +163,116 @@ def get_min_profit_threshold(buy_platform: str) -> float:
 
 ---
 
+## 📊 Analytics System (NEW!)
+
+### Per-Strategy Performance Tracking
+
+PolyBot now tracks performance for each arbitrage strategy **independently**:
+
+| Strategy | Code | Description |
+|----------|------|-------------|
+| `POLYMARKET_SINGLE` | `polymarket_single` | Intra-market arb on Polymarket |
+| `KALSHI_SINGLE` | `kalshi_single` | Intra-market arb on Kalshi |
+| `CROSS_PLATFORM` | `cross_platform` | Polymarket ↔ Kalshi arbitrage |
+
+### Metrics Tracked Per Strategy
+
+```python
+# Per-strategy stats (ArbitrageAnalytics)
+- opportunities_seen      # Total opportunities detected
+- opportunities_traded    # Opportunities we actually traded
+- opportunities_skipped   # Opportunities we passed on
+- winning_trades         # Profitable trades
+- losing_trades          # Unprofitable trades  
+- failed_executions      # Trades that failed to execute
+- gross_profit           # Total gross profit
+- gross_loss            # Total gross losses
+- total_fees            # Fees paid
+- net_pnl               # Net profit after fees
+- win_rate              # Win percentage
+- execution_rate        # Execution success rate
+- avg_profit_per_trade  # Average P&L per trade
+- best_trade_pnl        # Best single trade
+- worst_trade_pnl       # Worst single trade
+```
+
+### Database Tables
+
+| Table | Purpose |
+|-------|---------|
+| `polybot_arbitrage_analytics` | Per-strategy stats (JSON) |
+| `polybot_market_scans` | ALL market scans (qualifying or not) |
+| `polybot_simulated_trades` | Individual trades with `arbitrage_type` |
+| `polybot_config` | Enable/disable toggles for each strategy |
+
+### Supabase SQL Migration
+
+Run `scripts/add_arbitrage_config.sql` to add:
+
+- `enable_polymarket_single_arb` column
+- `enable_kalshi_single_arb` column  
+- `enable_cross_platform_arb` column
+- `polybot_market_scans` table (logs ALL scans)
+- `polybot_arbitrage_analytics` table (per-strategy stats)
+
+### Real-Time Strategy Comparison
+
+Every minute, the bot prints a comparison:
+
+```
+╔══════════════════════════════════════════════════════════════════════╗
+║                    📊 ARBITRAGE STRATEGY COMPARISON                   ║
+╠══════════════════════════════════════════════════════════════════════╣
+║ Strategy              │ Opps  │ Trades │ Win% │ Net P&L  │ Avg/Trade ║
+╠═══════════════════════╪═══════╪════════╪══════╪══════════╪═══════════╣
+║ Polymarket Single     │   145 │     23 │  78% │   +45.23 │    +1.97 ║
+║ Kalshi Single         │    91 │     12 │  67% │   +18.50 │    +1.54 ║
+║ Cross-Platform        │    34 │      5 │  60% │    +8.75 │    +1.75 ║
+╠═══════════════════════╧═══════╧════════╧══════╧══════════╧═══════════╣
+║ TOTAL                                          │   +72.48 │ ROI: +7.2% ║
+╚══════════════════════════════════════════════════════════════════════╝
+```
+
+### Autonomous Cloud Operation
+
+Config is loaded from **Supabase first**, falling back to `.env`:
+
+```python
+# Priority: Supabase → .env → defaults
+self.config = Config(db_client=self.db)
+
+# Enable/disable strategies from Supabase (no code changes!)
+poly_single = config.trading.enable_polymarket_single_arb
+kalshi_single = config.trading.enable_kalshi_single_arb
+cross_platform = config.trading.enable_cross_platform_arb
+```
+
+### Market Scan Visibility
+
+**ALL scanned markets are logged** to `polybot_market_scans`:
+
+- Even non-qualifying markets are recorded
+- Each scan includes `rejection_reason` if not qualified
+- Query the table to see what opportunities are being missed
+
+```sql
+-- See all scans from last hour
+SELECT scanner_type, platform, market_title, spread_pct, 
+       qualifies_for_trade, rejection_reason
+FROM polybot_market_scans 
+WHERE scanned_at > NOW() - INTERVAL '1 hour'
+ORDER BY scanned_at DESC;
+
+-- See rejection reasons
+SELECT rejection_reason, COUNT(*) as count
+FROM polybot_market_scans
+WHERE NOT qualifies_for_trade
+GROUP BY rejection_reason
+ORDER BY count DESC;
+```
+
+---
+
 ## 📈 Key Metrics to Watch
 
 ### Health Indicators

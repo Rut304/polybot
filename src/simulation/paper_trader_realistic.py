@@ -76,6 +76,9 @@ class SimulatedTrade:
     outcome: TradeOutcome = TradeOutcome.PENDING
     outcome_reason: str = ""
     resolved_at: Optional[datetime] = None
+    
+    # Arbitrage strategy type
+    arbitrage_type: str = ""  # e.g., "polymarket_single", "kalshi_single", "cross_platform"
 
 
 @dataclass
@@ -432,6 +435,7 @@ class RealisticPaperTrader:
         price_b: Decimal,
         spread_pct: Decimal,
         trade_type: str,
+        arbitrage_type: str = "",  # "polymarket_single", "kalshi_single", "cross_platform"
     ) -> Optional[SimulatedTrade]:
         """
         Simulate a realistic trade on an arbitrage opportunity.
@@ -456,8 +460,13 @@ class RealisticPaperTrader:
 
         # ========== SAME-PLATFORM FILTER ==========
         # Skip same-platform "overlap" trades - they're NOT real arbitrage!
+        # EXCEPTION: Single-platform arb is INTENTIONALLY same-platform
+        is_single_platform_arb = arbitrage_type in (
+            "polymarket_single", "kalshi_single"
+        )
         is_cross_platform = (platform_a != platform_b)
-        if not is_cross_platform and self.SKIP_SAME_PLATFORM_OVERLAP:
+        
+        if not is_cross_platform and not is_single_platform_arb and self.SKIP_SAME_PLATFORM_OVERLAP:
             self.stats.opportunities_skipped_too_small += 1
             logger.info(
                 f"🚫 SKIPPED SAME-PLATFORM: {platform_a}↔{platform_b} "
@@ -517,6 +526,15 @@ class RealisticPaperTrader:
             is_cross_platform=is_cross_platform,
         )
 
+        # Determine arbitrage_type if not provided
+        if not arbitrage_type:
+            if platform_a != platform_b:
+                arbitrage_type = "cross_platform"
+            elif platform_a == "polymarket":
+                arbitrage_type = "polymarket_single"
+            else:
+                arbitrage_type = "kalshi_single"
+        
         # Create trade record
         trade = SimulatedTrade(
             id=self._generate_trade_id(),
@@ -531,6 +549,7 @@ class RealisticPaperTrader:
             original_price_b=price_b,
             original_spread_pct=spread_pct,
             intended_size_usd=position_size,
+            arbitrage_type=arbitrage_type,
         )
 
         if not success:
@@ -650,6 +669,7 @@ class RealisticPaperTrader:
                 "kalshi_yes_price": float(trade.original_price_b),
                 "kalshi_no_price": float(1 - trade.original_price_b),
                 "trade_type": f"realistic_arb_{trade.platform_a}_{trade.platform_b}",
+                "arbitrage_type": trade.arbitrage_type,  # Explicit strategy type!
                 "position_size_usd": float(trade.executed_size_usd),
                 "expected_profit_usd": float(trade.gross_profit_usd),
                 "expected_profit_pct": float(trade.original_spread_pct),
