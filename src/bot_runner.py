@@ -554,14 +554,12 @@ class PolybotRunner:
         alpaca_creds = self.db.get_alpaca_credentials(is_paper=self.simulation_mode)
         alpaca_api_key = alpaca_creds.get('api_key')
         alpaca_api_secret = alpaca_creds.get('api_secret')
-        alpaca_base_url = alpaca_creds.get('base_url')
         
         if self.config.trading.enable_alpaca and alpaca_api_key and alpaca_api_secret:
             self.alpaca_client = AlpacaClient(
                 api_key=alpaca_api_key,
                 api_secret=alpaca_api_secret,
-                paper=self.simulation_mode,  # Use simulation_mode flag
-                base_url=alpaca_base_url,
+                paper=self.simulation_mode,
             )
             mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
             logger.info(f"✓ Alpaca client initialized ({mode_str}) - keys from Supabase")
