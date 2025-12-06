@@ -356,16 +356,24 @@ export default function SettingsPage() {
   const resetSimulation = useResetSimulation();
   
   // Fetch users for admin via API (uses service key to bypass RLS)
-  const { data: users = [], refetch: refetchUsers } = useQuery({
-    queryKey: ['users'],
+  const { data: users = [], refetch: refetchUsers, isLoading: usersLoading, error: usersError } = useQuery({
+    queryKey: ['users', isAdmin],
     queryFn: async () => {
+      console.log('Fetching users, isAdmin:', isAdmin);
       const response = await fetch('/api/users');
       const result = await response.json();
+      console.log('Users API response:', result);
       if (!response.ok) throw new Error(result.error);
       return result.users || [];
     },
     enabled: isAdmin,
+    staleTime: 0,
   });
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('Settings: user=', user, 'isAdmin=', isAdmin, 'users=', users, 'usersLoading=', usersLoading, 'usersError=', usersError);
+  }, [user, isAdmin, users, usersLoading, usersError]);
 
   // Mutation to update bot status
   const updateBotStatus = useMutation({

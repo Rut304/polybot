@@ -164,15 +164,57 @@ class NewsArbitrageStrategy:
     - Legal verdicts (Trump cases, crypto, etc.)
     - Sports championships
     - Crypto regulatory news
+    - Geopolitical events (wars, sanctions, treaties)
+    - Corporate earnings/announcements
+    - Natural disasters/emergencies
     """
     
-    # Default keywords to watch
+    # Default keywords to watch - comprehensive list for market-moving events
+    # Based on research from algo trading forums, academic papers, and historical analysis
     DEFAULT_KEYWORDS = {
-        "election", "wins", "victory", "projected", "calls",
-        "fed", "fomc", "rate", "powell",
-        "verdict", "guilty", "acquitted", "ruling",
-        "bitcoin", "btc", "ethereum", "sec", "crypto",
-        "trump", "biden", "harris",
+        # ELECTIONS & POLITICS (high impact)
+        "election", "wins", "winner", "victory", "projected", "calls", "votes",
+        "electoral", "ballot", "recount", "concede", "concession", "declared",
+        "swing state", "battleground", "landslide", "upset",
+        
+        # POLITICAL FIGURES (US-focused)
+        "trump", "biden", "harris", "desantis", "newsom", "musk", "rfk",
+        "pelosi", "mcconnell", "schumer", "congress", "senate", "house",
+        
+        # FEDERAL RESERVE & MONETARY POLICY (very high impact)
+        "fed", "fomc", "rate", "powell", "inflation", "cpi", "pce",
+        "hawkish", "dovish", "taper", "qe", "qt", "basis points", "bps",
+        "unemployment", "nonfarm", "payroll", "gdp", "recession",
+        "soft landing", "hard landing", "pivot",
+        
+        # LEGAL & REGULATORY (high impact)
+        "verdict", "guilty", "acquitted", "ruling", "indictment", "indicted",
+        "convicted", "sentenced", "charges", "lawsuit", "settlement",
+        "supreme court", "appeals", "trial", "jury", "injunction",
+        
+        # CRYPTO & BLOCKCHAIN (high volatility)
+        "bitcoin", "btc", "ethereum", "eth", "crypto", "sec", "cftc",
+        "etf", "spot etf", "approval", "denied", "coinbase", "binance",
+        "stablecoin", "defi", "hack", "exploit", "rug pull", "halving",
+        "gensler", "grayscale", "blackrock",
+        
+        # GEOPOLITICS & INTERNATIONAL (can move markets quickly)
+        "war", "invasion", "ceasefire", "peace", "sanctions", "tariff",
+        "treaty", "nato", "china", "russia", "ukraine", "israel", "iran",
+        "missile", "nuclear", "military", "troops", "attacked",
+        
+        # CORPORATE & MARKETS (earnings season)
+        "earnings", "beat", "miss", "guidance", "revenue", "profit",
+        "layoff", "merger", "acquisition", "ipo", "bankrupt", "default",
+        "tesla", "nvidia", "apple", "amazon", "google", "meta",
+        
+        # BREAKING NEWS SIGNALS (urgency indicators)
+        "breaking", "just in", "urgent", "alert", "confirmed", "official",
+        "announced", "reportedly", "sources say", "exclusive",
+        
+        # SPORTS (for sports prediction markets)
+        "championship", "finals", "playoff", "super bowl", "world series",
+        "injured", "suspended", "traded", "mvp", "upset",
     }
     
     def __init__(

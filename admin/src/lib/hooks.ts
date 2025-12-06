@@ -1127,21 +1127,30 @@ const PLATFORM_DEFINITIONS: Record<string, {
 };
 
 // Fetch all secrets status (without values - just configured status)
+// Uses API route to bypass RLS (service key needed for polybot_secrets)
 export function useSecretsStatus() {
   return useQuery({
     queryKey: ['secretsStatus'],
     queryFn: async (): Promise<SecretStatus[]> => {
-      const { data, error } = await supabase
-        .from('polybot_secrets')
-        .select('key_name, category, description, is_configured, last_updated')
-        .order('category')
-        .order('key_name');
-      
-      if (error) {
+      try {
+        const response = await fetch('/api/secrets');
+        if (!response.ok) {
+          console.error('Error fetching secrets status:', response.statusText);
+          return [];
+        }
+        const result = await response.json();
+        // Map API response to SecretStatus format
+        return (result.secrets || []).map((s: any) => ({
+          key_name: s.key_name,
+          category: s.category,
+          description: s.description,
+          is_configured: s.is_configured,
+          last_updated: s.last_updated,
+        }));
+      } catch (error) {
         console.error('Error fetching secrets status:', error);
         return [];
       }
-      return data || [];
     },
     refetchInterval: 30000, // Check every 30 seconds
   });
