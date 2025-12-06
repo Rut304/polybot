@@ -674,6 +674,7 @@ class RealisticPaperTrader:
                 else:
                     strategy_type = "cross_platform"
 
+            # Core data that should always exist
             data = {
                 "position_id": trade.id,
                 "created_at": trade.created_at.isoformat(),
@@ -687,9 +688,6 @@ class RealisticPaperTrader:
                 "kalshi_no_price": float(1 - trade.original_price_b),
                 "trade_type": f"realistic_arb_{trade.platform_a}_{trade.platform_b}",
                 "arbitrage_type": trade.arbitrage_type,
-                "strategy_type": strategy_type,
-                "trading_mode": "paper",  # Paper trading mode
-                "platform": trade.platform_a,
                 "position_size_usd": float(trade.executed_size_usd),
                 "expected_profit_usd": float(trade.gross_profit_usd),
                 "expected_profit_pct": float(trade.original_spread_pct),
@@ -698,18 +696,36 @@ class RealisticPaperTrader:
                 "resolved_at": trade.resolved_at.isoformat() if trade.resolved_at else None,
                 "resolution_notes": trade.outcome_reason,
             }
+            
+            # Extended fields for enhanced tracking (may not exist in older schemas)
+            extended_data = {
+                "strategy_type": strategy_type,
+                "trading_mode": "paper",  # Paper trading mode
+                "platform": trade.platform_a,
+            }
 
             # Try multiple ways to save to database
             saved = False
             
             # Method 1: Use is_connected property
             if self.db and hasattr(self.db, 'is_connected') and self.db.is_connected:
+                # Try with extended data first
                 try:
-                    self.db._client.table("polybot_simulated_trades").insert(data).execute()
-                    logger.info(f"📝 DB TRADE: {trade.id} saved")
+                    full_data = {**data, **extended_data}
+                    self.db._client.table("polybot_simulated_trades").insert(full_data).execute()
+                    logger.info(f"📝 DB TRADE: {trade.id} saved (with extended fields)")
                     saved = True
                 except Exception as e:
-                    logger.warning(f"Method 1 failed: {e}")
+                    # If extended fields fail, try with core data only
+                    if "column" in str(e).lower() and "does not exist" in str(e).lower():
+                        try:
+                            self.db._client.table("polybot_simulated_trades").insert(data).execute()
+                            logger.info(f"📝 DB TRADE: {trade.id} saved (core fields only)")
+                            saved = True
+                        except Exception as e2:
+                            logger.warning(f"Method 1 failed (core): {e2}")
+                    else:
+                        logger.warning(f"Method 1 failed: {e}")
             
             # Method 2: Direct _client check
             if not saved and self.db and hasattr(self.db, '_client') and self.db._client:

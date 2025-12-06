@@ -1,23 +1,32 @@
 # PolyBot - Multi-Asset Algorithmic Trading Platform
 
-**Production-grade trading system for prediction markets, crypto, and stocks**
+**Production-grade autonomous trading system for prediction markets, crypto, and stocks**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/status-v33%20RUNNING-brightgreen.svg)]()
 
 ---
 
 ## 🎯 Executive Summary
 
-PolyBot is a comprehensive algorithmic trading platform that spans **three asset classes**:
+PolyBot is a comprehensive **autonomous algorithmic trading platform** spanning **three asset classes**:
 
-| Asset Class | Platforms | Strategies | Confidence |
-|-------------|-----------|------------|------------|
-| **Prediction Markets** | Polymarket, Kalshi | Single-platform arb, Cross-platform arb, Market Making, News Arbitrage | 70-90% |
-| **Crypto** | 106+ via CCXT (Binance, Bybit, Kraken, OKX, etc.) | Funding Rate Arb, Grid Trading, Pairs Trading, DCA | 60-85% |
-| **Stocks** | Alpaca (commission-free), Interactive Brokers | Momentum, Pairs Trading, DCA | 55-75% |
+| Asset Class | Platforms | Strategies | Status |
+|-------------|-----------|------------|--------|
+| **Prediction Markets** | Polymarket, Kalshi | Single-platform arb, Cross-platform arb, Market Making | ✅ LIVE |
+| **Crypto** | 106+ via CCXT (Binance, Bybit, Kraken, OKX, etc.) | Funding Rate Arb, Grid Trading, Pairs Trading | 🔧 Ready |
+| **Stocks** | Alpaca (commission-free) | Mean Reversion, Momentum | ✅ Deployed |
 
-**Key Achievement:** PhD-level research identified **$40M+ extracted** from Polymarket arbitrage in 1 year (Saguillo et al., 2025) at 0.3-2% margins.
+### Current Performance (v33 - December 6, 2025)
+
+- **Simulation Balance**: $1,088.79 (+8.9% ROI)
+- **Win Rate**: 86%
+- **Execution Rate**: 90%
+- **Trades**: 101
+- **Infrastructure**: AWS Lightsail ($5/month - 99.7% cost reduction from ECS)
+
+**Key Research:** PhD-level analysis identified **$40M+ extracted** from Polymarket arbitrage in 1 year at 0.3-2% margins (Saguillo et al., 2025).
 
 ---
 
@@ -27,28 +36,23 @@ PolyBot is a comprehensive algorithmic trading platform that spans **three asset
 
 | Document | Description |
 |----------|-------------|
-| [ALGO_TRADING_DEEP_RESEARCH.md](./ALGO_TRADING_DEEP_RESEARCH.md) | 🎓 **PhD-Level Research** - Academic papers, strategy confidence ratings, implementation guides |
-| [ARBITRAGE_STRATEGY.md](./ARBITRAGE_STRATEGY.md) | Prediction market arbitrage mechanics |
-| [UNIFIED_ARBITRAGE.md](./UNIFIED_ARBITRAGE.md) | Cross-platform arbitrage implementation |
+| [ALGO_TRADING_DEEP_RESEARCH.md](./ALGO_TRADING_DEEP_RESEARCH.md) | 🎓 **PhD-Level Research** - Academic papers, strategy confidence ratings |
 | [PROFITABLE_STRATEGIES.md](./PROFITABLE_STRATEGIES.md) | Ranked strategies by profitability |
+| [TODO.md](./TODO.md) | 📋 **Active development tasks** |
 
 ### Setup & Operations
 
 | Document | Description |
 |----------|-------------|
-| [BOT_QUICK_START.md](./BOT_QUICK_START.md) | ⚡ 6-hour implementation guide |
+| [BOT_QUICK_START.md](./BOT_QUICK_START.md) | ⚡ Quick implementation guide |
 | [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) | Detailed environment setup |
-| [MORNING_BRIEFING.md](./MORNING_BRIEFING.md) | Executive summary for operators |
 
 ### Infrastructure
 
 | Document | Description |
 |----------|-------------|
-| [TRADING_BOT_ANALYSIS.md](./TRADING_BOT_ANALYSIS.md) | Competitive analysis of existing bots |
-| [AWS_RESOURCE_GUIDE.md](./AWS_RESOURCE_GUIDE.md) | AWS resource allocation guide |
-| [LIGHTSAIL_DEPLOYMENT.md](./LIGHTSAIL_DEPLOYMENT.md) | **Bot deployment on Lightsail** |
-| [docs/PRODUCTIZATION_ROADMAP.md](./docs/PRODUCTIZATION_ROADMAP.md) | Scaling to SaaS |
-| [docs/ARBITRAGE_STRATEGY_ANALYSIS.md](./docs/ARBITRAGE_STRATEGY_ANALYSIS.md) | Deep-dive on arbitrage math |
+| [AWS_RESOURCE_GUIDE.md](./AWS_RESOURCE_GUIDE.md) | AWS resource allocation |
+| [docs/AWS_COST_ANALYSIS.md](./docs/AWS_COST_ANALYSIS.md) | Cost optimization (ECS→Lightsail) |
 
 ---
 
@@ -58,46 +62,74 @@ PolyBot is a comprehensive algorithmic trading platform that spans **three asset
 polybot/
 ├── src/
 │   ├── main.py                  # Entry point
-│   ├── bot_runner.py            # Main trading loop
-│   ├── config.py                # All strategy parameters (Admin UI controlled)
+│   ├── bot_runner.py            # Main trading loop (PolybotRunner class)
+│   ├── config.py                # TradingConfig dataclass - all parameters
 │   ├── strategies/
 │   │   ├── market_maker_v2.py   # Market making (10-20% APR)
-│   │   └── news_arbitrage.py    # News-driven arbitrage
-│   ├── exchanges/               # 🆕 Multi-exchange integration
+│   │   ├── news_arbitrage.py    # News-driven arbitrage
+│   │   ├── stock_mean_reversion.py  # Mean reversion for stocks
+│   │   └── stock_momentum.py    # Momentum strategy for stocks
+│   ├── exchanges/
 │   │   ├── base.py              # Abstract exchange interface
 │   │   ├── ccxt_client.py       # CCXT: 106+ crypto exchanges
 │   │   └── alpaca_client.py     # Alpaca: Commission-free stocks
 │   ├── clients/
-│   │   ├── polymarket.py        # Polymarket API
-│   │   └── kalshi.py            # Kalshi API
-│   ├── arbitrage/               # Core arbitrage detection
-│   └── database/                # Supabase persistence
-├── admin/                       # Next.js Admin Dashboard
-│   └── src/app/settings/        # Strategy parameter controls
-├── infra/                       # Terraform/CloudFormation
+│   │   ├── polymarket_client.py # Polymarket API
+│   │   └── kalshi_client.py     # Kalshi API
+│   ├── arbitrage/
+│   │   ├── detector.py          # Arbitrage opportunity detection
+│   │   ├── executor.py          # Trade execution
+│   │   └── single_platform_scanner.py  # Single-platform arb scanner
+│   ├── simulation/
+│   │   ├── paper_trader.py      # Basic paper trading
+│   │   └── paper_trader_realistic.py  # Realistic sim with fees/slippage
+│   ├── analytics/               # Performance analytics
+│   ├── database/                # Supabase persistence
+│   └── features/                # Copy trading, position manager
+├── admin/                       # Next.js Admin Dashboard (Vercel hosted)
+│   └── src/
+│       ├── app/                 # App router pages
+│       │   ├── page.tsx         # Dashboard
+│       │   ├── settings/        # Strategy configuration
+│       │   ├── bets/            # Trade history
+│       │   ├── markets/         # Market browser
+│       │   ├── positions/       # Open positions
+│       │   └── history/         # Simulation sessions
+│       ├── components/          # Reusable UI components
+│       └── lib/                 # Supabase client, hooks
+├── scripts/                     # SQL migrations, deployment
+├── infra/                       # ECS task definitions
 └── tests/
 ```
 
 ---
 
-## 🚀 Strategy Implementation Status
+## 🚀 Current Status (December 2025)
 
-### ✅ Implemented & Working
+### ✅ Fully Operational
 
-| Strategy | File | Confidence | Notes |
-|----------|------|------------|-------|
-| Single-Platform Arbitrage (Polymarket) | `src/arbitrage/` | 85-90% | PhD research optimized |
-| Single-Platform Arbitrage (Kalshi) | `src/arbitrage/` | 70-80% | Fee-adjusted (7% fees) |
-| Cross-Platform Arbitrage | `src/arbitrage/` | 75-85% | Asymmetric thresholds |
-| Market Making | `src/strategies/market_maker_v2.py` | 70-80% | 10-20% APR target |
-| News Arbitrage | `src/strategies/news_arbitrage.py` | 50-60% | Event-driven |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Kalshi Single-Platform Arb | ✅ Running | 86% win rate |
+| Polymarket Single-Platform Arb | ✅ Running | 0% fees |
+| Cross-Platform Arb | ✅ Running | Asymmetric thresholds |
+| Realistic Paper Trader | ✅ Running | Fees, slippage, partial fills |
+| Admin Dashboard | ✅ Deployed | Vercel (free tier) |
+| Bot Infrastructure | ✅ Running | Lightsail v33 |
+| Database | ✅ Connected | Supabase (17 secrets loaded) |
 
-### 🔧 In Progress (Exchange Layer Built)
+### 🔧 Deployed but Testing
 
-| Strategy | File | Confidence | TODO |
-|----------|------|------------|------|
-| Funding Rate Arbitrage | `src/exchanges/ccxt_client.py` | 85% | Implement delta-neutral logic |
-| Grid Trading | - | 75% | Implement grid order manager |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Stock Mean Reversion | 🔧 Testing | Market hours only (9:30am-4pm ET) |
+| Stock Momentum | 🔧 Testing | Alpaca paper trading |
+
+### ⚠️ Known Issues
+
+| Issue | Impact | Workaround |
+|-------|--------|------------|
+| Binance.US Geoblocked | Cannot use Binance.US from AWS | Use Kraken, Coinbase, or Bybit |
 | Pairs/Statistical Arbitrage | - | 65% | Implement cointegration |
 | Momentum Strategy | - | 60% | Implement 12-month scanner |
 | Enhanced DCA | - | 90% | Add RSI-based scaling |

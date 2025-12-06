@@ -118,14 +118,16 @@ aws lightsail create-container-service-deployment --service-name polyparlay --re
   --public-endpoint '{"containerName":"polybot","containerPort":8080,"healthCheck":{"path":"/health"}}'
 ```
 
-### To Deploy Frontend Changes:
+### To Deploy Frontend Changes
+
 ```bash
 cd /Users/rut/polybot/admin
 git add -A && git commit -m "Description" && git push
 # Vercel auto-deploys from main branch
 ```
 
-### To Check Bot Status:
+### To Check Bot Status
+
 ```bash
 # Deployment status
 aws lightsail get-container-services --service-name polyparlay --region us-east-1 --query 'containerServices[0].{state:state,version:currentDeployment.version}'
@@ -140,6 +142,7 @@ curl https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health
 ## DATABASE SCHEMA
 
 Key Supabase tables:
+
 - `polybot_config` - Strategy configuration (read by bot)
 - `polybot_simulated_trades` - All paper trades
 - `polybot_simulation_stats` - Aggregated stats
@@ -150,6 +153,7 @@ Key Supabase tables:
 ## ENVIRONMENT VARIABLES
 
 Bot requires these in Lightsail:
+
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Database
 - `SIMULATION_MODE=true` - Paper trading (CRITICAL!)
 - `ENABLE_KALSHI_SINGLE=true` - Enable Kalshi arb
@@ -185,14 +189,15 @@ Bot requires these in Lightsail:
 
 ## CONTACT & RESOURCES
 
-- **Supabase Dashboard**: https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad
-- **Admin UI (Vercel)**: https://polybot-admin.vercel.app
-- **Bot URL**: https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com
+- **Supabase Dashboard**: <https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad>
+- **Admin UI (Vercel)**: <https://polybot-admin.vercel.app>
+- **Bot URL**: <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>
 - **AWS Lightsail**: us-east-1 region, service name "polyparlay"
 
 ---
 
 Start by reading TODO.md, then check the bot logs to verify everything is running correctly. Your first task should be verifying the stock strategies work during market hours.
+
 ```
 
 ---
@@ -221,7 +226,8 @@ curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_simulation_sta
 
 ## Session Summary (December 6, 2025)
 
-### Completed This Session:
+### Completed This Session
+
 1. Fixed `max_position_size` AttributeError in bot_runner.py
 2. Fixed strategy parameter mismatches (`entry_z_threshold` → `entry_threshold`)
 3. Fixed P&L modal to compute values from actual trades
@@ -230,14 +236,16 @@ curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_simulation_sta
 6. Deployed v33 successfully
 7. Verified bot is running (86% win rate, +8.9% ROI)
 
-### Known State:
+### Known State
+
 - Bot v33 is RUNNING successfully
 - Kalshi arbitrage is active and profitable
 - Stock strategies deployed but need market-hours testing
 - Admin UI deployed on Vercel
 - All changes committed and pushed to main
 
-### Next Agent Should:
+### Next Agent Should
+
 1. Read TODO.md for task list
 2. Verify stock strategies during market hours (Mon-Fri 9:30am-4pm ET)
 3. Work on medium-priority UI improvements
