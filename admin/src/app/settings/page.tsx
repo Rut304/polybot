@@ -2551,7 +2551,7 @@ export default function SettingsPage() {
                           <div className={cn(
                             "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold",
                             u.role === 'admin' ? 'bg-neon-purple/20 text-neon-purple' :
-                            (u.role === 'readonly' || u.role === 'viewer') ? 'bg-gray-500/20 text-gray-400' :
+                            u.role === 'viewer' ? 'bg-gray-500/20 text-gray-400' :
                             'bg-neon-green/20 text-neon-green'
                           )}>
                             {u.display_name?.[0]?.toUpperCase() || u.email?.[0]?.toUpperCase() || '?'}
@@ -2588,7 +2588,7 @@ export default function SettingsPage() {
                             className="bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50"
                           >
                             <option value="admin">Admin</option>
-                            <option value="readonly">Read Only</option>
+                            <option value="viewer">Read Only</option>
                           </select>
                           {u.id !== user?.id && (
                             <button

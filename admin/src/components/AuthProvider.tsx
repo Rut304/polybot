@@ -103,7 +103,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     isLoading,
     isAdmin: user?.role === 'admin',
-    isReadOnly: user?.role === 'readonly',
+    isReadOnly: user?.role === 'viewer', // 'viewer' is the non-admin role
     signIn,
     signOut,
   };

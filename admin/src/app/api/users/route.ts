@@ -51,10 +51,13 @@ export async function GET(request: NextRequest) {
     // Merge auth users with profile data
     const users = (authUsers?.users || []).map(user => {
       const profile = profileMap.get(user.id);
+      // Normalize role: database uses 'admin' | 'viewer'
+      const rawRole = profile?.role || user.user_metadata?.role || 'viewer';
+      const role = rawRole === 'admin' ? 'admin' : 'viewer';
       return {
         id: user.id,
         email: user.email,
-        role: profile?.role || user.user_metadata?.role || 'readonly',
+        role,
         display_name: profile?.display_name || user.email?.split('@')[0],
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
@@ -229,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, role = 'readonly', display_name } = body;
+    const { email, password, role = 'viewer', display_name } = body;
 
     if (!email || !password) {
       return NextResponse.json(

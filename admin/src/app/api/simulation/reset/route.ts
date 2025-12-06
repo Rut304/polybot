@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -36,24 +36,27 @@ export async function POST(request: NextRequest) {
       trades: 0,
       stats: 0,
       opportunities: 0,
+      positions: 0,
     };
 
     // Get counts before deletion
-    const [tradesCount, statsCount, oppsCount] = await Promise.all([
+    const [tradesCount, statsCount, oppsCount, positionsCount] = await Promise.all([
       supabaseAdmin.from('polybot_simulated_trades').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('polybot_simulation_stats').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('polybot_opportunities').select('*', { count: 'exact', head: true }),
+      supabaseAdmin.from('polybot_positions').select('*', { count: 'exact', head: true }),
     ]);
 
     counts.trades = tradesCount.count || 0;
     counts.stats = statsCount.count || 0;
     counts.opportunities = oppsCount.count || 0;
+    counts.positions = positionsCount.count || 0;
 
-    // Delete all simulated trades
+    // Delete all simulated trades (use neq to match all rows)
     const { error: tradesError } = await supabaseAdmin
       .from('polybot_simulated_trades')
       .delete()
-      .gte('id', 0); // Delete all
+      .not('id', 'is', null); // Matches all rows
 
     if (tradesError) {
       await logAuditEvent({
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
     const { error: historyError } = await supabaseAdmin
       .from('polybot_simulation_stats')
       .delete()
-      .gte('id', 0); // Delete all
+      .not('id', 'is', null); // Matches all rows
 
     if (historyError) throw historyError;
 
@@ -82,21 +85,46 @@ export async function POST(request: NextRequest) {
     const { error: oppsError } = await supabaseAdmin
       .from('polybot_opportunities')
       .delete()
-      .gte('id', 0); // Delete all
+      .not('id', 'is', null); // Matches all rows
 
     if (oppsError) throw oppsError;
 
-    // Reset bot status session counters
+    // Delete all positions (simulation positions)
+    const { error: positionsError } = await supabaseAdmin
+      .from('polybot_positions')
+      .delete()
+      .not('id', 'is', null); // Matches all rows
+
+    if (positionsError) {
+      console.warn('Could not delete positions:', positionsError);
+    }
+
+    // Reset bot status session counters and live tracking
     const { error: statusError } = await supabaseAdmin
       .from('polybot_status')
       .update({
         opportunities_this_session: 0,
         trades_this_session: 0,
+        daily_trades_count: 0,
+        daily_profit_usd: 0,
+        daily_loss_usd: 0,
+        last_opportunity_at: null,
+        last_trade_at: null,
       })
-      .gte('id', 0); // Update all rows
+      .not('id', 'is', null); // Update all rows
 
     if (statusError) {
       console.warn('Could not reset status counters:', statusError);
+    }
+
+    // Reset live stats table if it exists
+    const { error: liveStatsError } = await supabaseAdmin
+      .from('polybot_live_stats')
+      .delete()
+      .not('id', 'is', null);
+
+    if (liveStatsError) {
+      console.warn('Could not reset live stats:', liveStatsError);
     }
 
     // Insert fresh starting stats with $5000 balance

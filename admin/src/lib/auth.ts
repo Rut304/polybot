@@ -4,7 +4,8 @@ import { createContext, useContext } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
-export type UserRole = 'admin' | 'readonly';
+// Database uses 'admin' | 'viewer', we display 'viewer' as 'Read Only'
+export type UserRole = 'admin' | 'viewer';
 
 export interface AuthUser {
   id: string;
@@ -67,7 +68,10 @@ export async function getUserRole(userId: string): Promise<UserRole> {
   // First check user metadata
   const { data: { user } } = await supabase.auth.getUser();
   if (user?.user_metadata?.role) {
-    return user.user_metadata.role as UserRole;
+    // Normalize: readonly -> viewer
+    const metaRole = user.user_metadata.role;
+    if (metaRole === 'admin') return 'admin';
+    return 'viewer';
   }
   
   // Then check database (polybot_user_profiles table)
@@ -81,8 +85,8 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     console.error('Error fetching user role:', error);
   }
   
-  // Map 'viewer' to 'readonly' for consistency
+  // Return role from DB, default to viewer
   const dbRole = data?.role;
   if (dbRole === 'admin') return 'admin';
-  return 'readonly';
+  return 'viewer';
 }

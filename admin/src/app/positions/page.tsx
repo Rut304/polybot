@@ -137,7 +137,7 @@ export default function PositionsPage() {
   const [filter, setFilter] = useState<'all' | 'prediction' | 'crypto' | 'stock'>('all');
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
   
-  // Use database positions if available, otherwise sample data
+  // Use ONLY database positions - no sample data fallback (that creates confusion)
   const positions: Position[] = (dbPositions && dbPositions.length > 0) 
     ? dbPositions.map((p: any) => ({
         id: p.id || p.position_id,
@@ -154,7 +154,7 @@ export default function PositionsPage() {
         opened_at: p.created_at,
         status: 'open' as const,
       }))
-    : samplePositions;
+    : []; // Empty array - no fake sample data
 
   // Calculate stats
   const stats = {

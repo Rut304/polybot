@@ -143,7 +143,7 @@ export async function verifyAuth(request: NextRequest): Promise<{
     return {
       user_id: user.id,
       user_email: user.email || '',
-      role: profile?.role || 'readonly',
+      role: profile?.role || 'viewer', // Default to viewer (non-admin)
     };
   } catch (err) {
     console.error('Auth verification error:', err);
