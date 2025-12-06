@@ -25,6 +25,7 @@ import {
   Bell,
   FileText,
   Newspaper,
+  History,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,7 @@ const navSections: NavSection[] = [
       { href: '/balances', label: 'Balances', icon: Coins },
       { href: '/positions', label: 'Positions', icon: BarChart3 },
       { href: '/analytics', label: 'Analytics', icon: TrendingUp },
+      { href: '/history', label: 'History', icon: History },
     ],
   },
   {

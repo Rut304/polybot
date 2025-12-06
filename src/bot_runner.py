@@ -1405,14 +1405,36 @@ def get_version():
         return "1.0.0"
 
 def get_build_number():
-    """Get build number from git commit count."""
+    """Get build number from BUILD_NUMBER env var, git commit count, or BUILD file."""
     import subprocess
+    import os
+    
+    # First check env var (set during docker build)
+    env_build = os.environ.get('BUILD_NUMBER')
+    if env_build:
+        try:
+            return int(env_build)
+        except:
+            pass
+    
+    # Check BUILD file
+    build_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'BUILD')
+    try:
+        with open(build_file, 'r') as f:
+            return int(f.read().strip())
+    except:
+        pass
+    
+    # Try git
     try:
         result = subprocess.run(['git', 'rev-list', '--count', 'HEAD'], 
                                 capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
-        return int(result.stdout.strip())
+        if result.returncode == 0:
+            return int(result.stdout.strip())
     except:
-        return 0
+        pass
+    
+    return 17  # Default to current deployment version
 
 
 async def start_health_server(port: int = 8080):
