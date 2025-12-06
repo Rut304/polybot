@@ -164,6 +164,58 @@ class Database:
             'api_secret': self.get_secret('BINANCE_API_SECRET'),
         }
     
+    def get_bybit_credentials(self) -> Dict[str, Optional[str]]:
+        """Get Bybit API credentials."""
+        return {
+            'api_key': self.get_secret('BYBIT_API_KEY'),
+            'api_secret': self.get_secret('BYBIT_API_SECRET'),
+        }
+    
+    def get_okx_credentials(self) -> Dict[str, Optional[str]]:
+        """Get OKX API credentials."""
+        return {
+            'api_key': self.get_secret('OKX_API_KEY'),
+            'api_secret': self.get_secret('OKX_API_SECRET'),
+            'password': self.get_secret('OKX_PASSPHRASE'),
+        }
+    
+    def get_kraken_credentials(self) -> Dict[str, Optional[str]]:
+        """Get Kraken API credentials."""
+        return {
+            'api_key': self.get_secret('KRAKEN_API_KEY'),
+            'api_secret': self.get_secret('KRAKEN_API_SECRET'),
+        }
+    
+    def get_coinbase_credentials(self) -> Dict[str, Optional[str]]:
+        """Get Coinbase API credentials."""
+        return {
+            'api_key': self.get_secret('COINBASE_API_KEY'),
+            'api_secret': self.get_secret('COINBASE_API_SECRET'),
+        }
+    
+    def get_kucoin_credentials(self) -> Dict[str, Optional[str]]:
+        """Get KuCoin API credentials."""
+        return {
+            'api_key': self.get_secret('KUCOIN_API_KEY'),
+            'api_secret': self.get_secret('KUCOIN_API_SECRET'),
+            'password': self.get_secret('KUCOIN_PASSPHRASE'),
+        }
+    
+    def get_exchange_credentials(self, exchange: str) -> Dict[str, Optional[str]]:
+        """Get API credentials for any supported exchange."""
+        exchange = exchange.lower()
+        credentials_map = {
+            'binance': self.get_binance_credentials,
+            'bybit': self.get_bybit_credentials,
+            'okx': self.get_okx_credentials,
+            'kraken': self.get_kraken_credentials,
+            'coinbase': self.get_coinbase_credentials,
+            'kucoin': self.get_kucoin_credentials,
+        }
+        if exchange in credentials_map:
+            return credentials_map[exchange]()
+        return {'api_key': None, 'api_secret': None}
+    
     def get_polymarket_credentials(self) -> Dict[str, Optional[str]]:
         """Get Polymarket API credentials."""
         return {

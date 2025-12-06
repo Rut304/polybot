@@ -439,18 +439,38 @@ class PolybotRunner:
                 enabled_exchanges.append("kucoin")
             
             if enabled_exchanges:
-                # Initialize CCXT with first enabled exchange
-                # Can be switched dynamically per strategy
-                primary_exchange = enabled_exchanges[0]
-                self.ccxt_client = CCXTClient(
-                    exchange_id=primary_exchange,
-                    sandbox=self.simulation_mode,
-                )
-                logger.info(
-                    f"✓ CCXT Client initialized "
-                    f"(primary: {primary_exchange}, "
-                    f"enabled: {', '.join(enabled_exchanges)})"
-                )
+                # Initialize CCXT with first enabled exchange that has credentials
+                primary_exchange = None
+                exchange_creds = None
+                
+                for exchange in enabled_exchanges:
+                    creds = self.db.get_exchange_credentials(exchange)
+                    if creds.get('api_key') and creds.get('api_secret'):
+                        primary_exchange = exchange
+                        exchange_creds = creds
+                        break
+                
+                if primary_exchange and exchange_creds:
+                    self.ccxt_client = CCXTClient(
+                        exchange_id=primary_exchange,
+                        api_key=exchange_creds.get('api_key'),
+                        api_secret=exchange_creds.get('api_secret'),
+                        password=exchange_creds.get('password'),
+                        sandbox=self.simulation_mode,
+                    )
+                    logger.info(
+                        f"✓ CCXT Client initialized "
+                        f"(primary: {primary_exchange}, "
+                        f"enabled: {', '.join(enabled_exchanges)})"
+                    )
+                else:
+                    logger.warning(
+                        "⚠️ Crypto exchanges enabled but no API keys configured!"
+                    )
+                    logger.info(
+                        f"  Enabled: {', '.join(enabled_exchanges)} - "
+                        "add API keys in Admin → Secrets"
+                    )
             else:
                 logger.warning(
                     "⚠️ Crypto strategies enabled but no exchanges enabled!"
