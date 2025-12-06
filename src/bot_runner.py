@@ -443,9 +443,14 @@ class PolybotRunner:
                 primary_exchange = None
                 exchange_creds = None
                 
+                logger.info(f"🔍 Checking credentials for exchanges: {enabled_exchanges}")
+                
                 for exchange in enabled_exchanges:
                     creds = self.db.get_exchange_credentials(exchange)
-                    if creds.get('api_key') and creds.get('api_secret'):
+                    has_key = bool(creds.get('api_key'))
+                    has_secret = bool(creds.get('api_secret'))
+                    logger.info(f"  {exchange}: api_key={'✓' if has_key else '✗'}, api_secret={'✓' if has_secret else '✗'}")
+                    if has_key and has_secret:
                         primary_exchange = exchange
                         exchange_creds = creds
                         break
@@ -590,11 +595,10 @@ class PolybotRunner:
                 db_client=self.db,
                 watchlist=watchlist,
                 lookback_period=self.config.trading.stock_mr_lookback_period,
-                entry_z_threshold=self.config.trading.stock_mr_entry_zscore,
-                exit_z_threshold=self.config.trading.stock_mr_exit_zscore,
-                position_size_usd=self.config.trading.stock_mr_position_size_usd,
+                entry_threshold=self.config.trading.stock_mr_entry_zscore,
+                exit_threshold=self.config.trading.stock_mr_exit_zscore,
+                max_position_size=self.config.trading.stock_mr_position_size_usd,
                 max_positions=self.config.trading.stock_mr_max_positions,
-                max_hold_days=self.config.trading.stock_mr_max_hold_days,
                 stop_loss_pct=self.config.trading.stock_mr_stop_loss_pct,
                 dry_run=self.simulation_mode,
             )
@@ -611,28 +615,20 @@ class PolybotRunner:
         
         # Initialize Stock Momentum Strategy (70% CONFIDENCE - 20-40% APY)
         if self.config.trading.enable_stock_momentum and self.alpaca_client:
-            watchlist = self.config.trading.stock_mom_watchlist.split(",")
+            universe = self.config.trading.stock_mom_watchlist.split(",")
             self.stock_momentum = StockMomentumStrategy(
                 alpaca_client=self.alpaca_client,
                 db_client=self.db,
-                watchlist=watchlist,
-                roc_period=self.config.trading.stock_mom_roc_period,
-                entry_roc_threshold=self.config.trading.stock_mom_entry_threshold,
-                exit_roc_threshold=self.config.trading.stock_mom_exit_threshold,
-                rsi_overbought=self.config.trading.stock_mom_rsi_overbought,
-                rsi_oversold=self.config.trading.stock_mom_rsi_oversold,
-                position_size_usd=self.config.trading.stock_mom_position_size_usd,
+                universe=universe,
+                min_momentum_score=70.0,  # Default, could be configurable
+                trailing_stop_pct=self.config.trading.stock_mom_stop_loss_pct,
+                max_position_size=self.config.trading.stock_mom_position_size_usd,
                 max_positions=self.config.trading.stock_mom_max_positions,
-                max_hold_days=self.config.trading.stock_mom_max_hold_days,
-                stop_loss_pct=self.config.trading.stock_mom_stop_loss_pct,
                 dry_run=self.simulation_mode,
             )
             logger.info("✓ Stock Momentum initialized (70% CONFIDENCE)")
-            logger.info(
-                f"  📈 Entry ROC: {self.config.trading.stock_mom_entry_threshold}% | "
-                f"RSI overbought: {self.config.trading.stock_mom_rsi_overbought}"
-            )
-            logger.info(f"  📊 Watchlist: {len(watchlist)} stocks")
+            logger.info(f"  📈 Min momentum score: 70.0")
+            logger.info(f"  📊 Universe: {len(universe)} stocks")
         elif self.config.trading.enable_stock_momentum:
             logger.info("⏸️ Stock Momentum DISABLED (no Alpaca client)")
         else:
@@ -1495,13 +1491,41 @@ async def start_health_server(port: int = 8080, bot_runner=None):
             "enable_pairs_trading": getattr(bot_runner.config.trading, 'enable_pairs_trading', False),
         }
         
+        # Check if using service_role key by decoding JWT payload
+        key_type = "unknown"
+        if db.key:
+            try:
+                import base64
+                # JWT has 3 parts: header.payload.signature
+                payload = db.key.split('.')[1]
+                # Add padding if needed
+                payload += '=' * (4 - len(payload) % 4)
+                decoded = base64.b64decode(payload).decode('utf-8')
+                key_type = "service_role" if '"role":"service_role"' in decoded else "anon"
+            except:
+                key_type = "parse_error"
+        
+        # Check exchange credentials loading
+        exchange_creds_check = {}
+        for ex in ['binance', 'coinbase']:
+            creds = db.get_exchange_credentials(ex)
+            has_key = bool(creds.get('api_key'))
+            has_secret = bool(creds.get('api_secret'))
+            exchange_creds_check[ex] = f"key={has_key},secret={has_secret}"
+        
         return web.json_response({
             "secrets": secrets_status,
             "ccxt_client": ccxt_status,
             "alpaca_client": alpaca_status,
             "strategies": strategies,
             "config": config_status,
-            "db_key_type": "service_role" if "service_role" in (db.key or "") else "anon",
+            "db_key_type": key_type,
+            "enabled_exchanges": [ex for ex in ['binance', 'coinbase'] if getattr(bot_runner.config.trading, f'enable_{ex}', False)],
+            "exchange_credentials": exchange_creds_check,
+            "stock_config": {
+                "enable_stock_mean_reversion": getattr(bot_runner.config.trading, 'enable_stock_mean_reversion', False),
+                "enable_stock_momentum": getattr(bot_runner.config.trading, 'enable_stock_momentum', False),
+            },
         })
     
     app = web.Application()

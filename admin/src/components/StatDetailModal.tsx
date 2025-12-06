@@ -103,13 +103,13 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
 
               <div className="space-y-6">
                 {type === 'balance' && (
-                  <BalanceDetails stats={stats} statsJson={statsJson} />
+                  <BalanceDetails stats={stats} statsJson={statsJson} trades={trades} />
                 )}
                 {type === 'pnl' && (
                   <PnLDetails stats={stats} statsJson={statsJson} trades={trades} />
                 )}
                 {type === 'winrate' && (
-                  <WinRateDetails stats={stats} statsJson={statsJson} />
+                  <WinRateDetails stats={stats} statsJson={statsJson} trades={trades} />
                 )}
                 {type === 'opportunities' && (
                   <OpportunityDetails statsJson={statsJson} opportunities={opportunities} trades={trades} />
@@ -123,12 +123,18 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
   );
 }
 
-function BalanceDetails({ stats, statsJson }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined }) {
+function BalanceDetails({ stats, statsJson, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[] }) {
+  // Compute from actual trades for accuracy
+  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
+  const computedPnL = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+  const expectedTotal = validTrades.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
+  const computedFees = Math.max(0, expectedTotal - computedPnL);
+  
   const startingBalance = parseFloat(statsJson?.simulated_starting_balance || '5000');
-  const currentBalance = stats?.simulated_balance || 5000;
-  const totalPnL = stats?.total_pnl || 0;
-  const roiPct = statsJson?.roi_pct || 0;
-  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
+  const totalPnL = computedPnL || stats?.total_pnl || 0;
+  const currentBalance = startingBalance + totalPnL;
+  const roiPct = startingBalance > 0 ? (totalPnL / startingBalance) * 100 : 0;
+  const totalFees = computedFees || parseFloat(statsJson?.total_fees_paid || '0');
   const balancePct = Math.min(200, (currentBalance / startingBalance) * 100);
   
   return (
@@ -162,13 +168,38 @@ function BalanceDetails({ stats, statsJson }: { stats: SimulationStats | null; s
 }
 
 function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[] }) {
-  const bestTrade = parseFloat(statsJson?.best_trade_profit || '0');
-  const worstTrade = parseFloat(statsJson?.worst_trade_loss || '0');
-  const totalPnL = stats?.total_pnl || 0;
-  const totalTrades = stats?.total_trades || 0;
-  const avgPnL = parseFloat(statsJson?.avg_trade_pnl || '0') || (totalTrades > 0 ? totalPnL / totalTrades : 0);
-  const totalLosses = parseFloat(statsJson?.total_losses || '0');
-  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
+  // Compute stats from actual trades for accuracy
+  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
+  const wonTradesAll = validTrades.filter(t => t.outcome === 'won');
+  const lostTradesAll = validTrades.filter(t => t.outcome === 'lost');
+  
+  // Calculate P&L from actual trade data
+  const computedPnL = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+  const totalPnL = computedPnL || stats?.total_pnl || 0;
+  const totalTrades = validTrades.length || stats?.total_trades || 0;
+  
+  // Calculate losses (sum of negative actual_profit_usd)
+  const computedLosses = Math.abs(lostTradesAll.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0));
+  const totalLosses = computedLosses || parseFloat(statsJson?.total_losses || '0');
+  
+  // Calculate gross profit (sum of positive actual_profit_usd)
+  const totalGrossProfit = wonTradesAll.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+  
+  // Fees = Expected profit - Actual profit (the difference is fees + slippage)
+  const expectedTotal = validTrades.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
+  const computedFees = Math.max(0, expectedTotal - computedPnL);
+  const totalFees = computedFees || parseFloat(statsJson?.total_fees_paid || '0');
+  
+  // Best/worst from actual trades
+  const computedBestTrade = validTrades.reduce((best, t) => 
+    (t.actual_profit_usd || 0) > best ? (t.actual_profit_usd || 0) : best, 0);
+  const computedWorstTrade = validTrades.reduce((worst, t) => 
+    (t.actual_profit_usd || 0) < worst ? (t.actual_profit_usd || 0) : worst, 0);
+  
+  const bestTrade = computedBestTrade || parseFloat(statsJson?.best_trade_profit || '0');
+  const worstTrade = computedWorstTrade || parseFloat(statsJson?.worst_trade_loss || '0');
+  
+  const avgPnL = totalTrades > 0 ? totalPnL / totalTrades : 0;
   
   const recentTrades = trades.slice(0, 10);
   const wonTrades = recentTrades.filter(t => t.outcome === 'won').length;
@@ -178,11 +209,13 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <StatBox label="Net P&L" value={formatCurrency(totalPnL)} color={totalPnL >= 0 ? 'green' : 'red'} />
+        <StatBox label="Gross Profit" value={formatCurrency(totalGrossProfit)} color="blue" icon={TrendingUp} />
         <StatBox label="Total Losses" value={formatCurrency(totalLosses)} color="red" icon={TrendingDown} />
-        <StatBox label="Fees Paid" value={formatCurrency(totalFees)} color="yellow" />
+        <StatBox label="Fees + Slippage" value={formatCurrency(totalFees)} color="yellow" />
         <StatBox label="Avg P&L / Trade" value={formatCurrency(avgPnL)} color={avgPnL >= 0 ? 'green' : 'red'} />
+        <StatBox label="# Trades" value={totalTrades.toString()} color="blue" />
         <StatBox label="Best Trade" value={`+${formatCurrency(bestTrade)}`} color="green" icon={TrendingUp} />
-        <StatBox label="Worst Trade" value={`-${formatCurrency(Math.abs(worstTrade))}`} color="red" icon={TrendingDown} />
+        <StatBox label="Worst Trade" value={formatCurrency(worstTrade)} color="red" icon={TrendingDown} />
       </div>
 
       <div className="bg-dark-border/50 rounded-xl p-4">
@@ -213,13 +246,23 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
   );
 }
 
-function WinRateDetails({ stats, statsJson }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined }) {
-  const winRate = stats?.win_rate || 0;
-  const winningTrades = statsJson?.winning_trades || 0;
-  const losingTrades = statsJson?.losing_trades || 0;
+function WinRateDetails({ stats, statsJson, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[] }) {
+  // Compute from actual trades
+  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
+  const wonTradesAll = validTrades.filter(t => t.outcome === 'won');
+  const lostTradesAll = validTrades.filter(t => t.outcome === 'lost');
+  const failedAll = trades.filter(t => t.outcome === 'failed_execution');
+  
+  const winningTrades = wonTradesAll.length || statsJson?.winning_trades || 0;
+  const losingTrades = lostTradesAll.length || statsJson?.losing_trades || 0;
   const totalTrades = winningTrades + losingTrades;
-  const executionRate = statsJson?.execution_success_rate_pct || 100;
-  const failedExecutions = statsJson?.failed_executions || 0;
+  const failedExecutions = failedAll.length || statsJson?.failed_executions || 0;
+  
+  const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : (stats?.win_rate || 0);
+  const executionRate = (totalTrades + failedExecutions) > 0 
+    ? (totalTrades / (totalTrades + failedExecutions)) * 100 
+    : (statsJson?.execution_success_rate_pct || 100);
+  
   const winPct = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
   const lossPct = totalTrades > 0 ? (losingTrades / totalTrades) * 100 : 0;
   

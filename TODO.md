@@ -1,55 +1,78 @@
 # PolyBot To-Do List
 
-## Active Tasks (December 4, 2025)
+## Active Tasks (December 6, 2025)
 
-### 1. 🚨 HIGH PRIORITY - Production Deployment
+### 🔴 HIGH PRIORITY - Current Issues
 
-- [x] Check if latest changes are deployed to production
-- [x] Migrated from ECS to Lightsail (Dec 2025) - 10x cost savings!
-- [ ] **ACTION NEEDED**: Commit and push changes, then rebuild on Lightsail
+#### Bot/Backend
+- [ ] **Stock/Crypto Data Flow** - Testing if stock strategies work after v33 fix
+  - Fixed parameter mismatch (`entry_z_threshold` → `entry_threshold`)
+  - v33 deployed and running successfully
+  - Need to verify stock strategies initialize when market opens (Mon-Fri 9:30am-4pm ET)
 
-**Status**: All changes are LOCAL ONLY. Need to:
+- [ ] **Binance.US Blocked** - Returns 451 "Service unavailable from restricted location"
+  - AWS Lightsail in us-east-1 is geoblocked by Binance.US
+  - Options: Use different exchange (Kraken, Coinbase), use proxy, or accept US restriction
 
-```bash
-git add -A
-git commit -m "Add balances, positions, notifications, stock strategies, secrets sync"
-git push origin main
+#### Admin UI
+- [x] **P&L Calculation Fixed** - Now computes from actual trades instead of stale stats_json
+  - Added Gross Profit display
+  - Shows "Fees + Slippage" (difference between expected and actual)
+  - Worst trade shows correct negative value
 
-# Then SSH into Lightsail and rebuild:
-# ssh ubuntu@<LIGHTSAIL_IP>
-# cd ~/polybot && git pull && docker-compose up -d --build
-```
+- [x] **Open Positions Page** - Confirmed working correctly
+  - Simulation trades resolve instantly (no "pending" state)
+  - Page shows "No open positions" when empty (correct behavior)
 
-### 2. 🔐 Secrets Page Security
+### 🟡 MEDIUM PRIORITY - Feature Requests
 
-- [x] Add 2FA/re-authentication layer to secrets page
-- [x] Wire up to AWS Secrets Manager (API route created)
-- [x] Wire up to GitHub Secrets (API route created)
-- [x] Ensure secure storage and access patterns
+#### Strategy Analytics & Filtering
+- [ ] Strategy success tracking with filterable analytics
+- [ ] Per-strategy P&L breakdown in dashboard
+- [ ] Collapsible strategy sections in dashboard
+- [ ] Strategy performance comparison charts
 
-### 3. 📊 Market Browser Enhancements
+#### User Management
+- [ ] Fix User Admin section - should show list of users
+- [ ] User role management (admin, viewer, trader)
+- [ ] Activity log per user
 
-- [x] Add filter by data source (Polymarket, Kalshi, Alpaca, CCXT)
-- [x] Add filter by asset type (prediction market, stock, crypto)
-- [ ] Implement stock data feed integration (needs Alpaca API)
-- [ ] Implement crypto data feed integration (needs CCXT setup)
+#### Logging & Debugging
+- [ ] Add Logs page for troubleshooting
+  - Real-time log streaming from bot
+  - Filter by log level (INFO, WARNING, ERROR)
+  - Search/filter by strategy or component
 
-### 4. 💰 AWS Cost Analysis - COMPLETED
+#### UI Improvements
+- [ ] Collapsible strategy sections on dashboard
+- [ ] P&L display per strategy (not just total)
+- [ ] Better mobile responsiveness
 
-See `/docs/AWS_COST_ANALYSIS.md` for full breakdown.
+### 🟢 LOW PRIORITY - Nice to Have
 
-**Key Finding**: Migrated from ECS ($54/day) to Lightsail ($0.17/day)!
-
-**Completed Actions**:
-
-- [x] Stop admin-ui on ECS (use Vercel instead - FREE)
-- [x] Stop video-render-cluster if unused
-- [x] Migrated polybot to Lightsail ($5/month)
+- [ ] Simulation session history viewer
+- [ ] AI analysis of completed sessions
+- [ ] Export session data to CSV
+- [ ] Discord webhook integration
+- [ ] Email alerts for significant events
 
 ---
 
-## Completed Tasks
+## ✅ Completed Tasks
 
+### December 6, 2025
+- [x] Fixed `max_position_size` AttributeError
+- [x] Fixed strategy parameter mismatches in `bot_runner.py`
+- [x] Fixed P&L modal to compute from actual trades
+- [x] Added `secret.test`, `simulation.analyze`, `simulation.archive` to AuditAction types
+- [x] v33 deployed successfully
+
+### December 5, 2025
+- [x] Migrated from ECS ($54/day) to Lightsail ($0.17/day)
+- [x] Service role key working (17 secrets loading)
+- [x] Binance.US mapping in CCXT client
+
+### Earlier
 - [x] Stock trading strategies (Mean Reversion, Momentum)
 - [x] Balance aggregator integration
 - [x] Notifications page
@@ -61,7 +84,19 @@ See `/docs/AWS_COST_ANALYSIS.md` for full breakdown.
 
 ---
 
-## Next Steps
+## Current Bot Status
 
-1. **Commit & Deploy**: Push all local changes, rebuild on Lightsail
-2. **Set up Alpaca/CCXT feeds**: For stock/crypto data in Markets page
+- **Version**: v33 (Build #25, image polybot.22)
+- **Status**: RUNNING ✅
+- **Strategies Active**: Kalshi single-platform arbitrage
+- **Simulation Balance**: ~$1,088 (+8.9% ROI, 101 trades)
+- **Win Rate**: 86%
+- **Execution Rate**: 90%
+
+---
+
+## Known Limitations
+
+1. Stock strategies only run during market hours (9:30 AM - 4:00 PM ET Mon-Fri)
+2. Crypto strategies need non-Binance.US exchange for US deployment
+3. Simulation trades resolve instantly (no "pending" positions state)

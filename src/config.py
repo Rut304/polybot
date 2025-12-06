@@ -607,6 +607,80 @@ class Config:
             enable_ibkr=self._get_bool(
                 "enable_ibkr", "ENABLE_IBKR", False
             ),
+            # ============================================================
+            # STOCK MEAN REVERSION SETTINGS (70% confidence)
+            # ============================================================
+            enable_stock_mean_reversion=self._get_bool(
+                "enable_stock_mean_reversion", "ENABLE_STOCK_MEAN_REVERSION", False
+            ),
+            stock_mr_lookback_period=self._get_int(
+                "stock_mr_lookback_period", "STOCK_MR_LOOKBACK", 20
+            ),
+            stock_mr_entry_zscore=self._get_float(
+                "stock_mr_entry_zscore", "STOCK_MR_ENTRY_Z", 2.0
+            ),
+            stock_mr_exit_zscore=self._get_float(
+                "stock_mr_exit_zscore", "STOCK_MR_EXIT_Z", 0.5
+            ),
+            stock_mr_stop_loss_pct=self._get_float(
+                "stock_mr_stop_loss_pct", "STOCK_MR_STOP_LOSS", 5.0
+            ),
+            stock_mr_position_size_usd=self._get_float(
+                "stock_mr_position_size_usd", "STOCK_MR_POS_SIZE", 500.0
+            ),
+            stock_mr_max_positions=self._get_int(
+                "stock_mr_max_positions", "STOCK_MR_MAX_POS", 5
+            ),
+            stock_mr_max_hold_days=self._get_int(
+                "stock_mr_max_hold_days", "STOCK_MR_MAX_HOLD_DAYS", 3
+            ),
+            stock_mr_scan_interval_sec=self._get_int(
+                "stock_mr_scan_interval_sec", "STOCK_MR_SCAN_SEC", 300
+            ),
+            stock_mr_watchlist=self._get_str(
+                "stock_mr_watchlist", "STOCK_MR_WATCHLIST",
+                "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,V,MA"
+            ),
+            # ============================================================
+            # STOCK MOMENTUM SETTINGS (70% confidence)
+            # ============================================================
+            enable_stock_momentum=self._get_bool(
+                "enable_stock_momentum", "ENABLE_STOCK_MOMENTUM", False
+            ),
+            stock_mom_roc_period=self._get_int(
+                "stock_mom_roc_period", "STOCK_MOM_ROC_PERIOD", 10
+            ),
+            stock_mom_entry_threshold=self._get_float(
+                "stock_mom_entry_threshold", "STOCK_MOM_ENTRY_THRESH", 3.0
+            ),
+            stock_mom_exit_threshold=self._get_float(
+                "stock_mom_exit_threshold", "STOCK_MOM_EXIT_THRESH", -1.0
+            ),
+            stock_mom_rsi_overbought=self._get_float(
+                "stock_mom_rsi_overbought", "STOCK_MOM_RSI_OB", 75.0
+            ),
+            stock_mom_rsi_oversold=self._get_float(
+                "stock_mom_rsi_oversold", "STOCK_MOM_RSI_OS", 40.0
+            ),
+            stock_mom_position_size_usd=self._get_float(
+                "stock_mom_position_size_usd", "STOCK_MOM_POS_SIZE", 500.0
+            ),
+            stock_mom_max_positions=self._get_int(
+                "stock_mom_max_positions", "STOCK_MOM_MAX_POS", 5
+            ),
+            stock_mom_max_hold_days=self._get_int(
+                "stock_mom_max_hold_days", "STOCK_MOM_MAX_HOLD_DAYS", 5
+            ),
+            stock_mom_stop_loss_pct=self._get_float(
+                "stock_mom_stop_loss_pct", "STOCK_MOM_STOP_LOSS", 7.0
+            ),
+            stock_mom_scan_interval_sec=self._get_int(
+                "stock_mom_scan_interval_sec", "STOCK_MOM_SCAN_SEC", 300
+            ),
+            stock_mom_watchlist=self._get_str(
+                "stock_mom_watchlist", "STOCK_MOM_WATCHLIST",
+                "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,AMD,CRM,NFLX"
+            ),
         )
         self.polymarket = PolymarketConfig()
         self.kalshi = KalshiConfig()

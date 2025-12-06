@@ -40,6 +40,8 @@ export default function Dashboard() {
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
   const { data: realTimeStats } = useRealTimeStats();
   const { data: trades } = useSimulatedTrades(20);
+  // Fetch all trades for accurate modal calculations
+  const { data: allTrades } = useSimulatedTrades(5000);
   const { data: opportunities } = useOpportunities(50);
   const { data: pnlHistory } = usePnLHistory(24);
   
@@ -69,7 +71,7 @@ export default function Dashboard() {
         onClose={() => setModalType(null)}
         type={modalType || 'balance'}
         stats={simStats || null}
-        trades={trades || []}
+        trades={allTrades || trades || []}
         opportunities={opportunities || []}
       />
       

@@ -14,6 +14,7 @@ export type AuditAction =
   | 'secret.reveal'
   | 'secret.update'
   | 'secret.delete'
+  | 'secret.test'
   | 'secret.sync_aws'
   | 'secret.sync_github'
   | 'config.update'
@@ -27,6 +28,8 @@ export type AuditAction =
   | 'bot.stop'
   | 'bot.redeploy'
   | 'simulation.reset'
+  | 'simulation.analyze'
+  | 'simulation.archive'
   | 'trade.manual'
   | 'trade.approve'
   | 'trade.reject';
@@ -37,6 +40,7 @@ export type ResourceType =
   | 'user'
   | 'bot'
   | 'simulation'
+  | 'simulation_session'
   | 'trade';
 
 export type Severity = 'info' | 'warning' | 'error' | 'critical';
