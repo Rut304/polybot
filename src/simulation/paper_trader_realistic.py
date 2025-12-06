@@ -509,12 +509,21 @@ class RealisticPaperTrader:
             self.stats.opportunities_skipped_insufficient_funds += 1
             return None
 
-        # ========== CRITICAL: Determine if TRUE cross-platform arbitrage ==========
+        # ========== CRITICAL: Determine if TRUE arbitrage ==========
         # Cross-platform (Polymarket ↔ Kalshi) = TRUE arbitrage = LOW RISK
-        # Same-platform overlap = NOT true arbitrage = HIGH RISK
+        # Single-platform arb (YES/NO spread on same market) = TRUE arbitrage = LOW RISK
+        # Same-platform overlap (different markets) = NOT true arbitrage = HIGH RISK
+        
+        is_single_platform_arb = arbitrage_type in (
+            "polymarket_single", "kalshi_single", "poly_single"
+        )
         is_cross_platform = (platform_a != platform_b)
         
-        if not is_cross_platform:
+        # Single-platform arb IS true arbitrage (YES/NO spread on same market)
+        # Treat it the same as cross-platform for risk purposes
+        is_true_arbitrage = is_cross_platform or is_single_platform_arb
+        
+        if not is_true_arbitrage:
             logger.warning(
                 f"⚠️ SAME-PLATFORM OVERLAP detected ({platform_a}↔{platform_b}) - "
                 f"HIGH RISK trade, NOT true arbitrage!"
@@ -523,7 +532,7 @@ class RealisticPaperTrader:
         # Simulate execution with appropriate risk profile
         success, reason, actual_profit_pct, is_loss = self._simulate_execution(
             spread_pct,
-            is_cross_platform=is_cross_platform,
+            is_cross_platform=is_true_arbitrage,  # Use true arbitrage flag for risk calc
         )
 
         # Determine arbitrage_type if not provided
