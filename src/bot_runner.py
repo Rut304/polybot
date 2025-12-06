@@ -1328,6 +1328,9 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     
+    # Start health server for Lightsail health checks
+    health_task = asyncio.create_task(start_health_server())
+    
     # Example tracked traders (these are whale addresses on Polymarket)
     tracked_traders = [
         # Add trader addresses to copy here
@@ -1351,7 +1354,41 @@ async def main():
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
     finally:
+        health_task.cancel()
         await runner.shutdown()
+
+
+async def start_health_server(port: int = 8080):
+    """Start a simple HTTP health check server for Lightsail."""
+    from aiohttp import web
+    
+    async def health_handler(request):
+        return web.Response(text="OK", status=200)
+    
+    async def status_handler(request):
+        return web.json_response({
+            "status": "running",
+            "service": "polybot",
+            "version": "1.0.0",
+        })
+    
+    app = web.Application()
+    app.router.add_get('/health', health_handler)
+    app.router.add_get('/status', status_handler)
+    app.router.add_get('/', health_handler)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logger.info(f"Health server started on port {port}")
+    
+    # Keep running until cancelled
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
