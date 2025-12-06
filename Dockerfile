@@ -35,6 +35,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY src/ ./src/
 COPY requirements.txt .
+COPY VERSION .
+COPY BUILD .
 
 # Set ownership
 RUN chown -R polybot:polybot /app
