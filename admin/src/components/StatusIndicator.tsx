@@ -1,7 +1,8 @@
 'use client';
 
 import { cn, timeAgo, isRecent } from '@/lib/utils';
-import { CheckCircle2, XCircle, AlertCircle, Wifi, WifiOff, DollarSign, FileText, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, Wifi, WifiOff, DollarSign, FileText, AlertTriangle, Tag } from 'lucide-react';
+import { useBotVersion } from '@/lib/hooks';
 
 interface StatusIndicatorProps {
   isOnline?: boolean;
@@ -10,6 +11,8 @@ interface StatusIndicatorProps {
 }
 
 export function StatusIndicator({ isOnline, lastHeartbeat, dryRun }: StatusIndicatorProps) {
+  const { data: versionInfo } = useBotVersion();
+  
   return (
     <div className="flex items-center gap-4">
       {/* Connection Status */}
@@ -44,6 +47,14 @@ export function StatusIndicator({ isOnline, lastHeartbeat, dryRun }: StatusIndic
           <AlertTriangle className="w-4 h-4" />
           <span className="font-bold">LIVE TRADING</span>
           <DollarSign className="w-4 h-4" />
+        </div>
+      )}
+
+      {/* Version Badge */}
+      {versionInfo && versionInfo.version && versionInfo.version !== 'unknown' && (
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-gray-800/50 text-gray-400 border border-gray-700/50">
+          <Tag className="w-3 h-3" />
+          <span>{versionInfo.fullVersion || `v${versionInfo.version}`}</span>
         </div>
       )}
 

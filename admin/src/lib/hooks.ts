@@ -5,7 +5,7 @@ import { supabase, SimulatedTrade, SimulationStats, BotStatus, Opportunity } fro
 
 // ==================== QUERIES ====================
 
-// Fetch bot status
+// Fetch bot status from database
 export function useBotStatus() {
   return useQuery({
     queryKey: ['botStatus'],
@@ -29,6 +29,30 @@ export function useBotStatus() {
       };
     },
     refetchInterval: 2000,
+  });
+}
+
+// Fetch bot version from the running bot
+interface BotVersionInfo {
+  status: string;
+  version: string;
+  build?: number;
+  fullVersion?: string;
+  error?: string;
+}
+
+export function useBotVersion() {
+  return useQuery({
+    queryKey: ['botVersion'],
+    queryFn: async (): Promise<BotVersionInfo> => {
+      const response = await fetch('/api/bot/status');
+      if (!response.ok) {
+        throw new Error('Failed to fetch bot version');
+      }
+      return response.json();
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 10000,
   });
 }
 

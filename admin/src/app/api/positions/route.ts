@@ -17,89 +17,39 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || 'open';
+    const status = searchParams.get('status') || 'all';
     const platform = searchParams.get('platform');
     const strategy = searchParams.get('strategy');
+    const limit = parseInt(searchParams.get('limit') || '50');
     
     if (!supabase) {
-      // Return mock data for development
       return NextResponse.json({
-        success: true,
-        data: {
-          positions: [
-            {
-              id: '1',
-              platform: 'Polymarket',
-              market: 'Will Bitcoin reach $100k in 2024?',
-              market_slug: 'btc-100k-2024',
-              side: 'yes',
-              size: 100,
-              entry_price: 0.65,
-              current_price: 0.72,
-              unrealized_pnl: 10.77,
-              unrealized_pnl_pct: 10.77,
-              strategy: 'single_platform_arb',
-              opened_at: new Date(Date.now() - 3600000).toISOString(),
-              status: 'open',
-            },
-            {
-              id: '2',
-              platform: 'Binance',
-              market: 'BTC/USDT',
-              side: 'long',
-              size: 500,
-              entry_price: 42150,
-              current_price: 43200,
-              unrealized_pnl: 12.47,
-              unrealized_pnl_pct: 2.49,
-              strategy: 'funding_rate_arb',
-              opened_at: new Date(Date.now() - 86400000).toISOString(),
-              status: 'open',
-            },
-            {
-              id: '3',
-              platform: 'Binance',
-              market: 'BTC/USDT-PERP',
-              side: 'short',
-              size: 500,
-              entry_price: 42180,
-              current_price: 43200,
-              unrealized_pnl: -12.10,
-              unrealized_pnl_pct: -2.42,
-              strategy: 'funding_rate_arb',
-              opened_at: new Date(Date.now() - 86400000).toISOString(),
-              status: 'open',
-            },
-          ],
-          stats: {
-            total_positions: 3,
-            total_value: 1100,
-            total_pnl: 11.14,
-            total_pnl_pct: 1.01,
-            winning_positions: 2,
-            losing_positions: 1,
-          },
-        },
-        mock: true,
-      });
+        success: false,
+        error: 'Database not configured',
+      }, { status: 500 });
     }
 
-    // Build query
+    // Query simulated trades (these are the "positions")
     let query = supabase
-      .from('trades')
+      .from('polybot_simulated_trades')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
-    if (status !== 'all') {
-      query = query.eq('status', status);
+    // Filter by outcome status if specified
+    if (status === 'open' || status === 'pending') {
+      query = query.eq('outcome', 'pending');
+    } else if (status === 'won') {
+      query = query.eq('outcome', 'won');
+    } else if (status === 'lost') {
+      query = query.eq('outcome', 'lost');
+    } else if (status === 'failed') {
+      query = query.eq('outcome', 'failed_execution');
     }
-    
-    if (platform) {
-      query = query.eq('platform', platform);
-    }
+    // 'all' returns everything
     
     if (strategy) {
-      query = query.eq('strategy', strategy);
+      query = query.eq('arbitrage_type', strategy);
     }
 
     const { data: tradesData, error } = await query;
@@ -112,41 +62,69 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Map trades to positions format
-    const positions = (tradesData || []).map((trade: any) => ({
-      id: trade.id,
-      platform: trade.platform || 'Unknown',
-      market: trade.market_question || trade.market || 'Unknown',
-      market_slug: trade.market_slug,
-      side: trade.side || 'buy',
-      size: parseFloat(trade.size_usd) || 0,
-      entry_price: parseFloat(trade.price) || 0,
-      current_price: parseFloat(trade.current_price) || parseFloat(trade.price) || 0,
-      unrealized_pnl: parseFloat(trade.unrealized_pnl) || 0,
-      unrealized_pnl_pct: parseFloat(trade.unrealized_pnl_pct) || 0,
-      strategy: trade.strategy || 'manual',
-      opened_at: trade.created_at,
-      status: trade.status || 'open',
-    }));
+    // Map simulated trades to positions format
+    const positions = (tradesData || []).map((trade: any) => {
+      // Determine platform from arbitrage_type or trade_type
+      let tradePlatform = 'Kalshi';
+      if (trade.arbitrage_type?.includes('poly')) {
+        tradePlatform = 'Polymarket';
+      } else if (trade.arbitrage_type?.includes('binance') || trade.trade_type?.includes('funding')) {
+        tradePlatform = 'Binance';
+      }
+      
+      // Filter by platform if specified
+      if (platform && tradePlatform.toLowerCase() !== platform.toLowerCase()) {
+        return null;
+      }
 
-    // Calculate stats
-    const openPositions = positions.filter((p: any) => p.status === 'open');
-    const totalValue = openPositions.reduce((sum: number, p: any) => sum + p.size, 0);
-    const totalPnl = openPositions.reduce((sum: number, p: any) => sum + (p.unrealized_pnl || 0), 0);
-    const winning = openPositions.filter((p: any) => (p.unrealized_pnl || 0) > 0).length;
-    const losing = openPositions.filter((p: any) => (p.unrealized_pnl || 0) < 0).length;
+      return {
+        id: trade.id.toString(),
+        position_id: trade.position_id,
+        platform: tradePlatform,
+        market: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown',
+        market_id: trade.polymarket_token_id || trade.kalshi_ticker,
+        side: trade.polymarket_yes_price > 0 ? 'yes' : 'no',
+        size: parseFloat(trade.position_size_usd) || 0,
+        entry_price: parseFloat(trade.polymarket_yes_price) || parseFloat(trade.kalshi_yes_price) || 0,
+        current_price: parseFloat(trade.polymarket_yes_price) || 0,
+        expected_profit_pct: parseFloat(trade.expected_profit_pct) || 0,
+        actual_profit: parseFloat(trade.actual_profit_usd) || 0,
+        strategy: trade.arbitrage_type || trade.trade_type || 'unknown',
+        outcome: trade.outcome,
+        opened_at: trade.created_at,
+        resolved_at: trade.resolved_at,
+        resolution_notes: trade.resolution_notes,
+        status: trade.outcome === 'pending' ? 'open' : 'closed',
+      };
+    }).filter(Boolean);
+
+    // Calculate stats from all trades
+    const allTrades = tradesData || [];
+    const wonTrades = allTrades.filter((t: any) => t.outcome === 'won');
+    const lostTrades = allTrades.filter((t: any) => t.outcome === 'lost');
+    const failedTrades = allTrades.filter((t: any) => t.outcome === 'failed_execution');
+    const pendingTrades = allTrades.filter((t: any) => t.outcome === 'pending');
+    
+    const totalProfit = wonTrades.reduce((sum: number, t: any) => 
+      sum + (parseFloat(t.actual_profit_usd) || 0), 0);
+    const totalLoss = lostTrades.reduce((sum: number, t: any) => 
+      sum + Math.abs(parseFloat(t.actual_profit_usd) || 0), 0);
+    const totalValue = allTrades.reduce((sum: number, t: any) => 
+      sum + (parseFloat(t.position_size_usd) || 0), 0);
 
     return NextResponse.json({
       success: true,
       data: {
         positions,
         stats: {
-          total_positions: openPositions.length,
+          total_positions: positions.length,
           total_value: totalValue,
-          total_pnl: totalPnl,
-          total_pnl_pct: totalValue > 0 ? (totalPnl / totalValue) * 100 : 0,
-          winning_positions: winning,
-          losing_positions: losing,
+          total_pnl: totalProfit - totalLoss,
+          total_pnl_pct: totalValue > 0 ? ((totalProfit - totalLoss) / totalValue) * 100 : 0,
+          winning_positions: wonTrades.length,
+          losing_positions: lostTrades.length,
+          failed_executions: failedTrades.length,
+          pending_positions: pendingTrades.length,
         },
       },
     });

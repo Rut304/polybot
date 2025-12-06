@@ -458,11 +458,20 @@ class PolybotRunner:
                         password=exchange_creds.get('password'),
                         sandbox=self.simulation_mode,
                     )
-                    logger.info(
-                        f"✓ CCXT Client initialized "
-                        f"(primary: {primary_exchange}, "
-                        f"enabled: {', '.join(enabled_exchanges)})"
-                    )
+                    # CRITICAL: Must call async initialize() to load markets!
+                    ccxt_initialized = await self.ccxt_client.initialize()
+                    if ccxt_initialized:
+                        logger.info(
+                            f"✓ CCXT Client initialized "
+                            f"(primary: {primary_exchange}, "
+                            f"enabled: {', '.join(enabled_exchanges)})"
+                        )
+                    else:
+                        logger.error(
+                            f"❌ CCXT Client failed to initialize - "
+                            f"crypto strategies will not work"
+                        )
+                        self.ccxt_client = None
                 else:
                     logger.warning(
                         "⚠️ Crypto exchanges enabled but no API keys configured!"
@@ -561,8 +570,17 @@ class PolybotRunner:
                 api_secret=alpaca_api_secret,
                 paper=self.simulation_mode,
             )
-            mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
-            logger.info(f"✓ Alpaca client initialized ({mode_str}) - keys from Supabase")
+            # CRITICAL: Must call async initialize() to verify credentials!
+            alpaca_initialized = await self.alpaca_client.initialize()
+            if alpaca_initialized:
+                mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
+                logger.info(f"✓ Alpaca client initialized ({mode_str}) - keys from Supabase")
+            else:
+                logger.error(
+                    f"❌ Alpaca client failed to initialize - "
+                    f"stock strategies will not work"
+                )
+                self.alpaca_client = None
         
         # Initialize Stock Mean Reversion Strategy (70% CONFIDENCE - 15-30% APY)
         if self.config.trading.enable_stock_mean_reversion and self.alpaca_client:
