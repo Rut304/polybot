@@ -23,6 +23,7 @@ import {
   Target,
   TrendingDown,
   HelpCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -240,8 +241,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   
   // Sync state when config loads from database
+  // Skip sync while saving to prevent race conditions
   useEffect(() => {
-    if (config) {
+    if (config && !saving) {
       // Basic trading parameters
       if (config.min_profit_percent !== undefined) setMinProfitPercent(config.min_profit_percent);
       if (config.max_trade_size !== undefined) setMaxTradeSize(config.max_trade_size);
@@ -342,7 +344,7 @@ export default function SettingsPage() {
       if (config.enable_alpaca !== undefined) setEnableAlpaca(config.enable_alpaca);
       if (config.enable_ibkr !== undefined) setEnableIbkr(config.enable_ibkr);
     }
-  }, [config]);
+  }, [config, saving]);
   
   // Sync bot status state when it loads
   useEffect(() => {
@@ -402,14 +404,24 @@ export default function SettingsPage() {
     },
   });
 
+  // State for save feedback
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
   const handleSaveSettings = async () => {
     setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    
     try {
+      // Save bot status first
       await updateBotStatus.mutateAsync({
         is_running: botEnabled,
         dry_run_mode: dryRunMode,
       });
-      await updateConfig.mutateAsync({
+      
+      // Save config with all settings
+      const configToSave = {
         polymarket_enabled: polymarketEnabled,
         kalshi_enabled: kalshiEnabled,
         min_profit_percent: minProfitPercent,
@@ -451,7 +463,7 @@ export default function SettingsPage() {
         cross_plat_max_position_usd: crossPlatMaxPos,
         cross_plat_scan_interval_sec: crossPlatScanInt,
         cross_plat_min_similarity: crossPlatMinSimilarity,
-        // Market Making (NEW)
+        // Market Making
         enable_market_making: enableMarketMaking,
         mm_target_spread_bps: mmTargetSpreadBps,
         mm_min_spread_bps: mmMinSpreadBps,
@@ -461,14 +473,14 @@ export default function SettingsPage() {
         mm_quote_refresh_sec: mmQuoteRefreshSec,
         mm_min_volume_24h: mmMinVolume24h,
         mm_max_markets: mmMaxMarkets,
-        // News Arbitrage (NEW)
+        // News Arbitrage
         enable_news_arbitrage: enableNewsArbitrage,
         news_min_spread_pct: newsMinSpreadPct,
         news_max_lag_minutes: newsMaxLagMinutes,
         news_position_size_usd: newsPositionSizeUsd,
         news_scan_interval_sec: newsScanIntervalSec,
         news_keywords: newsKeywords,
-        // Funding Rate Arbitrage (NEW)
+        // Funding Rate Arbitrage
         enable_funding_rate_arb: enableFundingRateArb,
         funding_min_rate_pct: fundingMinRatePct,
         funding_min_apy: fundingMinApy,
@@ -476,7 +488,7 @@ export default function SettingsPage() {
         funding_max_positions: fundingMaxPositions,
         funding_max_leverage: fundingMaxLeverage,
         funding_scan_interval_sec: fundingScanIntervalSec,
-        // Grid Trading (NEW)
+        // Grid Trading
         enable_grid_trading: enableGridTrading,
         grid_default_range_pct: gridDefaultRangePct,
         grid_default_levels: gridDefaultLevels,
@@ -484,14 +496,14 @@ export default function SettingsPage() {
         grid_max_grids: gridMaxGrids,
         grid_stop_loss_pct: gridStopLossPct,
         grid_take_profit_pct: gridTakeProfitPct,
-        // Pairs Trading (NEW)
+        // Pairs Trading
         enable_pairs_trading: enablePairsTrading,
         pairs_entry_zscore: pairsEntryZscore,
         pairs_exit_zscore: pairsExitZscore,
         pairs_position_size_usd: pairsPositionSizeUsd,
         pairs_max_positions: pairsMaxPositions,
         pairs_max_hold_hours: pairsMaxHoldHours,
-        // Exchange Enablement (NEW)
+        // Exchange Enablement
         enable_binance: enableBinance,
         enable_bybit: enableBybit,
         enable_okx: enableOkx,
@@ -500,7 +512,20 @@ export default function SettingsPage() {
         enable_kucoin: enableKucoin,
         enable_alpaca: enableAlpaca,
         enable_ibkr: enableIbkr,
-      });
+        // Add updated_at timestamp
+        updated_at: new Date().toISOString(),
+      };
+      
+      console.log('Saving config:', configToSave);
+      await updateConfig.mutateAsync(configToSave);
+      
+      setSaveSuccess(true);
+      // Clear success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+      
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save settings. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -2635,7 +2660,41 @@ export default function SettingsPage() {
       )}
 
       {/* Save Button */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4">
+        {/* Error and Success Messages */}
+        {saveError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div>
+              <p className="font-semibold text-red-500">Failed to Save</p>
+              <p className="text-sm text-red-500/70">{saveError}</p>
+            </div>
+            <button 
+              onClick={() => setSaveError(null)}
+              className="ml-auto text-red-500 hover:text-red-400"
+            >
+              ×
+            </button>
+          </motion.div>
+        )}
+        
+        {saveSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="p-4 bg-neon-green/10 border border-neon-green/30 rounded-xl flex items-center gap-3"
+          >
+            <CheckCircle2 className="w-5 h-5 text-neon-green" />
+            <p className="font-semibold text-neon-green">Settings saved successfully!</p>
+          </motion.div>
+        )}
+        
+        <div className="flex items-center gap-4">
         {isAdmin ? (
           <>
             <button
@@ -2660,6 +2719,7 @@ export default function SettingsPage() {
             Read-Only Mode - Cannot Save
           </div>
         )}
+        </div>
       </div>
 
       {/* Danger Zone - Reset Simulation */}

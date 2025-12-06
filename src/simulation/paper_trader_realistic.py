@@ -666,6 +666,14 @@ class RealisticPaperTrader:
     async def _save_trade_to_db(self, trade: SimulatedTrade) -> None:
         """Save trade to Supabase polybot_simulated_trades table"""
         try:
+            # Determine strategy type from arbitrage_type or trade platforms
+            strategy_type = trade.arbitrage_type
+            if not strategy_type:
+                if trade.platform_a == trade.platform_b:
+                    strategy_type = f"{trade.platform_a}_single"
+                else:
+                    strategy_type = "cross_platform"
+
             data = {
                 "position_id": trade.id,
                 "created_at": trade.created_at.isoformat(),
@@ -678,7 +686,10 @@ class RealisticPaperTrader:
                 "kalshi_yes_price": float(trade.original_price_b),
                 "kalshi_no_price": float(1 - trade.original_price_b),
                 "trade_type": f"realistic_arb_{trade.platform_a}_{trade.platform_b}",
-                "arbitrage_type": trade.arbitrage_type,  # Explicit strategy type!
+                "arbitrage_type": trade.arbitrage_type,
+                "strategy_type": strategy_type,
+                "trading_mode": "paper",  # Paper trading mode
+                "platform": trade.platform_a,
                 "position_size_usd": float(trade.executed_size_usd),
                 "expected_profit_usd": float(trade.gross_profit_usd),
                 "expected_profit_pct": float(trade.original_spread_pct),
@@ -688,11 +699,40 @@ class RealisticPaperTrader:
                 "resolution_notes": trade.outcome_reason,
             }
 
-            if self.db and hasattr(self.db, '_client') and self.db._client:
-                self.db._client.table("polybot_simulated_trades").insert(data).execute()
-                logger.info(f"📝 DB TRADE: {trade.id} saved")
-            else:
-                logger.warning("DB client not available for saving trade")
+            # Try multiple ways to save to database
+            saved = False
+            
+            # Method 1: Use is_connected property
+            if self.db and hasattr(self.db, 'is_connected') and self.db.is_connected:
+                try:
+                    self.db._client.table("polybot_simulated_trades").insert(data).execute()
+                    logger.info(f"📝 DB TRADE: {trade.id} saved")
+                    saved = True
+                except Exception as e:
+                    logger.warning(f"Method 1 failed: {e}")
+            
+            # Method 2: Direct _client check
+            if not saved and self.db and hasattr(self.db, '_client') and self.db._client:
+                try:
+                    self.db._client.table("polybot_simulated_trades").insert(data).execute()
+                    logger.info(f"📝 DB TRADE: {trade.id} saved (method 2)")
+                    saved = True
+                except Exception as e:
+                    logger.warning(f"Method 2 failed: {e}")
+            
+            if not saved:
+                # Log detailed debug info
+                db_exists = bool(self.db)
+                has_is_connected = hasattr(self.db, 'is_connected') if self.db else False
+                is_connected = self.db.is_connected if has_is_connected else False
+                has_client = hasattr(self.db, '_client') if self.db else False
+                client_exists = bool(self.db._client) if has_client else False
+                logger.warning(
+                    f"DB not available for trade {trade.id}: "
+                    f"db={db_exists}, has_is_connected={has_is_connected}, "
+                    f"is_connected={is_connected}, has_client={has_client}, "
+                    f"client_exists={client_exists}"
+                )
         except Exception as e:
             logger.error(f"Failed to save trade to DB: {e}")
 
@@ -709,17 +749,45 @@ class RealisticPaperTrader:
                 "win_rate": self.stats.win_rate,
             }
 
-            if self.db and hasattr(self.db, '_client') and self.db._client:
-                # Use upsert to update existing row
-                self.db._client.table("polybot_simulation_stats").upsert(
-                    data, on_conflict="id"
-                ).execute()
-                logger.info(
-                    f"💾 DB SAVE: Balance=${self.stats.current_balance:.2f} "
-                    f"Trades={self.stats.opportunities_traded}"
+            saved = False
+            
+            # Method 1: Use is_connected property
+            if self.db and hasattr(self.db, 'is_connected') and self.db.is_connected:
+                try:
+                    self.db._client.table("polybot_simulation_stats").upsert(
+                        data, on_conflict="id"
+                    ).execute()
+                    logger.info(
+                        f"💾 DB SAVE: Balance=${self.stats.current_balance:.2f} "
+                        f"Trades={self.stats.opportunities_traded}"
+                    )
+                    saved = True
+                except Exception as e:
+                    logger.warning(f"Stats save method 1 failed: {e}")
+            
+            # Method 2: Direct _client check
+            if not saved and self.db and hasattr(self.db, '_client') and self.db._client:
+                try:
+                    self.db._client.table("polybot_simulation_stats").upsert(
+                        data, on_conflict="id"
+                    ).execute()
+                    logger.info(
+                        f"💾 DB SAVE: Balance=${self.stats.current_balance:.2f} "
+                        f"Trades={self.stats.opportunities_traded} (method 2)"
+                    )
+                    saved = True
+                except Exception as e:
+                    logger.warning(f"Stats save method 2 failed: {e}")
+            
+            if not saved:
+                # Log diagnostic info
+                db_exists = bool(self.db)
+                has_is_connected = hasattr(self.db, 'is_connected') if self.db else False
+                is_connected = self.db.is_connected if has_is_connected else False
+                logger.warning(
+                    f"DB not available for stats: db={db_exists}, "
+                    f"is_connected={is_connected}"
                 )
-            else:
-                logger.warning("DB client not available for saving stats")
         except Exception as e:
             logger.error(f"Failed to save stats to DB: {e}")
 
