@@ -1364,9 +1364,6 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     
-    # Start health server for Lightsail health checks
-    health_task = asyncio.create_task(start_health_server())
-    
     # Example tracked traders (these are whale addresses on Polymarket)
     tracked_traders = [
         # Add trader addresses to copy here
@@ -1380,6 +1377,9 @@ async def main():
         enable_news_sentiment=True,
         simulation_mode=True,
     )
+    
+    # Start health server for Lightsail health checks (pass runner for debug)
+    health_task = asyncio.create_task(start_health_server(bot_runner=runner))
     
     # Setup signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
@@ -1437,7 +1437,7 @@ def get_build_number():
     return 17  # Default to current deployment version
 
 
-async def start_health_server(port: int = 8080):
+async def start_health_server(port: int = 8080, bot_runner=None):
     """Start a simple HTTP health check server for Lightsail."""
     from aiohttp import web
     import os
@@ -1457,9 +1457,57 @@ async def start_health_server(port: int = 8080):
             "fullVersion": f"v{version} (Build #{build})",
         })
     
+    async def debug_secrets_handler(request):
+        """Debug endpoint to check if secrets are being loaded."""
+        if not bot_runner or not bot_runner.db:
+            return web.json_response({"error": "Bot not initialized"}, status=500)
+        
+        db = bot_runner.db
+        
+        # Check which secrets are loaded (show key names only, not values!)
+        secrets_status = {}
+        for key in ['BINANCE_API_KEY', 'BINANCE_API_SECRET', 'ALPACA_PAPER_API_KEY', 
+                    'ALPACA_PAPER_API_SECRET', 'POLYMARKET_API_KEY', 'KALSHI_API_KEY']:
+            val = db.get_secret(key)
+            secrets_status[key] = "✅ Set" if val else "❌ Missing"
+        
+        # Check CCXT client
+        ccxt_status = "✅ Initialized" if bot_runner.ccxt_client else "❌ Not initialized"
+        
+        # Check Alpaca client  
+        alpaca_status = "✅ Initialized" if bot_runner.alpaca_client else "❌ Not initialized"
+        
+        # Check strategy status
+        strategies = {
+            "funding_rate_arb": "✅ Active" if bot_runner.funding_rate_arb else "❌ Disabled",
+            "grid_trading": "✅ Active" if bot_runner.grid_trading else "❌ Disabled",
+            "pairs_trading": "✅ Active" if bot_runner.pairs_trading else "❌ Disabled",
+            "stock_mean_reversion": "✅ Active" if bot_runner.stock_mean_reversion else "❌ Disabled",
+            "stock_momentum": "✅ Active" if bot_runner.stock_momentum else "❌ Disabled",
+        }
+        
+        # Check config
+        config_status = {
+            "enable_binance": getattr(bot_runner.config.trading, 'enable_binance', False),
+            "enable_alpaca": getattr(bot_runner.config.trading, 'enable_alpaca', False),
+            "enable_funding_rate_arb": getattr(bot_runner.config.trading, 'enable_funding_rate_arb', False),
+            "enable_grid_trading": getattr(bot_runner.config.trading, 'enable_grid_trading', False),
+            "enable_pairs_trading": getattr(bot_runner.config.trading, 'enable_pairs_trading', False),
+        }
+        
+        return web.json_response({
+            "secrets": secrets_status,
+            "ccxt_client": ccxt_status,
+            "alpaca_client": alpaca_status,
+            "strategies": strategies,
+            "config": config_status,
+            "db_key_type": "service_role" if "service_role" in (db.key or "") else "anon",
+        })
+    
     app = web.Application()
     app.router.add_get('/health', health_handler)
     app.router.add_get('/status', status_handler)
+    app.router.add_get('/debug/secrets', debug_secrets_handler)
     app.router.add_get('/', health_handler)
     
     runner = web.AppRunner(app)
