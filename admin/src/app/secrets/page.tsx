@@ -327,33 +327,42 @@ export default function SecretsPage() {
     });
   };
   
-  // Redeploy bot with updated secrets (no Docker needed!)
-  const redeployBot = async () => {
+  // Restart bot (using new Lightsail-compatible endpoint)
+  const restartBot = async (action: 'restart' | 'stop' | 'start' = 'restart') => {
     requireReauth(async () => {
       setSyncing('redeploy');
       setError(null);
       
       try {
-        const response = await fetch('/api/secrets/redeploy', {
+        const response = await fetch('/api/bot/restart', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
         });
         
         const result = await response.json();
         
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to redeploy bot');
+          throw new Error(result.error || `Failed to ${action} bot`);
         }
         
-        setSuccess(`✓ ${result.message}`);
-        setTimeout(() => setSuccess(null), 10000);
+        if (result.method === 'manual') {
+          // Show instructions for manual restart
+          setSuccess(`✓ ${result.message}\n\nManual steps:\n${result.instructions.join('\n')}`);
+        } else {
+          setSuccess(`✓ Bot ${action} command sent successfully!`);
+        }
+        setTimeout(() => setSuccess(null), 15000);
       } catch (err: any) {
-        setError(err.message || 'Failed to redeploy bot');
+        setError(err.message || `Failed to ${action} bot`);
       } finally {
         setSyncing(null);
       }
     });
   };
+  
+  // Legacy redeploy function (for backwards compatibility)
+  const redeployBot = () => restartBot('restart');
 
   const handleEdit = (secret: Secret) => {
     // Require re-authentication for editing secrets
@@ -591,7 +600,7 @@ export default function SecretsPage() {
               ) : (
                 <Rocket className="w-4 h-4" />
               )}
-              Redeploy Bot
+              Restart Bot
             </button>
           </div>
         </div>
