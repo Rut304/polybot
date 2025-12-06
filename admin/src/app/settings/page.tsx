@@ -355,16 +355,14 @@ export default function SettingsPage() {
   // Use the reset simulation hook
   const resetSimulation = useResetSimulation();
   
-  // Fetch users for admin
+  // Fetch users for admin via API (uses service key to bypass RLS)
   const { data: users = [], refetch: refetchUsers } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('polybot_user_profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      const response = await fetch('/api/users');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      return result.users || [];
     },
     enabled: isAdmin,
   });
@@ -580,25 +578,124 @@ export default function SettingsPage() {
           </div>
 
           {/* Dry Run Mode */}
-          <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
+          <div className={cn(
+            "flex items-center justify-between p-4 rounded-xl border-2 transition-all",
+            dryRunMode 
+              ? "bg-dark-border/30 border-transparent" 
+              : "bg-red-900/20 border-red-500/50 shadow-lg shadow-red-500/10"
+          )}>
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-yellow-500" />
+              <div className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center",
+                dryRunMode ? "bg-yellow-500/20" : "bg-red-500/20"
+              )}>
+                {dryRunMode ? (
+                  <Shield className="w-6 h-6 text-yellow-500" />
+                ) : (
+                  <AlertTriangle className="w-6 h-6 text-red-500 animate-pulse" />
+                )}
               </div>
               <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-semibold">Simulation Mode (Dry Run)</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold">
+                    {dryRunMode ? 'Simulation Mode (Paper Trading)' : '🔴 LIVE TRADING MODE'}
+                  </h3>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-xs font-bold",
+                    dryRunMode 
+                      ? "bg-yellow-500/20 text-yellow-400" 
+                      : "bg-red-500/30 text-red-400"
+                  )}>
+                    {dryRunMode ? 'PAPER' : 'REAL MONEY'}
+                  </span>
                   <Tooltip content={METRIC_TOOLTIPS.dryRunMode} position="right">
                     <HelpCircle className="w-3.5 h-3.5 text-gray-500 hover:text-gray-300 cursor-help" />
                   </Tooltip>
                 </div>
-                <p className="text-sm text-gray-400">
-                  {dryRunMode ? 'Paper trading - no real money' : '⚠️ LIVE TRADING - Real money at risk!'}
+                <p className={cn(
+                  "text-sm",
+                  dryRunMode ? "text-gray-400" : "text-red-400 font-medium"
+                )}>
+                  {dryRunMode 
+                    ? 'Safe mode - No real money at risk. All trades are simulated.' 
+                    : '⚠️ CAUTION: Real money is at risk! All trades will execute on live markets.'}
                 </p>
               </div>
             </div>
-            <ToggleSwitch enabled={dryRunMode} onToggle={() => setDryRunMode(!dryRunMode)} size="lg" disabled={!isAdmin} />
+            <ToggleSwitch 
+              enabled={dryRunMode} 
+              onToggle={() => {
+                if (dryRunMode) {
+                  // Switching FROM simulation TO live - show confirmation
+                  setShowConfirm('live-trading');
+                } else {
+                  // Switching from live to simulation - no confirmation needed
+                  setDryRunMode(true);
+                }
+              }} 
+              size="lg" 
+              disabled={!isAdmin} 
+            />
           </div>
+
+          {/* Live Trading Confirmation Modal */}
+          <AnimatePresence>
+            {showConfirm === 'live-trading' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50"
+                onClick={() => setShowConfirm(null)}
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.95, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-dark-card border-2 border-red-500/50 rounded-2xl p-6 max-w-md mx-4 shadow-2xl shadow-red-500/20"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6 text-red-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-red-400">Enable Live Trading?</h3>
+                      <p className="text-sm text-gray-400">This action cannot be undone automatically</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+                    <p className="text-red-300 font-medium mb-2">⚠️ Warning: Real Money at Risk</p>
+                    <ul className="text-sm text-gray-300 space-y-1">
+                      <li>• All trades will execute with real funds</li>
+                      <li>• Losses are permanent and irreversible</li>
+                      <li>• Ensure your API keys have trading permissions</li>
+                      <li>• Start with small position sizes</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowConfirm(null)}
+                      className="flex-1 px-4 py-3 bg-dark-border hover:bg-dark-border/70 rounded-xl font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDryRunMode(false);
+                        setShowConfirm(null);
+                      }}
+                      className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors"
+                    >
+                      Yes, Enable Live Trading
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Approval Queue Mode */}
           <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
@@ -2462,6 +2559,11 @@ export default function SettingsPage() {
                           <div>
                             <p className="font-medium">{u.display_name || u.email}</p>
                             <p className="text-xs text-gray-500">{u.email}</p>
+                            {u.last_sign_in_at && (
+                              <p className="text-xs text-gray-600">
+                                Last login: {new Date(u.last_sign_in_at).toLocaleDateString()}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -2469,28 +2571,38 @@ export default function SettingsPage() {
                             value={u.role}
                             onChange={async (e) => {
                               const newRole = e.target.value;
-                              await supabase
-                                .from('polybot_user_profiles')
-                                .update({ role: newRole })
-                                .eq('id', u.id);
-                              refetchUsers();
+                              try {
+                                const res = await fetch('/api/users', {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ userId: u.id, updates: { role: newRole } }),
+                                });
+                                if (!res.ok) throw new Error('Failed to update');
+                                refetchUsers();
+                              } catch (err) {
+                                console.error('Failed to update user role:', err);
+                              }
                             }}
                             disabled={u.id === user?.id}
                             title="Change user role"
                             className="bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50"
                           >
                             <option value="admin">Admin</option>
-                            <option value="viewer">Read Only</option>
+                            <option value="readonly">Read Only</option>
                           </select>
                           {u.id !== user?.id && (
                             <button
                               onClick={async () => {
                                 if (confirm(`Delete user ${u.display_name || u.email}?`)) {
-                                  await supabase
-                                    .from('polybot_user_profiles')
-                                    .delete()
-                                    .eq('id', u.id);
-                                  refetchUsers();
+                                  try {
+                                    const res = await fetch(`/api/users?userId=${u.id}`, {
+                                      method: 'DELETE',
+                                    });
+                                    if (!res.ok) throw new Error('Failed to delete');
+                                    refetchUsers();
+                                  } catch (err) {
+                                    console.error('Failed to delete user:', err);
+                                  }
                                 }
                               }}
                               className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"

@@ -1102,3 +1102,138 @@ function getEmptyMetrics(): AdvancedMetrics {
     drawdownHistory: [],
   };
 }
+
+// ==================== SECRETS & CONNECTED PLATFORMS ====================
+
+export interface SecretStatus {
+  key_name: string;
+  category: string;
+  description: string;
+  is_configured: boolean;
+  last_updated: string | null;
+}
+
+export interface ConnectedPlatform {
+  name: string;
+  type: 'prediction_market' | 'crypto_exchange' | 'stock_broker';
+  connected: boolean;
+  icon: string;
+  keys_configured: string[];
+  keys_missing: string[];
+}
+
+// Platform definitions with required keys
+const PLATFORM_DEFINITIONS: Record<string, { type: ConnectedPlatform['type']; icon: string; requiredKeys: string[] }> = {
+  polymarket: {
+    type: 'prediction_market',
+    icon: '🎯',
+    requiredKeys: ['POLYMARKET_API_KEY', 'POLYMARKET_SECRET'],
+  },
+  kalshi: {
+    type: 'prediction_market', 
+    icon: '📊',
+    requiredKeys: ['KALSHI_API_KEY', 'KALSHI_PRIVATE_KEY'],
+  },
+  binance: {
+    type: 'crypto_exchange',
+    icon: '🟡',
+    requiredKeys: ['BINANCE_API_KEY', 'BINANCE_API_SECRET'],
+  },
+  bybit: {
+    type: 'crypto_exchange',
+    icon: '🔶',
+    requiredKeys: ['BYBIT_API_KEY', 'BYBIT_API_SECRET'],
+  },
+  okx: {
+    type: 'crypto_exchange',
+    icon: '⚫',
+    requiredKeys: ['OKX_API_KEY', 'OKX_API_SECRET', 'OKX_PASSPHRASE'],
+  },
+  kraken: {
+    type: 'crypto_exchange',
+    icon: '🐙',
+    requiredKeys: ['KRAKEN_API_KEY', 'KRAKEN_API_SECRET'],
+  },
+  coinbase: {
+    type: 'crypto_exchange',
+    icon: '🔵',
+    requiredKeys: ['COINBASE_API_KEY', 'COINBASE_API_SECRET'],
+  },
+  kucoin: {
+    type: 'crypto_exchange',
+    icon: '🟢',
+    requiredKeys: ['KUCOIN_API_KEY', 'KUCOIN_API_SECRET', 'KUCOIN_PASSPHRASE'],
+  },
+  alpaca: {
+    type: 'stock_broker',
+    icon: '🦙',
+    requiredKeys: ['ALPACA_API_KEY', 'ALPACA_API_SECRET'],
+  },
+  ibkr: {
+    type: 'stock_broker',
+    icon: '🏛️',
+    requiredKeys: ['IBKR_HOST', 'IBKR_PORT'],
+  },
+};
+
+// Fetch all secrets status (without values - just configured status)
+export function useSecretsStatus() {
+  return useQuery({
+    queryKey: ['secretsStatus'],
+    queryFn: async (): Promise<SecretStatus[]> => {
+      const { data, error } = await supabase
+        .from('polybot_secrets')
+        .select('key_name, category, description, is_configured, last_updated')
+        .order('category')
+        .order('key_name');
+      
+      if (error) {
+        console.error('Error fetching secrets status:', error);
+        return [];
+      }
+      return data || [];
+    },
+    refetchInterval: 30000, // Check every 30 seconds
+  });
+}
+
+// Compute connected platforms from secrets status
+export function useConnectedPlatforms() {
+  const { data: secrets = [], isLoading } = useSecretsStatus();
+  
+  return useQuery({
+    queryKey: ['connectedPlatforms', secrets.length],
+    queryFn: (): ConnectedPlatform[] => {
+      const secretsMap = new Map(secrets.map(s => [s.key_name, s.is_configured]));
+      
+      return Object.entries(PLATFORM_DEFINITIONS).map(([name, def]) => {
+        const keysConfigured = def.requiredKeys.filter(k => secretsMap.get(k) === true);
+        const keysMissing = def.requiredKeys.filter(k => secretsMap.get(k) !== true);
+        
+        return {
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          type: def.type,
+          icon: def.icon,
+          connected: keysMissing.length === 0,
+          keys_configured: keysConfigured,
+          keys_missing: keysMissing,
+        };
+      });
+    },
+    enabled: !isLoading,
+  });
+}
+
+// Summary of connected platforms by type
+export function useConnectionSummary() {
+  const { data: platforms = [] } = useConnectedPlatforms();
+  
+  return {
+    predictionMarkets: platforms.filter(p => p.type === 'prediction_market'),
+    cryptoExchanges: platforms.filter(p => p.type === 'crypto_exchange'),
+    stockBrokers: platforms.filter(p => p.type === 'stock_broker'),
+    totalConnected: platforms.filter(p => p.connected).length,
+    totalPlatforms: platforms.length,
+  };
+}
+

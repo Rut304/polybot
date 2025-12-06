@@ -16,9 +16,13 @@ import {
   Building2,
   Coins,
   BarChart3,
+  Key,
+  Settings,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useConnectionSummary, useConnectedPlatforms, useBotStatus, useSimulationStats } from '@/lib/hooks';
 
 interface PlatformBalance {
   platform: string;
@@ -70,6 +74,16 @@ export default function BalancesPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Get connected platforms from centralized secrets
+  const { data: connectedPlatforms = [] } = useConnectedPlatforms();
+  const connectionSummary = useConnectionSummary();
+  const { data: botStatus } = useBotStatus();
+  const { data: simStats } = useSimulationStats();
+  
+  // Determine if we're in simulation mode
+  const isSimulation = botStatus?.dry_run_mode ?? true;
+  const simulatedBalance = simStats?.simulated_balance ?? 5000;
 
   useEffect(() => {
     fetchBalances();
@@ -150,9 +164,19 @@ export default function BalancesPage() {
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Wallet className="text-green-400" />
             Portfolio Balances
+            {/* Simulation/Live Badge */}
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+              isSimulation 
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' 
+                : 'bg-green-500/20 text-green-400 border border-green-500/30'
+            }`}>
+              {isSimulation ? '📝 PAPER' : '💰 LIVE'}
+            </span>
           </h1>
           <p className="text-gray-400 mt-1">
-            Aggregated view of all connected trading accounts
+            {isSimulation 
+              ? 'Simulated balances - No real money at risk'
+              : 'Real exchange balances - Live trading enabled'}
           </p>
         </div>
         <button
@@ -182,14 +206,19 @@ export default function BalancesPage() {
         >
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-400">Total Portfolio</p>
+              <p className="text-sm text-gray-400">
+                {isSimulation ? 'Simulated Portfolio' : 'Total Portfolio'}
+              </p>
               <p className="text-3xl font-bold text-green-400 mt-1">
-                ${balance?.total_portfolio_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}
+                ${isSimulation 
+                  ? simulatedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  : (balance?.total_portfolio_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00')
+                }
               </p>
             </div>
             <DollarSign className="w-10 h-10 text-green-500/50" />
           </div>
-          {change24h !== 0 && (
+          {!isSimulation && change24h !== 0 && (
             <div className={`flex items-center gap-1 mt-2 text-sm ${change24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
               {change24h > 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               {Math.abs(change24h).toFixed(2)}% (24h)
@@ -207,7 +236,10 @@ export default function BalancesPage() {
             <div>
               <p className="text-sm text-gray-400">Cash Balance</p>
               <p className="text-2xl font-bold mt-1">
-                ${balance?.total_cash_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}
+                ${isSimulation 
+                  ? simulatedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  : (balance?.total_cash_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00')
+                }
               </p>
             </div>
             <Coins className="w-8 h-8 text-blue-500/50" />
@@ -243,7 +275,7 @@ export default function BalancesPage() {
             <div>
               <p className="text-sm text-gray-400">Connected Platforms</p>
               <p className="text-2xl font-bold mt-1">
-                {balance?.platforms.length || 0}
+                {connectionSummary.totalConnected}
               </p>
             </div>
             <Building2 className="w-8 h-8 text-orange-500/50" />
@@ -289,15 +321,11 @@ export default function BalancesPage() {
             <span className="text-2xl">🎯</span>
             Prediction Markets
           </h2>
-          {predictionMarkets.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {predictionMarkets.map((platform) => (
-                <PlatformCard key={platform.platform} platform={platform} />
-              ))}
-            </div>
-          ) : (
-            <EmptyPlatformCard type="prediction_market" />
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {connectionSummary.predictionMarkets.map((platform) => (
+              <ConnectedPlatformCard key={platform.name} platform={platform} isSimulation={isSimulation} />
+            ))}
+          </div>
         </div>
 
         {/* Crypto Exchanges */}
@@ -306,15 +334,11 @@ export default function BalancesPage() {
             <span className="text-2xl">₿</span>
             Crypto Exchanges
           </h2>
-          {cryptoExchanges.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {cryptoExchanges.map((platform) => (
-                <PlatformCard key={platform.platform} platform={platform} />
-              ))}
-            </div>
-          ) : (
-            <EmptyPlatformCard type="crypto_exchange" />
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {connectionSummary.cryptoExchanges.map((platform) => (
+              <ConnectedPlatformCard key={platform.name} platform={platform} isSimulation={isSimulation} />
+            ))}
+          </div>
         </div>
 
         {/* Stock Brokers */}
@@ -323,15 +347,11 @@ export default function BalancesPage() {
             <span className="text-2xl">📈</span>
             Stock Brokers
           </h2>
-          {stockBrokers.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stockBrokers.map((platform) => (
-                <PlatformCard key={platform.platform} platform={platform} />
-              ))}
-            </div>
-          ) : (
-            <EmptyPlatformCard type="stock_broker" />
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {connectionSummary.stockBrokers.map((platform) => (
+              <ConnectedPlatformCard key={platform.name} platform={platform} isSimulation={isSimulation} />
+            ))}
+          </div>
         </div>
       </div>
 
@@ -411,6 +431,87 @@ function PlatformCard({ platform }: { platform: PlatformBalance }) {
           <Clock className="w-3 h-3" />
           {new Date(platform.last_updated).toLocaleTimeString()}
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// New component that shows connection status from secrets
+function ConnectedPlatformCard({ platform, isSimulation }: { platform: { name: string; type: string; icon: string; connected: boolean; keys_configured: string[]; keys_missing: string[] }; isSimulation: boolean }) {
+  const colorClasses: Record<string, string> = {
+    prediction_market: 'from-purple-500/20 to-blue-500/20 border-purple-500/30',
+    crypto_exchange: 'from-orange-500/20 to-yellow-500/20 border-orange-500/30',
+    stock_broker: 'from-green-500/20 to-emerald-500/20 border-green-500/30',
+  };
+  
+  const colorClass = colorClasses[platform.type] || 'border-gray-500/30';
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className={`card bg-gradient-to-br ${colorClass} p-5`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">{platform.icon}</span>
+          <div>
+            <h3 className="font-bold">{platform.name}</h3>
+            <p className="text-xs text-gray-400 capitalize">
+              {platform.type.replace('_', ' ')}
+            </p>
+          </div>
+        </div>
+        {platform.connected ? (
+          <CheckCircle2 className="w-5 h-5 text-green-400" />
+        ) : (
+          <AlertCircle className="w-5 h-5 text-yellow-400" />
+        )}
+      </div>
+      
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm text-gray-400">Status</p>
+          <p className={`text-lg font-bold ${platform.connected ? 'text-green-400' : 'text-yellow-400'}`}>
+            {platform.connected ? 'Connected' : 'Not Configured'}
+          </p>
+        </div>
+        
+        {platform.connected ? (
+          <div className="pt-3 border-t border-gray-700/50">
+            <p className="text-xs text-gray-500 mb-2">API Keys Configured:</p>
+            <div className="flex flex-wrap gap-1">
+              {platform.keys_configured.map(key => (
+                <span key={key} className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">
+                  {key.replace(/_/g, ' ').toLowerCase()}
+                </span>
+              ))}
+            </div>
+            {isSimulation && (
+              <p className="text-xs text-yellow-400 mt-2 flex items-center gap-1">
+                <span>📝</span> Paper trading mode - no real trades
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="pt-3 border-t border-gray-700/50">
+            <p className="text-xs text-gray-500 mb-2">Missing Keys:</p>
+            <div className="flex flex-wrap gap-1 mb-3">
+              {platform.keys_missing.map(key => (
+                <span key={key} className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded">
+                  {key.replace(/_/g, ' ').toLowerCase()}
+                </span>
+              ))}
+            </div>
+            <Link 
+              href="/secrets"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs transition-colors"
+            >
+              <Key className="w-3 h-3" />
+              Configure API Keys
+            </Link>
+          </div>
+        )}
       </div>
     </motion.div>
   );

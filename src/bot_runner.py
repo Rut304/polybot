@@ -111,11 +111,6 @@ class PolybotRunner:
         enable_news_sentiment: bool = True,
         simulation_mode: bool = True,
     ):
-        self.wallet_address = wallet_address or os.getenv("WALLET_ADDRESS", "")
-        self.private_key = private_key or os.getenv("PRIVATE_KEY")
-        self.kalshi_api_key = kalshi_api_key or os.getenv("KALSHI_API_KEY")
-        self.kalshi_private_key = kalshi_private_key or os.getenv("KALSHI_PRIVATE_KEY")
-        self.news_api_key = news_api_key or os.getenv("NEWS_API_KEY")
         self.simulation_mode = simulation_mode
         
         # Feature flags
@@ -124,8 +119,16 @@ class PolybotRunner:
         self.enable_position_manager = enable_position_manager
         self.enable_news_sentiment = enable_news_sentiment
         
-        # Initialize database
+        # Initialize database FIRST (needed for secrets)
         self.db = Database()
+        
+        # Load secrets from centralized Supabase store
+        # This allows key rotation without code changes
+        self.wallet_address = wallet_address or self.db.get_secret("POLYMARKET_WALLET_ADDRESS") or os.getenv("WALLET_ADDRESS", "")
+        self.private_key = private_key or self.db.get_secret("POLYMARKET_PRIVATE_KEY") or os.getenv("PRIVATE_KEY")
+        self.kalshi_api_key = kalshi_api_key or self.db.get_secret("KALSHI_API_KEY") or os.getenv("KALSHI_API_KEY")
+        self.kalshi_private_key = kalshi_private_key or self.db.get_secret("KALSHI_PRIVATE_KEY") or os.getenv("KALSHI_PRIVATE_KEY")
+        self.news_api_key = news_api_key or self.db.get_secret("FINNHUB_API_KEY") or self.db.get_secret("NEWS_API_KEY") or os.getenv("NEWS_API_KEY")
         
         # Load config from Supabase for autonomous operation
         # This allows config changes without redeployment
@@ -523,20 +526,25 @@ class PolybotRunner:
         
         # =====================================================================
         # STOCK STRATEGIES (Alpaca)
+        # Uses centralized secrets from Supabase polybot_secrets table
         # =====================================================================
         
-        # Initialize Alpaca client if enabled
-        alpaca_api_key = os.getenv("ALPACA_API_KEY")
-        alpaca_api_secret = os.getenv("ALPACA_API_SECRET")
-        alpaca_paper = os.getenv("ALPACA_PAPER", "true").lower() == "true"
+        # Get Alpaca credentials from centralized secrets manager
+        # Automatically picks paper vs live keys based on simulation_mode
+        alpaca_creds = self.db.get_alpaca_credentials(is_paper=self.simulation_mode)
+        alpaca_api_key = alpaca_creds.get('api_key')
+        alpaca_api_secret = alpaca_creds.get('api_secret')
+        alpaca_base_url = alpaca_creds.get('base_url')
         
         if self.config.trading.enable_alpaca and alpaca_api_key and alpaca_api_secret:
             self.alpaca_client = AlpacaClient(
                 api_key=alpaca_api_key,
                 api_secret=alpaca_api_secret,
-                paper=alpaca_paper,
+                paper=self.simulation_mode,  # Use simulation_mode flag
+                base_url=alpaca_base_url,
             )
-            logger.info(f"✓ Alpaca client initialized ({'PAPER' if alpaca_paper else 'LIVE'})")
+            mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
+            logger.info(f"✓ Alpaca client initialized ({mode_str}) - keys from Supabase")
         
         # Initialize Stock Mean Reversion Strategy (70% CONFIDENCE - 15-30% APY)
         if self.config.trading.enable_stock_mean_reversion and self.alpaca_client:

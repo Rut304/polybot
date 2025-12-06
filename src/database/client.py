@@ -45,11 +45,153 @@ class Database:
             logger.warning("Supabase package not available - database features disabled")
         else:
             logger.warning(f"Supabase credentials missing (URL: {'set' if self.url else 'missing'}, KEY: {'set' if self.key else 'missing'}) - database features disabled")
+        
+        # Secrets cache (loaded once, refreshed on demand)
+        self._secrets_cache: Dict[str, str] = {}
+        self._secrets_loaded = False
     
     @property
     def is_connected(self) -> bool:
         return self._client is not None
     
+    # ==================== Secrets Management ====================
+    # Single source of truth for all API keys - reads from polybot_secrets table
+    
+    def load_secrets(self, force_refresh: bool = False) -> Dict[str, str]:
+        """
+        Load all secrets from Supabase polybot_secrets table.
+        Caches results to avoid repeated DB calls.
+        
+        Args:
+            force_refresh: If True, bypass cache and reload from DB
+            
+        Returns:
+            Dict of key_name -> key_value for all configured secrets
+        """
+        if self._secrets_loaded and not force_refresh:
+            return self._secrets_cache
+        
+        if not self._client:
+            logger.warning("Database not connected, falling back to environment variables")
+            return {}
+        
+        try:
+            result = self._client.table("polybot_secrets").select(
+                "key_name, key_value"
+            ).eq("is_configured", True).execute()
+            
+            self._secrets_cache = {
+                row["key_name"]: row["key_value"]
+                for row in (result.data or [])
+                if row.get("key_value")
+            }
+            self._secrets_loaded = True
+            logger.info(f"✓ Loaded {len(self._secrets_cache)} secrets from Supabase")
+            return self._secrets_cache
+            
+        except Exception as e:
+            logger.error(f"Failed to load secrets from Supabase: {e}")
+            return {}
+    
+    def get_secret(self, key_name: str, default: Optional[str] = None) -> Optional[str]:
+        """
+        Get a single secret by key name.
+        Falls back to environment variable if not in Supabase.
+        
+        Args:
+            key_name: The secret key name (e.g., 'BINANCE_API_KEY')
+            default: Default value if not found
+            
+        Returns:
+            The secret value or default
+        """
+        # Load secrets if not already loaded
+        if not self._secrets_loaded:
+            self.load_secrets()
+        
+        # Check Supabase cache first
+        value = self._secrets_cache.get(key_name)
+        if value:
+            return value
+        
+        # Fall back to environment variable
+        env_value = os.getenv(key_name)
+        if env_value:
+            logger.debug(f"Secret {key_name} loaded from environment (not in Supabase)")
+            return env_value
+        
+        return default
+    
+    def get_alpaca_credentials(self, is_paper: bool = True) -> Dict[str, Optional[str]]:
+        """
+        Get Alpaca API credentials based on trading mode.
+        
+        Args:
+            is_paper: If True, return paper trading keys; else return live keys
+            
+        Returns:
+            Dict with 'api_key', 'api_secret', 'base_url'
+        """
+        if is_paper:
+            return {
+                'api_key': (
+                    self.get_secret('ALPACA_PAPER_API_KEY') or 
+                    self.get_secret('ALPACA_API_KEY')
+                ),
+                'api_secret': (
+                    self.get_secret('ALPACA_PAPER_API_SECRET') or 
+                    self.get_secret('ALPACA_API_SECRET')
+                ),
+                'base_url': 'https://paper-api.alpaca.markets',
+            }
+        else:
+            return {
+                'api_key': (
+                    self.get_secret('ALPACA_LIVE_API_KEY') or 
+                    self.get_secret('ALPACA_API_KEY')
+                ),
+                'api_secret': (
+                    self.get_secret('ALPACA_LIVE_API_SECRET') or 
+                    self.get_secret('ALPACA_API_SECRET')
+                ),
+                'base_url': 'https://api.alpaca.markets',
+            }
+    
+    def get_binance_credentials(self) -> Dict[str, Optional[str]]:
+        """Get Binance API credentials."""
+        return {
+            'api_key': self.get_secret('BINANCE_API_KEY'),
+            'api_secret': self.get_secret('BINANCE_API_SECRET'),
+        }
+    
+    def get_polymarket_credentials(self) -> Dict[str, Optional[str]]:
+        """Get Polymarket API credentials."""
+        return {
+            'api_key': self.get_secret('POLYMARKET_API_KEY'),
+            'api_secret': self.get_secret('POLYMARKET_SECRET'),
+            'private_key': self.get_secret('POLYMARKET_PRIVATE_KEY'),
+            'wallet_address': self.get_secret('WALLET_ADDRESS'),
+        }
+    
+    def get_kalshi_credentials(self) -> Dict[str, Optional[str]]:
+        """Get Kalshi API credentials."""
+        return {
+            'api_key': self.get_secret('KALSHI_API_KEY'),
+            'private_key': self.get_secret('KALSHI_PRIVATE_KEY'),
+        }
+    
+    def get_news_api_credentials(self) -> Dict[str, Optional[str]]:
+        """Get news/sentiment API credentials."""
+        return {
+            'finnhub_key': self.get_secret('FINNHUB_API_KEY'),
+            'newsapi_key': self.get_secret('NEWSAPI_KEY') or self.get_secret('NEWS_API_KEY'),
+            'twitter_bearer': self.get_secret('TWITTER_BEARER_TOKEN'),
+        }
+    
+    def refresh_secrets(self) -> Dict[str, str]:
+        """Force refresh secrets from database."""
+        return self.load_secrets(force_refresh=True)
+
     # ==================== Opportunities ====================
     
     def log_opportunity(self, opportunity: Dict[str, Any]) -> Optional[int]:

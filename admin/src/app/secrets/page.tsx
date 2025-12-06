@@ -109,8 +109,20 @@ const CATEGORY_INFO: Record<string, CategoryInfo> = {
     color: 'from-pink-500/20 to-rose-500/20',
     description: 'News and social sentiment data',
     signupLinks: [
+      { name: 'Finnhub (Recommended)', url: 'https://finnhub.io/register' },
       { name: 'NewsAPI', url: 'https://newsapi.org/register' },
       { name: 'Twitter Developer', url: 'https://developer.twitter.com/en/portal/dashboard' },
+    ],
+  },
+  news_sentiment: {
+    title: 'News & Sentiment',
+    icon: <span className="text-2xl">📊</span>,
+    color: 'from-indigo-500/20 to-violet-500/20',
+    description: 'Market news APIs and social sentiment analysis',
+    signupLinks: [
+      { name: 'Finnhub (Best Free)', url: 'https://finnhub.io/register' },
+      { name: 'NewsAPI', url: 'https://newsapi.org/register' },
+      { name: 'Twitter/X API', url: 'https://developer.twitter.com/en/portal/dashboard' },
     ],
   },
 };
@@ -129,7 +141,8 @@ export default function SecretsPage() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     prediction_markets: true,
     crypto_exchanges: true,
-    stock_brokers: false,
+    stock_brokers: true,
+    news_sentiment: true,
     infrastructure: false,
     notifications: false,
     data_feeds: false,
