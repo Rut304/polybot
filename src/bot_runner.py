@@ -709,7 +709,7 @@ class PolybotRunner:
             sell_platform=opp.sell_platform,
             market=opp.buy_market_name[:100],
             profit_percent=opp.profit_percent,
-            trade_size=self.config.trading.max_position_size,
+            trade_size=self.config.trading.max_trade_size,
         )
         
         # Log to database
@@ -788,7 +788,7 @@ class PolybotRunner:
             sell_platform=opp.platform,  # Same platform for single-platform
             market=opp.market_title[:100],
             profit_percent=float(opp.profit_pct),
-            trade_size=self.config.trading.max_position_size,
+            trade_size=self.config.trading.max_trade_size,
         )
         
         # Log to database
@@ -1178,7 +1178,7 @@ class PolybotRunner:
         # Send startup notification
         self.notifier.send_startup(
             dry_run=self.simulation_mode,
-            max_trade_size=self.config.trading.max_position_size,
+            max_trade_size=self.config.trading.max_trade_size,
         )
         
         # Create tasks for each enabled feature
