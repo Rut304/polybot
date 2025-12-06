@@ -4,179 +4,244 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
-// AWS credentials for SSM
+// AWS credentials for Lightsail Container Service
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
 const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-const LIGHTSAIL_INSTANCE_NAME = process.env.LIGHTSAIL_INSTANCE_NAME || 'polybot';
+const LIGHTSAIL_SERVICE_NAME = process.env.LIGHTSAIL_SERVICE_NAME || 'polyparlay';
 
 export async function POST(request: Request) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
   
   try {
     const body = await request.json().catch(() => ({}));
-    const action = body.action || 'restart'; // restart, stop, start, status
-    
-    // Log the action attempt
-    await supabase.from('audit_log').insert({
-      action: `bot.${action}`,
-      details: { action, timestamp: new Date().toISOString() },
-      performed_by: 'admin-ui',
-    }).catch(() => {}); // Don't fail if audit log doesn't exist
+    const action = body.action || 'restart'; // restart, status
 
-    // Method 1: Try AWS Systems Manager (SSM) for direct command execution
-    if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
-      try {
-        const result = await restartViaSSM(action);
-        if (result.success) {
-          return NextResponse.json(result);
+    // Log the action attempt
+    try {
+      await supabase.from('audit_log').insert({
+        action: `bot.${action}`,
+        details: { action, service: LIGHTSAIL_SERVICE_NAME, timestamp: new Date().toISOString() },
+        performed_by: 'admin-ui',
+      });
+    } catch (e) {
+      // Don't fail if audit log doesn't exist
+      console.log('Audit log not available:', e);
+    }
+
+    // Check if AWS credentials are configured
+    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+      return NextResponse.json({
+        success: false,
+        error: 'AWS credentials not configured. Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env.local',
+      }, { status: 500 });
+    }
+
+    // Use Lightsail Container Service API
+    const { LightsailClient, GetContainerServicesCommand, CreateContainerServiceDeploymentCommand } = 
+      await import('@aws-sdk/client-lightsail');
+
+    const client = new LightsailClient({
+      region: AWS_REGION,
+      credentials: {
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+      },
+    });
+
+    // Get current service configuration
+    const getServiceCmd = new GetContainerServicesCommand({
+      serviceName: LIGHTSAIL_SERVICE_NAME,
+    });
+    
+    const serviceResponse = await client.send(getServiceCmd);
+    const service = serviceResponse.containerServices?.[0];
+
+    if (!service) {
+      return NextResponse.json({
+        success: false,
+        error: `Lightsail Container Service "${LIGHTSAIL_SERVICE_NAME}" not found`,
+      }, { status: 404 });
+    }
+
+    if (action === 'status') {
+      return NextResponse.json({
+        success: true,
+        status: service.state,
+        url: service.url,
+        currentDeployment: service.currentDeployment?.state,
+        createdAt: service.createdAt,
+        power: service.power,
+        scale: service.scale,
+      });
+    }
+
+    // For restart: Create a new deployment with the same config
+    // This effectively restarts the container
+    const currentDeployment = service.currentDeployment;
+    
+    // Fetch latest secrets from Supabase to inject into the container
+    const { data: secrets } = await supabase
+      .from('polybot_secrets')
+      .select('key_name, key_value')
+      .eq('is_configured', true);
+
+    // Build environment variables from secrets
+    const environment: Record<string, string> = {};
+    if (secrets) {
+      for (const secret of secrets) {
+        if (secret.key_value) {
+          environment[secret.key_name] = secret.key_value;
         }
-      } catch (ssmError: any) {
-        console.log('SSM method failed, trying alternative:', ssmError.message);
       }
     }
 
-    // Method 2: Set a flag in the database that the bot watches
-    // The bot can check this flag and restart itself
-    const { error: flagError } = await supabase
-      .from('polybot_config')
-      .update({ 
-        restart_requested: true,
-        restart_requested_at: new Date().toISOString(),
-        restart_action: action,
-      })
-      .eq('id', 1);
+    let updatedContainers: Record<string, any> = {};
+    let publicEndpoint: any = undefined;
 
-    if (flagError) {
-      // Try creating the column if it doesn't exist (first time)
-      console.log('Could not set restart flag:', flagError.message);
+    if (currentDeployment?.containers) {
+      // Use existing deployment config
+      const containers = currentDeployment.containers;
+      publicEndpoint = currentDeployment.publicEndpoint;
+
+      // Update the container config with new environment
+      for (const [containerName, containerConfig] of Object.entries(containers)) {
+        updatedContainers[containerName] = {
+          ...containerConfig,
+          environment: {
+            ...((containerConfig as any).environment || {}),
+            ...environment,
+          },
+        };
+      }
+    } else {
+      // No current deployment - create fresh deployment with latest image
+      const { GetContainerImagesCommand } = await import('@aws-sdk/client-lightsail');
+      
+      const imagesCmd = new GetContainerImagesCommand({
+        serviceName: LIGHTSAIL_SERVICE_NAME,
+      });
+      const imagesResponse = await client.send(imagesCmd);
+      const latestImage = imagesResponse.containerImages?.[0]?.image;
+
+      if (!latestImage) {
+        return NextResponse.json({
+          success: false,
+          error: 'No container images found. Push a Docker image first using: aws lightsail push-container-image',
+        }, { status: 400 });
+      }
+
+      // Create container config with the latest image
+      updatedContainers = {
+        polybot: {
+          image: latestImage,
+          environment,
+          ports: {
+            '8080': 'HTTP',
+          },
+        },
+      };
+
+      // Set up public endpoint
+      publicEndpoint = {
+        containerName: 'polybot',
+        containerPort: 8080,
+        healthCheck: {
+          healthyThreshold: 2,
+          unhealthyThreshold: 2,
+          timeoutSeconds: 5,
+          intervalSeconds: 10,
+          path: '/health',
+          successCodes: '200-499',
+        },
+      };
     }
 
-    // Method 3: Return instructions for manual restart
+    // Create new deployment (this restarts the container with updated config)
+    const deployCmd = new CreateContainerServiceDeploymentCommand({
+      serviceName: LIGHTSAIL_SERVICE_NAME,
+      containers: updatedContainers,
+      publicEndpoint: publicEndpoint ? {
+        containerName: publicEndpoint.containerName,
+        containerPort: publicEndpoint.containerPort,
+        healthCheck: publicEndpoint.healthCheck,
+      } : undefined,
+    });
+
+    const deployResponse = await client.send(deployCmd);
+
     return NextResponse.json({
       success: true,
-      method: 'manual',
-      message: `Bot ${action} requested. If SSM is not configured, restart manually via SSH.`,
-      instructions: [
-        `ssh -i keys/lightsail-key.pem ubuntu@<LIGHTSAIL_IP>`,
-        `cd polybot`,
-        action === 'restart' ? `docker-compose restart` : 
-        action === 'stop' ? `docker-compose stop` :
-        action === 'start' ? `docker-compose up -d` :
-        `docker-compose ps`,
-      ],
-      note: 'Configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for one-click restart via SSM.',
+      message: 'Bot restart triggered! New deployment is being created.',
+      deployment: {
+        state: deployResponse.containerService?.nextDeployment?.state || 'ACTIVATING',
+        version: deployResponse.containerService?.nextDeployment?.version,
+      },
+      note: 'The bot will restart within 1-2 minutes. Check status on the dashboard.',
+      serviceUrl: service.url,
     });
 
   } catch (error: any) {
     console.error('Bot restart error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to restart bot' },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Failed to restart bot',
+    }, { status: 500 });
   }
 }
 
-async function restartViaSSM(action: string): Promise<{ success: boolean; message: string; commandId?: string }> {
-  const { SSMClient, SendCommandCommand, GetCommandInvocationCommand } = await import('@aws-sdk/client-ssm');
-  const { LightsailClient, GetInstanceCommand } = await import('@aws-sdk/client-lightsail');
-  
-  const ssmClient = new SSMClient({
-    region: AWS_REGION,
-    credentials: {
-      accessKeyId: AWS_ACCESS_KEY_ID,
-      secretAccessKey: AWS_SECRET_ACCESS_KEY,
-    },
-  });
-
-  const lightsailClient = new LightsailClient({
-    region: AWS_REGION,
-    credentials: {
-      accessKeyId: AWS_ACCESS_KEY_ID,
-      secretAccessKey: AWS_SECRET_ACCESS_KEY,
-    },
-  });
-
-  // Get instance ID from Lightsail
-  const instanceCmd = new GetInstanceCommand({ instanceName: LIGHTSAIL_INSTANCE_NAME });
-  const instanceResponse = await lightsailClient.send(instanceCmd);
-  
-  if (!instanceResponse.instance) {
-    throw new Error(`Lightsail instance "${LIGHTSAIL_INSTANCE_NAME}" not found`);
-  }
-
-  // Map action to docker-compose command
-  const dockerCommand = 
-    action === 'restart' ? 'docker-compose restart' :
-    action === 'stop' ? 'docker-compose stop' :
-    action === 'start' ? 'docker-compose up -d' :
-    action === 'logs' ? 'docker-compose logs --tail=100' :
-    'docker-compose ps';
-
-  // SSM requires the instance to have the SSM agent installed and registered
-  // For Lightsail, this might require additional setup
-  const command = new SendCommandCommand({
-    InstanceIds: [instanceResponse.instance.name!], // SSM uses instance IDs
-    DocumentName: 'AWS-RunShellScript',
-    Parameters: {
-      commands: [
-        'cd /home/ubuntu/polybot || cd ~/polybot',
-        dockerCommand,
-      ],
-    },
-  });
-
-  const sendResult = await ssmClient.send(command);
-  
-  return {
-    success: true,
-    message: `Bot ${action} command sent successfully`,
-    commandId: sendResult.Command?.CommandId,
-  };
-}
-
-// GET endpoint to check bot status
+// GET endpoint to check bot/service status
 export async function GET() {
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-  
   try {
-    // Check last heartbeat from the bot
-    const { data: status, error } = await supabase
-      .from('polybot_status')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !status) {
-      // Try polybot_config as fallback
-      const { data: config } = await supabase
-        .from('polybot_config')
-        .select('updated_at, simulation_mode')
-        .eq('id', 1)
-        .single();
-
+    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
       return NextResponse.json({
         status: 'unknown',
-        message: 'No status table found. Bot may be running but not reporting status.',
-        lastConfig: config,
+        error: 'AWS credentials not configured',
       });
     }
 
-    const lastHeartbeat = new Date(status.updated_at);
-    const now = new Date();
-    const diffMinutes = (now.getTime() - lastHeartbeat.getTime()) / (1000 * 60);
+    const { LightsailClient, GetContainerServicesCommand } = 
+      await import('@aws-sdk/client-lightsail');
+
+    const client = new LightsailClient({
+      region: AWS_REGION,
+      credentials: {
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+      },
+    });
+
+    const getServiceCmd = new GetContainerServicesCommand({
+      serviceName: LIGHTSAIL_SERVICE_NAME,
+    });
+
+    const serviceResponse = await client.send(getServiceCmd);
+    const service = serviceResponse.containerServices?.[0];
+
+    if (!service) {
+      return NextResponse.json({
+        status: 'not_found',
+        error: `Service "${LIGHTSAIL_SERVICE_NAME}" not found`,
+      });
+    }
 
     return NextResponse.json({
-      status: diffMinutes < 5 ? 'running' : diffMinutes < 30 ? 'stale' : 'stopped',
-      lastHeartbeat: status.updated_at,
-      minutesSinceHeartbeat: Math.round(diffMinutes),
-      details: status,
+      status: service.state === 'READY' ? 'running' : service.state?.toLowerCase(),
+      serviceState: service.state,
+      deploymentState: service.currentDeployment?.state,
+      url: service.url,
+      power: service.power,
+      scale: service.scale,
+      containers: Object.keys(service.currentDeployment?.containers || {}),
+      createdAt: service.createdAt,
+      isHealthy: service.state === 'READY' && service.currentDeployment?.state === 'ACTIVE',
     });
+
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message, status: 'error' },
-      { status: 500 }
-    );
+    console.error('Status check error:', error);
+    return NextResponse.json({
+      status: 'error',
+      error: error.message,
+    }, { status: 500 });
   }
 }
