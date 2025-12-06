@@ -1358,9 +1358,34 @@ async def main():
         await runner.shutdown()
 
 
+def get_version():
+    """Get version from VERSION file."""
+    import os
+    version_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'VERSION')
+    try:
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    except:
+        return "1.0.0"
+
+def get_build_number():
+    """Get build number from git commit count."""
+    import subprocess
+    try:
+        result = subprocess.run(['git', 'rev-list', '--count', 'HEAD'], 
+                                capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
+        return int(result.stdout.strip())
+    except:
+        return 0
+
+
 async def start_health_server(port: int = 8080):
     """Start a simple HTTP health check server for Lightsail."""
     from aiohttp import web
+    import os
+    
+    version = get_version()
+    build = get_build_number()
     
     async def health_handler(request):
         return web.Response(text="OK", status=200)
@@ -1369,7 +1394,9 @@ async def start_health_server(port: int = 8080):
         return web.json_response({
             "status": "running",
             "service": "polybot",
-            "version": "1.0.0",
+            "version": version,
+            "build": build,
+            "fullVersion": f"v{version} (Build #{build})",
         })
     
     app = web.Application()
@@ -1381,7 +1408,7 @@ async def start_health_server(port: int = 8080):
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
-    logger.info(f"Health server started on port {port}")
+    logger.info(f"Health server started on port {port} - v{version} (Build #{build})")
     
     # Keep running until cancelled
     try:
