@@ -74,53 +74,6 @@ const strategyColors: Record<string, string> = {
   manual: 'bg-gray-500/20 text-gray-400',
 };
 
-// Sample data for demo - used when no real positions exist
-const samplePositions: Position[] = [
-  {
-    id: '1',
-    platform: 'Polymarket',
-    market: 'Will Bitcoin reach $100k in 2024?',
-    market_slug: 'btc-100k-2024',
-    side: 'yes',
-    size: 100,
-    entry_price: 0.65,
-    current_price: 0.72,
-    unrealized_pnl: 10.77,
-    unrealized_pnl_pct: 10.77,
-    strategy: 'single_platform_arb',
-    opened_at: new Date(Date.now() - 3600000).toISOString(),
-    status: 'open',
-  },
-  {
-    id: '2',
-    platform: 'Binance',
-    market: 'BTC/USDT',
-    side: 'long',
-    size: 500,
-    entry_price: 42150,
-    current_price: 43200,
-    unrealized_pnl: 12.47,
-    unrealized_pnl_pct: 2.49,
-    strategy: 'funding_rate_arb',
-    opened_at: new Date(Date.now() - 86400000).toISOString(),
-    status: 'open',
-  },
-  {
-    id: '3',
-    platform: 'Binance',
-    market: 'BTC/USDT-PERP',
-    side: 'short',
-    size: 500,
-    entry_price: 42180,
-    current_price: 43200,
-    unrealized_pnl: -12.10,
-    unrealized_pnl_pct: -2.42,
-    strategy: 'funding_rate_arb',
-    opened_at: new Date(Date.now() - 86400000).toISOString(),
-    status: 'open',
-  },
-];
-
 // Tooltips for position fields
 const FIELD_TOOLTIPS = {
   size: 'Total USD value of this position',

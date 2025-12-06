@@ -338,21 +338,52 @@ export function useBotConfig() {
   });
 }
 
-// Fetch user positions (active bets)
+// Fetch user positions (active bets from simulated trades)
 export function usePositions() {
   return useQuery({
     queryKey: ['positions'],
     queryFn: async () => {
+      // Query pending (open) trades from simulated_trades
       const { data, error } = await supabase
-        .from('polybot_positions')
+        .from('polybot_simulated_trades')
         .select('*')
+        .eq('outcome', 'pending')
         .order('created_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching positions:', error);
         return [];
       }
-      return data || [];
+      
+      // Map to position format
+      return (data || []).map((trade: any) => {
+        let platform = 'Kalshi';
+        if (trade.arbitrage_type?.includes('poly')) {
+          platform = 'Polymarket';
+        } else if (trade.arbitrage_type?.includes('binance') || trade.trade_type?.includes('funding')) {
+          platform = 'Binance';
+        }
+        
+        const entryPrice = parseFloat(trade.polymarket_yes_price) || parseFloat(trade.kalshi_yes_price) || 0;
+        const size = parseFloat(trade.position_size_usd) || 0;
+        
+        return {
+          id: trade.id?.toString(),
+          position_id: trade.position_id,
+          platform,
+          market: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown',
+          market_id: trade.polymarket_token_id || trade.kalshi_ticker,
+          side: trade.polymarket_yes_price > 0 ? 'yes' : 'no',
+          cost_basis: size,
+          current_value: size,
+          avg_price: entryPrice,
+          current_price: entryPrice,
+          unrealized_pnl: parseFloat(trade.actual_profit_usd) || 0,
+          strategy: trade.arbitrage_type || trade.trade_type || 'unknown',
+          is_automated: true,
+          created_at: trade.created_at,
+        };
+      });
     },
     refetchInterval: 5000,
   });
