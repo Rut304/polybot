@@ -226,7 +226,7 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      status: service.state === 'READY' ? 'running' : service.state?.toLowerCase(),
+      status: (service.state === 'READY' || service.state === 'RUNNING') ? 'running' : service.state?.toLowerCase(),
       serviceState: service.state,
       deploymentState: service.currentDeployment?.state,
       url: service.url,
@@ -234,7 +234,7 @@ export async function GET() {
       scale: service.scale,
       containers: Object.keys(service.currentDeployment?.containers || {}),
       createdAt: service.createdAt,
-      isHealthy: service.state === 'READY' && service.currentDeployment?.state === 'ACTIVE',
+      isHealthy: (service.state === 'READY' || service.state === 'RUNNING') && service.currentDeployment?.state === 'ACTIVE',
     });
 
   } catch (error: any) {
