@@ -48,14 +48,17 @@ logger = logging.getLogger(__name__)
 
 # Mapping of exchange names to CCXT exchange IDs
 EXCHANGE_MAPPING = {
-    'binance': 'binance',
+    'binance': 'binanceus',  # Use Binance.US for US users
+    'binanceus': 'binanceus',
+    'binance_intl': 'binance',  # International Binance (not available in US)
     'binance_futures': 'binanceusdm',
     'binance_coin_futures': 'binancecoinm',
     'bybit': 'bybit',
     'okx': 'okx',
     'kraken': 'kraken',
     'kraken_futures': 'krakenfutures',
-    'coinbase': 'coinbasepro',
+    'coinbase': 'coinbase',  # Updated to use coinbase (not coinbasepro which is deprecated)
+    'coinbasepro': 'coinbase',
     'kucoin': 'kucoin',
     'kucoin_futures': 'kucoinfutures',
     'gate': 'gate',
