@@ -31,8 +31,9 @@ class Database:
     
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
         # Auto-fetch from environment if not provided
+        # Use SERVICE_ROLE key to access secrets (bypasses RLS)
         self.url = url or os.getenv("SUPABASE_URL")
-        self.key = key or os.getenv("SUPABASE_KEY")
+        self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         self._client: Optional[Client] = None
         
         if self.url and self.key and SUPABASE_AVAILABLE:
