@@ -318,7 +318,7 @@ class Config:
     2. Environment variables (fallback for local dev)
     3. Hardcoded defaults
     
-    This ensures the bot can run autonomously on AWS/ECS without
+    This ensures the bot can run autonomously on AWS Lightsail without
     depending on local .env files.
     """
     

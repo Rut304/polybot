@@ -556,82 +556,25 @@ export function useToggleMarketDisabled() {
 }
 
 // Reset simulation - clears all trades and resets balance to $5,000
+// Uses server-side API for proper audit logging and validation
 export function useResetSimulation() {
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: async () => {
-      // Delete all simulated trades
-      const { error: tradesError } = await supabase
-        .from('polybot_simulated_trades')
-        .delete()
-        .neq('id', 0); // Delete all
-      
-      if (tradesError) throw tradesError;
-      
-      // Delete all simulation history
-      const { error: historyError } = await supabase
-        .from('polybot_simulation_stats')
-        .delete()
-        .neq('id', 0); // Delete all
-      
-      if (historyError) throw historyError;
-      
-      // Delete all opportunities
-      const { error: oppsError } = await supabase
-        .from('polybot_opportunities')
-        .delete()
-        .neq('id', 0); // Delete all
-      
-      if (oppsError) throw oppsError;
-      
-      // Reset bot status session counters
-      const { error: statusError } = await supabase
-        .from('polybot_status')
-        .update({
-          opportunities_this_session: 0,
-          trades_this_session: 0,
-        })
-        .neq('id', 0); // Update all rows
-      
-      if (statusError) console.warn('Could not reset status counters:', statusError);
-      
-      // Insert fresh starting stats with $5000 balance
-      const { error: statsError } = await supabase
-        .from('polybot_simulation_stats')
-        .insert({
-          snapshot_at: new Date().toISOString(),
-          simulated_balance: 5000,
-          total_pnl: 0,
-          total_trades: 0,
-          win_rate: 0,
-          stats_json: {
-            total_opportunities_seen: 0,
-            total_simulated_trades: 0,
-            simulated_starting_balance: '5000.00',
-            simulated_current_balance: '5000.00',
-            total_pnl: '0.00',
-            winning_trades: 0,
-            losing_trades: 0,
-            pending_trades: 0,
-            win_rate_pct: 0,
-            roi_pct: 0,
-            best_trade_profit: '0.00',
-            worst_trade_loss: '0.00',
-            largest_opportunity_seen_pct: '0.00',
-            first_opportunity_at: null,
-            last_opportunity_at: null,
-            execution_success_rate_pct: 100,
-            total_fees_paid: '0.00',
-            total_losses: '0.00',
-            failed_executions: 0,
-            avg_trade_pnl: '0.00',
-          },
-        });
-      
-      if (statsError) throw statsError;
-      
-      return { success: true };
+      const response = await fetch('/api/simulation/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reset simulation');
+      }
+
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['simulationStats'] });
@@ -1123,7 +1066,12 @@ export interface ConnectedPlatform {
 }
 
 // Platform definitions with required keys
-const PLATFORM_DEFINITIONS: Record<string, { type: ConnectedPlatform['type']; icon: string; requiredKeys: string[] }> = {
+const PLATFORM_DEFINITIONS: Record<string, { 
+  type: ConnectedPlatform['type']; 
+  icon: string; 
+  requiredKeys: string[];
+  alternateKeys?: string[];  // Alternative keys that also satisfy the requirement
+}> = {
   polymarket: {
     type: 'prediction_market',
     icon: '🎯',
@@ -1167,7 +1115,9 @@ const PLATFORM_DEFINITIONS: Record<string, { type: ConnectedPlatform['type']; ic
   alpaca: {
     type: 'stock_broker',
     icon: '🦙',
-    requiredKeys: ['ALPACA_API_KEY', 'ALPACA_API_SECRET'],
+    // Check for either PAPER or LIVE keys (simulation mode uses PAPER)
+    requiredKeys: ['ALPACA_PAPER_API_KEY', 'ALPACA_PAPER_API_SECRET'],
+    alternateKeys: ['ALPACA_LIVE_API_KEY', 'ALPACA_LIVE_API_SECRET'],
   },
   ibkr: {
     type: 'stock_broker',
@@ -1207,14 +1157,32 @@ export function useConnectedPlatforms() {
       const secretsMap = new Map(secrets.map(s => [s.key_name, s.is_configured]));
       
       return Object.entries(PLATFORM_DEFINITIONS).map(([name, def]) => {
-        const keysConfigured = def.requiredKeys.filter(k => secretsMap.get(k) === true);
-        const keysMissing = def.requiredKeys.filter(k => secretsMap.get(k) !== true);
+        // Check primary required keys
+        const primaryConfigured = def.requiredKeys.filter(k => secretsMap.get(k) === true);
+        const primaryMissing = def.requiredKeys.filter(k => secretsMap.get(k) !== true);
+        
+        // Check alternate keys if primary are not all configured
+        let connected = primaryMissing.length === 0;
+        let keysConfigured = primaryConfigured;
+        let keysMissing = primaryMissing;
+        
+        // If primary keys are missing but alternate keys exist and are all configured
+        if (!connected && def.alternateKeys) {
+          const altConfigured = def.alternateKeys.filter(k => secretsMap.get(k) === true);
+          const altMissing = def.alternateKeys.filter(k => secretsMap.get(k) !== true);
+          
+          if (altMissing.length === 0) {
+            connected = true;
+            keysConfigured = altConfigured;
+            keysMissing = [];
+          }
+        }
         
         return {
           name: name.charAt(0).toUpperCase() + name.slice(1),
           type: def.type,
           icon: def.icon,
-          connected: keysMissing.length === 0,
+          connected,
           keys_configured: keysConfigured,
           keys_missing: keysMissing,
         };

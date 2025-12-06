@@ -2,11 +2,11 @@
 
 ## Active Tasks (December 4, 2025)
 
-### 1. 🚨 HIGH PRIORITY - Production Deployment Issue
+### 1. 🚨 HIGH PRIORITY - Production Deployment
 
 - [x] Check if latest changes are deployed to production
-- [x] Identify if old task/container version is running on ECS
-- [ ] **ACTION NEEDED**: Commit and push changes to deploy
+- [x] Migrated from ECS to Lightsail (Dec 2025) - 10x cost savings!
+- [ ] **ACTION NEEDED**: Commit and push changes, then rebuild on Lightsail
 
 **Status**: All changes are LOCAL ONLY. Need to:
 
@@ -14,6 +14,10 @@
 git add -A
 git commit -m "Add balances, positions, notifications, stock strategies, secrets sync"
 git push origin main
+
+# Then SSH into Lightsail and rebuild:
+# ssh ubuntu@<LIGHTSAIL_IP>
+# cd ~/polybot && git pull && docker-compose up -d --build
 ```
 
 ### 2. 🔐 Secrets Page Security
@@ -34,18 +38,13 @@ git push origin main
 
 See `/docs/AWS_COST_ANALYSIS.md` for full breakdown.
 
-**Key Finding**: ECS costs $54.84/day = $1,645/month!
+**Key Finding**: Migrated from ECS ($54/day) to Lightsail ($0.17/day)!
 
-**Root Cause**:
+**Completed Actions**:
 
-- admin-ui (1 vCPU, 2GB): ~$25/day
-- video-render-cluster (1 vCPU, 2GB): ~$25/day
-
-**Recommended Actions**:
-
-- [ ] Stop admin-ui on ECS (use Vercel instead - FREE)
-- [ ] Stop video-render-cluster if unused
-- [ ] Keep polybot-service (only $2.50/day)
+- [x] Stop admin-ui on ECS (use Vercel instead - FREE)
+- [x] Stop video-render-cluster if unused
+- [x] Migrated polybot to Lightsail ($5/month)
 
 ---
 
@@ -64,6 +63,5 @@ See `/docs/AWS_COST_ANALYSIS.md` for full breakdown.
 
 ## Next Steps
 
-1. **Commit & Deploy**: Push all local changes
-2. **Stop ECS services**: Save $50/day immediately
-3. **Set up Alpaca/CCXT feeds**: For stock/crypto data in Markets page
+1. **Commit & Deploy**: Push all local changes, rebuild on Lightsail
+2. **Set up Alpaca/CCXT feeds**: For stock/crypto data in Markets page

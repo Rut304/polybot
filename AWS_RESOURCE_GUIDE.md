@@ -39,17 +39,12 @@ This document maps AWS resources to their respective projects. **DO NOT modify r
 
 | Resource Type | Resource Name/ARN | Notes |
 |--------------|-------------------|-------|
-| **ECR Repository** | `polybot` | Docker images for trading bot |
-| **ECS Task Definition** | `polybot-task` | *(to be created)* |
-| **ECS Service** | `polybot-service` | *(to be created)* - 24/7 trading |
-| **Secrets Manager** | `polybot/polymarket-api-key` | Polymarket CLOB API key |
-| | `polybot/polymarket-secret` | Polymarket API secret |
-| | `polybot/kalshi-api-key` | Kalshi API key |
-| | `polybot/kalshi-private-key` | Kalshi RSA private key |
-| | `polybot/supabase-url` | Supabase connection |
-| | `polybot/supabase-key` | Supabase API key |
-| **ECS Cluster** | `video-render-cluster` | **SHARED** with all projects |
-| **Supabase Tables** | `polybot_*` prefix | `polybot_opportunities`, `polybot_trades`, `polybot_status`, `polybot_simulated_trades`, `polybot_simulation_stats`, `polybot_market_pairs` |
+| **Lightsail Instance** | `polybot` | Ubuntu 22.04, 1GB RAM ($5/month) |
+| **Docker Container** | `polybot` | Runs inside Lightsail instance |
+| **Secrets Storage** | Supabase `polybot_secrets` | API keys stored in database |
+| **Supabase Tables** | `polybot_*` prefix | `polybot_opportunities`, `polybot_trades`, `polybot_status`, `polybot_simulated_trades`, `polybot_simulation_stats`, `polybot_market_pairs`, `polybot_secrets` |
+
+**Note:** PolyBot was migrated from ECS Fargate to Lightsail in December 2025 for cost savings ($5/month vs $50+/month).
 
 ---
 
@@ -57,10 +52,13 @@ This document maps AWS resources to their respective projects. **DO NOT modify r
 
 | Resource | Used By | Notes |
 |----------|---------|-------|
-| **ECS Cluster: `video-render-cluster`** | All 3 projects | Single cluster, multiple services |
-| **IAM Role: `ecsTaskExecutionRole`** | All 3 projects | Standard ECS execution role |
+| **ECS Cluster: `video-render-cluster`** | Video Automation, PolyParlay | Single cluster, multiple services |
+| **IAM Role: `ecsTaskExecutionRole`** | Video Automation, PolyParlay | Standard ECS execution role |
 | **VPC/Subnets** | All 3 projects | Default VPC networking |
 | **Supabase Project** | PolyParlay + PolyBot | Same Supabase instance, different table prefixes |
+| **Lightsail Instance: `polybot`** | PolyBot only | Dedicated instance for trading bot |
+
+**Note:** PolyBot uses **Lightsail** instead of ECS for cost efficiency ($5/month vs $50+/month).
 
 ---
 
@@ -70,7 +68,7 @@ This document maps AWS resources to their respective projects. **DO NOT modify r
 2. **Secrets are namespaced** - Use `projectname/` prefix (e.g., `polybot/`, `polyparlay/`)
 3. **Supabase tables are prefixed** - PolyBot uses `polybot_*`, PolyParlay has no prefix
 4. **Task definitions are project-specific** - Create new ones, don't modify others
-5. **ECS Services are project-specific** - Each project runs its own service
+5. **PolyBot runs on Lightsail** - Not ECS! See LIGHTSAIL_DEPLOYMENT.md
 
 ---
 
@@ -112,4 +110,4 @@ CloudWatch: /ecs/{project-name}
 
 ---
 
-*Last Updated: December 1, 2025*
+*Last Updated: December 2025*

@@ -45,7 +45,8 @@ PolyBot is a comprehensive algorithmic trading platform that spans **three asset
 | Document | Description |
 |----------|-------------|
 | [TRADING_BOT_ANALYSIS.md](./TRADING_BOT_ANALYSIS.md) | Competitive analysis of existing bots |
-| [AWS_RESOURCE_GUIDE.md](./AWS_RESOURCE_GUIDE.md) | AWS ECS deployment guide |
+| [AWS_RESOURCE_GUIDE.md](./AWS_RESOURCE_GUIDE.md) | AWS resource allocation guide |
+| [LIGHTSAIL_DEPLOYMENT.md](./LIGHTSAIL_DEPLOYMENT.md) | **Bot deployment on Lightsail** |
 | [docs/PRODUCTIZATION_ROADMAP.md](./docs/PRODUCTIZATION_ROADMAP.md) | Scaling to SaaS |
 | [docs/ARBITRAGE_STRATEGY_ANALYSIS.md](./docs/ARBITRAGE_STRATEGY_ANALYSIS.md) | Deep-dive on arbitrage math |
 
