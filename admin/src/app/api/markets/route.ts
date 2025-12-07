@@ -1,14 +1,32 @@
 import { NextResponse } from 'next/server';
 
+// Stock universe for Alpaca - popular, liquid stocks
+const STOCK_UNIVERSE = [
+  'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B', 'UNH', 'JNJ',
+  'XOM', 'JPM', 'V', 'PG', 'MA', 'HD', 'CVX', 'LLY', 'ABBV', 'MRK',
+  'AVGO', 'PEP', 'KO', 'COST', 'WMT', 'TMO', 'CSCO', 'MCD', 'ACN', 'ABT',
+  'CRM', 'DHR', 'NKE', 'ORCL', 'AMD', 'INTC', 'QCOM', 'TXN', 'UNP', 'HON',
+  'SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VOO'
+];
+
+// Crypto pairs for CCXT (Binance-style)
+const CRYPTO_PAIRS = [
+  'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'XRP/USDT', 'SOL/USDT',
+  'ADA/USDT', 'DOGE/USDT', 'DOT/USDT', 'MATIC/USDT', 'SHIB/USDT',
+  'AVAX/USDT', 'LTC/USDT', 'UNI/USDT', 'LINK/USDT', 'ATOM/USDT'
+];
+
 export async function GET() {
   try {
-    // Fetch from both APIs in parallel - get more markets
-    const [polymarketData, kalshiData] = await Promise.all([
+    // Fetch from all APIs in parallel
+    const [polymarketData, kalshiData, stockData, cryptoData] = await Promise.all([
       fetchPolymarketMarkets(),
       fetchKalshiMarkets(),
+      fetchAlpacaStocks(),
+      fetchCryptoMarkets(),
     ]);
 
-    const combined = [...polymarketData, ...kalshiData];
+    const combined = [...polymarketData, ...kalshiData, ...stockData, ...cryptoData];
     
     // Sort by volume (most liquid first)
     combined.sort((a, b) => (b.volume || 0) - (a.volume || 0));
@@ -86,6 +104,7 @@ async function fetchPolymarketMarkets() {
         liquidity: parseFloat(m.liquidity || m.liquidityNum || '0'),
         end_date: m.endDate || m.end_date_iso,
         platform: 'polymarket' as const,
+        asset_type: 'prediction' as const,
         url: `https://polymarket.com/event/${m.slug || m.conditionId || m.id}`,
       };
     });
@@ -143,6 +162,7 @@ async function fetchKalshiMarkets() {
       liquidity: (m.liquidity || m.open_interest || 0) / 100,
       end_date: m.close_time || m.expiration_time,
       platform: 'kalshi' as const,
+      asset_type: 'prediction' as const,
       url: `https://kalshi.com/markets/${m.ticker}`,
     }));
   } catch (e) {
@@ -172,4 +192,91 @@ function inferCategory(title: string): string {
     return 'Science';
   }
   return 'Other';
+}
+
+// Fetch stock data from Alpaca (free public API for quotes)
+async function fetchAlpacaStocks() {
+  try {
+    // Use Yahoo Finance API (free, no auth required) for stock quotes
+    const symbols = STOCK_UNIVERSE.join(',');
+    const response = await fetch(
+      `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`,
+      { 
+        headers: { 'Accept': 'application/json' },
+        next: { revalidate: 60 }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Yahoo Finance API error:', response.status);
+      return [];
+    }
+    
+    const data = await response.json();
+    const quotes = data.quoteResponse?.result || [];
+    
+    return quotes.map((q: any) => ({
+      id: `stock-${q.symbol}`,
+      symbol: q.symbol,
+      question: `${q.shortName || q.longName || q.symbol}`,
+      description: `${q.displayName || q.shortName || ''} - ${q.exchange}`,
+      category: 'Stocks',
+      yes_price: q.regularMarketPrice || 0,
+      no_price: q.regularMarketPreviousClose || 0,
+      volume: q.regularMarketVolume || 0,
+      liquidity: q.marketCap || 0,
+      end_date: null,
+      platform: 'alpaca' as const,
+      asset_type: 'stock' as const,
+      url: `https://finance.yahoo.com/quote/${q.symbol}`,
+      change_pct: q.regularMarketChangePercent || 0,
+      market_cap: q.marketCap || 0,
+      pe_ratio: q.trailingPE || null,
+    }));
+  } catch (e) {
+    console.error('Stock fetch error:', e);
+    return [];
+  }
+}
+
+// Fetch crypto data from public CoinGecko API (free, no auth)
+async function fetchCryptoMarkets() {
+  try {
+    const response = await fetch(
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false',
+      { 
+        headers: { 'Accept': 'application/json' },
+        next: { revalidate: 60 }
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('CoinGecko API error:', response.status);
+      return [];
+    }
+    
+    const coins = await response.json();
+    
+    return coins.map((coin: any) => ({
+      id: `crypto-${coin.id}`,
+      symbol: `${coin.symbol.toUpperCase()}/USD`,
+      question: `${coin.name} (${coin.symbol.toUpperCase()})`,
+      description: `Rank #${coin.market_cap_rank} by market cap`,
+      category: 'Crypto',
+      yes_price: coin.current_price || 0,
+      no_price: coin.ath || coin.current_price, // All-time high
+      volume: coin.total_volume || 0,
+      liquidity: coin.market_cap || 0,
+      end_date: null,
+      platform: 'binance' as const, // Generic crypto platform
+      asset_type: 'crypto' as const,
+      url: `https://www.coingecko.com/en/coins/${coin.id}`,
+      change_pct: coin.price_change_percentage_24h || 0,
+      market_cap: coin.market_cap || 0,
+      image: coin.image,
+    }));
+  } catch (e) {
+    console.error('Crypto fetch error:', e);
+    return [];
+  }
 }
