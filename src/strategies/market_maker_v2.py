@@ -521,7 +521,9 @@ class MarketMakerStrategy:
         markets = await self.select_markets()
         if not markets:
             logger.warning("No suitable markets found for market making")
-            self.status = MarketMakerStatus.ERROR
+            self.status = MarketMakerStatus.IDLE
+            # Wait before allowing restart to prevent tight loop
+            await asyncio.sleep(300)  # Wait 5 minutes before retry
             return
         
         for m in markets:
