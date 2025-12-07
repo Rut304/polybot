@@ -1,4 +1,38 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+// Supabase client for fetching secrets
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+const supabase = supabaseUrl && supabaseServiceKey 
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+// Helper to get API key from Supabase secrets
+async function getSecretFromSupabase(keyName: string): Promise<string | null> {
+  if (!supabase) {
+    console.log('Supabase not configured');
+    return null;
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('polybot_secrets')
+      .select('key_value')
+      .eq('key_name', keyName)
+      .single();
+    
+    if (error || !data) {
+      console.log(`Secret ${keyName} not found:`, error?.message);
+      return null;
+    }
+    
+    return data.key_value;
+  } catch (e) {
+    console.error(`Error fetching secret ${keyName}:`, e);
+    return null;
+  }
+}
 
 // Stock universe for Alpaca - popular, liquid stocks
 const STOCK_UNIVERSE = [
@@ -194,71 +228,126 @@ function inferCategory(title: string): string {
   return 'Other';
 }
 
-// Fetch stock data - use IEX Cloud free tier or static data
+// Fetch stock data using Finnhub API (configured in secrets)
 async function fetchAlpacaStocks() {
-  try {
-    // Try Finnhub first (free API with 60 calls/min)
-    const FINNHUB_KEY = process.env.FINNHUB_API_KEY;
-    
-    // Use static stock data with approximate prices (updated periodically)
-    // This ensures stocks always appear even if API fails
-    const staticStocks = [
-      { symbol: 'AAPL', name: 'Apple Inc.', price: 195.50, change: 1.2, marketCap: 3000000000000 },
-      { symbol: 'MSFT', name: 'Microsoft Corporation', price: 430.20, change: 0.8, marketCap: 3200000000000 },
-      { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 178.50, change: -0.5, marketCap: 2200000000000 },
-      { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 225.80, change: 1.5, marketCap: 2350000000000 },
-      { symbol: 'NVDA', name: 'NVIDIA Corporation', price: 140.30, change: 2.3, marketCap: 3450000000000 },
-      { symbol: 'META', name: 'Meta Platforms Inc.', price: 610.40, change: 0.4, marketCap: 1550000000000 },
-      { symbol: 'TSLA', name: 'Tesla Inc.', price: 420.50, change: -1.2, marketCap: 1350000000000 },
-      { symbol: 'BRK.B', name: 'Berkshire Hathaway', price: 458.20, change: 0.3, marketCap: 1000000000000 },
-      { symbol: 'JPM', name: 'JPMorgan Chase & Co.', price: 252.80, change: 0.6, marketCap: 750000000000 },
-      { symbol: 'V', name: 'Visa Inc.', price: 310.40, change: 0.2, marketCap: 580000000000 },
-      { symbol: 'UNH', name: 'UnitedHealth Group', price: 520.30, change: -0.3, marketCap: 480000000000 },
-      { symbol: 'XOM', name: 'Exxon Mobil Corporation', price: 108.70, change: 1.1, marketCap: 450000000000 },
-      { symbol: 'JNJ', name: 'Johnson & Johnson', price: 155.20, change: 0.1, marketCap: 380000000000 },
-      { symbol: 'WMT', name: 'Walmart Inc.', price: 92.50, change: 0.4, marketCap: 745000000000 },
-      { symbol: 'PG', name: 'Procter & Gamble', price: 168.30, change: 0.2, marketCap: 395000000000 },
-      { symbol: 'MA', name: 'Mastercard Inc.', price: 525.60, change: 0.5, marketCap: 490000000000 },
-      { symbol: 'HD', name: 'Home Depot Inc.', price: 418.20, change: -0.4, marketCap: 410000000000 },
-      { symbol: 'CVX', name: 'Chevron Corporation', price: 148.90, change: 0.9, marketCap: 275000000000 },
-      { symbol: 'ABBV', name: 'AbbVie Inc.', price: 178.40, change: 0.3, marketCap: 315000000000 },
-      { symbol: 'MRK', name: 'Merck & Co.', price: 104.60, change: 0.6, marketCap: 265000000000 },
-      { symbol: 'AVGO', name: 'Broadcom Inc.', price: 230.80, change: 1.8, marketCap: 1070000000000 },
-      { symbol: 'KO', name: 'Coca-Cola Company', price: 62.40, change: 0.1, marketCap: 270000000000 },
-      { symbol: 'PEP', name: 'PepsiCo Inc.', price: 152.30, change: -0.2, marketCap: 210000000000 },
-      { symbol: 'COST', name: 'Costco Wholesale', price: 935.60, change: 0.7, marketCap: 415000000000 },
-      { symbol: 'TMO', name: 'Thermo Fisher Scientific', price: 535.20, change: 0.4, marketCap: 205000000000 },
-      { symbol: 'AMD', name: 'Advanced Micro Devices', price: 125.40, change: 2.1, marketCap: 205000000000 },
-      { symbol: 'INTC', name: 'Intel Corporation', price: 20.80, change: -1.5, marketCap: 90000000000 },
-      { symbol: 'CRM', name: 'Salesforce Inc.', price: 340.20, change: 0.8, marketCap: 330000000000 },
-      { symbol: 'NFLX', name: 'Netflix Inc.', price: 895.30, change: 1.2, marketCap: 385000000000 },
-      { symbol: 'DIS', name: 'Walt Disney Company', price: 115.40, change: -0.6, marketCap: 210000000000 },
-      { symbol: 'SPY', name: 'SPDR S&P 500 ETF', price: 605.20, change: 0.5, marketCap: 580000000000 },
-      { symbol: 'QQQ', name: 'Invesco QQQ Trust', price: 525.80, change: 0.8, marketCap: 250000000000 },
-      { symbol: 'IWM', name: 'iShares Russell 2000 ETF', price: 235.40, change: 0.3, marketCap: 70000000000 },
-    ];
-    
-    return staticStocks.map(s => ({
-      id: `stock-${s.symbol}`,
-      symbol: s.symbol,
-      question: s.name,
-      description: `NYSE/NASDAQ - Stock`,
-      category: 'Stocks',
-      yes_price: s.price,
-      no_price: s.price * (1 - s.change / 100), // Yesterday's close approximation
-      volume: Math.floor(Math.random() * 50000000) + 5000000, // Simulated volume
-      liquidity: s.marketCap,
-      end_date: null,
-      platform: 'alpaca' as const,
-      asset_type: 'stock' as const,
-      url: `https://finance.yahoo.com/quote/${s.symbol}`,
-      change_pct: s.change,
-      market_cap: s.marketCap,
-    }));
-  } catch (e) {
-    console.error('Stock fetch error:', e);
-    return [];
+  // Try to get API key from Supabase secrets first, then env
+  const FINNHUB_KEY = await getSecretFromSupabase('FINNHUB_API_KEY') || process.env.FINNHUB_API_KEY;
+  
+  // Stock symbols to fetch
+  const stockSymbols = [
+    'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'BRK.B', 'JPM', 'V',
+    'UNH', 'XOM', 'JNJ', 'WMT', 'PG', 'MA', 'HD', 'CVX', 'ABBV', 'MRK',
+    'AVGO', 'KO', 'PEP', 'COST', 'TMO', 'AMD', 'INTC', 'CRM', 'NFLX', 'DIS'
+  ];
+  
+  // Stock metadata for names
+  const stockNames: Record<string, string> = {
+    'AAPL': 'Apple Inc.', 'MSFT': 'Microsoft Corporation', 'GOOGL': 'Alphabet Inc.',
+    'AMZN': 'Amazon.com Inc.', 'NVDA': 'NVIDIA Corporation', 'META': 'Meta Platforms Inc.',
+    'TSLA': 'Tesla Inc.', 'BRK.B': 'Berkshire Hathaway', 'JPM': 'JPMorgan Chase & Co.',
+    'V': 'Visa Inc.', 'UNH': 'UnitedHealth Group', 'XOM': 'Exxon Mobil Corporation',
+    'JNJ': 'Johnson & Johnson', 'WMT': 'Walmart Inc.', 'PG': 'Procter & Gamble',
+    'MA': 'Mastercard Inc.', 'HD': 'Home Depot Inc.', 'CVX': 'Chevron Corporation',
+    'ABBV': 'AbbVie Inc.', 'MRK': 'Merck & Co.', 'AVGO': 'Broadcom Inc.',
+    'KO': 'Coca-Cola Company', 'PEP': 'PepsiCo Inc.', 'COST': 'Costco Wholesale',
+    'TMO': 'Thermo Fisher Scientific', 'AMD': 'Advanced Micro Devices',
+    'INTC': 'Intel Corporation', 'CRM': 'Salesforce Inc.', 'NFLX': 'Netflix Inc.',
+    'DIS': 'Walt Disney Company'
+  };
+  
+  if (!FINNHUB_KEY) {
+    console.log('Finnhub API key not configured, using static stock data');
+    // Return static data as fallback
+    return getStaticStockData();
   }
+  
+  try {
+    // Fetch quotes in parallel (Finnhub allows 60 calls/min)
+    const quotePromises = stockSymbols.slice(0, 15).map(async (symbol) => {
+      try {
+        const response = await fetch(
+          `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_KEY}`,
+          { next: { revalidate: 60 } }
+        );
+        if (!response.ok) return null;
+        const quote = await response.json();
+        if (!quote || quote.c === 0) return null;
+        
+        return {
+          id: `stock-${symbol}`,
+          symbol,
+          question: stockNames[symbol] || symbol,
+          description: 'NYSE/NASDAQ - Stock',
+          category: 'Stocks',
+          yes_price: quote.c || 0, // Current price
+          no_price: quote.pc || quote.c, // Previous close
+          volume: Math.floor(Math.random() * 50000000) + 5000000, // Finnhub quote doesn't include volume
+          liquidity: 0,
+          end_date: null,
+          platform: 'alpaca' as const,
+          asset_type: 'stock' as const,
+          url: `https://finance.yahoo.com/quote/${symbol}`,
+          change_pct: quote.dp || 0, // Daily percent change
+        };
+      } catch (e) {
+        return null;
+      }
+    });
+    
+    const results = await Promise.all(quotePromises);
+    const validResults = results.filter(r => r !== null);
+    
+    // If we got some results, add static data for remaining symbols
+    if (validResults.length > 0) {
+      const fetchedSymbols = new Set(validResults.map(r => r!.symbol));
+      const remainingStatic = getStaticStockData().filter(s => !fetchedSymbols.has(s.symbol));
+      return [...validResults, ...remainingStatic.slice(0, 15)];
+    }
+    
+    return getStaticStockData();
+  } catch (e) {
+    console.error('Finnhub fetch error:', e);
+    return getStaticStockData();
+  }
+}
+
+// Static stock data as fallback
+function getStaticStockData() {
+  const staticStocks = [
+    { symbol: 'AAPL', name: 'Apple Inc.', price: 195.50, change: 1.2, marketCap: 3000000000000 },
+    { symbol: 'MSFT', name: 'Microsoft Corporation', price: 430.20, change: 0.8, marketCap: 3200000000000 },
+    { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 178.50, change: -0.5, marketCap: 2200000000000 },
+    { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 225.80, change: 1.5, marketCap: 2350000000000 },
+    { symbol: 'NVDA', name: 'NVIDIA Corporation', price: 140.30, change: 2.3, marketCap: 3450000000000 },
+    { symbol: 'META', name: 'Meta Platforms Inc.', price: 610.40, change: 0.4, marketCap: 1550000000000 },
+    { symbol: 'TSLA', name: 'Tesla Inc.', price: 420.50, change: -1.2, marketCap: 1350000000000 },
+    { symbol: 'BRK.B', name: 'Berkshire Hathaway', price: 458.20, change: 0.3, marketCap: 1000000000000 },
+    { symbol: 'JPM', name: 'JPMorgan Chase & Co.', price: 252.80, change: 0.6, marketCap: 750000000000 },
+    { symbol: 'V', name: 'Visa Inc.', price: 310.40, change: 0.2, marketCap: 580000000000 },
+    { symbol: 'AMD', name: 'Advanced Micro Devices', price: 125.40, change: 2.1, marketCap: 205000000000 },
+    { symbol: 'NFLX', name: 'Netflix Inc.', price: 895.30, change: 1.2, marketCap: 385000000000 },
+    { symbol: 'DIS', name: 'Walt Disney Company', price: 115.40, change: -0.6, marketCap: 210000000000 },
+    { symbol: 'SPY', name: 'SPDR S&P 500 ETF', price: 605.20, change: 0.5, marketCap: 580000000000 },
+    { symbol: 'QQQ', name: 'Invesco QQQ Trust', price: 525.80, change: 0.8, marketCap: 250000000000 },
+  ];
+  
+  return staticStocks.map(s => ({
+    id: `stock-${s.symbol}`,
+    symbol: s.symbol,
+    question: s.name,
+    description: 'NYSE/NASDAQ - Stock',
+    category: 'Stocks',
+    yes_price: s.price,
+    no_price: s.price * (1 - s.change / 100),
+    volume: Math.floor(Math.random() * 50000000) + 5000000,
+    liquidity: s.marketCap,
+    end_date: null,
+    platform: 'alpaca' as const,
+    asset_type: 'stock' as const,
+    url: `https://finance.yahoo.com/quote/${s.symbol}`,
+    change_pct: s.change,
+    market_cap: s.marketCap,
+  }));
 }
 
 // Fetch crypto data from public CoinGecko API (free, no auth)
