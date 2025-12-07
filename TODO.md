@@ -6,14 +6,16 @@
 
 #### Bot/Backend
 
-- [x] **Bot Running Successfully** - v47 on Lightsail, health check returns "OK"
+- [x] **Bot Running Successfully** - v48 on Lightsail, health check returns "OK"
   - Alpaca client initialized ✅
   - Stock Mean Reversion strategy active ✅
   - Stock Momentum strategy active ✅
   - All API keys configured in Supabase
+  - **Balance Aggregator wired up** - Saves to polybot_balances ✅
+  - **News saving to DB** - Saves to polybot_news_items ✅
 
-- [x] **Markets API MASSIVELY EXPANDED** - Now serving 14,315+ markets! 🚀
-  - **Stocks: 11,770** (was 264) - ALL US equities from Alpaca
+- [x] **Markets API MASSIVELY EXPANDED** - Now serving 15,970+ markets! 🚀
+  - **Stocks: 11,770** - ALL US equities from Alpaca
     - NASDAQ: 5,173 stocks
     - NYSE: 2,419 stocks
     - ARCA: 2,524 ETFs
@@ -21,32 +23,37 @@
     - AMEX: 269 stocks
     - OTC: 267 stocks
   - **Each stock includes**: Exchange, Exchange Name, Data Source, Tradable/Shortable/Fractionable
-  - Crypto: 200 with market cap tiers
-  - Prediction Markets: 2,345 from Polymarket/Kalshi
+  - **Crypto: 200** with market cap tiers
+  - **Prediction Markets: 4,000** from Polymarket/Kalshi
 
-- [x] **NEW ALGORITHMIC STRATEGIES ADDED** 🎯
-  - **Options Strategies** (NEW!)
+- [x] **NEW ALGORITHMIC STRATEGIES CREATED** 🎯
+  - **Options Strategies** (CODE EXISTS - not yet in bot_runner)
     - Covered Calls (10-20% APY)
     - Cash-Secured Puts (15-30% APY)
     - Iron Condors (20-40% APY)
     - Wheel Strategy (20-35% APY)
     - Vertical Spreads (Bull/Bear)
-  - **Stock Strategies** (NEW!)
+  - **Stock Strategies** (CODE EXISTS - not yet in bot_runner)
     - Sector Rotation (15-25% APY)
     - Dividend Growth (8-12% APY)
     - Earnings Momentum (15-30% APY)
-  - **Existing Strategies**
-    - Stock Mean Reversion (15-30% APY)
-    - Stock Momentum (20-40% APY)
+  - **ACTIVE STRATEGIES** (in bot_runner)
+    - Stock Mean Reversion (15-30% APY) ✅
+    - Stock Momentum (20-40% APY) ✅
     - Grid Trading (20-60% APY)
     - Pairs Trading (10-25% APY)
     - Market Making (10-20% APR)
     - News Arbitrage (5-30%/event)
     - Funding Rate Arb (15-50% APY)
 
-- [ ] **News API 401 Unauthorized** - Invalid API key in Supabase secrets
-  - Key `NEWS_API_KEY` appears malformed: `d4pqlp1r01qjpnb110tg...`
-  - Need to verify/update the NewsAPI.org key in polybot_secrets table
+- [ ] **Wire up new strategies in bot_runner** (LOW PRIORITY)
+  - Options strategies need broker options API access
+  - Sector Rotation, Dividend Growth, Earnings Momentum - code exists, need to import
+
+- [ ] **News API 401 Unauthorized** - NewsAPI.org key invalid (optional)
+  - Finnhub working ✅
+  - Polymarket Activity working ✅
+  - NewsAPI.org optional - user doesn't have account
 
 - [x] **Binance.US Blocked** - Returns 451 "Service unavailable from restricted location"
   - AWS Lightsail in us-east-1 is geoblocked by Binance.US
@@ -74,9 +81,14 @@
   - Filters by source (Finnhub, NewsAPI, Twitter, Reddit, Polymarket) and sentiment
   - 20 items per page, paginated with next/prev buttons
   - Last 10 days of articles shown
-  - **News Sources Configured**: Finnhub ✅, Twitter/X ✅
-  - **News Sources NOT Configured**: NewsAPI.org (optional)
+  - **Bot now saves news to database** ✅
+  - **News Sources Configured**: Finnhub ✅, Polymarket Activity ✅
   - Bot handles missing/invalid API keys gracefully - each source is independent
+
+- [x] **Balances Page** - Shows multi-platform portfolio
+  - Balance aggregator wired up in bot_runner ✅
+  - Collects from: Polymarket, Kalshi, Crypto (CCXT), Stocks (Alpaca)
+  - Saves to polybot_balances table ✅
 
 - [x] **Core Arbitrage Strategies Collapsible** - Added collapsible toggle for settings
 
@@ -174,7 +186,17 @@
 
 ## ✅ Completed Tasks
 
-### December 6, 2025 (Latest)
+### December 7, 2025 (Latest)
+
+- [x] Wired up BalanceAggregator in bot_runner - now saves to polybot_balances
+- [x] Added news saving to polybot_news_items for Admin UI news page
+- [x] Verified P&L calculation accuracy ($1,279.82 from 1000 trades)
+- [x] Connected admin Vercel project to GitHub for auto-deploy
+- [x] Deleted redundant `polybot` Vercel project
+- [x] Verified per-strategy analytics working (StrategyBreakdown component)
+- [x] Updated TODO with accurate status
+
+### December 6, 2025
 
 - [x] Fixed single-platform opportunity logging (was missing buy_platform field)
 - [x] Added database logging for admin UI logs page
