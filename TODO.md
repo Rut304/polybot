@@ -47,6 +47,13 @@
   - **News Sources NOT Configured**: NewsAPI.org (optional)
   - Bot handles missing/invalid API keys gracefully - each source is independent
 
+- [x] **Core Arbitrage Strategies Collapsible** - Added collapsible toggle for settings
+
+- [x] **Stock/Crypto Market Data in Markets Browser** - Added Yahoo Finance & CoinGecko APIs
+  - Shows top stocks (AAPL, MSFT, NVDA, etc.) with real-time prices
+  - Shows top 50 cryptocurrencies with prices, market cap, 24h change
+  - Filter by asset type: prediction markets, stocks, crypto
+
 ### 🟡 MEDIUM PRIORITY - Feature Requests
 
 #### Simulation & Analysis
@@ -75,14 +82,30 @@
   - Auto-refresh every 10 seconds option
   - Export to JSON
 
+- [x] **Database Logging Fixed** - Bot now writes to polybot_bot_logs table
+  - Fixed SUPABASE_KEY env var name issue in logging_handler.py
+  - v47 deployed with fix
+
 #### User Management
 
 - [x] **Fix User Admin section** - IMPROVED with loading/error/empty states
+  - API works (tested: returns 3 users including admin)
+  - Frontend requires user to be logged in as admin to see users
+  - Make sure you're logged in with rutrohd@gmail.com (admin role)
   - Shows list of users with roles
   - Change role dropdown
   - Delete user button
 - [ ] User role management (admin, viewer, trader) - Currently only admin/viewer
 - [ ] Activity log per user - Audit logs exist but not filtered by user
+
+#### Metric Consistency
+
+- [x] **Metrics are consistent** - All reports/analytics use same data source
+  - Source of truth: `polybot_simulated_trades` table
+  - `useRealTimeStats()` hook computes stats from trades
+  - Dashboard, Analytics, Insights pages all use `useSimulatedTrades()`
+  - Metrics computed: total_pnl, win_rate, simulated_balance, roi_pct
+  - All pages show the same numbers when viewing the same trades
 
 #### Live Trading Preparation
 
@@ -146,8 +169,11 @@
 
 ## Current Bot Status
 
-- **Version**: v39 (Build #28, image polybot-b28.26)
+- **Version**: v47 (Build #36, image polybot-b36.34)
 - **Status**: RUNNING ✅
+- **Database Logging**: Working ✅
+- **Admin URL**: https://admin-gules-chi.vercel.app
+- **Bot URL**: https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com
 - **Strategies Active**: kalshi_single, polymarket_single, cross_platform
 - **Disabled**: market_making, news_arb, funding_rate, grid, pairs
 - **Exchanges**: Coinbase enabled, Bybit/Binance disabled
