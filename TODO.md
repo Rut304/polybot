@@ -6,11 +6,43 @@
 
 #### Bot/Backend
 
-- [x] **Stock/Crypto Data Flow** - FIXED: Added `run_cycle()` methods to strategies
-  - Fixed `'StockMeanReversionStrategy' object has no attribute 'run_cycle'` error
-  - Fixed `'StockMomentumStrategy' object has no attribute 'run_cycle'` error
-  - Strategies had `run()` but bot_runner was calling `run_cycle()`
-  - v41 deployment pending
+- [x] **Bot Running Successfully** - v47 on Lightsail, health check returns "OK"
+  - Alpaca client initialized ✅
+  - Stock Mean Reversion strategy active ✅
+  - Stock Momentum strategy active ✅
+  - All API keys configured in Supabase
+
+- [x] **Markets API MASSIVELY EXPANDED** - Now serving 14,315+ markets! 🚀
+  - **Stocks: 11,770** (was 264) - ALL US equities from Alpaca
+    - NASDAQ: 5,173 stocks
+    - NYSE: 2,419 stocks
+    - ARCA: 2,524 ETFs
+    - BATS: 1,118 stocks
+    - AMEX: 269 stocks
+    - OTC: 267 stocks
+  - **Each stock includes**: Exchange, Exchange Name, Data Source, Tradable/Shortable/Fractionable
+  - Crypto: 200 with market cap tiers
+  - Prediction Markets: 2,345 from Polymarket/Kalshi
+
+- [x] **NEW ALGORITHMIC STRATEGIES ADDED** 🎯
+  - **Options Strategies** (NEW!)
+    - Covered Calls (10-20% APY)
+    - Cash-Secured Puts (15-30% APY)
+    - Iron Condors (20-40% APY)
+    - Wheel Strategy (20-35% APY)
+    - Vertical Spreads (Bull/Bear)
+  - **Stock Strategies** (NEW!)
+    - Sector Rotation (15-25% APY)
+    - Dividend Growth (8-12% APY)
+    - Earnings Momentum (15-30% APY)
+  - **Existing Strategies**
+    - Stock Mean Reversion (15-30% APY)
+    - Stock Momentum (20-40% APY)
+    - Grid Trading (20-60% APY)
+    - Pairs Trading (10-25% APY)
+    - Market Making (10-20% APR)
+    - News Arbitrage (5-30%/event)
+    - Funding Rate Arb (15-50% APY)
 
 - [ ] **News API 401 Unauthorized** - Invalid API key in Supabase secrets
   - Key `NEWS_API_KEY` appears malformed: `d4pqlp1r01qjpnb110tg...`
@@ -19,18 +51,17 @@
 - [x] **Binance.US Blocked** - Returns 451 "Service unavailable from restricted location"
   - AWS Lightsail in us-east-1 is geoblocked by Binance.US
   - User prefers Coinbase - enabled in settings, Bybit/Binance disabled
-  - **NOTE**: User says Binance.US should work in Massachusetts - may need VPN or different approach
-
-- [x] **Run Trading Mode Migration** - SQL columns added for paper/live tracking
-  - User ran SQL migrations in Supabase SQL Editor
-  - Added `trading_mode`, `strategy_type`, `platform`, `session_id` columns
-  - Created `polybot_strategy_performance` view for analytics
-
-- [x] **Market Maker Tight Loop** - Fixed
-  - Was returning early when no markets found, causing rapid restarts
-  - Added 5-minute delay when no suitable markets
 
 #### Admin UI
+
+- [x] **Users Page Added** - New `/users` page for user management
+  - Card layout showing all users
+  - Role management (Admin/Read Only)
+  - User search functionality
+  - Delete user capability
+  - Stats showing admin vs read-only count
+
+- [x] **Navigation Updated** - Users now in Settings menu section
 
 - [x] **Settings Persistence Fixed** - Exchange toggles now save correctly
 
@@ -55,6 +86,16 @@
   - Filter by asset type: prediction markets, stocks, crypto
 
 ### 🟡 MEDIUM PRIORITY - Feature Requests
+
+#### TradingView Integration
+
+- [ ] **TradingView webhook endpoint** - Receive trade signals from TradingView alerts
+  - Add `/api/webhook/tradingview` endpoint to bot
+  - Parse TradingView alert JSON payloads
+  - Execute trades on Alpaca based on signals
+- [ ] **TradingView → Alpaca direct connection** - Document setup for users
+  - TradingView can connect directly to Alpaca paper trading
+  - No code needed, just broker integration in TradingView
 
 #### Simulation & Analysis
 

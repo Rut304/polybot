@@ -26,6 +26,7 @@ import {
   FileText,
   Newspaper,
   History,
+  Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -78,6 +79,7 @@ const navSections: NavSection[] = [
       { href: '/settings', label: 'Settings', icon: Settings },
       { href: '/secrets', label: 'API Keys', icon: Key, adminOnly: true },
       { href: '/logs', label: 'Audit Logs', icon: FileText, adminOnly: true },
+      { href: '/users', label: 'Users', icon: Users, adminOnly: true },
     ],
   },
 ];
