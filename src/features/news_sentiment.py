@@ -159,12 +159,14 @@ class NewsSentimentEngine:
         finnhub_api_key: Optional[str] = None,
         twitter_bearer_token: Optional[str] = None,
         check_interval: int = 300,  # 5 minutes
+        db_client: Optional[Any] = None,
     ):
         # Store each API key separately for graceful degradation
         self.news_api_key = news_api_key
         self.finnhub_api_key = finnhub_api_key
         self.twitter_bearer_token = twitter_bearer_token
         self.check_interval = check_interval
+        self.db = db_client  # For saving news to polybot_news_items
         self.news_cache: Dict[str, NewsItem] = {}
         self.market_sentiments: Dict[str, MarketSentiment] = {}
         self.alerts: List[MarketAlert] = []
@@ -457,6 +459,9 @@ class NewsSentimentEngine:
             item.sentiment_score = score
             self.news_cache[item.id] = item
         
+        # Save to database for Admin UI
+        await self._save_news_to_db(all_news)
+        
         # Log summary
         if sources_fetched:
             logger.info(f"News fetched: {', '.join(sources_fetched)}")
@@ -466,6 +471,58 @@ class NewsSentimentEngine:
         logger.info(f"Total news items: {len(all_news)}")
         return all_news
     
+    async def _save_news_to_db(self, news_items: List[NewsItem]) -> int:
+        """Save news items to polybot_news_items table for Admin UI."""
+        if not self.db or not news_items:
+            return 0
+        
+        saved = 0
+        try:
+            if hasattr(self.db, '_client') and self.db._client:
+                for item in news_items:
+                    try:
+                        # Map sentiment enum to string
+                        sentiment_str = item.sentiment.name.lower()
+                        
+                        # Use insert (Supabase generates UUID)
+                        # Check if item already exists by title+source+published_at
+                        existing = self.db._client.table('polybot_news_items')\
+                            .select('id')\
+                            .eq('title', item.title[:500])\
+                            .eq('source', item.source.value)\
+                            .limit(1)\
+                            .execute()
+                        
+                        if existing.data:
+                            # Already exists, skip
+                            continue
+                        
+                        self.db._client.table('polybot_news_items').insert(
+                            {
+                                'source': item.source.value,
+                                'title': item.title[:500],
+                                'content': (item.content[:2000] 
+                                    if item.content else None),
+                                'url': item.url,
+                                'author': item.author,
+                                'sentiment': sentiment_str,
+                                'sentiment_score': item.sentiment_score,
+                                'keywords': (item.keywords[:20] 
+                                    if item.keywords else []),
+                                'published_at': item.published_at.isoformat(),
+                            }
+                        ).execute()
+                        saved += 1
+                    except Exception as e:
+                        logger.debug(f"Error saving news item: {e}")
+                        
+                if saved > 0:
+                    logger.info(f"💾 Saved {saved} new news items to DB")
+        except Exception as e:
+            logger.error(f"Error saving news to DB: {e}")
+        
+        return saved
+
     async def match_news_to_markets(
         self,
         news_items: List[NewsItem],

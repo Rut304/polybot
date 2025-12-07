@@ -88,6 +88,7 @@ from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.notifications import Notifier, NotificationConfig
 from src.logging_handler import setup_database_logging
+from src.services.balance_aggregator import BalanceAggregator
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
@@ -178,6 +179,9 @@ class PolybotRunner:
         
         # CCXT client for crypto exchange access
         self.ccxt_client: Optional[CCXTClient] = None
+        
+        # Balance aggregator for multi-platform balance tracking
+        self.balance_aggregator: Optional[BalanceAggregator] = None
         
         # Analytics tracker for per-strategy performance
         self.analytics: ArbitrageAnalytics = reset_analytics()
@@ -318,8 +322,9 @@ class PolybotRunner:
                 finnhub_api_key=self.finnhub_api_key,
                 twitter_bearer_token=self.twitter_bearer_token,
                 check_interval=300,
+                db_client=self.db,  # Save news to polybot_news_items
             )
-            logger.info("✓ News/Sentiment Engine initialized")
+            logger.info("✓ News/Sentiment Engine initialized (saves to DB)")
         
         # Initialize cross-platform arbitrage detector
         self.cross_platform_detector = ArbitrageDetector(
@@ -653,6 +658,17 @@ class PolybotRunner:
             logger.info("✓ Realistic Paper Trader initialized")
             logger.info("📊 Starting balance: $1,000.00")
             logger.info("📉 Slippage, partial fills, failures enabled")
+        
+        # Initialize balance aggregator for multi-platform balance tracking
+        # Collects from: Polymarket, Kalshi, Crypto (CCXT), Stocks (Alpaca)
+        self.balance_aggregator = BalanceAggregator(
+            db_client=self.db,
+            polymarket_client=self.polymarket_client,
+            kalshi_client=self.kalshi_client,
+            ccxt_clients={},  # TODO: Add CCXT clients when multiple exchanges
+            alpaca_client=self.alpaca_client,
+        )
+        logger.info("✓ Balance Aggregator initialized (saves to DB)")
         
         logger.info("All features initialized!")
     
@@ -1133,10 +1149,23 @@ class PolybotRunner:
             )
 
     async def run_balance_tracker(self):
-        """Periodically fetch and log balances."""
+        """Periodically fetch and save balances to database."""
         while self._running:
             try:
-                await self.fetch_balances()
+                # Use aggregator to fetch from all platforms and save to DB
+                if self.balance_aggregator:
+                    balance = await self.balance_aggregator.fetch_all_balances(
+                        force_refresh=True
+                    )
+                    logger.info(
+                        f"💰 Portfolio: ${float(balance.total_portfolio_usd):,.2f} | "
+                        f"Cash: ${float(balance.total_cash_usd):,.2f} | "
+                        f"Positions: ${float(balance.total_positions_usd):,.2f} | "
+                        f"Platforms: {len(balance.platforms)}"
+                    )
+                else:
+                    # Fallback to simple balance fetch (no DB save)
+                    await self.fetch_balances()
             except Exception as e:
                 logger.error(f"Error fetching balances: {e}")
             
