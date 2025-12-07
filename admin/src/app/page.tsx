@@ -36,15 +36,28 @@ import { StatDetailModal } from '@/components/StatDetailModal';
 import { StrategyBreakdown } from '@/components/StrategyBreakdown';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
+// Timeframe options for global selector
+const TIMEFRAME_OPTIONS = [
+  { value: 1, label: '1 Hour' },
+  { value: 6, label: '6 Hours' },
+  { value: 24, label: '24 Hours' },
+  { value: 168, label: '7 Days' },
+  { value: 720, label: '30 Days' },
+  { value: 0, label: 'All Time' },
+];
+
 export default function Dashboard() {
+  // Global timeframe state - all components use this
+  const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
+  
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
-  const { data: realTimeStats } = useRealTimeStats();
+  const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours);
   const { data: trades } = useSimulatedTrades(20);
   // Fetch all trades for accurate modal calculations
   const { data: allTrades } = useSimulatedTrades(5000);
-  const { data: opportunities } = useOpportunities(50);
-  const { data: pnlHistory } = usePnLHistory(24);
+  const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
+  const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
   
   // Prefer real-time computed stats (more accurate)
   const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 5000;
@@ -77,12 +90,30 @@ export default function Dashboard() {
       />
       
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Activity className="w-8 h-8 text-neon-green" />
-          Dashboard
-        </h1>
-        <p className="text-gray-400 mt-2">Real-time overview of your arbitrage bot</p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <Activity className="w-8 h-8 text-neon-green" />
+            Dashboard
+          </h1>
+          <p className="text-gray-400 mt-2">Real-time overview of your arbitrage bot</p>
+        </div>
+        
+        {/* Global Timeframe Selector */}
+        <div className="flex items-center gap-2 bg-dark-card border border-dark-border rounded-xl px-4 py-2">
+          <Clock className="w-4 h-4 text-gray-400" />
+          <span className="text-sm text-gray-400">Showing:</span>
+          <select 
+            value={globalTimeframeHours}
+            onChange={(e) => setGlobalTimeframeHours(Number(e.target.value))}
+            className="bg-dark-border rounded-lg px-3 py-1.5 text-sm border-none outline-none text-white cursor-pointer hover:bg-dark-border/70 transition-colors"
+            title="Select timeframe for all dashboard data"
+          >
+            {TIMEFRAME_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
         {/* Top Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -141,11 +172,9 @@ export default function Dashboard() {
                 <BarChart3 className="w-5 h-5 text-neon-green" />
                 P&L Over Time
               </h2>
-              <select className="bg-dark-border rounded-lg px-3 py-1 text-sm border-none outline-none">
-                <option value="24">24 Hours</option>
-                <option value="168">7 Days</option>
-                <option value="720">30 Days</option>
-              </select>
+              <span className="text-xs text-gray-500 bg-dark-border px-2 py-1 rounded">
+                {TIMEFRAME_OPTIONS.find(o => o.value === globalTimeframeHours)?.label || '24 Hours'}
+              </span>
             </div>
             <PnLChart data={pnlHistory || []} />
           </motion.div>

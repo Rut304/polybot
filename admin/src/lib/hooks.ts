@@ -123,14 +123,23 @@ export function useSimulatedTrades(limit: number = 50) {
   });
 }
 
-// Fetch opportunities
-export function useOpportunities(limit: number = 100) {
+// Fetch opportunities (with optional timeframe filter)
+export function useOpportunities(limit: number = 100, timeframeHours?: number) {
   return useQuery({
-    queryKey: ['opportunities', limit],
+    queryKey: ['opportunities', limit, timeframeHours],
     queryFn: async (): Promise<Opportunity[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('polybot_opportunities')
-        .select('*')
+        .select('*');
+      
+      // Apply timeframe filter if specified (0 = all time)
+      if (timeframeHours && timeframeHours > 0) {
+        const since = new Date();
+        since.setHours(since.getHours() - timeframeHours);
+        query = query.gte('detected_at', since.toISOString());
+      }
+      
+      const { data, error } = await query
         .order('detected_at', { ascending: false })
         .limit(limit);
       
@@ -197,13 +206,22 @@ export function usePnLHistory(hours: number = 24) {
 }
 
 // Compute real-time stats directly from trades (more accurate than stats table)
-export function useRealTimeStats() {
-  const { data: trades = [] } = useSimulatedTrades(500);
-  const { data: opportunities = [] } = useOpportunities(1000);
+export function useRealTimeStats(timeframeHours?: number) {
+  const { data: allTrades = [] } = useSimulatedTrades(5000);
+  const { data: opportunities = [] } = useOpportunities(1000, timeframeHours);
   const { data: simStats } = useSimulationStats();
   
+  // Filter trades by timeframe
+  const trades = timeframeHours && timeframeHours > 0
+    ? allTrades.filter(t => {
+        const tradeTime = new Date(t.created_at).getTime();
+        const cutoff = Date.now() - (timeframeHours * 60 * 60 * 1000);
+        return tradeTime >= cutoff;
+      })
+    : allTrades;
+  
   return useQuery({
-    queryKey: ['realTimeStats', trades.length, opportunities.length],
+    queryKey: ['realTimeStats', trades.length, opportunities.length, timeframeHours],
     queryFn: () => {
       // Filter out failed executions for main stats
       const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
