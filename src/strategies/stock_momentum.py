@@ -499,6 +499,43 @@ class StockMomentumStrategy:
         
         self._running = False
     
+    async def run_cycle(self):
+        """Run one iteration of the strategy (called by bot_runner)."""
+        try:
+            # Update existing positions
+            for symbol in list(self.positions.keys()):
+                try:
+                    ticker = await self.alpaca.get_ticker(symbol)
+                    await self._update_position(
+                        self.positions[symbol], ticker.last
+                    )
+                except KeyError:
+                    pass  # Position was closed
+                except Exception as e:
+                    logger.error(f"Error updating {symbol}: {e}")
+            
+            # Scan for new opportunities
+            opportunities = await self.scan_opportunities()
+            
+            # Enter best opportunities (top 3 only)
+            for score in opportunities[:3]:
+                if len(self.positions) < self.max_positions:
+                    await self._enter_position(score)
+            
+            # Log status
+            total_pnl = sum(p.current_pnl for p in self.positions.values())
+            logger.info(
+                f"🚀 Momentum | "
+                f"Opportunities: {len(opportunities)} | "
+                f"Positions: {len(self.positions)}/{self.max_positions} | "
+                f"Open P&L: ${total_pnl:+.2f} | "
+                f"Realized: ${self.stats.total_pnl:+.2f}"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in momentum cycle: {e}")
+            raise
+    
     async def stop(self):
         """Stop the strategy."""
         self._running = False

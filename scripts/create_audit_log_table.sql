@@ -27,6 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_severity ON polybot_audit_log(severity)
 ALTER TABLE polybot_audit_log ENABLE ROW LEVEL SECURITY;
 
 -- Only admins can read audit logs (service role bypasses RLS)
+DROP POLICY IF EXISTS "Admins can read audit logs" ON polybot_audit_log;
 CREATE POLICY "Admins can read audit logs" ON polybot_audit_log
     FOR SELECT
     USING (
@@ -38,6 +39,7 @@ CREATE POLICY "Admins can read audit logs" ON polybot_audit_log
     );
 
 -- Only service role can insert (from API routes)
+DROP POLICY IF EXISTS "Service role can insert audit logs" ON polybot_audit_log;
 CREATE POLICY "Service role can insert audit logs" ON polybot_audit_log
     FOR INSERT
     WITH CHECK (true);
@@ -64,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_bot_logs_session_id ON polybot_bot_logs(session_i
 ALTER TABLE polybot_bot_logs ENABLE ROW LEVEL SECURITY;
 
 -- Admins can read bot logs
+DROP POLICY IF EXISTS "Admins can read bot logs" ON polybot_bot_logs;
 CREATE POLICY "Admins can read bot logs" ON polybot_bot_logs
     FOR SELECT
     USING (
@@ -75,6 +78,7 @@ CREATE POLICY "Admins can read bot logs" ON polybot_bot_logs
     );
 
 -- Service role can insert bot logs
+DROP POLICY IF EXISTS "Service role can insert bot logs" ON polybot_bot_logs;
 CREATE POLICY "Service role can insert bot logs" ON polybot_bot_logs
     FOR INSERT
     WITH CHECK (true);

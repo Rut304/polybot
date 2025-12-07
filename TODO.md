@@ -1,23 +1,28 @@
 # PolyBot To-Do List
 
-## Active Tasks (December 6, 2025)
+## Active Tasks (December 7, 2025)
 
 ### 🔴 HIGH PRIORITY - Current Issues
 
 #### Bot/Backend
 
-- [x] **Stock/Crypto Data Flow** - Testing if stock strategies work after v33 fix
-  - Fixed parameter mismatch (`entry_z_threshold` → `entry_threshold`)
-  - v33 deployed and running successfully
-  - Need to verify stock strategies initialize when market opens (Mon-Fri 9:30am-4pm ET)
+- [x] **Stock/Crypto Data Flow** - FIXED: Added `run_cycle()` methods to strategies
+  - Fixed `'StockMeanReversionStrategy' object has no attribute 'run_cycle'` error
+  - Fixed `'StockMomentumStrategy' object has no attribute 'run_cycle'` error
+  - Strategies had `run()` but bot_runner was calling `run_cycle()`
+  - v41 deployment pending
+
+- [ ] **News API 401 Unauthorized** - Invalid API key in Supabase secrets
+  - Key `NEWS_API_KEY` appears malformed: `d4pqlp1r01qjpnb110tg...`
+  - Need to verify/update the NewsAPI.org key in polybot_secrets table
 
 - [x] **Binance.US Blocked** - Returns 451 "Service unavailable from restricted location"
   - AWS Lightsail in us-east-1 is geoblocked by Binance.US
   - User prefers Coinbase - enabled in settings, Bybit/Binance disabled
+  - **NOTE**: User says Binance.US should work in Massachusetts - may need VPN or different approach
 
 - [x] **Run Trading Mode Migration** - SQL columns added for paper/live tracking
-  - User ran `scripts/add_trading_mode_columns.sql` in Supabase SQL Editor
-  - User ran `scripts/fix_exchange_columns.sql` in Supabase SQL Editor
+  - User ran SQL migrations in Supabase SQL Editor
   - Added `trading_mode`, `strategy_type`, `platform`, `session_id` columns
   - Created `polybot_strategy_performance` view for analytics
 
@@ -28,42 +33,68 @@
 #### Admin UI
 
 - [x] **Settings Persistence Fixed** - Exchange toggles now save correctly
-  - Added error handling with visible error/success messages
-  - Fixed race condition where refetch would overwrite during save
-  - Fixed Bybit toggle (was stuck at true in database)
-  - Added console logging for debugging save issues
 
-- [x] **P&L Calculation Fixed** - Now computes from actual trades instead of stale stats_json
-  - Added Gross Profit display
-  - Shows "Fees + Slippage" (difference between expected and actual)
-  - Worst trade shows correct negative value
+- [x] **P&L Calculation Fixed** - Now computes from actual trades
 
-- [x] **Open Positions Page** - Confirmed working correctly
-  - Simulation trades resolve instantly (no "pending" state)
-  - Page shows "No open positions" when empty (correct behavior)
+- [x] **News Page** - Fully implemented with pagination
+  - Shows headline, summary/content, source, published date
+  - Links to original article (external link icon)
+  - Auto-refreshes every 30 seconds
+  - Filters by source (Finnhub, NewsAPI, Twitter, Reddit, Polymarket) and sentiment
+  - 20 items per page, paginated with next/prev buttons
+  - Last 10 days of articles shown
+  - **News Sources Configured**: Finnhub ✅, Twitter/X ✅
+  - **News Sources NOT Configured**: NewsAPI.org (optional)
+  - Bot handles missing/invalid API keys gracefully - each source is independent
 
 ### 🟡 MEDIUM PRIORITY - Feature Requests
+
+#### Simulation & Analysis
+
+- [x] **Simulation session history viewer** - EXISTS at `/history` page
+  - View past simulation sessions with trades
+  - Session cards show ROI, P&L, win rate
+- [x] **AI analysis of sessions** - EXISTS in `/history` page
+  - "Generate AI Analysis" button on each session
+  - Shows recommendations with implement all option
+- [x] Export session data to CSV/JSON - ADDED export buttons to session detail
 
 #### Strategy Analytics & Filtering
 
 - [x] Database schema for strategy filtering (user ran SQL migration)
 - [x] Per-strategy P&L breakdown in dashboard (StrategyBreakdown component added)
-- [ ] Strategy success tracking with filterable analytics
-- [ ] Collapsible strategy sections in dashboard
-- [ ] Strategy performance comparison charts
-
-#### User Management
-
-- [ ] Fix User Admin section - should show list of users
-- [ ] User role management (admin, viewer, trader)
-- [ ] Activity log per user
+- [x] Collapsible strategy sections in dashboard - EXISTS (StrategyCard is collapsible)
+- [x] Strategy performance comparison charts - EXISTS in `/analytics` page
 
 #### Logging & Debugging
 
-- [ ] Add Logs page for troubleshooting
-  - Real-time log streaming from bot
-  - Filter by log level (INFO, WARNING, ERROR)
-  - Search/filter by strategy or component
+- [x] **Logs page with real-time streaming** - EXISTS at `/logs`
+  - Bot logs and audit logs tabs
+  - Filter by severity (debug, info, warning, error, critical)
+  - Filter by component
+  - Auto-refresh every 10 seconds option
+  - Export to JSON
+
+#### User Management
+
+- [x] **Fix User Admin section** - IMPROVED with loading/error/empty states
+  - Shows list of users with roles
+  - Change role dropdown
+  - Delete user button
+- [ ] User role management (admin, viewer, trader) - Currently only admin/viewer
+- [ ] Activity log per user - Audit logs exist but not filtered by user
+
+#### Live Trading Preparation
+
+- [ ] Alpaca Live API approval (currently paper trading only)
+- [ ] Coinbase Pro API setup for live crypto trading
+- [ ] Risk management controls for live mode
+- [ ] Position size limits per strategy for live mode
+
+#### Research & Feature Ideas
+
+- [ ] Review features on algobulls.com for trading bot ideas
+- [ ] Review features on ninjatrader.com for trading bot ideas
 
 #### UI Improvements
 
@@ -72,9 +103,6 @@
 
 ### 🟢 LOW PRIORITY - Nice to Have
 
-- [ ] Simulation session history viewer
-- [ ] AI analysis of completed sessions
-- [ ] Export session data to CSV
 - [ ] Discord webhook integration
 - [ ] Email alerts for significant events
 

@@ -132,7 +132,11 @@ class PolybotRunner:
         self.private_key = private_key or self.db.get_secret("POLYMARKET_PRIVATE_KEY") or os.getenv("PRIVATE_KEY")
         self.kalshi_api_key = kalshi_api_key or self.db.get_secret("KALSHI_API_KEY") or os.getenv("KALSHI_API_KEY")
         self.kalshi_private_key = kalshi_private_key or self.db.get_secret("KALSHI_PRIVATE_KEY") or os.getenv("KALSHI_PRIVATE_KEY")
-        self.news_api_key = news_api_key or self.db.get_secret("FINNHUB_API_KEY") or self.db.get_secret("NEWS_API_KEY") or os.getenv("NEWS_API_KEY")
+        
+        # News API keys - each source is independent for graceful degradation
+        self.finnhub_api_key = self.db.get_secret("FINNHUB_API_KEY") or os.getenv("FINNHUB_API_KEY")
+        self.twitter_bearer_token = self.db.get_secret("TWITTER_BEARER_TOKEN") or os.getenv("TWITTER_BEARER_TOKEN")
+        self.news_api_key = news_api_key or self.db.get_secret("NEWS_API_KEY") or os.getenv("NEWS_API_KEY")
         
         # Load config from Supabase for autonomous operation
         # This allows config changes without redeployment
@@ -311,6 +315,8 @@ class PolybotRunner:
         if self.enable_news_sentiment:
             self.news_engine = NewsSentimentEngine(
                 news_api_key=self.news_api_key,
+                finnhub_api_key=self.finnhub_api_key,
+                twitter_bearer_token=self.twitter_bearer_token,
                 check_interval=300,
             )
             logger.info("✓ News/Sentiment Engine initialized")
@@ -658,17 +664,20 @@ class PolybotRunner:
             f"Market: {signal.market_slug}"
         )
         
-        # Log to database
+        # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
-                "type": "copy_trade",
-                "source": "polymarket",
-                "trader": signal.trader_address[:10] + "...",
-                "market_slug": signal.market_slug,
-                "action": signal.action,
-                "outcome": signal.outcome,
-                "price": signal.price,
-                "size": signal.size,
+                "id": f"copy_{signal.market_slug[:20]}_{signal.detected_at.timestamp():.0f}",
+                "buy_platform": "polymarket",
+                "sell_platform": "polymarket",
+                "buy_market_id": signal.market_slug,
+                "sell_market_id": signal.market_slug,
+                "buy_market_name": f"Copy: {signal.outcome} ({signal.trader_address[:10]}...)",
+                "sell_market_name": signal.market_slug,
+                "buy_price": float(signal.price),
+                "sell_price": float(signal.price),
+                "profit_percent": 0.0,  # Copy trading doesn't have guaranteed profit
+                "strategy": "copy_trading",
                 "detected_at": signal.detected_at.isoformat(),
             })
         except Exception as e:
@@ -686,17 +695,21 @@ class PolybotRunner:
             f"${opp.profit_potential:.4f} potential profit"
         )
         
-        # Log to database
+        # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
-                "type": "overlapping_arb",
-                "source": "polymarket",
-                "market_a": opp.market_a.question[:100],
-                "market_b": opp.market_b.question[:100],
-                "relationship": opp.relationship,
-                "deviation": opp.deviation,
-                "profit_potential": opp.profit_potential,
-                "confidence": opp.confidence,
+                "id": f"overlap_{opp.market_a.condition_id[:10]}_{opp.detected_at.timestamp():.0f}",
+                "buy_platform": "polymarket",
+                "sell_platform": "polymarket",
+                "buy_market_id": opp.market_a.condition_id,
+                "sell_market_id": opp.market_b.condition_id,
+                "buy_market_name": opp.market_a.question[:200],
+                "sell_market_name": opp.market_b.question[:200],
+                "buy_price": 0.0,  # Overlapping arb doesn't have direct prices
+                "sell_price": 0.0,
+                "profit_percent": float(opp.profit_potential * 100),
+                "confidence": float(opp.confidence),
+                "strategy": f"overlapping_arb_{opp.relationship}",
                 "detected_at": opp.detected_at.isoformat(),
             })
         except Exception as e:
@@ -908,18 +921,22 @@ class PolybotRunner:
             f"-> {alert.suggested_action.upper()} confidence: {alert.confidence:.0%}"
         )
         
-        # Log to database
+        # Log to database with proper schema fields
         try:
+            source_name = alert.news_item.source.value if hasattr(alert.news_item.source, 'value') else str(alert.news_item.source)
             self.db.log_opportunity({
-                "type": "news_alert",
-                "source": alert.news_item.source.value,
-                "title": alert.news_item.title[:200],
-                "market_id": alert.market_condition_id,
-                "market_question": alert.market_question[:200],
-                "alert_type": alert.alert_type,
-                "suggested_action": alert.suggested_action,
-                "confidence": alert.confidence,
-                "sentiment_score": alert.news_item.sentiment_score,
+                "id": f"news_{alert.market_condition_id[:15]}_{alert.created_at.timestamp():.0f}",
+                "buy_platform": "polymarket",  # News alerts are for Polymarket
+                "sell_platform": "polymarket",
+                "buy_market_id": alert.market_condition_id,
+                "sell_market_id": alert.market_condition_id,
+                "buy_market_name": alert.news_item.title[:200],
+                "sell_market_name": alert.market_question[:200],
+                "buy_price": 0.0,  # News alerts don't have direct prices
+                "sell_price": 0.0,
+                "profit_percent": 0.0,
+                "confidence": float(alert.confidence),
+                "strategy": f"news_sentiment_{source_name}",
                 "detected_at": alert.created_at.isoformat(),
             })
         except Exception as e:

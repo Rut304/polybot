@@ -24,13 +24,20 @@ def get_supabase_client():
             from supabase import create_client
             
             url = os.environ.get("SUPABASE_URL", "")
-            key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+            # Support both key names for compatibility
+            key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or
+                   os.environ.get("SUPABASE_KEY") or "")
             
             if url and key:
                 _supabase_client = create_client(url, key)
+                print("[DB-LOG] Supabase logging client initialized")
         except Exception as e:
             print(f"Failed to create Supabase client for logging: {e}")
     return _supabase_client
+
+
+# Track if database logging has failed permanently
+_db_logging_disabled = False
 
 
 class DatabaseLogHandler(logging.Handler):
@@ -111,7 +118,10 @@ class DatabaseLogHandler(logging.Handler):
     
     def _flush(self):
         """Flush buffered logs to database."""
-        if not self._buffer:
+        global _db_logging_disabled
+        
+        if not self._buffer or _db_logging_disabled:
+            self._buffer.clear()
             return
         
         client = get_supabase_client()
@@ -125,10 +135,16 @@ class DatabaseLogHandler(logging.Handler):
         
         try:
             # Write in a non-blocking way if possible
-            client.table('polybot_bot_logs').insert(logs_to_write).execute()
+            result = client.table('polybot_bot_logs').insert(logs_to_write).execute()
         except Exception as e:
-            # If write fails, don't retry to avoid cascading failures
-            print(f"Failed to write logs to database: {e}")
+            error_str = str(e)
+            # If auth error, disable database logging permanently for this session
+            if '401' in error_str or 'Invalid API key' in error_str:
+                _db_logging_disabled = True
+                print("Database logging disabled - auth error (bot continues normally)")
+            else:
+                # Don't spam errors - only print occasionally
+                pass
     
     def close(self):
         """Flush remaining logs on close."""
@@ -144,7 +160,9 @@ def setup_database_logging(session_id: Optional[str] = None):
     """
     # Only add if SUPABASE is configured
     url = os.environ.get("SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    # Support both key names for compatibility
+    key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or 
+           os.environ.get("SUPABASE_KEY") or "")
     
     if not url or not key:
         print("Skipping database logging - SUPABASE not configured")

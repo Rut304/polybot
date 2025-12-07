@@ -437,6 +437,38 @@ class StockMeanReversionStrategy:
         
         self._running = False
     
+    async def run_cycle(self):
+        """Run one iteration of the strategy (called by bot_runner)."""
+        try:
+            # Check existing positions for exits
+            for symbol in list(self.positions.keys()):
+                try:
+                    ticker = await self.alpaca.get_ticker(symbol)
+                    await self._check_exit(self.positions[symbol], ticker.last)
+                except Exception as e:
+                    logger.error(f"Error checking position {symbol}: {e}")
+            
+            # Scan for new opportunities
+            signals = await self.scan_opportunities()
+            
+            # Enter positions for strong signals
+            for signal in sorted(signals, key=lambda s: s.strength, reverse=True):
+                if signal.strength >= 0.5:  # Only act on strong signals
+                    await self._enter_position(signal)
+            
+            # Log status periodically
+            logger.info(
+                f"📊 Mean Reversion | "
+                f"Signals: {len(signals)} | "
+                f"Positions: {len(self.positions)}/{self.max_positions} | "
+                f"P&L: ${self.stats.total_pnl:+.2f} | "
+                f"Win Rate: {self.stats.win_rate:.0f}%"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in mean reversion cycle: {e}")
+            raise
+    
     async def stop(self):
         """Stop the strategy."""
         self._running = False

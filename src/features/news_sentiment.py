@@ -156,14 +156,97 @@ class NewsSentimentEngine:
     def __init__(
         self,
         news_api_key: Optional[str] = None,
+        finnhub_api_key: Optional[str] = None,
+        twitter_bearer_token: Optional[str] = None,
         check_interval: int = 300,  # 5 minutes
     ):
+        # Store each API key separately for graceful degradation
         self.news_api_key = news_api_key
+        self.finnhub_api_key = finnhub_api_key
+        self.twitter_bearer_token = twitter_bearer_token
         self.check_interval = check_interval
         self.news_cache: Dict[str, NewsItem] = {}
         self.market_sentiments: Dict[str, MarketSentiment] = {}
         self.alerts: List[MarketAlert] = []
         self._running = False
+        
+        # Track which sources are available
+        self._sources_status: Dict[str, bool] = {
+            "polymarket": True,  # Always available (no API key needed)
+            "finnhub": bool(finnhub_api_key),
+            "twitter": bool(twitter_bearer_token),
+            "news_api": bool(news_api_key),
+        }
+        
+        # Log available sources
+        available = [k for k, v in self._sources_status.items() if v]
+        unavailable = [k for k, v in self._sources_status.items() if not v]
+        logger.info(f"News sources available: {available}")
+        if unavailable:
+            logger.info(f"News sources not configured (will skip): {unavailable}")
+    
+    async def fetch_finnhub_news(
+        self,
+        category: str = "general",
+        hours: int = 24
+    ) -> List[NewsItem]:
+        """Fetch news from Finnhub.io (stock market news)."""
+        if not self.finnhub_api_key:
+            return []
+        
+        news_items = []
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.get(
+                    "https://finnhub.io/api/v1/news",
+                    params={
+                        "category": category,
+                        "token": self.finnhub_api_key,
+                    }
+                )
+                
+                if response.status_code == 401:
+                    logger.warning("Finnhub API key invalid or expired - skipping")
+                    self._sources_status["finnhub"] = False
+                    return []
+                elif response.status_code == 429:
+                    logger.warning("Finnhub rate limit hit - will retry later")
+                    return []
+                
+                response.raise_for_status()
+                articles = response.json()
+                
+                cutoff = datetime.utcnow() - timedelta(hours=hours)
+                
+                for article in articles[:30]:  # Limit to 30 articles
+                    pub_time = datetime.fromtimestamp(article.get("datetime", 0))
+                    if pub_time < cutoff:
+                        continue
+                    
+                    item = NewsItem(
+                        id=f"fh_{article.get('id', hash(article.get('headline', '')))}",
+                        source=NewsSource.NEWS_API,  # Using NEWS_API enum for finnhub
+                        title=article.get("headline", ""),
+                        content=article.get("summary", "") or "",
+                        url=article.get("url", ""),
+                        published_at=pub_time,
+                        author=article.get("source"),
+                        keywords=self._extract_keywords(
+                            article.get("headline", "") + " " + 
+                            (article.get("summary", "") or "")
+                        ),
+                    )
+                    news_items.append(item)
+                
+                logger.debug(f"Fetched {len(news_items)} articles from Finnhub")
+                
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Finnhub HTTP error: {e.response.status_code}")
+            except Exception as e:
+                logger.error(f"Error fetching Finnhub news: {e}")
+        
+        return news_items
     
     async def fetch_polymarket_activity(
         self,
@@ -235,6 +318,24 @@ class NewsSentimentEngine:
                         "pageSize": 20,
                     }
                 )
+                
+                # Handle API errors gracefully
+                if response.status_code == 401:
+                    logger.warning(
+                        "NewsAPI key invalid or expired - "
+                        "disabling this source"
+                    )
+                    self._sources_status["news_api"] = False
+                    return []
+                elif response.status_code == 429:
+                    logger.warning("NewsAPI rate limit - will retry later")
+                    return []
+                elif response.status_code == 426:
+                    logger.warning(
+                        "NewsAPI requires paid plan for this feature"
+                    )
+                    return []
+                
                 response.raise_for_status()
                 data = response.json()
                 
@@ -256,6 +357,8 @@ class NewsSentimentEngine:
                     )
                     news_items.append(item)
                 
+            except httpx.HTTPStatusError as e:
+                logger.warning(f"NewsAPI HTTP error: {e.response.status_code}")
             except Exception as e:
                 logger.error(f"Error fetching news: {e}")
         
@@ -305,28 +408,62 @@ class NewsSentimentEngine:
         return level, score
     
     async def fetch_all_news(self) -> List[NewsItem]:
-        """Fetch news from all configured sources."""
+        """Fetch news from all configured sources (graceful degradation)."""
         all_news = []
+        sources_fetched = []
+        sources_failed = []
         
-        # Polymarket activity
-        pm_news = await self.fetch_polymarket_activity()
-        all_news.extend(pm_news)
+        # Polymarket activity (always available - no API key needed)
+        try:
+            pm_news = await self.fetch_polymarket_activity()
+            all_news.extend(pm_news)
+            if pm_news:
+                sources_fetched.append(f"polymarket({len(pm_news)})")
+        except Exception as e:
+            logger.warning(f"Polymarket fetch failed: {e}")
+            sources_failed.append("polymarket")
         
-        # News API for key topics
-        if self.news_api_key:
-            for topic in ["prediction market", "polymarket", "cryptocurrency"]:
-                topic_news = await self.fetch_news_api(topic, hours=12)
-                all_news.extend(topic_news)
-                await asyncio.sleep(0.5)  # Rate limit
+        # Finnhub for stock market news
+        if self._sources_status.get("finnhub"):
+            try:
+                fh_news = await self.fetch_finnhub_news(category="general")
+                all_news.extend(fh_news)
+                if fh_news:
+                    sources_fetched.append(f"finnhub({len(fh_news)})")
+            except Exception as e:
+                logger.warning(f"Finnhub fetch failed: {e}")
+                sources_failed.append("finnhub")
+        
+        # NewsAPI.org for general news (if configured)
+        if self._sources_status.get("news_api") and self.news_api_key:
+            try:
+                topics = ["prediction market", "polymarket", "cryptocurrency"]
+                for topic in topics:
+                    topic_news = await self.fetch_news_api(topic, hours=12)
+                    all_news.extend(topic_news)
+                    await asyncio.sleep(0.5)  # Rate limit
+                if topic_news:
+                    sources_fetched.append(f"newsapi({len(topic_news)})")
+            except Exception as e:
+                logger.warning(f"NewsAPI fetch failed: {e}")
+                sources_failed.append("newsapi")
         
         # Analyze sentiment for all items
         for item in all_news:
-            level, score = self.analyze_sentiment(item.title + " " + item.content)
+            level, score = self.analyze_sentiment(
+                item.title + " " + item.content
+            )
             item.sentiment = level
             item.sentiment_score = score
             self.news_cache[item.id] = item
         
-        logger.info(f"Fetched {len(all_news)} news items")
+        # Log summary
+        if sources_fetched:
+            logger.info(f"News fetched: {', '.join(sources_fetched)}")
+        if sources_failed:
+            logger.warning(f"News sources failed: {', '.join(sources_failed)}")
+        
+        logger.info(f"Total news items: {len(all_news)}")
         return all_news
     
     async def match_news_to_markets(

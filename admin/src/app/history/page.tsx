@@ -309,8 +309,101 @@ function SessionDetail({
     }));
   }, [session.strategy_performance]);
   
+  // CSV Export function
+  const exportToCSV = () => {
+    if (trades.length === 0) return;
+    
+    const headers = [
+      'Trade ID', 'Date', 'Platform', 'Market', 'Strategy', 'Side', 
+      'Position Size', 'Entry Price', 'Expected Profit %', 'Actual Profit', 'Outcome'
+    ];
+    
+    const rows = trades.map(t => [
+      t.position_id,
+      format(new Date(t.created_at), 'yyyy-MM-dd HH:mm:ss'),
+      t.platform,
+      t.market_title || t.market_id,
+      t.arbitrage_type,
+      t.side,
+      t.position_size_usd.toFixed(2),
+      t.yes_price?.toFixed(2) || '',
+      t.expected_profit_pct?.toFixed(2) || '',
+      t.actual_profit_usd?.toFixed(2) || '',
+      t.outcome
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${session.session_id.slice(0,8)}-trades.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Export session summary
+  const exportSessionSummary = () => {
+    const summary = {
+      session_id: session.session_id,
+      started_at: session.started_at,
+      ended_at: session.ended_at,
+      status: session.status,
+      starting_balance: session.starting_balance,
+      ending_balance: session.ending_balance,
+      total_pnl: session.total_pnl,
+      roi_pct: session.roi_pct,
+      total_trades: session.total_trades,
+      winning_trades: session.winning_trades,
+      losing_trades: session.losing_trades,
+      win_rate: session.win_rate,
+      strategy_performance: session.strategy_performance,
+      ai_analysis: session.ai_analysis,
+      ai_recommendations: session.ai_recommendations,
+      notes: session.notes,
+    };
+    
+    const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${session.session_id.slice(0,8)}-summary.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  
   return (
     <div className="bg-dark-card/50 backdrop-blur-xl border border-dark-border rounded-xl overflow-hidden">
+      {/* Header with Export Buttons */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-dark-border bg-dark-bg/30">
+        <span className="text-sm text-gray-400">
+          Session: {session.session_id.slice(0,8)}...
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            disabled={trades.length === 0}
+            className="px-3 py-1.5 text-xs bg-dark-border hover:bg-dark-border/80 text-gray-300 rounded-lg flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Export trades to CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </button>
+          <button
+            onClick={exportSessionSummary}
+            className="px-3 py-1.5 text-xs bg-dark-border hover:bg-dark-border/80 text-gray-300 rounded-lg flex items-center gap-1.5 transition-colors"
+            title="Export session summary to JSON"
+          >
+            <Download className="w-3.5 h-3.5" />
+            JSON
+          </button>
+        </div>
+      </div>
+      
       {/* Tabs */}
       <div className="flex border-b border-dark-border">
         {['overview', 'trades', 'analysis'].map((tab) => (

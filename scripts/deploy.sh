@@ -13,7 +13,28 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SERVICE_NAME="polyparlay"
-REGION="us-east-1"
+
+# CRITICAL: Always use the same region - read from .aws-region file
+REGION_FILE="$PROJECT_ROOT/.aws-region"
+if [ -f "$REGION_FILE" ]; then
+    REGION=$(cat "$REGION_FILE" | tr -d '[:space:]')
+else
+    REGION="us-east-1"
+    echo "$REGION" > "$REGION_FILE"
+fi
+
+# Verify the service exists in the specified region BEFORE proceeding
+echo -e "${YELLOW}Verifying service exists in $REGION...${NC}"
+SERVICE_CHECK=$(aws lightsail get-container-services --service-name "$SERVICE_NAME" --region "$REGION" 2>&1)
+if echo "$SERVICE_CHECK" | grep -q "NotFoundException\|does not exist"; then
+    echo -e "${RED}ERROR: Service '$SERVICE_NAME' not found in region '$REGION'!${NC}"
+    echo "  Available services:"
+    aws lightsail get-container-services --query 'containerServices[*].{name:containerServiceName,region:location.regionName}' --output table
+    echo ""
+    echo "  If moving regions, update $REGION_FILE with the correct region."
+    exit 1
+fi
+echo -e "  ✓ Service verified in ${GREEN}$REGION${NC}"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  PolyBot Deployment Script${NC}"

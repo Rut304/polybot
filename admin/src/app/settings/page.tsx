@@ -24,6 +24,7 @@ import {
   TrendingDown,
   HelpCircle,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -2571,9 +2572,50 @@ export default function SettingsPage() {
                 <div className="mt-4 pt-4 border-t border-dark-border">
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-sm text-gray-400">Manage user access and permissions</p>
+                    <button
+                      onClick={() => refetchUsers()}
+                      className="text-xs text-gray-500 hover:text-white flex items-center gap-1"
+                      disabled={usersLoading}
+                    >
+                      <RefreshCw className={cn("w-3 h-3", usersLoading && "animate-spin")} />
+                      Refresh
+                    </button>
                   </div>
                   
+                  {/* Loading State */}
+                  {usersLoading && (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="w-5 h-5 text-gray-400 animate-spin" />
+                      <span className="ml-2 text-gray-400">Loading users...</span>
+                    </div>
+                  )}
+                  
+                  {/* Error State */}
+                  {usersError && !usersLoading && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
+                      <p className="text-red-400 text-sm">
+                        Failed to load users: {(usersError as Error).message}
+                      </p>
+                      <button
+                        onClick={() => refetchUsers()}
+                        className="mt-2 text-xs text-red-400 hover:text-red-300"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* Empty State */}
+                  {!usersLoading && !usersError && users.length === 0 && (
+                    <div className="text-center py-8">
+                      <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No users found</p>
+                      <p className="text-xs text-gray-500 mt-1">Users will appear here once they sign up</p>
+                    </div>
+                  )}
+                  
                   {/* Users List */}
+                  {!usersLoading && !usersError && users.length > 0 && (
                   <div className="space-y-2">
                     {users.map((u: any) => (
                       <div 
@@ -2648,9 +2690,6 @@ export default function SettingsPage() {
                       </div>
                     ))}
                   </div>
-                  
-                  {users.length === 0 && (
-                    <p className="text-center text-gray-500 py-4">No users found</p>
                   )}
                 </div>
               </motion.div>
