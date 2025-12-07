@@ -6,19 +6,24 @@
 
 #### Bot/Backend
 
-- [ ] **Stock/Crypto Data Flow** - Testing if stock strategies work after v33 fix
+- [x] **Stock/Crypto Data Flow** - Testing if stock strategies work after v33 fix
   - Fixed parameter mismatch (`entry_z_threshold` → `entry_threshold`)
   - v33 deployed and running successfully
   - Need to verify stock strategies initialize when market opens (Mon-Fri 9:30am-4pm ET)
 
-- [ ] **Binance.US Blocked** - Returns 451 "Service unavailable from restricted location"
+- [x] **Binance.US Blocked** - Returns 451 "Service unavailable from restricted location"
   - AWS Lightsail in us-east-1 is geoblocked by Binance.US
-  - Options: Use different exchange (Kraken, Coinbase), use proxy, or accept US restriction
+  - User prefers Coinbase - enabled in settings, Bybit/Binance disabled
 
-- [ ] **Run Trading Mode Migration** - Need to add columns for paper/live tracking
-  - Run `scripts/add_trading_mode_columns.sql` in Supabase SQL Editor
-  - This adds `trading_mode`, `strategy_type`, `platform`, `session_id` columns
-  - Enables filtering by paper vs real trades and per-strategy analytics
+- [x] **Run Trading Mode Migration** - SQL columns added for paper/live tracking
+  - User ran `scripts/add_trading_mode_columns.sql` in Supabase SQL Editor
+  - User ran `scripts/fix_exchange_columns.sql` in Supabase SQL Editor
+  - Added `trading_mode`, `strategy_type`, `platform`, `session_id` columns
+  - Created `polybot_strategy_performance` view for analytics
+
+- [x] **Market Maker Tight Loop** - Fixed
+  - Was returning early when no markets found, causing rapid restarts
+  - Added 5-minute delay when no suitable markets
 
 #### Admin UI
 
@@ -41,9 +46,9 @@
 
 #### Strategy Analytics & Filtering
 
-- [x] Database schema for strategy filtering (created but needs SQL migration run)
+- [x] Database schema for strategy filtering (user ran SQL migration)
+- [x] Per-strategy P&L breakdown in dashboard (StrategyBreakdown component added)
 - [ ] Strategy success tracking with filterable analytics
-- [ ] Per-strategy P&L breakdown in dashboard
 - [ ] Collapsible strategy sections in dashboard
 - [ ] Strategy performance comparison charts
 
@@ -63,7 +68,6 @@
 #### UI Improvements
 
 - [ ] Collapsible strategy sections on dashboard
-- [ ] P&L display per strategy (not just total)
 - [ ] Better mobile responsiveness
 
 ### 🟢 LOW PRIORITY - Nice to Have
@@ -78,13 +82,18 @@
 
 ## ✅ Completed Tasks
 
-### December 6, 2025
+### December 6, 2025 (Latest)
 
+- [x] Added per-strategy P&L breakdown to dashboard (StrategyBreakdown component)
+- [x] Added useStrategyPerformance hook with fallback computation
+- [x] Fixed market maker tight loop issue (was restarting every few seconds)
+- [x] Disabled unnecessary strategies in database
+- [x] Fixed settings persistence bug (Bybit toggle)
 - [x] Fixed `max_position_size` AttributeError
 - [x] Fixed strategy parameter mismatches in `bot_runner.py`
 - [x] Fixed P&L modal to compute from actual trades
 - [x] Added `secret.test`, `simulation.analyze`, `simulation.archive` to AuditAction types
-- [x] v33 deployed successfully
+- [x] v38 deployed to Lightsail with all fixes
 
 ### December 5, 2025
 
@@ -107,12 +116,12 @@
 
 ## Current Bot Status
 
-- **Version**: v33 (Build #25, image polybot.22)
-- **Status**: RUNNING ✅
-- **Strategies Active**: Kalshi single-platform arbitrage
-- **Simulation Balance**: ~$1,088 (+8.9% ROI, 101 trades)
-- **Win Rate**: 86%
-- **Execution Rate**: 90%
+- **Version**: v38 (Build #27, image polybot-b27.25)
+- **Status**: DEPLOYING ✅
+- **Strategies Active**: kalshi_single, polymarket_single, cross_platform
+- **Disabled**: market_making, news_arb, funding_rate, grid, pairs
+- **Exchanges**: Coinbase enabled, Bybit/Binance disabled
+- **Mode**: PAPER/SIMULATION
 
 ---
 

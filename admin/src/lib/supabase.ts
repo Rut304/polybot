@@ -30,6 +30,27 @@ export interface SimulatedTrade {
   is_automated?: boolean;
   strategy?: 'poly_single' | 'kalshi_single' | 'cross_platform' | 'manual';
   platform?: string;
+  // Enhanced fields from migration
+  trading_mode?: 'paper' | 'live';
+  strategy_type?: string;
+  session_id?: string;
+  arbitrage_type?: string;
+}
+
+// Per-strategy performance data from the view
+export interface StrategyPerformance {
+  trading_mode: 'paper' | 'live';
+  strategy: string;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate_pct: number;
+  total_pnl: number;
+  avg_trade_pnl: number;
+  best_trade: number;
+  worst_trade: number;
+  first_trade_at: string;
+  last_trade_at: string;
 }
 
 export interface SimulationStats {

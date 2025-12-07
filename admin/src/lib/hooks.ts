@@ -285,6 +285,122 @@ export function useOpportunityStats() {
   });
 }
 
+// Fetch per-strategy performance from the view (requires migration to have run)
+export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
+  return useQuery({
+    queryKey: ['strategyPerformance', tradingMode],
+    queryFn: async () => {
+      // Try to fetch from the view first
+      let query = supabase
+        .from('polybot_strategy_performance')
+        .select('*');
+      
+      if (tradingMode) {
+        query = query.eq('trading_mode', tradingMode);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        // If view doesn't exist, compute manually from trades
+        console.warn('Strategy performance view not available, computing from trades:', error.message);
+        return computeStrategyPerformanceFromTrades(tradingMode);
+      }
+      
+      return data || [];
+    },
+    refetchInterval: 10000,
+  });
+}
+
+// Fallback: Compute strategy performance from raw trades table
+async function computeStrategyPerformanceFromTrades(tradingMode?: 'paper' | 'live') {
+  let query = supabase
+    .from('polybot_simulated_trades')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1000);
+  
+  if (tradingMode) {
+    query = query.eq('trading_mode', tradingMode);
+  }
+  
+  const { data: trades, error } = await query;
+  
+  if (error || !trades) {
+    console.error('Error computing strategy performance:', error);
+    return [];
+  }
+  
+  // Group by strategy
+  const strategyMap = new Map<string, {
+    trading_mode: string;
+    strategy: string;
+    total_trades: number;
+    winning_trades: number;
+    losing_trades: number;
+    total_pnl: number;
+    profits: number[];
+    first_trade_at: string;
+    last_trade_at: string;
+  }>();
+  
+  trades.forEach(trade => {
+    const strategy = trade.strategy_type || trade.arbitrage_type || trade.trade_type || 'unknown';
+    const mode = trade.trading_mode || 'paper';
+    const key = `${mode}:${strategy}`;
+    
+    if (!strategyMap.has(key)) {
+      strategyMap.set(key, {
+        trading_mode: mode,
+        strategy,
+        total_trades: 0,
+        winning_trades: 0,
+        losing_trades: 0,
+        total_pnl: 0,
+        profits: [],
+        first_trade_at: trade.created_at,
+        last_trade_at: trade.created_at,
+      });
+    }
+    
+    const stats = strategyMap.get(key)!;
+    stats.total_trades++;
+    
+    if (trade.outcome === 'won') stats.winning_trades++;
+    if (trade.outcome === 'lost') stats.losing_trades++;
+    
+    const profit = trade.actual_profit_usd || 0;
+    stats.total_pnl += profit;
+    stats.profits.push(profit);
+    
+    if (new Date(trade.created_at) > new Date(stats.last_trade_at)) {
+      stats.last_trade_at = trade.created_at;
+    }
+    if (new Date(trade.created_at) < new Date(stats.first_trade_at)) {
+      stats.first_trade_at = trade.created_at;
+    }
+  });
+  
+  // Convert to array format
+  return Array.from(strategyMap.values()).map(s => ({
+    trading_mode: s.trading_mode,
+    strategy: s.strategy,
+    total_trades: s.total_trades,
+    winning_trades: s.winning_trades,
+    losing_trades: s.losing_trades,
+    win_rate_pct: s.winning_trades + s.losing_trades > 0 
+      ? (s.winning_trades / (s.winning_trades + s.losing_trades)) * 100 
+      : 0,
+    total_pnl: s.total_pnl,
+    avg_trade_pnl: s.profits.length > 0 ? s.total_pnl / s.profits.length : 0,
+    best_trade: Math.max(...s.profits, 0),
+    worst_trade: Math.min(...s.profits, 0),
+    first_trade_at: s.first_trade_at,
+    last_trade_at: s.last_trade_at,
+  }));
+}
+
 // Aggregate stats
 export function useAggregateStats() {
   return useQuery({

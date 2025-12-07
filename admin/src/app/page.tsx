@@ -33,6 +33,7 @@ import { TradesList } from '@/components/TradesList';
 import { OpportunitiesFeed } from '@/components/OpportunitiesFeed';
 import { StatusIndicator } from '@/components/StatusIndicator';
 import { StatDetailModal } from '@/components/StatDetailModal';
+import { StrategyBreakdown } from '@/components/StrategyBreakdown';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
 export default function Dashboard() {
@@ -164,6 +165,16 @@ export default function Dashboard() {
             <OpportunityChart data={opportunities || []} />
           </motion.div>
         </div>
+
+        {/* Strategy Breakdown */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="card mb-8"
+        >
+          <StrategyBreakdown tradingMode={isSimulation ? 'paper' : 'live'} />
+        </motion.div>
 
         {/* Live Feeds */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
