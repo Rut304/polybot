@@ -1413,6 +1413,29 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     
+    # Load simulation mode from database (Admin UI setting)
+    # This allows toggling simulation/live from the UI without code changes
+    db = Database()
+    simulation_mode = True  # Safe default
+    try:
+        if db._client:
+            # Read from polybot_status table (same table Admin UI writes to)
+            result = db._client.table('polybot_status').select(
+                'dry_run_mode'
+            ).limit(1).execute()
+            if result.data and len(result.data) > 0:
+                # dry_run_mode=True means simulation, False means LIVE
+                simulation_mode = result.data[0].get('dry_run_mode', True)
+                mode_str = 'SIMULATION' if simulation_mode else 'LIVE'
+                logger.info(f"📊 Loaded mode from database: {mode_str}")
+            else:
+                logger.warning(
+                    "No status row in polybot_status, defaulting to SIMULATION"
+                )
+    except Exception as e:
+        logger.warning(f"Could not load dry_run_mode: {e}")
+        simulation_mode = True
+    
     # Example tracked traders (these are whale addresses on Polymarket)
     tracked_traders = [
         # Add trader addresses to copy here
@@ -1424,7 +1447,7 @@ async def main():
         enable_arb_detection=True,
         enable_position_manager=True,
         enable_news_sentiment=True,
-        simulation_mode=True,
+        simulation_mode=simulation_mode,  # Now read from database!
     )
     
     # Start health server for Lightsail health checks (pass runner for debug)

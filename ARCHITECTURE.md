@@ -101,7 +101,8 @@ Bot detects opportunity → Paper Trader simulates trade →
 - **Win Rate modal**: Shows ALL trades ever
 - **This explains different numbers**
 
-### Verified Data (from Supabase):
+### Verified Data (from Supabase)
+
 - Total trades: 1000
 - Wins: 758 (75.8%)
 - Losses: 147
@@ -113,22 +114,26 @@ Bot detects opportunity → Paper Trader simulates trade →
 ## 🔒 Deployment Setup - What Runs Where
 
 ### Admin UI (Vercel)
+
 - **Project**: `admin` (prj_bN7avcXG0SRU3XNHF3ymz3KccTm5)
-- **URL**: https://admin-gules-chi.vercel.app
+- **URL**: <https://admin-gules-chi.vercel.app>
 - **Git Connected**: Yes, to Rut304/polybot
 - **Auto-Deploy**: Yes, on push to main
 - **No local laptop needed**: ✅
 
 ### Bot (AWS Lightsail)
+
 - **Service**: `polyparlay`
 - **Region**: us-east-1
-- **URL**: https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com
+- **URL**: <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>
 - **Current Version**: 49
 - **Deploy**: Via `./scripts/deploy.sh` (needs laptop currently)
 - **Health Check**: /health returns "OK"
 
 ### How to Make Bot Deploy Autonomously
+
 To remove laptop dependency for bot deployments:
+
 1. Set up GitHub Actions to build and push to Lightsail on commit
 2. Or use AWS CodePipeline triggered by GitHub
 
@@ -137,16 +142,19 @@ To remove laptop dependency for bot deployments:
 ## ✅ Verification Checklist
 
 ### Vercel Projects
+
 - [x] `admin` project exists and connected to GitHub
 - [x] Redundant `polybot` Vercel project was deleted earlier
 - [x] No root-level `.vercel` folder (removed)
 
 ### AWS Lightsail
+
 - [x] Service `polyparlay` running in us-east-1
 - [x] Health check passing
 - [x] Deployment version 49 active
 
 ### Data Integrity
+
 - [x] All trades in `polybot_simulated_trades` are SIMULATED
 - [x] No real money has been traded
 - [x] Bot mode is explicitly SIMULATION
