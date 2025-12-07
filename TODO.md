@@ -84,6 +84,8 @@
 
 ### December 6, 2025 (Latest)
 
+- [x] Fixed single-platform opportunity logging (was missing buy_platform field)
+- [x] Added database logging for admin UI logs page
 - [x] Added per-strategy P&L breakdown to dashboard (StrategyBreakdown component)
 - [x] Added useStrategyPerformance hook with fallback computation
 - [x] Fixed market maker tight loop issue (was restarting every few seconds)
@@ -93,7 +95,7 @@
 - [x] Fixed strategy parameter mismatches in `bot_runner.py`
 - [x] Fixed P&L modal to compute from actual trades
 - [x] Added `secret.test`, `simulation.analyze`, `simulation.archive` to AuditAction types
-- [x] v38 deployed to Lightsail with all fixes
+- [x] v39 deployed to Lightsail with all fixes
 
 ### December 5, 2025
 
@@ -116,12 +118,13 @@
 
 ## Current Bot Status
 
-- **Version**: v38 (Build #27, image polybot-b27.25)
-- **Status**: DEPLOYING ✅
+- **Version**: v39 (Build #28, image polybot-b28.26)
+- **Status**: RUNNING ✅
 - **Strategies Active**: kalshi_single, polymarket_single, cross_platform
 - **Disabled**: market_making, news_arb, funding_rate, grid, pairs
 - **Exchanges**: Coinbase enabled, Bybit/Binance disabled
 - **Mode**: PAPER/SIMULATION
+- **Balance**: ~$1,927 (as of v39 deployment)
 
 ---
 

@@ -830,13 +830,16 @@ class PolybotRunner:
         # Log to database
         try:
             self.db.log_opportunity({
-                "type": f"single_platform_{opp.platform}",
-                "source": opp.platform,
-                "market_id": opp.market_id,
-                "market_name": opp.market_title[:200],
-                "total_price": float(opp.total_price),
+                "id": f"single_{opp.platform}_{opp.market_id[:20]}_{opp.detected_at.timestamp():.0f}",
+                "buy_platform": opp.platform,
+                "sell_platform": opp.platform,
+                "buy_market_id": opp.market_id,
+                "sell_market_id": f"{opp.market_id}_resolution",
+                "buy_market_name": opp.market_title[:200],
+                "sell_market_name": f"Resolution: {opp.market_title[:100]}",
+                "buy_price": float(opp.total_price),
+                "sell_price": 1.0,  # Guaranteed $1 payout
                 "profit_percent": float(opp.profit_pct),
-                "conditions": opp.conditions,
                 "strategy": f"single_platform_{opp.platform}",
                 "detected_at": opp.detected_at.isoformat(),
             })
