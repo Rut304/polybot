@@ -230,6 +230,7 @@ export default function SettingsPage() {
   
   // UI state for strategy settings section
   const [showStrategySettings, setShowStrategySettings] = useState(false);
+  const [showCoreArbStrategies, setShowCoreArbStrategies] = useState(true);
   const [showAdvancedStrategies, setShowAdvancedStrategies] = useState(false);
   const [showCryptoStrategies, setShowCryptoStrategies] = useState(false);
   const [showExchangeSettings, setShowExchangeSettings] = useState(false);
@@ -904,11 +905,27 @@ export default function SettingsPage() {
         transition={{ delay: 0.22 }}
         className="card mb-6"
       >
-        <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-neon-green" />
-          Core Arbitrage Strategies
-        </h2>
-        <p className="text-sm text-gray-500 mb-6">Each strategy exploits different market inefficiencies. Enable/disable and tune independently.</p>
+        <button
+          onClick={() => setShowCoreArbStrategies(!showCoreArbStrategies)}
+          className="w-full flex items-center justify-between"
+          type="button"
+        >
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Activity className="w-5 h-5 text-neon-green" />
+            Core Arbitrage Strategies
+          </h2>
+          {showCoreArbStrategies ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        
+        <AnimatePresence>
+          {showCoreArbStrategies && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+        <p className="text-sm text-gray-500 mb-6 mt-2">Each strategy exploits different market inefficiencies. Enable/disable and tune independently.</p>
 
         {/* ══════════════════════════════════════════════════════════════════════
             POLYMARKET SINGLE-PLATFORM ARBITRAGE
@@ -1278,6 +1295,9 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Advanced Strategies: Market Making & News Arbitrage */}
