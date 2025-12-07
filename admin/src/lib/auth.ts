@@ -74,7 +74,21 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     return 'viewer';
   }
   
-  // Then check database (polybot_user_profiles table)
+  // Try fetching from API (bypasses RLS with service key)
+  if (user?.email) {
+    try {
+      const response = await fetch(`/api/users/me?email=${encodeURIComponent(user.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.role === 'admin') return 'admin';
+        if (data.role) return 'viewer';
+      }
+    } catch (e) {
+      console.error('Error fetching role from API:', e);
+    }
+  }
+  
+  // Fallback: check database (polybot_user_profiles table)
   const { data, error } = await supabase
     .from('polybot_user_profiles')
     .select('role')

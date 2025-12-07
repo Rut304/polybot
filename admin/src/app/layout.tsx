@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Navigation } from '@/components/Navigation';
+import { Header } from '@/components/Header';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -28,7 +29,8 @@ export default function RootLayout({
         <Providers>
           <div className="min-h-screen bg-dark-bg flex">
             <Navigation />
-            <main className="flex-1 ml-64 transition-all duration-300">
+            <Header />
+            <main className="flex-1 ml-56 mt-14 transition-all duration-300">
               {children}
             </main>
           </div>

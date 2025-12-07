@@ -91,7 +91,7 @@
 - [x] **Fix User Admin section** - IMPROVED with loading/error/empty states
   - API works (tested: returns 3 users including admin)
   - Frontend requires user to be logged in as admin to see users
-  - Make sure you're logged in with rutrohd@gmail.com (admin role)
+  - Make sure you're logged in with <rutrohd@gmail.com> (admin role)
   - Shows list of users with roles
   - Change role dropdown
   - Delete user button
@@ -172,8 +172,8 @@
 - **Version**: v47 (Build #36, image polybot-b36.34)
 - **Status**: RUNNING ✅
 - **Database Logging**: Working ✅
-- **Admin URL**: https://admin-gules-chi.vercel.app
-- **Bot URL**: https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com
+- **Admin URL**: <https://admin-gules-chi.vercel.app>
+- **Bot URL**: <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>
 - **Strategies Active**: kalshi_single, polymarket_single, cross_platform
 - **Disabled**: market_making, news_arb, funding_rate, grid, pairs
 - **Exchanges**: Coinbase enabled, Bybit/Binance disabled
