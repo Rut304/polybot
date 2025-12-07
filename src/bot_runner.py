@@ -87,9 +87,13 @@ from src.strategies import (
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.notifications import Notifier, NotificationConfig
+from src.logging_handler import setup_database_logging
 from decimal import Decimal
 
 logger = logging.getLogger(__name__)
+
+# Set up database logging (writes to Supabase for admin UI)
+db_log_handler = setup_database_logging()
 
 
 class PolybotRunner:

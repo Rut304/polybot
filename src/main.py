@@ -21,6 +21,7 @@ from src.clients import PolymarketClient, KalshiClient
 from src.arbitrage import ArbitrageDetector, TradeExecutor
 from src.database import Database
 from src.simulation import PaperTrader
+from src.logging_handler import setup_database_logging
 
 # Configure logging
 logging.basicConfig(
@@ -32,6 +33,9 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("polybot")
+
+# Set up database logging (writes to Supabase for admin UI)
+db_log_handler = setup_database_logging()
 
 
 class PolyBot:
