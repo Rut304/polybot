@@ -14,6 +14,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   HelpCircle,
+  Filter,
+  Layers,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -43,10 +45,12 @@ import {
   useOpportunities,
   useAdvancedAnalytics,
   useSimulationStats,
+  useStrategyPerformance,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { format, subDays, subHours, startOfDay, startOfHour } from 'date-fns';
 import { Tooltip, LabelWithTooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
+import { StrategyBreakdown } from '@/components/StrategyBreakdown';
 
 type TimeRange = '24h' | '7d' | '30d' | 'all';
 
@@ -108,6 +112,7 @@ function MetricLabel({ label, tooltip }: { label: string; tooltip: string }) {
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
+  const [selectedStrategy, setSelectedStrategy] = useState<string>('all');
   
   // Fetch data
   const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 2160;
@@ -116,6 +121,22 @@ export default function AnalyticsPage() {
   const { data: opportunities = [] } = useOpportunities(1000);
   const { data: stats } = useSimulationStats();
   const { data: advancedMetrics } = useAdvancedAnalytics();
+  const { data: strategies = [] } = useStrategyPerformance();
+  
+  // Get unique strategy names for filter dropdown
+  const strategyOptions = useMemo(() => {
+    const names = strategies.map(s => s.strategy).filter(Boolean);
+    return ['all', ...Array.from(new Set(names))];
+  }, [strategies]);
+  
+  // Filter trades by selected strategy
+  const filteredTrades = useMemo(() => {
+    if (selectedStrategy === 'all') return trades;
+    return trades.filter(t => {
+      const tradeStrategy = t.strategy_type || t.arbitrage_type || t.trade_type;
+      return tradeStrategy === selectedStrategy;
+    });
+  }, [trades, selectedStrategy]);
 
   // Process P&L trend data
   const pnlTrendData = useMemo(() => {
@@ -129,18 +150,18 @@ export default function AnalyticsPage() {
     }));
   }, [history, timeRange]);
 
-  // Process trade performance data
+  // Process trade performance data (uses filtered trades)
   const tradePerformanceData = useMemo(() => {
-    const won = trades.filter(t => t.outcome === 'won').length;
-    const lost = trades.filter(t => t.outcome === 'lost').length;
-    const pending = trades.filter(t => t.outcome === 'pending').length;
+    const won = filteredTrades.filter(t => t.outcome === 'won').length;
+    const lost = filteredTrades.filter(t => t.outcome === 'lost').length;
+    const pending = filteredTrades.filter(t => t.outcome === 'pending').length;
     
     return [
       { name: 'Won', value: won, color: COLORS.green },
       { name: 'Lost', value: lost, color: COLORS.red },
       { name: 'Pending', value: pending, color: COLORS.yellow },
     ];
-  }, [trades]);
+  }, [filteredTrades]);
 
   // Process opportunity spread distribution
   const spreadDistribution = useMemo(() => {
@@ -161,24 +182,24 @@ export default function AnalyticsPage() {
     return buckets;
   }, [opportunities]);
 
-  // Platform breakdown
+  // Platform breakdown (uses filtered trades)
   const platformData = useMemo(() => {
-    const polyTrades = trades.filter(t => t.polymarket_token_id && !t.kalshi_ticker).length;
-    const kalshiTrades = trades.filter(t => t.kalshi_ticker && !t.polymarket_token_id).length;
-    const arbTrades = trades.filter(t => t.polymarket_token_id && t.kalshi_ticker).length;
+    const polyTrades = filteredTrades.filter(t => t.polymarket_token_id && !t.kalshi_ticker).length;
+    const kalshiTrades = filteredTrades.filter(t => t.kalshi_ticker && !t.polymarket_token_id).length;
+    const arbTrades = filteredTrades.filter(t => t.polymarket_token_id && t.kalshi_ticker).length;
     
     return [
       { name: 'Polymarket Only', value: polyTrades, color: COLORS.polymarket },
       { name: 'Kalshi Only', value: kalshiTrades, color: COLORS.kalshi },
       { name: 'Arbitrage', value: arbTrades, color: COLORS.purple },
     ];
-  }, [trades]);
+  }, [filteredTrades]);
 
-  // Hourly activity heatmap data
+  // Hourly activity heatmap data (uses filtered trades)
   const hourlyActivity = useMemo(() => {
     const hourCounts = Array(24).fill(0);
     
-    trades.forEach(trade => {
+    filteredTrades.forEach(trade => {
       const hour = new Date(trade.created_at).getHours();
       hourCounts[hour]++;
     });
@@ -188,20 +209,20 @@ export default function AnalyticsPage() {
       trades: count,
       fill: count > 0 ? `rgba(0, 255, 136, ${Math.min(count / 10, 1)})` : 'rgba(255,255,255,0.05)',
     }));
-  }, [trades]);
+  }, [filteredTrades]);
 
-  // Trade size distribution
+  // Trade size distribution (uses filtered trades)
   const tradeSizeData = useMemo(() => {
-    return trades
+    return filteredTrades
       .filter(t => t.position_size_usd)
       .map(t => ({
         size: t.position_size_usd,
         profit: t.actual_profit_usd || t.expected_profit_usd || 0,
         outcome: t.outcome,
       }));
-  }, [trades]);
+  }, [filteredTrades]);
 
-  // Win rate by trade size
+  // Win rate by trade size (uses filtered trades)
   const winRateBySize = useMemo(() => {
     const sizeBuckets = [
       { range: '$0-25', min: 0, max: 25, wins: 0, total: 0 },
@@ -210,7 +231,7 @@ export default function AnalyticsPage() {
       { range: '$100+', min: 100, max: Infinity, wins: 0, total: 0 },
     ];
     
-    trades.forEach(trade => {
+    filteredTrades.forEach(trade => {
       if (trade.outcome === 'pending') return;
       const size = trade.position_size_usd || 0;
       const bucket = sizeBuckets.find(b => size >= b.min && size < b.max);
@@ -224,18 +245,18 @@ export default function AnalyticsPage() {
       ...b,
       winRate: b.total > 0 ? (b.wins / b.total) * 100 : 0,
     }));
-  }, [trades]);
+  }, [filteredTrades]);
 
-  // Best and worst trades
+  // Best and worst trades (uses filtered trades)
   const extremeTrades = useMemo(() => {
-    const resolved = trades.filter(t => t.outcome !== 'pending' && t.actual_profit_usd != null);
+    const resolved = filteredTrades.filter(t => t.outcome !== 'pending' && t.actual_profit_usd != null);
     const sorted = [...resolved].sort((a, b) => (b.actual_profit_usd || 0) - (a.actual_profit_usd || 0));
     
     return {
       best: sorted.slice(0, 5),
       worst: sorted.slice(-5).reverse(),
     };
-  }, [trades]);
+  }, [filteredTrades]);
 
   return (
     <div className="p-8">
@@ -247,25 +268,66 @@ export default function AnalyticsPage() {
               <BarChart3 className="w-8 h-8 text-neon-green" />
               Analytics
             </h1>
-            <p className="text-gray-400 mt-2">Deep dive into your trading performance</p>
+            <p className="text-gray-400 mt-2">
+              Deep dive into your trading performance
+              {selectedStrategy !== 'all' && (
+                <span className="ml-2 text-neon-blue">
+                  • Filtered by: {selectedStrategy.replace(/_/g, ' ')}
+                </span>
+              )}
+            </p>
           </div>
 
-          {/* Time range selector */}
-          <div className="flex bg-dark-card rounded-lg border border-dark-border p-1">
-            {(['24h', '7d', '30d', 'all'] as const).map((range) => (
-              <button
-                key={range}
-                onClick={() => setTimeRange(range)}
-                className={cn(
-                  "px-4 py-2 rounded-md text-sm transition-colors",
-                  timeRange === range ? 'bg-neon-green/20 text-neon-green' : 'text-gray-400 hover:text-white'
-                )}
+          {/* Filters */}
+          <div className="flex items-center gap-4">
+            {/* Strategy Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-gray-400" />
+              <select
+                value={selectedStrategy}
+                onChange={(e) => setSelectedStrategy(e.target.value)}
+                title="Filter by strategy"
+                aria-label="Filter by strategy"
+                className="bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-neon-green/50"
               >
-                {range === 'all' ? 'All Time' : range}
-              </button>
-            ))}
+                {strategyOptions.map((strategy) => (
+                  <option key={strategy} value={strategy}>
+                    {strategy === 'all' ? 'All Strategies' : strategy.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Time range selector */}
+            <div className="flex bg-dark-card rounded-lg border border-dark-border p-1">
+              {(['24h', '7d', '30d', 'all'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setTimeRange(range)}
+                  className={cn(
+                    "px-4 py-2 rounded-md text-sm transition-colors",
+                    timeRange === range ? 'bg-neon-green/20 text-neon-green' : 'text-gray-400 hover:text-white'
+                  )}
+                >
+                  {range === 'all' ? 'All Time' : range}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* Strategy Performance Breakdown */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card mb-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Layers className="w-5 h-5 text-neon-purple" />
+            <h2 className="text-xl font-semibold">Strategy Performance</h2>
+          </div>
+          <StrategyBreakdown tradingMode="paper" showTitle={false} />
+        </motion.div>
 
         {/* Advanced Risk & Performance Metrics */}
         {advancedMetrics && (
