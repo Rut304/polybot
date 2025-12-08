@@ -20,13 +20,13 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AnalyticsData {
-  trending_topics: Array<{ topic: string; count: number; sentiment: string }>;
-  sentiment_distribution: Record<string, number>;
-  source_breakdown: Array<{ source: string; count: number; avg_sentiment: number }>;
-  market_mentions: Array<{ asset: string; count: number; sentiment: string }>;
-  time_series: Array<{ hour: string; count: number }>;
-  total_analyzed: number;
-  period_hours: number;
+  topKeywords: Array<{ keyword: string; count: number; sentiment: string }>;
+  sentimentBreakdown: Array<{ sentiment: string; count: number; percentage: number }>;
+  sourceBreakdown: Array<{ source: string; count: number; avgSentiment: number }>;
+  hotTopics: Array<{ topic: string; mentions: number; trend: string; sentiment: string }>;
+  marketMoverAlerts: Array<{ title: string; reason: string; confidence: number }>;
+  overallSentiment: { label: string; score: number; description: string };
+  summary: string;
 }
 
 interface NewsItem {
@@ -85,8 +85,8 @@ export default function NewsPage() {
     try {
       const response = await fetch('/api/news/analytics?hours=24');
       const result = await response.json();
-      if (result.success) {
-        setAnalytics(result.analytics);
+      if (result.success && result.analysis) {
+        setAnalytics(result.analysis);
       }
     } catch (err) {
       console.error('Failed to fetch analytics:', err);
@@ -304,18 +304,18 @@ export default function NewsPage() {
                     <h3 className="font-medium text-sm">Trending Topics</h3>
                   </div>
                   <div className="space-y-2">
-                    {analytics.trending_topics.slice(0, 5).map((topic, i) => (
+                    {(analytics.hotTopics || []).slice(0, 5).map((topic, i) => (
                       <div key={i} className="flex items-center justify-between text-sm">
                         <span className="text-gray-300 truncate">{topic.topic}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-500">{topic.count}</span>
+                          <span className="text-gray-500">{topic.mentions}</span>
                           {topic.sentiment === 'bullish' && <TrendingUp className="w-3 h-3 text-green-400" />}
                           {topic.sentiment === 'bearish' && <TrendingDown className="w-3 h-3 text-red-400" />}
                           {topic.sentiment === 'neutral' && <Minus className="w-3 h-3 text-gray-400" />}
                         </div>
                       </div>
                     ))}
-                    {analytics.trending_topics.length === 0 && (
+                    {(analytics.hotTopics || []).length === 0 && (
                       <p className="text-gray-500 text-sm">No trends detected</p>
                     )}
                   </div>
@@ -328,18 +328,16 @@ export default function NewsPage() {
                     <h3 className="font-medium text-sm">Sentiment Distribution</h3>
                   </div>
                   <div className="space-y-2">
-                    {Object.entries(analytics.sentiment_distribution).map(([sentiment, count]) => {
-                      const total = Object.values(analytics.sentiment_distribution).reduce((a, b) => a + b, 0);
-                      const pct = total > 0 ? (count / total) * 100 : 0;
-                      const color = sentiment.includes('bullish') ? 'bg-green-500' : sentiment.includes('bearish') ? 'bg-red-500' : 'bg-gray-500';
+                    {(analytics.sentimentBreakdown || []).map((item) => {
+                      const color = item.sentiment.includes('bullish') ? 'bg-green-500' : item.sentiment.includes('bearish') ? 'bg-red-500' : 'bg-gray-500';
                       return (
-                        <div key={sentiment} className="text-sm">
+                        <div key={item.sentiment} className="text-sm">
                           <div className="flex justify-between mb-1">
-                            <span className="text-gray-400 capitalize">{sentiment.replace('_', ' ')}</span>
-                            <span className="text-gray-500">{pct.toFixed(0)}%</span>
+                            <span className="text-gray-400 capitalize">{item.sentiment.replace('_', ' ')}</span>
+                            <span className="text-gray-500">{item.percentage}%</span>
                           </div>
                           <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                            <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+                            <div className={`h-full ${color} rounded-full`} style={{ width: `${item.percentage}%` }} />
                           </div>
                         </div>
                       );
@@ -354,7 +352,7 @@ export default function NewsPage() {
                     <h3 className="font-medium text-sm">Source Activity</h3>
                   </div>
                   <div className="space-y-2">
-                    {analytics.source_breakdown.slice(0, 5).map((source, i) => (
+                    {(analytics.sourceBreakdown || []).slice(0, 5).map((source, i) => (
                       <div key={i} className="flex items-center justify-between text-sm">
                         <span className={`px-2 py-0.5 rounded-full text-xs ${sourceColors[source.source] || 'bg-gray-500/20 text-gray-400'}`}>
                           {source.source}
@@ -362,35 +360,48 @@ export default function NewsPage() {
                         <span className="text-gray-400">{source.count} articles</span>
                       </div>
                     ))}
-                    {analytics.source_breakdown.length === 0 && (
+                    {(analytics.sourceBreakdown || []).length === 0 && (
                       <p className="text-gray-500 text-sm">No source data</p>
                     )}
                   </div>
                 </div>
 
-                {/* Market Mentions */}
+                {/* Top Keywords */}
                 <div className="card">
                   <div className="flex items-center gap-2 mb-3">
                     <TrendingUp className="w-4 h-4 text-green-400" />
-                    <h3 className="font-medium text-sm">Hot Assets</h3>
+                    <h3 className="font-medium text-sm">Top Keywords</h3>
                   </div>
                   <div className="space-y-2">
-                    {analytics.market_mentions.slice(0, 5).map((asset, i) => (
+                    {(analytics.topKeywords || []).slice(0, 5).map((kw, i) => (
                       <div key={i} className="flex items-center justify-between text-sm">
-                        <span className="text-gray-300 font-mono">{asset.asset}</span>
+                        <span className="text-gray-300 font-mono">{kw.keyword}</span>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-500">{asset.count}</span>
-                          {asset.sentiment === 'bullish' && <TrendingUp className="w-3 h-3 text-green-400" />}
-                          {asset.sentiment === 'bearish' && <TrendingDown className="w-3 h-3 text-red-400" />}
-                          {asset.sentiment === 'neutral' && <Minus className="w-3 h-3 text-gray-400" />}
+                          <span className="text-gray-500">{kw.count}</span>
+                          {kw.sentiment === 'bullish' && <TrendingUp className="w-3 h-3 text-green-400" />}
+                          {kw.sentiment === 'bearish' && <TrendingDown className="w-3 h-3 text-red-400" />}
+                          {kw.sentiment === 'neutral' && <Minus className="w-3 h-3 text-gray-400" />}
                         </div>
                       </div>
                     ))}
-                    {analytics.market_mentions.length === 0 && (
-                      <p className="text-gray-500 text-sm">No market mentions</p>
+                    {(analytics.topKeywords || []).length === 0 && (
+                      <p className="text-gray-500 text-sm">No keywords detected</p>
                     )}
                   </div>
                 </div>
+                
+                {/* AI Summary - spans all columns */}
+                {analytics.summary && (
+                  <div className="lg:col-span-4 md:col-span-2 card">
+                    <div className="flex items-start gap-3">
+                      <BarChart3 className="w-5 h-5 text-neon-purple flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-medium text-sm mb-2">AI Summary</h3>
+                        <p className="text-gray-400 text-sm leading-relaxed">{analytics.summary}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="card text-center py-6">
