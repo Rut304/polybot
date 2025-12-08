@@ -14,7 +14,6 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
 
 interface NewsItem {
   id: string;
@@ -68,25 +67,23 @@ export default function NewsPage() {
     setError(null);
 
     try {
-      let query = supabase
-        .from('polybot_news_items')
-        .select('*', { count: 'exact' })
-        .order('published_at', { ascending: false, nullsFirst: false })
-        .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1);
+      // Use API route which has service role access (bypasses RLS)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: ITEMS_PER_PAGE.toString(),
+        ...(sourceFilter !== 'all' && { source: sourceFilter }),
+        ...(sentimentFilter !== 'all' && { sentiment: sentimentFilter }),
+      });
 
-      if (sourceFilter !== 'all') {
-        query = query.eq('source', sourceFilter);
+      const response = await fetch(`/api/news?${params}`);
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch news');
       }
-      if (sentimentFilter !== 'all') {
-        query = query.eq('sentiment', sentimentFilter);
-      }
 
-      const { data, error: fetchError, count } = await query;
-
-      if (fetchError) throw fetchError;
-
-      setNews(data || []);
-      setTotalCount(Math.min(count || 0, MAX_ITEMS));
+      setNews(result.news || []);
+      setTotalCount(Math.min(result.total || 0, MAX_ITEMS));
     } catch (err: any) {
       console.error('Error fetching news:', err);
       setError(err.message || 'Failed to fetch news');
