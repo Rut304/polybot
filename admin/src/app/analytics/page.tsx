@@ -137,10 +137,40 @@ export default function AnalyticsPage() {
   const { data: advancedMetrics } = useAdvancedAnalytics(totalStartingBalance);
   const { data: strategies = [] } = useStrategyPerformance();
   
-  // Get unique strategy names for filter dropdown
+  // All available strategies (complete list from settings)
+  const ALL_STRATEGIES = [
+    // Prediction Market Strategies
+    'poly_single',
+    'kalshi_single', 
+    'cross_platform',
+    // Advanced Strategies
+    'market_making',
+    'news_arbitrage',
+    // Crypto Strategies
+    'funding_rate_arb',
+    'grid_trading',
+    'pairs_trading',
+    // Stock Strategies
+    'stock_mean_reversion',
+    'stock_momentum',
+    'sector_rotation',
+    'dividend_growth',
+    'earnings_momentum',
+    // Options Strategies
+    'wheel_strategy',
+    'iron_condor',
+    'covered_calls',
+    // Other
+    'manual',
+  ];
+  
+  // Get unique strategy names for filter dropdown (include all strategies)
   const strategyOptions = useMemo(() => {
-    const names = strategies.map(s => s.strategy).filter(Boolean);
-    return ['all', ...Array.from(new Set(names))];
+    // Start with strategies that have trades
+    const activeStrategies = strategies.map(s => s.strategy).filter(Boolean);
+    // Merge with all defined strategies to ensure dropdown is complete
+    const allStrategies = new Set([...activeStrategies, ...ALL_STRATEGIES]);
+    return ['all', ...Array.from(allStrategies).sort()];
   }, [strategies]);
   
   // Filter trades by selected strategy
@@ -272,6 +302,16 @@ export default function AnalyticsPage() {
     };
   }, [filteredTrades]);
 
+  // Get trade count by strategy for display
+  const tradeCountByStrategy = useMemo(() => {
+    const counts: Record<string, number> = {};
+    trades.forEach(t => {
+      const strategy = t.strategy_type || t.arbitrage_type || t.trade_type || 'unknown';
+      counts[strategy] = (counts[strategy] || 0) + 1;
+    });
+    return counts;
+  }, [trades]);
+
   return (
     <div className="p-8">
       <div className="max-w-[1800px] mx-auto">
@@ -304,11 +344,17 @@ export default function AnalyticsPage() {
                 aria-label="Filter by strategy"
                 className="bg-dark-card border border-dark-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-neon-green/50"
               >
-                {strategyOptions.map((strategy) => (
-                  <option key={strategy} value={strategy}>
-                    {strategy === 'all' ? 'All Strategies' : strategy.replace(/_/g, ' ')}
-                  </option>
-                ))}
+                {strategyOptions.map((strategy) => {
+                  const count = strategy === 'all' ? trades.length : (tradeCountByStrategy[strategy] || 0);
+                  const label = strategy === 'all' 
+                    ? `All Strategies (${count})` 
+                    : `${strategy.replace(/_/g, ' ')} (${count})`;
+                  return (
+                    <option key={strategy} value={strategy}>
+                      {label}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             
@@ -361,7 +407,8 @@ export default function AnalyticsPage() {
                 {advancedMetrics.sharpeRatio.toFixed(2)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                {advancedMetrics.sharpeRatio >= 2 ? '🔥 Excellent' : 
+                {advancedMetrics.tradingDays < 2 ? '📊 Need 2+ days' :
+                 advancedMetrics.sharpeRatio >= 2 ? '🔥 Excellent' : 
                  advancedMetrics.sharpeRatio >= 1 ? '✅ Good' : 
                  advancedMetrics.sharpeRatio >= 0 ? '⚠️ Moderate' : '❌ Poor'}
               </div>
