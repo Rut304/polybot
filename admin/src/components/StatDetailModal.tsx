@@ -14,9 +14,10 @@ interface StatDetailModalProps {
   stats: SimulationStats | null;
   trades?: SimulatedTrade[];
   opportunities?: Opportunity[];
+  totalOpportunitiesSeen?: number;
 }
 
-export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opportunities = [] }: StatDetailModalProps) {
+export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opportunities = [], totalOpportunitiesSeen }: StatDetailModalProps) {
   const statsJson = stats?.stats_json;
   const { data: config } = useBotConfig();
   
@@ -124,7 +125,7 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
                   <WinRateDetails stats={stats} statsJson={statsJson} trades={trades} />
                 )}
                 {type === 'opportunities' && (
-                  <OpportunityDetails statsJson={statsJson} opportunities={opportunities} trades={trades} />
+                  <OpportunityDetails statsJson={statsJson} opportunities={opportunities} trades={trades} totalOpportunitiesSeen={totalOpportunitiesSeen} />
                 )}
               </div>
             </div>
@@ -313,14 +314,14 @@ function WinRateDetails({ stats, statsJson, trades }: { stats: SimulationStats |
   );
 }
 
-function OpportunityDetails({ statsJson, opportunities, trades }: { statsJson: SimulationStats['stats_json'] | undefined; opportunities: Opportunity[]; trades: SimulatedTrade[] }) {
+function OpportunityDetails({ statsJson, opportunities, trades, totalOpportunitiesSeen }: { statsJson: SimulationStats['stats_json'] | undefined; opportunities: Opportunity[]; trades: SimulatedTrade[]; totalOpportunitiesSeen?: number }) {
   // Use actual trade count (excluding failed executions)
   const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
   const totalTraded = validTrades.length;
   
-  // For total seen, use opportunities array length (current session)
-  // If no opportunities in current session, show message
-  const totalSeen = opportunities.length;
+  // Use the actual total from stats (not limited array length)
+  // This matches what's shown on the dashboard card
+  const totalSeen = totalOpportunitiesSeen ?? opportunities.length;
   const conversionRate = totalSeen > 0 ? (totalTraded / totalSeen) * 100 : 0;
   
   const byStrategy = opportunities.reduce((acc, opp) => {

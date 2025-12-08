@@ -90,6 +90,7 @@ export default function Dashboard() {
         stats={simStats || null}
         trades={allTrades || trades || []}
         opportunities={opportunities || []}
+        totalOpportunitiesSeen={totalOpportunities}
       />
       
       {/* Page Header */}
