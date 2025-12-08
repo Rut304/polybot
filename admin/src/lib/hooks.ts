@@ -751,10 +751,17 @@ export function useResetSimulation() {
   
   return useMutation({
     mutationFn: async () => {
+      // Get the current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated. Please sign in again.');
+      }
+
       const response = await fetch('/api/simulation/reset', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
