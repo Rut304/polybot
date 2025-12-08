@@ -29,10 +29,25 @@ class PlatformBalance:
     cash_balance: Decimal
     positions_value: Decimal
     positions_count: int
+    starting_balance: Decimal = Decimal('0')  # For P&L calculation
     currency: str = 'USD'
     details: Dict[str, Any] = field(default_factory=dict)
     last_updated: datetime = field(default_factory=datetime.now)
     error: Optional[str] = None
+    
+    @property
+    def pnl(self) -> Decimal:
+        """Calculate P&L from starting balance."""
+        if self.starting_balance > 0:
+            return self.total_usd - self.starting_balance
+        return Decimal('0')
+    
+    @property
+    def pnl_percent(self) -> float:
+        """Calculate P&L percentage."""
+        if self.starting_balance > 0:
+            return float((self.pnl / self.starting_balance) * 100)
+        return 0.0
 
 
 @dataclass
@@ -41,8 +56,21 @@ class AggregatedBalance:
     total_portfolio_usd: Decimal
     total_cash_usd: Decimal
     total_positions_usd: Decimal
+    total_starting_balance: Decimal = Decimal('0')  # Sum of all starting balances
     platforms: List[PlatformBalance] = field(default_factory=list)
     last_updated: datetime = field(default_factory=datetime.now)
+    
+    @property
+    def total_pnl(self) -> Decimal:
+        """Total P&L across all platforms."""
+        return self.total_portfolio_usd - self.total_starting_balance
+    
+    @property
+    def total_pnl_percent(self) -> float:
+        """Total P&L percentage."""
+        if self.total_starting_balance > 0:
+            return float((self.total_pnl / self.total_starting_balance) * 100)
+        return 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -50,6 +78,9 @@ class AggregatedBalance:
             'total_portfolio_usd': float(self.total_portfolio_usd),
             'total_cash_usd': float(self.total_cash_usd),
             'total_positions_usd': float(self.total_positions_usd),
+            'total_starting_balance': float(self.total_starting_balance),
+            'total_pnl': float(self.total_pnl),
+            'total_pnl_percent': self.total_pnl_percent,
             'platform_count': len(self.platforms),
             'platforms': [
                 {
@@ -59,6 +90,9 @@ class AggregatedBalance:
                     'cash_balance': float(p.cash_balance),
                     'positions_value': float(p.positions_value),
                     'positions_count': p.positions_count,
+                    'starting_balance': float(p.starting_balance),
+                    'pnl': float(p.pnl),
+                    'pnl_percent': p.pnl_percent,
                     'currency': p.currency,
                     'details': p.details,
                     'last_updated': p.last_updated.isoformat(),
@@ -73,7 +107,25 @@ class AggregatedBalance:
 class BalanceAggregator:
     """
     Aggregates balances from all connected trading platforms.
+    
+    Starting balances are used to calculate P&L:
+    - Set via database config (polybot_config table) or defaults
+    - Each platform tracks its own starting balance
+    - Total P&L = sum of all platform P&Ls
+    
+    Default: $100K total split evenly across 5 platforms ($20K each)
     """
+    
+    # Default starting balances for each platform (in USD)
+    # $100K total / 5 platforms = $20K each
+    # Can be overridden via polybot_config table in database
+    DEFAULT_STARTING_BALANCES = {
+        'Polymarket': Decimal('20000'),   # $20k prediction markets
+        'Kalshi': Decimal('20000'),       # $20k prediction markets
+        'Binance': Decimal('20000'),      # $20k crypto
+        'Coinbase': Decimal('20000'),     # $20k crypto
+        'Alpaca': Decimal('20000'),       # $20k stocks (paper)
+    }
     
     def __init__(
         self,
@@ -82,6 +134,7 @@ class BalanceAggregator:
         kalshi_client=None,
         ccxt_clients: Optional[Dict[str, Any]] = None,
         alpaca_client=None,
+        starting_balances: Optional[Dict[str, Decimal]] = None,
     ):
         self.db = db_client
         self.polymarket_client = polymarket_client
@@ -89,13 +142,34 @@ class BalanceAggregator:
         self.ccxt_clients = ccxt_clients or {}
         self.alpaca_client = alpaca_client
         
+        # Starting balances for P&L calculation
+        self.starting_balances = starting_balances or {}
+        
         # Cached balances
         self._cached_balance: Optional[AggregatedBalance] = None
         self._cache_ttl = 60  # Cache for 60 seconds
         self._last_fetch: Optional[datetime] = None
     
+    def get_starting_balance(self, platform: str) -> Decimal:
+        """Get starting balance for a platform."""
+        # First check instance config
+        if platform in self.starting_balances:
+            return self.starting_balances[platform]
+        # Then check database config table (polybot_config)
+        if self.db:
+            try:
+                val = self.db.get_config(f"{platform.lower()}_starting_balance")
+                if val:
+                    return Decimal(str(val))
+            except Exception:
+                pass
+        # Fall back to defaults
+        return self.DEFAULT_STARTING_BALANCES.get(
+            platform, Decimal('20000')
+        )
+    
     async def fetch_all_balances(
-        self, 
+        self,
         force_refresh: bool = False
     ) -> AggregatedBalance:
         """
@@ -148,8 +222,10 @@ class BalanceAggregator:
         total_portfolio = Decimal('0')
         total_cash = Decimal('0')
         total_positions = Decimal('0')
+        total_starting = Decimal('0')
         
         for p in platforms:
+            total_starting += p.starting_balance
             if p.error is None:
                 total_portfolio += p.total_usd
                 total_cash += p.cash_balance
@@ -159,6 +235,7 @@ class BalanceAggregator:
             total_portfolio_usd=total_portfolio,
             total_cash_usd=total_cash,
             total_positions_usd=total_positions,
+            total_starting_balance=total_starting,
             platforms=platforms,
             last_updated=datetime.now(),
         )
@@ -175,7 +252,13 @@ class BalanceAggregator:
     async def _fetch_polymarket_balance(self) -> PlatformBalance:
         """Fetch balance from Polymarket."""
         try:
-            wallet_address = os.getenv('WALLET_ADDRESS', '')
+            # Try to get wallet address from db first, then env
+            wallet_address = None
+            if self.db:
+                wallet_address = self.db.get_secret('POLYMARKET_WALLET_ADDRESS')
+            if not wallet_address:
+                wallet_address = os.getenv('WALLET_ADDRESS', '')
+            
             if not wallet_address:
                 return PlatformBalance(
                     platform='Polymarket',
@@ -199,6 +282,7 @@ class BalanceAggregator:
                 cash_balance=Decimal('0'),  # Polymarket doesn't have cash balance
                 positions_value=total_value,
                 positions_count=len(positions),
+                starting_balance=self.get_starting_balance('Polymarket'),
                 currency='USDC',
                 details={
                     'wallet': wallet_address[:10] + '...',
@@ -220,6 +304,7 @@ class BalanceAggregator:
                 cash_balance=Decimal('0'),
                 positions_value=Decimal('0'),
                 positions_count=0,
+                starting_balance=self.get_starting_balance('Polymarket'),
                 error=str(e)
             )
     
@@ -234,6 +319,7 @@ class BalanceAggregator:
                     cash_balance=Decimal('0'),
                     positions_value=Decimal('0'),
                     positions_count=0,
+                    starting_balance=self.get_starting_balance('Kalshi'),
                     error='Not authenticated'
                 )
             
@@ -251,6 +337,7 @@ class BalanceAggregator:
                 cash_balance=cash,
                 positions_value=positions_value,
                 positions_count=positions_count,
+                starting_balance=self.get_starting_balance('Kalshi'),
                 currency='USD',
                 details={
                     'settled_balance': balance.get('balance', 0),
@@ -266,6 +353,7 @@ class BalanceAggregator:
                 cash_balance=Decimal('0'),
                 positions_value=Decimal('0'),
                 positions_count=0,
+                starting_balance=self.get_starting_balance('Kalshi'),
                 error=str(e)
             )
     
@@ -350,6 +438,7 @@ class BalanceAggregator:
                     cash_balance=Decimal('0'),
                     positions_value=Decimal('0'),
                     positions_count=0,
+                    starting_balance=self.get_starting_balance('Alpaca'),
                     error='Client not configured'
                 )
             
@@ -366,6 +455,7 @@ class BalanceAggregator:
                 cash_balance=cash,
                 positions_value=total - cash,
                 positions_count=len(positions),
+                starting_balance=self.get_starting_balance('Alpaca'),
                 currency='USD',
                 details={
                     'buying_power': float(account.get('buying_power', 0)),
@@ -389,6 +479,7 @@ class BalanceAggregator:
                 cash_balance=Decimal('0'),
                 positions_value=Decimal('0'),
                 positions_count=0,
+                starting_balance=self.get_starting_balance('Alpaca'),
                 error=str(e)
             )
     
@@ -400,14 +491,16 @@ class BalanceAggregator:
         try:
             # Save to polybot_balances table
             if hasattr(self.db, '_client') and self.db._client:
-                self.db._client.table('polybot_balances').upsert({
+                data = {
                     'id': 1,  # Single row for latest balance
                     'total_portfolio_usd': float(balance.total_portfolio_usd),
                     'total_cash_usd': float(balance.total_cash_usd),
                     'total_positions_usd': float(balance.total_positions_usd),
                     'platforms': balance.to_dict()['platforms'],
                     'updated_at': datetime.now().isoformat(),
-                }).execute()
+                }
+                # Add P&L fields (stored in platforms JSON, calculated on read)
+                self.db._client.table('polybot_balances').upsert(data).execute()
                 
                 logger.debug("Saved aggregated balance to database")
         except Exception as e:

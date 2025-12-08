@@ -16,6 +16,9 @@ import {
   Sparkles,
   ArrowRight,
   RefreshCw,
+  Bitcoin,
+  LineChart,
+  Layers,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -23,13 +26,15 @@ import {
   useOpportunities,
   useSimulationStats,
   useSimulationHistory,
+  useStrategyPerformance,
+  useBotConfig,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 
 interface Insight {
   id: string;
   type: 'success' | 'warning' | 'opportunity' | 'info';
-  category: 'performance' | 'timing' | 'sizing' | 'platform' | 'risk';
+  category: 'performance' | 'timing' | 'sizing' | 'platform' | 'risk' | 'strategy' | 'crypto' | 'stocks';
   title: string;
   description: string;
   metric?: string;
@@ -62,6 +67,15 @@ const ImpactBadge = ({ impact }: { impact: Insight['impact'] }) => {
       {impact.charAt(0).toUpperCase() + impact.slice(1)} Impact
     </span>
   );
+};
+
+// Format strategy name for display
+const formatStrategyName = (name?: string): string => {
+  if (!name) return 'Unknown';
+  return name
+    .replace(/_/g, ' ')
+    .replace(/arb/gi, 'Arbitrage')
+    .replace(/\b\w/g, c => c.toUpperCase());
 };
 
 function InsightCard({ insight, index }: { insight: Insight; index: number }) {
@@ -134,6 +148,8 @@ export default function InsightsPage() {
   const { data: opportunities = [] } = useOpportunities(1000);
   const { data: stats } = useSimulationStats();
   const { data: history = [] } = useSimulationHistory(168); // Last 7 days
+  const { data: strategyPerf = [] } = useStrategyPerformance();
+  const { data: config } = useBotConfig();
   
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<Insight['category'] | 'all'>('all');
@@ -142,7 +158,7 @@ export default function InsightsPage() {
   const insights = useMemo<Insight[]>(() => {
     const results: Insight[] = [];
     
-    if (!trades.length && !opportunities.length) {
+    if (!trades.length && !opportunities.length && !strategyPerf.length) {
       return [{
         id: 'no-data',
         type: 'info',
@@ -245,28 +261,248 @@ export default function InsightsPage() {
       });
     }
 
-    // Analyze platform performance
-    const polyTrades = trades.filter(t => t.polymarket_token_id);
-    const kalshiTrades = trades.filter(t => t.kalshi_ticker);
+    // ========== PLATFORM ANALYSIS (ALL 5 PLATFORMS) ==========
     
-    const polyProfit = polyTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0);
-    const kalshiProfit = kalshiTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0);
+    // Categorize trades by platform
+    const polyTrades = trades.filter(t => t.polymarket_token_id && !t.kalshi_ticker);
+    const kalshiTrades = trades.filter(t => t.kalshi_ticker && !t.polymarket_token_id);
+    const binanceTrades = trades.filter(t => 
+      t.arbitrage_type?.includes('binance') || 
+      t.trade_type?.includes('binance') ||
+      t.strategy_type?.includes('binance') ||
+      (t as any).exchange?.toLowerCase()?.includes('binance')
+    );
+    const coinbaseTrades = trades.filter(t => 
+      t.arbitrage_type?.includes('coinbase') || 
+      t.trade_type?.includes('coinbase') ||
+      t.strategy_type?.includes('coinbase') ||
+      (t as any).exchange?.toLowerCase()?.includes('coinbase')
+    );
+    const alpacaTrades = trades.filter(t => 
+      t.arbitrage_type?.includes('alpaca') || 
+      t.trade_type?.includes('stock') ||
+      t.strategy_type?.includes('stock') ||
+      (t as any).exchange?.toLowerCase()?.includes('alpaca')
+    );
     
-    if (polyTrades.length >= 5 && kalshiTrades.length >= 5) {
-      const betterPlatform = polyProfit > kalshiProfit ? 'Polymarket' : 'Kalshi';
-      const difference = Math.abs(polyProfit - kalshiProfit);
+    // Calculate profit by platform
+    const platformProfits: Record<string, { profit: number; trades: number; winRate: number }> = {
+      Polymarket: {
+        profit: polyTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0),
+        trades: polyTrades.length,
+        winRate: polyTrades.filter(t => t.outcome === 'won').length / Math.max(1, polyTrades.filter(t => t.outcome !== 'pending').length) * 100,
+      },
+      Kalshi: {
+        profit: kalshiTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0),
+        trades: kalshiTrades.length,
+        winRate: kalshiTrades.filter(t => t.outcome === 'won').length / Math.max(1, kalshiTrades.filter(t => t.outcome !== 'pending').length) * 100,
+      },
+      Binance: {
+        profit: binanceTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0),
+        trades: binanceTrades.length,
+        winRate: binanceTrades.filter(t => t.outcome === 'won').length / Math.max(1, binanceTrades.filter(t => t.outcome !== 'pending').length) * 100,
+      },
+      Coinbase: {
+        profit: coinbaseTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0),
+        trades: coinbaseTrades.length,
+        winRate: coinbaseTrades.filter(t => t.outcome === 'won').length / Math.max(1, coinbaseTrades.filter(t => t.outcome !== 'pending').length) * 100,
+      },
+      Alpaca: {
+        profit: alpacaTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0),
+        trades: alpacaTrades.length,
+        winRate: alpacaTrades.filter(t => t.outcome === 'won').length / Math.max(1, alpacaTrades.filter(t => t.outcome !== 'pending').length) * 100,
+      },
+    };
+    
+    // Find best and worst performing platforms
+    const activePlatforms = Object.entries(platformProfits).filter(([_, data]) => data.trades >= 3);
+    if (activePlatforms.length >= 2) {
+      const sortedPlatforms = activePlatforms.sort((a, b) => b[1].profit - a[1].profit);
+      const [bestPlatform, bestData] = sortedPlatforms[0];
+      const [worstPlatform, worstData] = sortedPlatforms[sortedPlatforms.length - 1];
       
-      if (difference > 10) {
+      if (bestData.profit > 0) {
         results.push({
-          id: 'platform-perf',
-          type: 'opportunity',
+          id: 'best-platform',
+          type: 'success',
           category: 'platform',
-          title: `${betterPlatform} Outperforming`,
-          description: `${betterPlatform} has generated ${formatCurrency(difference)} more profit. Consider focusing more on this platform.`,
-          metric: `Poly: ${formatCurrency(polyProfit)} | Kalshi: ${formatCurrency(kalshiProfit)}`,
-          action: `Increase allocation to ${betterPlatform} trades for better returns.`,
+          title: `${bestPlatform} Leading Profits`,
+          description: `${bestPlatform} is your top performer with ${formatCurrency(bestData.profit)} profit across ${bestData.trades} trades.`,
+          metric: `${bestData.winRate.toFixed(1)}% Win Rate | ${formatCurrency(bestData.profit)} P&L`,
+          action: `Consider increasing allocation to ${bestPlatform} for maximum returns.`,
+          impact: 'high',
+        });
+      }
+      
+      if (worstData.profit < -10) {
+        results.push({
+          id: 'worst-platform',
+          type: 'warning',
+          category: 'platform',
+          title: `${worstPlatform} Underperforming`,
+          description: `${worstPlatform} has lost ${formatCurrency(Math.abs(worstData.profit))} across ${worstData.trades} trades.`,
+          metric: `${worstData.winRate.toFixed(1)}% Win Rate | ${formatCurrency(worstData.profit)} P&L`,
+          action: `Review your ${worstPlatform} strategy or reduce allocation.`,
+          impact: 'high',
+        });
+      }
+    }
+    
+    // Crypto-specific insights
+    const cryptoTrades = [...binanceTrades, ...coinbaseTrades];
+    if (cryptoTrades.length >= 5) {
+      const cryptoProfit = cryptoTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+      const cryptoWinRate = cryptoTrades.filter(t => t.outcome === 'won').length / 
+        Math.max(1, cryptoTrades.filter(t => t.outcome !== 'pending').length) * 100;
+      
+      results.push({
+        id: 'crypto-performance',
+        type: cryptoProfit > 0 ? 'success' : 'warning',
+        category: 'crypto',
+        title: 'Crypto Trading Performance',
+        description: `Crypto strategies have generated ${formatCurrency(cryptoProfit)} across Binance and Coinbase.`,
+        metric: `${cryptoTrades.length} trades | ${cryptoWinRate.toFixed(1)}% win rate`,
+        action: cryptoProfit > 0 
+          ? 'Crypto is profitable - consider enabling more crypto strategies.' 
+          : 'Review crypto strategy settings or reduce position sizes.',
+        impact: 'medium',
+      });
+    }
+    
+    // Stock trading insights
+    if (alpacaTrades.length >= 3) {
+      const stockProfit = alpacaTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+      const stockWinRate = alpacaTrades.filter(t => t.outcome === 'won').length / 
+        Math.max(1, alpacaTrades.filter(t => t.outcome !== 'pending').length) * 100;
+      
+      results.push({
+        id: 'stock-performance',
+        type: stockProfit > 0 ? 'success' : 'info',
+        category: 'stocks',
+        title: 'Stock Trading Performance',
+        description: `Alpaca stock trades have generated ${formatCurrency(stockProfit)} P&L.`,
+        metric: `${alpacaTrades.length} trades | ${stockWinRate.toFixed(1)}% win rate`,
+        action: stockProfit > 0 
+          ? 'Stock strategies are working well. Consider enabling more stock strategies.'
+          : 'Stock trading is in early stages. Continue monitoring performance.',
+        impact: 'medium',
+      });
+    }
+    
+    // ========== STRATEGY-SPECIFIC ANALYSIS ==========
+    
+    // Use strategy performance data if available
+    if (strategyPerf.length > 0) {
+      // Find best performing strategy
+      const sortedStrategies = [...strategyPerf].sort((a, b) => b.total_pnl - a.total_pnl);
+      const bestStrategy = sortedStrategies[0];
+      const worstStrategy = sortedStrategies[sortedStrategies.length - 1];
+      
+      if (bestStrategy && bestStrategy.total_pnl > 0 && bestStrategy.total_trades >= 3) {
+        results.push({
+          id: 'best-strategy',
+          type: 'success',
+          category: 'strategy',
+          title: `${formatStrategyName(bestStrategy.strategy)} Excelling`,
+          description: `Your best strategy has generated ${formatCurrency(bestStrategy.total_pnl)} with a ${bestStrategy.win_rate_pct?.toFixed(1) || 0}% win rate.`,
+          metric: `${bestStrategy.total_trades} trades | ${formatCurrency(bestStrategy.avg_trade_pnl || 0)} avg/trade`,
+          action: 'This strategy is working well. Consider increasing its allocation.',
+          impact: 'high',
+        });
+      }
+      
+      if (worstStrategy && worstStrategy.total_pnl < -10 && worstStrategy.total_trades >= 3) {
+        results.push({
+          id: 'worst-strategy',
+          type: 'warning',
+          category: 'strategy',
+          title: `${formatStrategyName(worstStrategy.strategy)} Struggling`,
+          description: `This strategy has lost ${formatCurrency(Math.abs(worstStrategy.total_pnl))} with a ${worstStrategy.win_rate_pct?.toFixed(1) || 0}% win rate.`,
+          metric: `${worstStrategy.total_trades} trades | Worst: ${formatCurrency(worstStrategy.worst_trade || 0)}`,
+          action: 'Consider disabling or adjusting this strategy\'s parameters.',
+          impact: 'high',
+        });
+      }
+      
+      // Strategy diversification insight
+      const enabledStrategies = strategyPerf.filter(s => s.total_trades > 0).length;
+      if (enabledStrategies === 1 && strategyPerf[0]?.total_trades >= 10) {
+        results.push({
+          id: 'single-strategy',
+          type: 'info',
+          category: 'strategy',
+          title: 'Consider Diversifying Strategies',
+          description: `You're only using ${formatStrategyName(strategyPerf[0].strategy)}. Diversifying across multiple strategies can reduce risk.`,
+          action: 'Enable additional strategies like funding rate arb, grid trading, or stock mean reversion.',
           impact: 'medium',
         });
+      }
+      
+      // Analyze specific strategy types
+      const fundingRateStrat = strategyPerf.find(s => s.strategy?.includes('funding'));
+      if (fundingRateStrat && fundingRateStrat.total_trades >= 3) {
+        results.push({
+          id: 'funding-rate',
+          type: fundingRateStrat.total_pnl > 0 ? 'success' : 'info',
+          category: 'crypto',
+          title: 'Funding Rate Arbitrage',
+          description: `Funding rate strategy: ${formatCurrency(fundingRateStrat.total_pnl)} P&L from ${fundingRateStrat.total_trades} trades.`,
+          metric: `${fundingRateStrat.win_rate_pct?.toFixed(1) || 0}% win rate`,
+          impact: 'medium',
+        });
+      }
+      
+      const gridStrat = strategyPerf.find(s => s.strategy?.includes('grid'));
+      if (gridStrat && gridStrat.total_trades >= 3) {
+        results.push({
+          id: 'grid-trading',
+          type: gridStrat.total_pnl > 0 ? 'success' : 'info',
+          category: 'crypto',
+          title: 'Grid Trading Performance',
+          description: `Grid trading: ${formatCurrency(gridStrat.total_pnl)} P&L from ${gridStrat.total_trades} trades.`,
+          metric: `${gridStrat.win_rate_pct?.toFixed(1) || 0}% win rate`,
+          impact: 'medium',
+        });
+      }
+      
+      const pairsStrat = strategyPerf.find(s => s.strategy?.includes('pair'));
+      if (pairsStrat && pairsStrat.total_trades >= 3) {
+        results.push({
+          id: 'pairs-trading',
+          type: pairsStrat.total_pnl > 0 ? 'success' : 'info',
+          category: 'crypto',
+          title: 'Pairs Trading Performance',
+          description: `Pairs trading: ${formatCurrency(pairsStrat.total_pnl)} P&L from ${pairsStrat.total_trades} trades.`,
+          metric: `${pairsStrat.win_rate_pct?.toFixed(1) || 0}% win rate`,
+          impact: 'medium',
+        });
+      }
+      
+      // Stock strategies
+      const stockStrategies = strategyPerf.filter(s => 
+        s.strategy?.includes('stock') || 
+        s.strategy?.includes('momentum') || 
+        s.strategy?.includes('mean_reversion') ||
+        s.strategy?.includes('sector') ||
+        s.strategy?.includes('dividend') ||
+        s.strategy?.includes('earnings')
+      );
+      
+      if (stockStrategies.length > 0) {
+        const totalStockPnl = stockStrategies.reduce((sum, s) => sum + s.total_pnl, 0);
+        const totalStockTrades = stockStrategies.reduce((sum, s) => sum + s.total_trades, 0);
+        
+        if (totalStockTrades >= 5) {
+          results.push({
+            id: 'stock-strategies',
+            type: totalStockPnl > 0 ? 'success' : 'info',
+            category: 'stocks',
+            title: 'Stock Strategy Overview',
+            description: `${stockStrategies.length} stock strategies active: ${formatCurrency(totalStockPnl)} total P&L.`,
+            metric: `${totalStockTrades} trades across ${stockStrategies.map(s => formatStrategyName(s.strategy)).join(', ')}`,
+            impact: 'medium',
+          });
+        }
       }
     }
 
@@ -321,13 +557,47 @@ export default function InsightsPage() {
         metric: `${roi.toFixed(1)}% ROI`,
         impact: 'high',
       });
+    } else if (totalPnL < -50) {
+      results.push({
+        id: 'negative-pnl',
+        type: 'warning',
+        category: 'risk',
+        title: 'Overall Loss',
+        description: `Your total P&L is ${formatCurrency(totalPnL)}. Review your strategy settings.`,
+        metric: `${roi.toFixed(1)}% ROI`,
+        action: 'Consider reducing position sizes or enabling only profitable strategies.',
+        impact: 'high',
+      });
     }
 
-    // Diversification insight
+    // Diversification insight - updated to check all platforms
     const arbTrades = trades.filter(t => t.polymarket_token_id && t.kalshi_ticker);
-    const arbPercent = (arbTrades.length / trades.length) * 100;
+    const arbPercent = (arbTrades.length / Math.max(1, trades.length)) * 100;
     
-    if (arbPercent < 30 && trades.length > 10) {
+    // Platform diversity check
+    const platformsWithTrades = Object.values(platformProfits).filter(p => p.trades > 0).length;
+    if (platformsWithTrades === 1 && trades.length > 20) {
+      results.push({
+        id: 'single-platform',
+        type: 'info',
+        category: 'platform',
+        title: 'Single Platform Trading',
+        description: 'All trades are on one platform. Consider enabling additional platforms for diversification.',
+        action: 'Enable Binance for crypto, Alpaca for stocks, or both prediction markets.',
+        impact: 'medium',
+      });
+    } else if (platformsWithTrades >= 3) {
+      results.push({
+        id: 'well-diversified',
+        type: 'success',
+        category: 'platform',
+        title: 'Well Diversified',
+        description: `You're trading on ${platformsWithTrades} platforms. Good diversification reduces risk.`,
+        impact: 'low',
+      });
+    }
+    
+    if (arbPercent < 30 && trades.length > 10 && polyTrades.length > 0 && kalshiTrades.length > 0) {
       results.push({
         id: 'low-arb',
         type: 'info',
@@ -340,13 +610,13 @@ export default function InsightsPage() {
     }
 
     return results;
-  }, [trades, opportunities, stats]);
+  }, [trades, opportunities, stats, strategyPerf]);
 
   const filteredInsights = filter === 'all' 
     ? insights 
     : insights.filter(i => i.category === filter);
 
-  const categories = ['all', 'performance', 'timing', 'sizing', 'platform', 'risk'] as const;
+  const categories = ['all', 'performance', 'timing', 'sizing', 'platform', 'strategy', 'crypto', 'stocks', 'risk'] as const;
 
   return (
     <div className="p-8">

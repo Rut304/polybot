@@ -245,6 +245,61 @@ class Database:
         """Force refresh secrets from database."""
         return self.load_secrets(force_refresh=True)
 
+    # ==================== Configuration ====================
+    # Settings that can be changed via Admin UI (not secrets)
+    # The polybot_config table uses a single-row structure with id=1
+    
+    _config_cache: Dict[str, Any] = {}
+    _config_loaded = False
+    
+    def load_config(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """
+        Load configuration from polybot_config table.
+        Uses single-row structure with id=1 (matching admin UI).
+        """
+        if self._config_loaded and not force_refresh:
+            return self._config_cache
+        
+        if not self._client:
+            return {}
+        
+        try:
+            # Single row config with id=1
+            result = self._client.table("polybot_config").select(
+                "*"
+            ).eq("id", 1).limit(1).single().execute()
+            
+            if result.data:
+                self._config_cache = result.data
+            self._config_loaded = True
+            return self._config_cache
+            
+        except Exception as e:
+            logger.debug(f"Config table not available: {e}")
+            return {}
+    
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """Get a config value by key from the single-row config."""
+        if not self._config_loaded:
+            self.load_config()
+        return self._config_cache.get(key, default)
+    
+    def set_config(self, key: str, value: Any) -> bool:
+        """Set a config value in the single-row config."""
+        if not self._client:
+            return False
+        
+        try:
+            # Update single-row config with id=1
+            self._client.table("polybot_config").update({
+                key: value,
+            }).eq("id", 1).execute()
+            self._config_cache[key] = value
+            return True
+        except Exception as e:
+            logger.error(f"Failed to set config {key}: {e}")
+            return False
+
     # ==================== Opportunities ====================
     
     def log_opportunity(self, opportunity: Dict[str, Any]) -> Optional[int]:

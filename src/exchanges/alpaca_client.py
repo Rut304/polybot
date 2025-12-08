@@ -117,6 +117,19 @@ class AlpacaClient(BaseExchange):
             await self.session.close()
             self._initialized = False
     
+    async def get_account(self) -> Dict[str, Any]:
+        """Get full account information."""
+        if not self._initialized:
+            raise RuntimeError("Alpaca not initialized")
+        
+        async with self.session.get(
+            f"{self.base_url}/v2/account",
+            headers=self._get_headers()
+        ) as response:
+            if response.status != 200:
+                raise Exception(f"Failed to get account: {await response.text()}")
+            return await response.json()
+    
     # =========================================================================
     # Market Data Methods
     # =========================================================================

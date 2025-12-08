@@ -213,6 +213,79 @@ export default function SettingsPage() {
   const [pairsMaxHoldHours, setPairsMaxHoldHours] = useState(config?.pairs_max_hold_hours ?? 72.0);
   
   // =========================================================================
+  // STOCK STRATEGIES (New - via Alpaca)
+  // =========================================================================
+  
+  // Stock Mean Reversion (70% confidence - 15-30% APY)
+  const [enableStockMeanReversion, setEnableStockMeanReversion] = useState(config?.enable_stock_mean_reversion ?? false);
+  const [meanRevRsiOversold, setMeanRevRsiOversold] = useState(config?.mean_rev_rsi_oversold ?? 30);
+  const [meanRevRsiOverbought, setMeanRevRsiOverbought] = useState(config?.mean_rev_rsi_overbought ?? 70);
+  const [meanRevPositionSizeUsd, setMeanRevPositionSizeUsd] = useState(config?.mean_rev_position_size_usd ?? 1000);
+  const [meanRevMaxPositions, setMeanRevMaxPositions] = useState(config?.mean_rev_max_positions ?? 5);
+  const [meanRevStopLossPct, setMeanRevStopLossPct] = useState(config?.mean_rev_stop_loss_pct ?? 5);
+  const [meanRevTakeProfitPct, setMeanRevTakeProfitPct] = useState(config?.mean_rev_take_profit_pct ?? 10);
+  
+  // Stock Momentum (75% confidence - 20-40% APY)
+  const [enableStockMomentum, setEnableStockMomentum] = useState(config?.enable_stock_momentum ?? false);
+  const [momentumLookbackDays, setMomentumLookbackDays] = useState(config?.momentum_lookback_days ?? 20);
+  const [momentumMinScore, setMomentumMinScore] = useState(config?.momentum_min_score ?? 70);
+  const [momentumPositionSizeUsd, setMomentumPositionSizeUsd] = useState(config?.momentum_position_size_usd ?? 1000);
+  const [momentumMaxPositions, setMomentumMaxPositions] = useState(config?.momentum_max_positions ?? 10);
+  const [momentumTrailingStopPct, setMomentumTrailingStopPct] = useState(config?.momentum_trailing_stop_pct ?? 8);
+  
+  // Sector Rotation (70% confidence - 15-25% APY)
+  const [enableSectorRotation, setEnableSectorRotation] = useState(config?.enable_sector_rotation ?? false);
+  const [sectorRotationPeriodDays, setSectorRotationPeriodDays] = useState(config?.sector_rotation_period_days ?? 30);
+  const [sectorTopN, setSectorTopN] = useState(config?.sector_top_n ?? 3);
+  const [sectorPositionSizeUsd, setSectorPositionSizeUsd] = useState(config?.sector_position_size_usd ?? 2000);
+  const [sectorRebalanceFrequencyDays, setSectorRebalanceFrequencyDays] = useState(config?.sector_rebalance_frequency_days ?? 7);
+  
+  // Dividend Growth (65% confidence - 8-12% APY + dividends)
+  const [enableDividendGrowth, setEnableDividendGrowth] = useState(config?.enable_dividend_growth ?? false);
+  const [dividendMinYieldPct, setDividendMinYieldPct] = useState(config?.dividend_min_yield_pct ?? 2.0);
+  const [dividendMinGrowthYears, setDividendMinGrowthYears] = useState(config?.dividend_min_growth_years ?? 10);
+  const [dividendPositionSizeUsd, setDividendPositionSizeUsd] = useState(config?.dividend_position_size_usd ?? 2000);
+  const [dividendMaxPositions, setDividendMaxPositions] = useState(config?.dividend_max_positions ?? 15);
+  
+  // Earnings Momentum (60% confidence - 15-30% APY, higher risk)
+  const [enableEarningsMomentum, setEnableEarningsMomentum] = useState(config?.enable_earnings_momentum ?? false);
+  const [earningsMinSurprisePct, setEarningsMinSurprisePct] = useState(config?.earnings_min_surprise_pct ?? 5);
+  const [earningsHoldDays, setEarningsHoldDays] = useState(config?.earnings_hold_days ?? 5);
+  const [earningsPositionSizeUsd, setEarningsPositionSizeUsd] = useState(config?.earnings_position_size_usd ?? 500);
+  const [earningsMaxPositions, setEarningsMaxPositions] = useState(config?.earnings_max_positions ?? 3);
+  
+  // =========================================================================
+  // OPTIONS STRATEGIES (Requires IBKR or options-enabled broker)
+  // =========================================================================
+  
+  // Covered Calls (80% confidence - 10-20% APY)
+  const [enableCoveredCalls, setEnableCoveredCalls] = useState(config?.enable_covered_calls ?? false);
+  const [coveredCallDaysToExpiry, setCoveredCallDaysToExpiry] = useState(config?.covered_call_days_to_expiry ?? 30);
+  const [coveredCallDeltaTarget, setCoveredCallDeltaTarget] = useState(config?.covered_call_delta_target ?? 0.30);
+  const [coveredCallMinPremiumPct, setCoveredCallMinPremiumPct] = useState(config?.covered_call_min_premium_pct ?? 1.0);
+  
+  // Cash-Secured Puts (75% confidence - 15-30% APY)
+  const [enableCashSecuredPuts, setEnableCashSecuredPuts] = useState(config?.enable_cash_secured_puts ?? false);
+  const [cspDaysToExpiry, setCspDaysToExpiry] = useState(config?.csp_days_to_expiry ?? 30);
+  const [cspDeltaTarget, setCspDeltaTarget] = useState(config?.csp_delta_target ?? -0.30);
+  const [cspMinPremiumPct, setCspMinPremiumPct] = useState(config?.csp_min_premium_pct ?? 1.5);
+  
+  // Iron Condor (70% confidence - 20-40% APY)
+  const [enableIronCondor, setEnableIronCondor] = useState(config?.enable_iron_condor ?? false);
+  const [ironCondorDaysToExpiry, setIronCondorDaysToExpiry] = useState(config?.iron_condor_days_to_expiry ?? 45);
+  const [ironCondorWingWidth, setIronCondorWingWidth] = useState(config?.iron_condor_wing_width ?? 5);
+  const [ironCondorMinPremiumPct, setIronCondorMinPremiumPct] = useState(config?.iron_condor_min_premium_pct ?? 2.0);
+  
+  // Wheel Strategy (75% confidence - 20-35% APY)
+  const [enableWheelStrategy, setEnableWheelStrategy] = useState(config?.enable_wheel_strategy ?? false);
+  const [wheelStockList, setWheelStockList] = useState(config?.wheel_stock_list ?? 'AAPL,MSFT,GOOGL,AMZN,NVDA');
+  const [wheelPositionSizeUsd, setWheelPositionSizeUsd] = useState(config?.wheel_position_size_usd ?? 5000);
+  
+  // UI state for new strategy sections
+  const [showStockStrategies, setShowStockStrategies] = useState(false);
+  const [showOptionsStrategies, setShowOptionsStrategies] = useState(false);
+  
+  // =========================================================================
   // EXCHANGE ENABLEMENT (which platforms to trade on)
   // =========================================================================
   
@@ -227,6 +300,17 @@ export default function SettingsPage() {
   // Stock Brokers
   const [enableAlpaca, setEnableAlpaca] = useState(config?.enable_alpaca ?? false);
   const [enableIbkr, setEnableIbkr] = useState(config?.enable_ibkr ?? false);
+  
+  // =========================================================================
+  // STARTING BALANCES (for P&L tracking - not secrets)
+  // Each platform starts with this amount for easy P&L comparison
+  // =========================================================================
+  const [polymarketStartingBalance, setPolymarketStartingBalance] = useState(config?.polymarket_starting_balance ?? 20000);
+  const [kalshiStartingBalance, setKalshiStartingBalance] = useState(config?.kalshi_starting_balance ?? 20000);
+  const [binanceStartingBalance, setBinanceStartingBalance] = useState(config?.binance_starting_balance ?? 20000);
+  const [coinbaseStartingBalance, setCoinbaseStartingBalance] = useState(config?.coinbase_starting_balance ?? 20000);
+  const [alpacaStartingBalance, setAlpacaStartingBalance] = useState(config?.alpaca_starting_balance ?? 20000);
+  const [showStartingBalances, setShowStartingBalances] = useState(false);
   
   // UI state for strategy settings section
   const [showStrategySettings, setShowStrategySettings] = useState(false);
@@ -336,6 +420,60 @@ export default function SettingsPage() {
       if (config.pairs_max_positions !== undefined) setPairsMaxPositions(config.pairs_max_positions);
       if (config.pairs_max_hold_hours !== undefined) setPairsMaxHoldHours(config.pairs_max_hold_hours);
       
+      // Stock Strategies (NEW)
+      if (config.enable_stock_mean_reversion !== undefined) setEnableStockMeanReversion(config.enable_stock_mean_reversion);
+      if (config.mean_rev_rsi_oversold !== undefined) setMeanRevRsiOversold(config.mean_rev_rsi_oversold);
+      if (config.mean_rev_rsi_overbought !== undefined) setMeanRevRsiOverbought(config.mean_rev_rsi_overbought);
+      if (config.mean_rev_position_size_usd !== undefined) setMeanRevPositionSizeUsd(config.mean_rev_position_size_usd);
+      if (config.mean_rev_max_positions !== undefined) setMeanRevMaxPositions(config.mean_rev_max_positions);
+      if (config.mean_rev_stop_loss_pct !== undefined) setMeanRevStopLossPct(config.mean_rev_stop_loss_pct);
+      if (config.mean_rev_take_profit_pct !== undefined) setMeanRevTakeProfitPct(config.mean_rev_take_profit_pct);
+      
+      if (config.enable_stock_momentum !== undefined) setEnableStockMomentum(config.enable_stock_momentum);
+      if (config.momentum_lookback_days !== undefined) setMomentumLookbackDays(config.momentum_lookback_days);
+      if (config.momentum_min_score !== undefined) setMomentumMinScore(config.momentum_min_score);
+      if (config.momentum_position_size_usd !== undefined) setMomentumPositionSizeUsd(config.momentum_position_size_usd);
+      if (config.momentum_max_positions !== undefined) setMomentumMaxPositions(config.momentum_max_positions);
+      if (config.momentum_trailing_stop_pct !== undefined) setMomentumTrailingStopPct(config.momentum_trailing_stop_pct);
+      
+      if (config.enable_sector_rotation !== undefined) setEnableSectorRotation(config.enable_sector_rotation);
+      if (config.sector_rotation_period_days !== undefined) setSectorRotationPeriodDays(config.sector_rotation_period_days);
+      if (config.sector_top_n !== undefined) setSectorTopN(config.sector_top_n);
+      if (config.sector_position_size_usd !== undefined) setSectorPositionSizeUsd(config.sector_position_size_usd);
+      if (config.sector_rebalance_frequency_days !== undefined) setSectorRebalanceFrequencyDays(config.sector_rebalance_frequency_days);
+      
+      if (config.enable_dividend_growth !== undefined) setEnableDividendGrowth(config.enable_dividend_growth);
+      if (config.dividend_min_yield_pct !== undefined) setDividendMinYieldPct(config.dividend_min_yield_pct);
+      if (config.dividend_min_growth_years !== undefined) setDividendMinGrowthYears(config.dividend_min_growth_years);
+      if (config.dividend_position_size_usd !== undefined) setDividendPositionSizeUsd(config.dividend_position_size_usd);
+      if (config.dividend_max_positions !== undefined) setDividendMaxPositions(config.dividend_max_positions);
+      
+      if (config.enable_earnings_momentum !== undefined) setEnableEarningsMomentum(config.enable_earnings_momentum);
+      if (config.earnings_min_surprise_pct !== undefined) setEarningsMinSurprisePct(config.earnings_min_surprise_pct);
+      if (config.earnings_hold_days !== undefined) setEarningsHoldDays(config.earnings_hold_days);
+      if (config.earnings_position_size_usd !== undefined) setEarningsPositionSizeUsd(config.earnings_position_size_usd);
+      if (config.earnings_max_positions !== undefined) setEarningsMaxPositions(config.earnings_max_positions);
+      
+      // Options Strategies (NEW)
+      if (config.enable_covered_calls !== undefined) setEnableCoveredCalls(config.enable_covered_calls);
+      if (config.covered_call_days_to_expiry !== undefined) setCoveredCallDaysToExpiry(config.covered_call_days_to_expiry);
+      if (config.covered_call_delta_target !== undefined) setCoveredCallDeltaTarget(config.covered_call_delta_target);
+      if (config.covered_call_min_premium_pct !== undefined) setCoveredCallMinPremiumPct(config.covered_call_min_premium_pct);
+      
+      if (config.enable_cash_secured_puts !== undefined) setEnableCashSecuredPuts(config.enable_cash_secured_puts);
+      if (config.csp_days_to_expiry !== undefined) setCspDaysToExpiry(config.csp_days_to_expiry);
+      if (config.csp_delta_target !== undefined) setCspDeltaTarget(config.csp_delta_target);
+      if (config.csp_min_premium_pct !== undefined) setCspMinPremiumPct(config.csp_min_premium_pct);
+      
+      if (config.enable_iron_condor !== undefined) setEnableIronCondor(config.enable_iron_condor);
+      if (config.iron_condor_days_to_expiry !== undefined) setIronCondorDaysToExpiry(config.iron_condor_days_to_expiry);
+      if (config.iron_condor_wing_width !== undefined) setIronCondorWingWidth(config.iron_condor_wing_width);
+      if (config.iron_condor_min_premium_pct !== undefined) setIronCondorMinPremiumPct(config.iron_condor_min_premium_pct);
+      
+      if (config.enable_wheel_strategy !== undefined) setEnableWheelStrategy(config.enable_wheel_strategy);
+      if (config.wheel_stock_list !== undefined) setWheelStockList(config.wheel_stock_list);
+      if (config.wheel_position_size_usd !== undefined) setWheelPositionSizeUsd(config.wheel_position_size_usd);
+      
       // Exchange Enablement (NEW)
       if (config.enable_binance !== undefined) setEnableBinance(config.enable_binance);
       if (config.enable_bybit !== undefined) setEnableBybit(config.enable_bybit);
@@ -345,6 +483,13 @@ export default function SettingsPage() {
       if (config.enable_kucoin !== undefined) setEnableKucoin(config.enable_kucoin);
       if (config.enable_alpaca !== undefined) setEnableAlpaca(config.enable_alpaca);
       if (config.enable_ibkr !== undefined) setEnableIbkr(config.enable_ibkr);
+      
+      // Starting Balances (for P&L tracking)
+      if (config.polymarket_starting_balance !== undefined) setPolymarketStartingBalance(config.polymarket_starting_balance);
+      if (config.kalshi_starting_balance !== undefined) setKalshiStartingBalance(config.kalshi_starting_balance);
+      if (config.binance_starting_balance !== undefined) setBinanceStartingBalance(config.binance_starting_balance);
+      if (config.coinbase_starting_balance !== undefined) setCoinbaseStartingBalance(config.coinbase_starting_balance);
+      if (config.alpaca_starting_balance !== undefined) setAlpacaStartingBalance(config.alpaca_starting_balance);
     }
   }, [config, saving]);
   
@@ -505,6 +650,51 @@ export default function SettingsPage() {
         pairs_position_size_usd: pairsPositionSizeUsd,
         pairs_max_positions: pairsMaxPositions,
         pairs_max_hold_hours: pairsMaxHoldHours,
+        // Stock Strategies
+        enable_stock_mean_reversion: enableStockMeanReversion,
+        mean_rev_rsi_oversold: meanRevRsiOversold,
+        mean_rev_rsi_overbought: meanRevRsiOverbought,
+        mean_rev_position_size_usd: meanRevPositionSizeUsd,
+        mean_rev_max_positions: meanRevMaxPositions,
+        mean_rev_stop_loss_pct: meanRevStopLossPct,
+        mean_rev_take_profit_pct: meanRevTakeProfitPct,
+        enable_stock_momentum: enableStockMomentum,
+        momentum_lookback_days: momentumLookbackDays,
+        momentum_min_score: momentumMinScore,
+        momentum_position_size_usd: momentumPositionSizeUsd,
+        momentum_max_positions: momentumMaxPositions,
+        momentum_trailing_stop_pct: momentumTrailingStopPct,
+        enable_sector_rotation: enableSectorRotation,
+        sector_rotation_period_days: sectorRotationPeriodDays,
+        sector_top_n: sectorTopN,
+        sector_position_size_usd: sectorPositionSizeUsd,
+        sector_rebalance_frequency_days: sectorRebalanceFrequencyDays,
+        enable_dividend_growth: enableDividendGrowth,
+        dividend_min_yield_pct: dividendMinYieldPct,
+        dividend_min_growth_years: dividendMinGrowthYears,
+        dividend_position_size_usd: dividendPositionSizeUsd,
+        dividend_max_positions: dividendMaxPositions,
+        enable_earnings_momentum: enableEarningsMomentum,
+        earnings_min_surprise_pct: earningsMinSurprisePct,
+        earnings_hold_days: earningsHoldDays,
+        earnings_position_size_usd: earningsPositionSizeUsd,
+        earnings_max_positions: earningsMaxPositions,
+        // Options Strategies
+        enable_covered_calls: enableCoveredCalls,
+        covered_call_days_to_expiry: coveredCallDaysToExpiry,
+        covered_call_delta_target: coveredCallDeltaTarget,
+        covered_call_min_premium_pct: coveredCallMinPremiumPct,
+        enable_cash_secured_puts: enableCashSecuredPuts,
+        csp_days_to_expiry: cspDaysToExpiry,
+        csp_delta_target: cspDeltaTarget,
+        csp_min_premium_pct: cspMinPremiumPct,
+        enable_iron_condor: enableIronCondor,
+        iron_condor_days_to_expiry: ironCondorDaysToExpiry,
+        iron_condor_wing_width: ironCondorWingWidth,
+        iron_condor_min_premium_pct: ironCondorMinPremiumPct,
+        enable_wheel_strategy: enableWheelStrategy,
+        wheel_stock_list: wheelStockList,
+        wheel_position_size_usd: wheelPositionSizeUsd,
         // Exchange Enablement
         enable_binance: enableBinance,
         enable_bybit: enableBybit,
@@ -514,6 +704,12 @@ export default function SettingsPage() {
         enable_kucoin: enableKucoin,
         enable_alpaca: enableAlpaca,
         enable_ibkr: enableIbkr,
+        // Starting Balances (for P&L tracking)
+        polymarket_starting_balance: polymarketStartingBalance,
+        kalshi_starting_balance: kalshiStartingBalance,
+        binance_starting_balance: binanceStartingBalance,
+        coinbase_starting_balance: coinbaseStartingBalance,
+        alpaca_starting_balance: alpacaStartingBalance,
         // Add updated_at timestamp
         updated_at: new Date().toISOString(),
       };
@@ -819,6 +1015,222 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      </motion.div>
+
+      {/* Starting Balances - for P&L tracking */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="card mb-6"
+      >
+        <button
+          onClick={() => setShowStartingBalances(!showStartingBalances)}
+          className="w-full flex items-center justify-between"
+          type="button"
+          title="Toggle starting balances settings"
+        >
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-neon-green" />
+            Starting Balances
+          </h2>
+          {showStartingBalances ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        <p className="text-sm text-gray-500 mt-1">
+          Set starting balance for each platform to track P&L performance (Total: ${(polymarketStartingBalance + kalshiStartingBalance + binanceStartingBalance + coinbaseStartingBalance + alpacaStartingBalance).toLocaleString()})
+        </p>
+
+        <AnimatePresence>
+          {showStartingBalances && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <p className="text-sm text-blue-300">
+                    <strong>💡 Tip:</strong> These are reference balances for P&L tracking. Set them to match your actual deposits on each platform. 
+                    Default is $20,000 per platform ($100K total) for easy comparison.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Polymarket */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-purple-400">P</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Polymarket</p>
+                        <p className="text-xs text-gray-500">Prediction Market</p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={polymarketStartingBalance}
+                        onChange={(e) => setPolymarketStartingBalance(parseFloat(e.target.value) || 0)}
+                        step="1000"
+                        min="0"
+                        disabled={!isAdmin}
+                        title="Polymarket starting balance"
+                        placeholder="20000"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg pl-7 pr-4 py-2 focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Kalshi */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-green-400">K</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Kalshi</p>
+                        <p className="text-xs text-gray-500">Prediction Market</p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={kalshiStartingBalance}
+                        onChange={(e) => setKalshiStartingBalance(parseFloat(e.target.value) || 0)}
+                        step="1000"
+                        min="0"
+                        disabled={!isAdmin}
+                        title="Kalshi starting balance"
+                        placeholder="20000"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg pl-7 pr-4 py-2 focus:outline-none focus:border-green-500 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Binance */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-yellow-400">B</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Binance</p>
+                        <p className="text-xs text-gray-500">Crypto Exchange</p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={binanceStartingBalance}
+                        onChange={(e) => setBinanceStartingBalance(parseFloat(e.target.value) || 0)}
+                        step="1000"
+                        min="0"
+                        disabled={!isAdmin}
+                        title="Binance starting balance"
+                        placeholder="20000"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg pl-7 pr-4 py-2 focus:outline-none focus:border-yellow-500 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Coinbase */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-blue-400">C</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Coinbase</p>
+                        <p className="text-xs text-gray-500">Crypto Exchange</p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={coinbaseStartingBalance}
+                        onChange={(e) => setCoinbaseStartingBalance(parseFloat(e.target.value) || 0)}
+                        step="1000"
+                        min="0"
+                        disabled={!isAdmin}
+                        title="Coinbase starting balance"
+                        placeholder="20000"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg pl-7 pr-4 py-2 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Alpaca */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-orange-400">A</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">Alpaca</p>
+                        <p className="text-xs text-gray-500">Stock Broker</p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={alpacaStartingBalance}
+                        onChange={(e) => setAlpacaStartingBalance(parseFloat(e.target.value) || 0)}
+                        step="1000"
+                        min="0"
+                        disabled={!isAdmin}
+                        title="Alpaca starting balance"
+                        placeholder="20000"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg pl-7 pr-4 py-2 focus:outline-none focus:border-orange-500 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <p className="font-medium mb-3">Quick Presets</p>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPolymarketStartingBalance(20000);
+                          setKalshiStartingBalance(20000);
+                          setBinanceStartingBalance(20000);
+                          setCoinbaseStartingBalance(20000);
+                          setAlpacaStartingBalance(20000);
+                        }}
+                        disabled={!isAdmin}
+                        className="w-full px-3 py-2 text-sm bg-neon-green/20 hover:bg-neon-green/30 text-neon-green rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        $100K Total ($20K each)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPolymarketStartingBalance(10000);
+                          setKalshiStartingBalance(10000);
+                          setBinanceStartingBalance(10000);
+                          setCoinbaseStartingBalance(10000);
+                          setAlpacaStartingBalance(10000);
+                        }}
+                        disabled={!isAdmin}
+                        className="w-full px-3 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        $50K Total ($10K each)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Trading Parameters */}
@@ -2089,6 +2501,345 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Stock Strategies */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.24 }}
+        className="card mb-6"
+      >
+        <button
+          onClick={() => setShowStockStrategies(!showStockStrategies)}
+          className="w-full flex items-center justify-between"
+          type="button"
+          title="Toggle stock strategies"
+        >
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <TrendingDown className="w-5 h-5 text-blue-500" />
+            Stock Strategies (via Alpaca)
+          </h2>
+          {showStockStrategies ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        <p className="text-sm text-gray-500 mt-1">Mean reversion, momentum, sector rotation, dividends, and earnings strategies</p>
+
+        <AnimatePresence>
+          {showStockStrategies && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              {/* Stock Mean Reversion */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Stock Mean Reversion</h3>
+                    <p className="text-sm text-gray-500">Buy oversold, sell overbought stocks (15-30% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableStockMeanReversion} onToggle={() => setEnableStockMeanReversion(!enableStockMeanReversion)} disabled={!isAdmin} />
+                </div>
+                {enableStockMeanReversion && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">RSI Oversold</label>
+                      <input type="number" value={meanRevRsiOversold} onChange={(e) => setMeanRevRsiOversold(parseFloat(e.target.value))} step="5" min="10" max="40" disabled={!isAdmin} title="RSI oversold threshold" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">RSI Overbought</label>
+                      <input type="number" value={meanRevRsiOverbought} onChange={(e) => setMeanRevRsiOverbought(parseFloat(e.target.value))} step="5" min="60" max="90" disabled={!isAdmin} title="RSI overbought threshold" placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
+                      <input type="number" value={meanRevPositionSizeUsd} onChange={(e) => setMeanRevPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} title="Position size in USD" placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
+                      <input type="number" value={meanRevMaxPositions} onChange={(e) => setMeanRevMaxPositions(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Maximum number of positions" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Stop Loss %</label>
+                      <input type="number" value={meanRevStopLossPct} onChange={(e) => setMeanRevStopLossPct(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Stop loss percentage" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Take Profit %</label>
+                      <input type="number" value={meanRevTakeProfitPct} onChange={(e) => setMeanRevTakeProfitPct(parseFloat(e.target.value))} step="1" min="1" max="50" disabled={!isAdmin} title="Take profit percentage" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Stock Momentum */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Stock Momentum</h3>
+                    <p className="text-sm text-gray-500">Ride trending stocks with trailing stops (20-40% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableStockMomentum} onToggle={() => setEnableStockMomentum(!enableStockMomentum)} disabled={!isAdmin} />
+                </div>
+                {enableStockMomentum && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Lookback Days</label>
+                      <input type="number" value={momentumLookbackDays} onChange={(e) => setMomentumLookbackDays(parseInt(e.target.value))} step="5" min="5" max="90" disabled={!isAdmin} title="Momentum lookback period" placeholder="20" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Score (0-100)</label>
+                      <input type="number" value={momentumMinScore} onChange={(e) => setMomentumMinScore(parseInt(e.target.value))} step="5" min="50" max="95" disabled={!isAdmin} title="Minimum momentum score" placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
+                      <input type="number" value={momentumPositionSizeUsd} onChange={(e) => setMomentumPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} title="Position size in USD" placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
+                      <input type="number" value={momentumMaxPositions} onChange={(e) => setMomentumMaxPositions(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Maximum positions" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Trailing Stop %</label>
+                      <input type="number" value={momentumTrailingStopPct} onChange={(e) => setMomentumTrailingStopPct(parseFloat(e.target.value))} step="1" min="3" max="20" disabled={!isAdmin} title="Trailing stop percentage" placeholder="8" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sector Rotation */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Sector Rotation</h3>
+                    <p className="text-sm text-gray-500">Rotate into strongest sectors via ETFs (15-25% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableSectorRotation} onToggle={() => setEnableSectorRotation(!enableSectorRotation)} disabled={!isAdmin} />
+                </div>
+                {enableSectorRotation && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Lookback Days</label>
+                      <input type="number" value={sectorRotationPeriodDays} onChange={(e) => setSectorRotationPeriodDays(parseInt(e.target.value))} step="5" min="5" max="90" disabled={!isAdmin} title="Sector rotation lookback" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Top N Sectors</label>
+                      <input type="number" value={sectorTopN} onChange={(e) => setSectorTopN(parseInt(e.target.value))} step="1" min="1" max="5" disabled={!isAdmin} title="Number of top sectors" placeholder="3" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
+                      <input type="number" value={sectorPositionSizeUsd} onChange={(e) => setSectorPositionSizeUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} title="Position size per sector" placeholder="2000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Rebalance Days</label>
+                      <input type="number" value={sectorRebalanceFrequencyDays} onChange={(e) => setSectorRebalanceFrequencyDays(parseInt(e.target.value))} step="1" min="1" max="30" disabled={!isAdmin} title="Rebalance frequency" placeholder="7" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Dividend Growth */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Dividend Growth</h3>
+                    <p className="text-sm text-gray-500">Income from quality dividend growers (8-12% APY + dividends)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableDividendGrowth} onToggle={() => setEnableDividendGrowth(!enableDividendGrowth)} disabled={!isAdmin} />
+                </div>
+                {enableDividendGrowth && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Yield %</label>
+                      <input type="number" value={dividendMinYieldPct} onChange={(e) => setDividendMinYieldPct(parseFloat(e.target.value))} step="0.5" min="0.5" max="10" disabled={!isAdmin} title="Minimum dividend yield" placeholder="2.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Growth Years</label>
+                      <input type="number" value={dividendMinGrowthYears} onChange={(e) => setDividendMinGrowthYears(parseInt(e.target.value))} step="1" min="5" max="25" disabled={!isAdmin} title="Minimum consecutive years of growth" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
+                      <input type="number" value={dividendPositionSizeUsd} onChange={(e) => setDividendPositionSizeUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} title="Position size per stock" placeholder="2000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
+                      <input type="number" value={dividendMaxPositions} onChange={(e) => setDividendMaxPositions(parseInt(e.target.value))} step="1" min="5" max="30" disabled={!isAdmin} title="Maximum positions" placeholder="15" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Earnings Momentum */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Earnings Momentum</h3>
+                    <p className="text-sm text-gray-500">Trade around earnings surprises (15-30% APY, higher risk)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableEarningsMomentum} onToggle={() => setEnableEarningsMomentum(!enableEarningsMomentum)} disabled={!isAdmin} />
+                </div>
+                {enableEarningsMomentum && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Surprise %</label>
+                      <input type="number" value={earningsMinSurprisePct} onChange={(e) => setEarningsMinSurprisePct(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Minimum earnings surprise" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Hold Days</label>
+                      <input type="number" value={earningsHoldDays} onChange={(e) => setEarningsHoldDays(parseInt(e.target.value))} step="1" min="1" max="30" disabled={!isAdmin} title="Days to hold after earnings" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
+                      <input type="number" value={earningsPositionSizeUsd} onChange={(e) => setEarningsPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} title="Position size per trade" placeholder="500" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
+                      <input type="number" value={earningsMaxPositions} onChange={(e) => setEarningsMaxPositions(parseInt(e.target.value))} step="1" min="1" max="10" disabled={!isAdmin} title="Maximum positions" placeholder="3" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Options Strategies */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.242 }}
+        className="card mb-6"
+      >
+        <button
+          onClick={() => setShowOptionsStrategies(!showOptionsStrategies)}
+          className="w-full flex items-center justify-between"
+          type="button"
+          title="Toggle options strategies"
+        >
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Target className="w-5 h-5 text-purple-500" />
+            Options Strategies (Requires IBKR)
+          </h2>
+          {showOptionsStrategies ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        <p className="text-sm text-gray-500 mt-1">Covered calls, cash-secured puts, iron condors, and the wheel strategy</p>
+        <p className="text-xs text-yellow-500 mt-1">⚠️ Requires IBKR or options-enabled broker (not yet implemented)</p>
+
+        <AnimatePresence>
+          {showOptionsStrategies && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              {/* Covered Calls */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Covered Calls</h3>
+                    <p className="text-sm text-gray-500">Generate income on long stock positions (10-20% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableCoveredCalls} onToggle={() => setEnableCoveredCalls(!enableCoveredCalls)} disabled={!isAdmin} />
+                </div>
+                {enableCoveredCalls && (
+                  <div className="grid grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Days to Expiry</label>
+                      <input type="number" value={coveredCallDaysToExpiry} onChange={(e) => setCoveredCallDaysToExpiry(parseInt(e.target.value))} step="7" min="7" max="60" disabled={!isAdmin} title="Days to expiration" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Delta Target</label>
+                      <input type="number" value={coveredCallDeltaTarget} onChange={(e) => setCoveredCallDeltaTarget(parseFloat(e.target.value))} step="0.05" min="0.1" max="0.5" disabled={!isAdmin} title="Target delta for calls" placeholder="0.30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
+                      <input type="number" value={coveredCallMinPremiumPct} onChange={(e) => setCoveredCallMinPremiumPct(parseFloat(e.target.value))} step="0.25" min="0.5" max="5" disabled={!isAdmin} title="Minimum premium collected" placeholder="1.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Cash-Secured Puts */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Cash-Secured Puts</h3>
+                    <p className="text-sm text-gray-500">Acquire stocks at discount or collect premium (15-30% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableCashSecuredPuts} onToggle={() => setEnableCashSecuredPuts(!enableCashSecuredPuts)} disabled={!isAdmin} />
+                </div>
+                {enableCashSecuredPuts && (
+                  <div className="grid grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Days to Expiry</label>
+                      <input type="number" value={cspDaysToExpiry} onChange={(e) => setCspDaysToExpiry(parseInt(e.target.value))} step="7" min="7" max="60" disabled={!isAdmin} title="Days to expiration" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Delta Target</label>
+                      <input type="number" value={cspDeltaTarget} onChange={(e) => setCspDeltaTarget(parseFloat(e.target.value))} step="0.05" min="-0.5" max="-0.1" disabled={!isAdmin} title="Target delta for puts (negative)" placeholder="-0.30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
+                      <input type="number" value={cspMinPremiumPct} onChange={(e) => setCspMinPremiumPct(parseFloat(e.target.value))} step="0.25" min="0.5" max="5" disabled={!isAdmin} title="Minimum premium collected" placeholder="1.5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Iron Condor */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Iron Condor</h3>
+                    <p className="text-sm text-gray-500">Range-bound premium collection (20-40% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableIronCondor} onToggle={() => setEnableIronCondor(!enableIronCondor)} disabled={!isAdmin} />
+                </div>
+                {enableIronCondor && (
+                  <div className="grid grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Days to Expiry</label>
+                      <input type="number" value={ironCondorDaysToExpiry} onChange={(e) => setIronCondorDaysToExpiry(parseInt(e.target.value))} step="7" min="14" max="60" disabled={!isAdmin} title="Days to expiration" placeholder="45" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Wing Width ($)</label>
+                      <input type="number" value={ironCondorWingWidth} onChange={(e) => setIronCondorWingWidth(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Width between strikes" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
+                      <input type="number" value={ironCondorMinPremiumPct} onChange={(e) => setIronCondorMinPremiumPct(parseFloat(e.target.value))} step="0.5" min="1" max="10" disabled={!isAdmin} title="Minimum premium collected" placeholder="2.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Wheel Strategy */}
+              <div className="mt-6 pt-6 border-t border-dark-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-medium">Wheel Strategy</h3>
+                    <p className="text-sm text-gray-500">Systematic CSP → Covered Call rotation (20-35% APY)</p>
+                  </div>
+                  <ToggleSwitch enabled={enableWheelStrategy} onToggle={() => setEnableWheelStrategy(!enableWheelStrategy)} disabled={!isAdmin} />
+                </div>
+                {enableWheelStrategy && (
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Stock List</label>
+                      <input type="text" value={wheelStockList} onChange={(e) => setWheelStockList(e.target.value)} disabled={!isAdmin} title="Comma-separated stock symbols" placeholder="AAPL,MSFT,GOOGL" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Comma-separated symbols</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
+                      <input type="number" value={wheelPositionSizeUsd} onChange={(e) => setWheelPositionSizeUsd(parseFloat(e.target.value))} step="1000" min="1000" disabled={!isAdmin} title="Position size per stock" placeholder="5000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

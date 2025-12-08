@@ -7,6 +7,25 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+// Helper to get total starting balance from config
+async function getTotalStartingBalance(): Promise<number> {
+  const { data: config } = await supabaseAdmin
+    .from('polybot_config')
+    .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance')
+    .eq('id', 1)
+    .single();
+  
+  if (!config) return 100000; // Default: 5 platforms x $20,000
+  
+  return (
+    (config.polymarket_starting_balance || 20000) +
+    (config.kalshi_starting_balance || 20000) +
+    (config.binance_starting_balance || 20000) +
+    (config.coinbase_starting_balance || 20000) +
+    (config.alpaca_starting_balance || 20000)
+  );
+}
+
 // GET - List all simulation sessions or get details for one
 export async function GET(request: NextRequest) {
   try {
@@ -127,6 +146,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { notes } = body;
     
+    // Get starting balance from config
+    const startingBalance = await getTotalStartingBalance();
+    
     // Get current simulation stats
     const { data: statsData } = await supabaseAdmin
       .from('polybot_simulation_stats')
@@ -135,7 +157,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
     
-    const endingBalance = statsData?.simulated_balance || 5000;
+    const endingBalance = statsData?.simulated_balance || startingBalance;
     const totalPnl = statsData?.total_pnl || 0;
     
     // Check if there are any trades to archive
@@ -201,10 +223,10 @@ export async function POST(request: NextRequest) {
         started_at: startedAt,
         ended_at: new Date().toISOString(),
         status: 'completed',
-        starting_balance: 5000.00,
+        starting_balance: startingBalance,
         ending_balance: endingBalance,
         total_pnl: totalPnl,
-        roi_pct: (totalPnl / 5000) * 100,
+        roi_pct: (totalPnl / startingBalance) * 100,
         total_trades: trades.length,
         winning_trades: winning,
         losing_trades: losing,

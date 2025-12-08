@@ -62,13 +62,25 @@ const CATEGORIES = [
 ];
 
 // Platform display info
-const PLATFORM_INFO: Record<string, { name: string; color: string; icon: string }> = {
-  polymarket: { name: 'Polymarket', color: 'bg-blue-500', icon: '🎯' },
-  kalshi: { name: 'Kalshi', color: 'bg-green-500', icon: '📊' },
-  alpaca: { name: 'Alpaca', color: 'bg-yellow-500', icon: '📈' },
-  binance: { name: 'Binance', color: 'bg-orange-500', icon: '₿' },
-  bybit: { name: 'Bybit', color: 'bg-purple-500', icon: '₿' },
-  okx: { name: 'OKX', color: 'bg-cyan-500', icon: '₿' },
+const PLATFORM_INFO: Record<string, { name: string; color: string; borderColor: string; bgColor: string; textColor: string; icon: string }> = {
+  polymarket: { name: 'Polymarket', color: 'bg-blue-500', borderColor: 'border-blue-500', bgColor: 'bg-blue-500/20', textColor: 'text-blue-400', icon: '🔵' },
+  kalshi: { name: 'Kalshi', color: 'bg-green-500', borderColor: 'border-green-500', bgColor: 'bg-green-500/20', textColor: 'text-green-400', icon: '🟢' },
+  alpaca: { name: 'Alpaca', color: 'bg-yellow-500', borderColor: 'border-yellow-500', bgColor: 'bg-yellow-500/20', textColor: 'text-yellow-400', icon: '📈' },
+  binance: { name: 'Binance', color: 'bg-orange-500', borderColor: 'border-orange-500', bgColor: 'bg-orange-500/20', textColor: 'text-orange-400', icon: '₿' },
+  bybit: { name: 'Bybit', color: 'bg-purple-500', borderColor: 'border-purple-500', bgColor: 'bg-purple-500/20', textColor: 'text-purple-400', icon: '₿' },
+  okx: { name: 'OKX', color: 'bg-cyan-500', borderColor: 'border-cyan-500', bgColor: 'bg-cyan-500/20', textColor: 'text-cyan-400', icon: '₿' },
+};
+
+// Helper to get platform info with fallback
+const getPlatformInfo = (platform: string) => {
+  return PLATFORM_INFO[platform] || { 
+    name: platform, 
+    color: 'bg-gray-500', 
+    borderColor: 'border-gray-500', 
+    bgColor: 'bg-gray-500/20', 
+    textColor: 'text-gray-400', 
+    icon: '📊' 
+  };
 };
 
 export default function MarketsPage() {
@@ -380,7 +392,9 @@ export default function MarketsPage() {
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <AnimatePresence mode="popLayout">
-              {paginatedMarkets.map((market) => (
+              {paginatedMarkets.map((market) => {
+                const platformInfo = getPlatformInfo(market.platform);
+                return (
                 <motion.div
                   key={`${market.platform}-${market.id}`}
                   layout
@@ -389,27 +403,20 @@ export default function MarketsPage() {
                   exit={{ opacity: 0, scale: 0.95 }}
                   className={cn(
                     "bg-dark-card rounded-xl border-2 overflow-hidden hover:border-opacity-100 transition-all",
-                    market.platform === 'polymarket' 
-                      ? "border-polymarket/50 hover:border-polymarket" 
-                      : "border-kalshi/50 hover:border-kalshi"
+                    `${platformInfo.borderColor}/50 hover:${platformInfo.borderColor}`
                   )}
                 >
                   {/* Platform indicator */}
-                  <div className={cn(
-                    "h-1",
-                    market.platform === 'polymarket' ? "bg-polymarket" : "bg-kalshi"
-                  )} />
+                  <div className={cn("h-1", platformInfo.color)} />
                   
                   <div className="p-4">
                     {/* Header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className={cn(
                         "px-2 py-1 rounded text-xs font-medium",
-                        market.platform === 'polymarket' 
-                          ? "bg-polymarket/20 text-polymarket" 
-                          : "bg-kalshi/20 text-kalshi"
+                        platformInfo.bgColor, platformInfo.textColor
                       )}>
-                        {market.platform === 'polymarket' ? '🔵 Polymarket' : '🟢 Kalshi'}
+                        {platformInfo.icon} {platformInfo.name}
                       </div>
                       
                       <button
@@ -485,9 +492,7 @@ export default function MarketsPage() {
                         onClick={() => openTrade(market)}
                         className={cn(
                           "flex-1 py-2 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors",
-                          market.platform === 'polymarket'
-                            ? "bg-polymarket hover:bg-polymarket/80 text-white"
-                            : "bg-kalshi hover:bg-kalshi/80 text-white"
+                          `${platformInfo.color} hover:opacity-80 text-white`
                         )}
                       >
                         <Plus className="w-4 h-4" />
@@ -498,13 +503,15 @@ export default function MarketsPage() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-3 py-2 bg-dark-border rounded-lg hover:bg-dark-border/80 transition-colors"
+                        title={`View on ${platformInfo.name}`}
                       >
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     </div>
                   </div>
                 </motion.div>
-              ))}
+              );
+              })}
             </AnimatePresence>
           </div>
         )}

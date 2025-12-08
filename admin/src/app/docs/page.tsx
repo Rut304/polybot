@@ -29,7 +29,7 @@ interface StrategyDoc {
   confidence: number;
   expectedApy: string;
   riskLevel: 'low' | 'medium' | 'high';
-  category: 'prediction' | 'crypto';
+  category: 'prediction' | 'crypto' | 'stocks';
   icon: JSX.Element;
   color: string;
   description: string;
@@ -342,6 +342,194 @@ const STRATEGY_DOCS: StrategyDoc[] = [
       'List of whale addresses to track',
     ],
   },
+  // ========== STOCK STRATEGIES ==========
+  {
+    id: 'stock_mean_reversion',
+    name: 'Stock Mean Reversion',
+    confidence: 70,
+    expectedApy: '10-25%',
+    riskLevel: 'medium',
+    category: 'stocks',
+    icon: <TrendingUp className="w-5 h-5" />,
+    color: 'from-emerald-500 to-green-500',
+    description: 'Trade stocks that have deviated significantly from their historical average price, expecting them to revert back to the mean. Buy oversold stocks, sell overbought stocks.',
+    howItWorks: [
+      'Calculate 20-day moving average for each stock',
+      'Compute standard deviation from the mean',
+      'Calculate z-score: (current price - mean) / std_dev',
+      'If z-score < -2: Buy (oversold)',
+      'If z-score > +2: Short or sell (overbought)',
+      'Exit when z-score returns to ±0.5',
+    ],
+    keyPoints: [
+      'Statistical basis - Prices tend to revert to mean',
+      'Works best on range-bound stocks',
+      'Avoid trending stocks - can lose money if trend continues',
+      'Requires liquid, large-cap stocks for reliable patterns',
+      'Paper trading recommended to validate signals',
+    ],
+    configParams: [
+      { name: 'stock_mean_reversion_lookback_days', default: '20', description: 'Lookback period for mean' },
+      { name: 'stock_mean_reversion_entry_zscore', default: '2.0', description: 'Enter when |z| > 2' },
+      { name: 'stock_mean_reversion_exit_zscore', default: '0.5', description: 'Exit when |z| < 0.5' },
+      { name: 'stock_mean_reversion_max_position_usd', default: '1000', description: 'Max per position' },
+    ],
+    requiredCredentials: [
+      'ALPACA_PAPER_API_KEY + ALPACA_PAPER_API_SECRET',
+      'Or ALPACA_LIVE_API_KEY + ALPACA_LIVE_API_SECRET for live trading',
+    ],
+  },
+  {
+    id: 'stock_momentum',
+    name: 'Stock Momentum',
+    confidence: 65,
+    expectedApy: '15-40%',
+    riskLevel: 'medium',
+    category: 'stocks',
+    icon: <TrendingUp className="w-5 h-5" />,
+    color: 'from-blue-500 to-indigo-500',
+    description: 'Follow the trend - buy stocks that have been going up, short stocks that have been going down. Momentum strategies are backed by decades of academic research.',
+    howItWorks: [
+      'Calculate 12-month return for each stock',
+      'Rank stocks by momentum (highest to lowest)',
+      'Buy top 10% performers (momentum winners)',
+      'Optionally short bottom 10% (momentum losers)',
+      'Rebalance monthly to capture new momentum',
+      'Use stop-losses to protect against reversals',
+    ],
+    keyPoints: [
+      'Academic validation - Momentum premium documented since 1993',
+      'Trend following - Winners tend to keep winning',
+      'Transaction costs - Frequent trading can erode returns',
+      'Crash risk - Momentum can reverse sharply',
+      'Best combined with other factors (value, quality)',
+    ],
+    configParams: [
+      { name: 'stock_momentum_lookback_days', default: '252', description: '12-month lookback' },
+      { name: 'stock_momentum_top_pct', default: '10', description: 'Buy top 10%' },
+      { name: 'stock_momentum_rebalance_days', default: '30', description: 'Monthly rebalance' },
+      { name: 'stock_momentum_max_positions', default: '10', description: 'Max concurrent positions' },
+    ],
+    requiredCredentials: [
+      'ALPACA_PAPER_API_KEY + ALPACA_PAPER_API_SECRET',
+    ],
+    academicRefs: [
+      'Jegadeesh & Titman (1993) - Returns to Buying Winners',
+      'Carhart Four-Factor Model',
+    ],
+  },
+  {
+    id: 'sector_rotation',
+    name: 'Sector Rotation',
+    confidence: 60,
+    expectedApy: '8-20%',
+    riskLevel: 'medium',
+    category: 'stocks',
+    icon: <Repeat className="w-5 h-5" />,
+    color: 'from-purple-500 to-pink-500',
+    description: 'Rotate capital between sectors based on economic cycle indicators. Different sectors outperform during different phases of the business cycle.',
+    howItWorks: [
+      'Monitor economic indicators (PMI, yield curve, etc.)',
+      'Identify current phase of business cycle',
+      'Rotate to sectors that historically outperform in that phase:',
+      '- Early cycle: Consumer Discretionary, Financials',
+      '- Mid cycle: Technology, Industrials',
+      '- Late cycle: Energy, Materials',
+      '- Recession: Utilities, Consumer Staples, Healthcare',
+    ],
+    keyPoints: [
+      'Macro-driven - Based on economic cycle',
+      'Low turnover - Rotate monthly or quarterly',
+      'ETFs preferred - Use sector ETFs for diversification',
+      'Lag risk - Cycle transitions can be unpredictable',
+      'Defensive allocation - Always have some defensive sectors',
+    ],
+    configParams: [
+      { name: 'sector_rotation_rebalance_days', default: '30', description: 'Monthly rotation' },
+      { name: 'sector_rotation_top_sectors', default: '3', description: 'Allocate to top 3 sectors' },
+      { name: 'sector_rotation_max_allocation_pct', default: '40', description: 'Max 40% to any sector' },
+    ],
+    requiredCredentials: [
+      'ALPACA_PAPER_API_KEY + ALPACA_PAPER_API_SECRET',
+    ],
+  },
+  {
+    id: 'dividend_growth',
+    name: 'Dividend Growth',
+    confidence: 75,
+    expectedApy: '6-12%',
+    riskLevel: 'low',
+    category: 'stocks',
+    icon: <DollarSign className="w-5 h-5" />,
+    color: 'from-green-500 to-teal-500',
+    description: 'Build a portfolio of companies with consistent dividend growth. Focus on companies that have raised dividends for 10+ consecutive years (Dividend Aristocrats).',
+    howItWorks: [
+      'Screen for stocks with 10+ years of dividend growth',
+      'Filter by dividend yield (2-5% sweet spot)',
+      'Check payout ratio (<60% for sustainability)',
+      'Verify earnings growth supports dividend growth',
+      'Build diversified portfolio across sectors',
+      'Reinvest dividends (DRIP) for compounding',
+    ],
+    keyPoints: [
+      'Compounding power - Reinvested dividends compound over time',
+      'Quality signal - Consistent dividends signal financial health',
+      'Downside protection - Dividends cushion losses',
+      'Low volatility - Dividend stocks are typically less volatile',
+      'Tax consideration - Qualified dividends taxed at favorable rates',
+    ],
+    configParams: [
+      { name: 'dividend_min_yield_pct', default: '2.0', description: 'Min 2% yield' },
+      { name: 'dividend_max_yield_pct', default: '6.0', description: 'Max 6% (avoid traps)' },
+      { name: 'dividend_min_growth_years', default: '10', description: '10+ year streak' },
+      { name: 'dividend_max_payout_ratio', default: '60', description: 'Max 60% payout' },
+    ],
+    requiredCredentials: [
+      'ALPACA_PAPER_API_KEY + ALPACA_PAPER_API_SECRET',
+    ],
+    academicRefs: [
+      'Dividend Aristocrats Index Performance',
+      'Compounding Returns - Rule of 72',
+    ],
+  },
+  {
+    id: 'earnings_momentum',
+    name: 'Earnings Momentum',
+    confidence: 65,
+    expectedApy: '15-35%',
+    riskLevel: 'high',
+    category: 'stocks',
+    icon: <Zap className="w-5 h-5" />,
+    color: 'from-yellow-500 to-orange-500',
+    description: 'Trade around earnings announcements. Stocks that beat earnings estimates tend to continue outperforming (Post-Earnings Announcement Drift - PEAD).',
+    howItWorks: [
+      'Track upcoming earnings dates',
+      'Analyze consensus estimates vs whisper numbers',
+      'For pre-earnings: Position based on expected surprise',
+      'For post-earnings: Buy beats, sell misses',
+      'Capture PEAD - drift continues for ~60 days',
+      'Use options for defined risk around events',
+    ],
+    keyPoints: [
+      'PEAD documented - Academic anomaly since 1968',
+      'Event-driven - Known catalyst dates',
+      'High volatility - Prices can gap significantly',
+      'Options can define risk - Limit downside',
+      'Analyst revisions - Follow earnings estimate changes',
+    ],
+    configParams: [
+      { name: 'earnings_min_surprise_pct', default: '5.0', description: 'Min 5% beat/miss' },
+      { name: 'earnings_hold_days', default: '30', description: 'Hold for PEAD capture' },
+      { name: 'earnings_max_position_usd', default: '500', description: 'Max per earnings play' },
+    ],
+    requiredCredentials: [
+      'ALPACA_PAPER_API_KEY + ALPACA_PAPER_API_SECRET',
+    ],
+    academicRefs: [
+      'Ball & Brown (1968) - Post-Earnings Announcement Drift',
+      'Bernard & Thomas (1989) - PEAD Evidence',
+    ],
+  },
 ];
 
 const riskColors = {
@@ -396,6 +584,14 @@ export default function DocsPage() {
           >
             ₿ Crypto ({STRATEGY_DOCS.filter(s => s.category === 'crypto').length})
           </button>
+          <button
+            onClick={() => setFilterCategory('stocks')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              filterCategory === 'stocks' ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+          >
+            📈 Stocks ({STRATEGY_DOCS.filter(s => s.category === 'stocks').length})
+          </button>
         </div>
       </div>
 
@@ -430,7 +626,7 @@ export default function DocsPage() {
                   </span>
                 </td>
                 <td className="py-3">
-                  {strategy.category === 'prediction' ? '🎯' : '₿'}
+                  {strategy.category === 'prediction' ? '🎯' : strategy.category === 'crypto' ? '₿' : '📈'}
                 </td>
               </tr>
             ))}

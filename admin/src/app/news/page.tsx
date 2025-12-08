@@ -12,8 +12,22 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  BarChart3,
+  Hash,
+  Zap,
+  Activity,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+interface AnalyticsData {
+  trending_topics: Array<{ topic: string; count: number; sentiment: string }>;
+  sentiment_distribution: Record<string, number>;
+  source_breakdown: Array<{ source: string; count: number; avg_sentiment: number }>;
+  market_mentions: Array<{ asset: string; count: number; sentiment: string }>;
+  time_series: Array<{ hour: string; count: number }>;
+  total_analyzed: number;
+  period_hours: number;
+}
 
 interface NewsItem {
   id: string;
@@ -60,6 +74,52 @@ export default function NewsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [sentimentFilter, setSentimentFilter] = useState<string>('all');
+  const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(true);
+
+  // Fetch AI analytics
+  const fetchAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    try {
+      const response = await fetch('/api/news/analytics?hours=24');
+      const result = await response.json();
+      if (result.success) {
+        setAnalytics(result.analytics);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
+  // Refresh news from all sources
+  const refreshFromSources = async () => {
+    setRefreshing(true);
+    setRefreshStatus('Fetching from all sources...');
+    
+    try {
+      const response = await fetch('/api/news/refresh', { method: 'POST' });
+      const result = await response.json();
+      
+      if (result.success) {
+        setRefreshStatus(`✓ Fetched ${result.total} items from ${result.sources?.filter((s: any) => s.count > 0).length || 0} sources`);
+        // Refetch the displayed news and analytics
+        await fetchNews();
+        await fetchAnalytics();
+      } else {
+        setRefreshStatus(`✗ ${result.error || 'Failed to refresh'}`);
+      }
+    } catch (err: any) {
+      setRefreshStatus(`✗ ${err.message || 'Network error'}`);
+    } finally {
+      setRefreshing(false);
+      // Clear status after 5 seconds
+      setTimeout(() => setRefreshStatus(null), 5000);
+    }
+  };
 
   const fetchNews = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
@@ -95,7 +155,8 @@ export default function NewsPage() {
 
   useEffect(() => {
     fetchNews();
-  }, [fetchNews]);
+    fetchAnalytics();
+  }, [fetchNews, fetchAnalytics]);
 
   // Auto-refresh every 30 seconds
   useEffect(() => {
@@ -147,10 +208,16 @@ export default function NewsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {refreshStatus && (
+            <span className={`text-sm ${refreshStatus.startsWith('✓') ? 'text-green-400' : refreshStatus.startsWith('✗') ? 'text-red-400' : 'text-gray-400'}`}>
+              {refreshStatus}
+            </span>
+          )}
           <button
-            onClick={() => fetchNews(true)}
+            onClick={refreshFromSources}
             disabled={refreshing}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-neon-blue/20 hover:bg-neon-blue/30 text-neon-blue transition-colors disabled:opacity-50"
+            title="Fetch fresh news from all configured sources"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             Refresh
@@ -200,10 +267,146 @@ export default function NewsPage() {
           </select>
         </div>
 
-        <div className="ml-auto text-sm text-gray-500">
-          {totalCount} items
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-sm transition-colors ${
+              showAnalytics ? 'bg-neon-purple/20 text-neon-purple' : 'bg-gray-700/50 text-gray-400 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            AI Analytics
+          </button>
+          <span className="text-sm text-gray-500">{totalCount} items</span>
         </div>
       </motion.div>
+
+      {/* AI Analytics Panel */}
+      <AnimatePresence>
+        {showAnalytics && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            {analyticsLoading ? (
+              <div className="card flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 text-neon-purple animate-spin" />
+                <span className="ml-2 text-gray-400">Analyzing news trends...</span>
+              </div>
+            ) : analytics ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Trending Topics */}
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Hash className="w-4 h-4 text-neon-purple" />
+                    <h3 className="font-medium text-sm">Trending Topics</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {analytics.trending_topics.slice(0, 5).map((topic, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-300 truncate">{topic.topic}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">{topic.count}</span>
+                          {topic.sentiment === 'bullish' && <TrendingUp className="w-3 h-3 text-green-400" />}
+                          {topic.sentiment === 'bearish' && <TrendingDown className="w-3 h-3 text-red-400" />}
+                          {topic.sentiment === 'neutral' && <Minus className="w-3 h-3 text-gray-400" />}
+                        </div>
+                      </div>
+                    ))}
+                    {analytics.trending_topics.length === 0 && (
+                      <p className="text-gray-500 text-sm">No trends detected</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sentiment Distribution */}
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Activity className="w-4 h-4 text-neon-blue" />
+                    <h3 className="font-medium text-sm">Sentiment Distribution</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(analytics.sentiment_distribution).map(([sentiment, count]) => {
+                      const total = Object.values(analytics.sentiment_distribution).reduce((a, b) => a + b, 0);
+                      const pct = total > 0 ? (count / total) * 100 : 0;
+                      const color = sentiment.includes('bullish') ? 'bg-green-500' : sentiment.includes('bearish') ? 'bg-red-500' : 'bg-gray-500';
+                      return (
+                        <div key={sentiment} className="text-sm">
+                          <div className="flex justify-between mb-1">
+                            <span className="text-gray-400 capitalize">{sentiment.replace('_', ' ')}</span>
+                            <span className="text-gray-500">{pct.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Source Activity */}
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4 text-yellow-400" />
+                    <h3 className="font-medium text-sm">Source Activity</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {analytics.source_breakdown.slice(0, 5).map((source, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${sourceColors[source.source] || 'bg-gray-500/20 text-gray-400'}`}>
+                          {source.source}
+                        </span>
+                        <span className="text-gray-400">{source.count} articles</span>
+                      </div>
+                    ))}
+                    {analytics.source_breakdown.length === 0 && (
+                      <p className="text-gray-500 text-sm">No source data</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Market Mentions */}
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <TrendingUp className="w-4 h-4 text-green-400" />
+                    <h3 className="font-medium text-sm">Hot Assets</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {analytics.market_mentions.slice(0, 5).map((asset, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-300 font-mono">{asset.asset}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">{asset.count}</span>
+                          {asset.sentiment === 'bullish' && <TrendingUp className="w-3 h-3 text-green-400" />}
+                          {asset.sentiment === 'bearish' && <TrendingDown className="w-3 h-3 text-red-400" />}
+                          {asset.sentiment === 'neutral' && <Minus className="w-3 h-3 text-gray-400" />}
+                        </div>
+                      </div>
+                    ))}
+                    {analytics.market_mentions.length === 0 && (
+                      <p className="text-gray-500 text-sm">No market mentions</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="card text-center py-6">
+                <BarChart3 className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-500 text-sm">Analytics will appear after news is fetched</p>
+                <button
+                  onClick={fetchAnalytics}
+                  className="mt-3 px-4 py-1.5 rounded-lg bg-neon-purple/20 text-neon-purple text-sm hover:bg-neon-purple/30 transition-colors"
+                >
+                  Load Analytics
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Error State */}
       {error && (

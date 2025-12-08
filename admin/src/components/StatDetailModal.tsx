@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { X, TrendingUp, TrendingDown, Activity, Target, DollarSign, Zap, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { SimulationStats, SimulatedTrade, Opportunity } from '@/lib/supabase';
+import { useBotConfig } from '@/lib/hooks';
 
 interface StatDetailModalProps {
   isOpen: boolean;
@@ -17,6 +18,17 @@ interface StatDetailModalProps {
 
 export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opportunities = [] }: StatDetailModalProps) {
   const statsJson = stats?.stats_json;
+  const { data: config } = useBotConfig();
+  
+  // Calculate total starting balance from config
+  const totalStartingBalance = useMemo(() => {
+    const polyStarting = config?.polymarket_starting_balance || 20000;
+    const kalshiStarting = config?.kalshi_starting_balance || 20000;
+    const binanceStarting = config?.binance_starting_balance || 20000;
+    const coinbaseStarting = config?.coinbase_starting_balance || 20000;
+    const alpacaStarting = config?.alpaca_starting_balance || 20000;
+    return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
+  }, [config]);
   
   // Handle escape key
   const handleEscape = useCallback((e: KeyboardEvent) => {
@@ -103,7 +115,7 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
 
               <div className="space-y-6">
                 {type === 'balance' && (
-                  <BalanceDetails stats={stats} statsJson={statsJson} trades={trades} />
+                  <BalanceDetails stats={stats} statsJson={statsJson} trades={trades} startingBalance={totalStartingBalance} />
                 )}
                 {type === 'pnl' && (
                   <PnLDetails stats={stats} statsJson={statsJson} trades={trades} />
@@ -123,14 +135,13 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
   );
 }
 
-function BalanceDetails({ stats, statsJson, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[] }) {
+function BalanceDetails({ stats, statsJson, trades, startingBalance }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[]; startingBalance: number }) {
   // Compute from actual trades for accuracy
   const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
   const computedPnL = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
   const expectedTotal = validTrades.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
   const computedFees = Math.max(0, expectedTotal - computedPnL);
   
-  const startingBalance = parseFloat(statsJson?.simulated_starting_balance || '5000');
   const totalPnL = computedPnL || stats?.total_pnl || 0;
   const currentBalance = startingBalance + totalPnL;
   const roiPct = startingBalance > 0 ? (totalPnL / startingBalance) * 100 : 0;
@@ -173,7 +184,7 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
   const wonTradesAll = validTrades.filter(t => t.outcome === 'won');
   const lostTradesAll = validTrades.filter(t => t.outcome === 'lost');
   
-  // Calculate P&L from actual trade data
+  // Calculate P&L from actual trade data (net profit after fees)
   const computedPnL = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
   const totalPnL = computedPnL || stats?.total_pnl || 0;
   const totalTrades = validTrades.length || stats?.total_trades || 0;
@@ -182,8 +193,10 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
   const computedLosses = Math.abs(lostTradesAll.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0));
   const totalLosses = computedLosses || parseFloat(statsJson?.total_losses || '0');
   
-  // Calculate gross profit (sum of positive actual_profit_usd)
-  const totalGrossProfit = wonTradesAll.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+  // Calculate gross profit from expected_profit_usd (before fees) for won trades
+  // expected_profit_usd = gross profit before fees
+  // actual_profit_usd = net profit after fees
+  const totalGrossProfit = wonTradesAll.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
   
   // Fees = Expected profit - Actual profit (the difference is fees + slippage)
   const expectedTotal = validTrades.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);

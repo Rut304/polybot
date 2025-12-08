@@ -123,11 +123,16 @@ class CCXTClient(BaseExchange):
             # Get exchange class
             exchange_class = getattr(ccxt, self.exchange_id)
             
+            # Determine if this exchange supports futures
+            # Spot-only exchanges: binanceus, coinbase, kraken (main), etc.
+            spot_only_exchanges = ['binanceus', 'coinbase', 'kraken', 'gemini']
+            default_type = 'spot' if self.exchange_id in spot_only_exchanges else 'future'
+            
             # Configure exchange
             config = {
                 'enableRateLimit': True,  # Built-in rate limiting
                 'options': {
-                    'defaultType': 'future',  # Default to futures for funding rate strategies
+                    'defaultType': default_type,
                 }
             }
             
@@ -150,7 +155,8 @@ class CCXTClient(BaseExchange):
             await self.exchange.load_markets()
             
             self._initialized = True
-            logger.info(f"✅ CCXT {self.exchange_id} initialized ({len(self.exchange.markets)} markets)")
+            market_type = "spot" if default_type == 'spot' else "futures"
+            logger.info(f"✅ CCXT {self.exchange_id} initialized ({len(self.exchange.markets)} {market_type} markets)")
             return True
             
         except Exception as e:

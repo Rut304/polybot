@@ -156,15 +156,18 @@ export function useOpportunities(limit: number = 100, timeframeHours?: number) {
 // Compute P&L history from actual trades (accurate, not stale stats table)
 export function usePnLHistory(hours: number = 24) {
   const { data: trades = [] } = useSimulatedTrades(500);
-  const { data: simStats } = useSimulationStats();
+  const { data: config } = useBotConfig();
   
   return useQuery({
-    queryKey: ['pnlHistory', trades.length, hours],
+    queryKey: ['pnlHistory', trades.length, hours, config?.polymarket_starting_balance],
     queryFn: () => {
-      // Get starting balance
-      const startingBalance = simStats?.stats_json?.simulated_starting_balance 
-        ? parseFloat(simStats.stats_json.simulated_starting_balance) 
-        : 1000;
+      // Calculate TOTAL starting balance across all platforms
+      const polyStarting = config?.polymarket_starting_balance || 20000;
+      const kalshiStarting = config?.kalshi_starting_balance || 20000;
+      const binanceStarting = config?.binance_starting_balance || 20000;
+      const coinbaseStarting = config?.coinbase_starting_balance || 20000;
+      const alpacaStarting = config?.alpaca_starting_balance || 20000;
+      const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
       
       // Filter trades within the time window
       const since = new Date();
@@ -205,18 +208,29 @@ export function usePnLHistory(hours: number = 24) {
   });
 }
 
-// Starting balance constant - used everywhere for consistency
-const STARTING_BALANCE = 10000;
+// Default starting balance - fallback if not set in config
+// Default is $100K total ($20K per platform x 5 platforms)
+const DEFAULT_STARTING_BALANCE = 100000;
 
 // Compute real-time stats from database aggregates (100% accurate)
 // Uses polybot_strategy_performance view for totals, recent trades for details
 export function useRealTimeStats(timeframeHours?: number) {
   const { data: recentTrades = [] } = useSimulatedTrades(100); // Just for recent activity display
   const { data: opportunities = [] } = useOpportunities(1000, timeframeHours);
+  const { data: config } = useBotConfig(); // Get starting balance from config
   
   return useQuery({
-    queryKey: ['realTimeStats', timeframeHours],
+    queryKey: ['realTimeStats', timeframeHours, config?.polymarket_starting_balance, config?.kalshi_starting_balance, config?.binance_starting_balance, config?.coinbase_starting_balance, config?.alpaca_starting_balance],
     queryFn: async () => {
+      // Calculate TOTAL starting balance across all platforms
+      const polyStarting = config?.polymarket_starting_balance || 20000;
+      const kalshiStarting = config?.kalshi_starting_balance || 20000;
+      const binanceStarting = config?.binance_starting_balance || 20000;
+      const coinbaseStarting = config?.coinbase_starting_balance || 20000;
+      const alpacaStarting = config?.alpaca_starting_balance || 20000;
+      
+      const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
+      
       // Fetch accurate totals from database aggregate view
       const { data: strategyPerf, error: perfError } = await supabase
         .from('polybot_strategy_performance')
@@ -260,8 +274,8 @@ export function useRealTimeStats(timeframeHours?: number) {
       }
       
       // Calculate derived metrics
-      const currentBalance = STARTING_BALANCE + totalPnl;
-      const roiPct = (totalPnl / STARTING_BALANCE) * 100;
+      const currentBalance = startingBalance + totalPnl;
+      const roiPct = (totalPnl / startingBalance) * 100;
       const resolvedTrades = winningTrades + losingTrades;
       const winRate = resolvedTrades > 0 ? (winningTrades / resolvedTrades) * 100 : 0;
       
@@ -294,11 +308,11 @@ export function useRealTimeStats(timeframeHours?: number) {
         all_time_balance: currentBalance,
         
         // Starting balance for reference
-        starting_balance: STARTING_BALANCE,
+        starting_balance: startingBalance,
         
         // Stats JSON for backwards compatibility
         stats_json: {
-          simulated_starting_balance: String(STARTING_BALANCE),
+          simulated_starting_balance: String(startingBalance),
           simulated_current_balance: String(currentBalance),
         },
       };

@@ -1561,11 +1561,34 @@ async def start_health_server(port: int = 8080, bot_runner=None):
             val = db.get_secret(key)
             secrets_status[key] = "✅ Set" if val else "❌ Missing"
         
-        # Check CCXT client
-        ccxt_status = "✅ Initialized" if bot_runner.ccxt_client else "❌ Not initialized"
+        # Check CCXT client - show which exchange is connected
+        ccxt_status = "❌ Not initialized"
+        ccxt_details = {}
+        if bot_runner.ccxt_client:
+            ccxt_status = "✅ Initialized"
+            ccxt_details = {
+                "exchange_id": getattr(bot_runner.ccxt_client, 'exchange_id', 'unknown'),
+                "has_futures": "unknown",
+                "markets_loaded": 0,
+            }
+            if bot_runner.ccxt_client.exchange:
+                ex = bot_runner.ccxt_client.exchange
+                ccxt_details["exchange_id"] = ex.id
+                ccxt_details["markets_loaded"] = len(ex.markets) if ex.markets else 0
+                ccxt_details["has_futures"] = ex.has.get('fetchFundingRate', False)
+                ccxt_details["has_spot"] = ex.has.get('fetchTicker', False)
+                ccxt_details["sandbox"] = getattr(ex, 'sandbox', False)
         
         # Check Alpaca client  
         alpaca_status = "✅ Initialized" if bot_runner.alpaca_client else "❌ Not initialized"
+        
+        # News source configuration
+        news_config = {
+            "finnhub_api_key": "✅ Set" if bot_runner.finnhub_api_key else "❌ Missing",
+            "twitter_bearer_token": "✅ Set" if bot_runner.twitter_bearer_token else "❌ Missing",
+            "news_api_key": "✅ Set" if bot_runner.news_api_key else "❌ Missing",
+            "news_engine_active": "✅ Active" if bot_runner.news_engine else "❌ Disabled",
+        }
         
         # Check strategy status
         strategies = {
@@ -1610,12 +1633,14 @@ async def start_health_server(port: int = 8080, bot_runner=None):
         return web.json_response({
             "secrets": secrets_status,
             "ccxt_client": ccxt_status,
+            "ccxt_details": ccxt_details,
             "alpaca_client": alpaca_status,
             "strategies": strategies,
             "config": config_status,
             "db_key_type": key_type,
             "enabled_exchanges": [ex for ex in ['binance', 'coinbase'] if getattr(bot_runner.config.trading, f'enable_{ex}', False)],
             "exchange_credentials": exchange_creds_check,
+            "news_sources": news_config,
             "stock_config": {
                 "enable_stock_mean_reversion": getattr(bot_runner.config.trading, 'enable_stock_mean_reversion', False),
                 "enable_stock_momentum": getattr(bot_runner.config.trading, 'enable_stock_momentum', False),

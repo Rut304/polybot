@@ -46,6 +46,7 @@ import {
   useAdvancedAnalytics,
   useSimulationStats,
   useStrategyPerformance,
+  useBotConfig,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { format, subDays, subHours, startOfDay, startOfHour } from 'date-fns';
@@ -114,13 +115,26 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [selectedStrategy, setSelectedStrategy] = useState<string>('all');
   
+  // Fetch config for starting balances
+  const { data: config } = useBotConfig();
+  
+  // Calculate total starting balance across all platforms
+  const totalStartingBalance = useMemo(() => {
+    const polyStarting = config?.polymarket_starting_balance || 20000;
+    const kalshiStarting = config?.kalshi_starting_balance || 20000;
+    const binanceStarting = config?.binance_starting_balance || 20000;
+    const coinbaseStarting = config?.coinbase_starting_balance || 20000;
+    const alpacaStarting = config?.alpaca_starting_balance || 20000;
+    return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
+  }, [config]);
+  
   // Fetch data
   const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 2160;
   const { data: history = [] } = useSimulationHistory(hours);
   const { data: trades = [] } = useSimulatedTrades(500);
   const { data: opportunities = [] } = useOpportunities(1000);
   const { data: stats } = useSimulationStats();
-  const { data: advancedMetrics } = useAdvancedAnalytics();
+  const { data: advancedMetrics } = useAdvancedAnalytics(totalStartingBalance);
   const { data: strategies = [] } = useStrategyPerformance();
   
   // Get unique strategy names for filter dropdown
@@ -145,10 +159,10 @@ export default function AnalyticsPage() {
     return history.map(h => ({
       time: format(new Date(h.snapshot_at), timeRange === '24h' ? 'HH:mm' : 'MMM dd'),
       pnl: h.total_pnl || 0,
-      balance: h.simulated_balance || 5000,
+      balance: h.simulated_balance || totalStartingBalance,
       trades: h.total_trades || 0,
     }));
-  }, [history, timeRange]);
+  }, [history, timeRange, totalStartingBalance]);
 
   // Process trade performance data (uses filtered trades)
   const tradePerformanceData = useMemo(() => {

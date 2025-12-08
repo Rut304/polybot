@@ -59,8 +59,8 @@ export default function Dashboard() {
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
   
-  // Starting balance constant
-  const STARTING_BALANCE = 10000;
+  // Starting balance constant (5 platforms x $20,000 each)
+  const STARTING_BALANCE = 100000;
   
   // Prefer real-time computed stats (more accurate - uses database aggregates)
   const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? STARTING_BALANCE;

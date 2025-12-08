@@ -7,6 +7,25 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+// Helper to get total starting balance from config
+async function getTotalStartingBalance(): Promise<number> {
+  const { data: config } = await supabaseAdmin
+    .from('polybot_config')
+    .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance')
+    .eq('id', 1)
+    .single();
+  
+  if (!config) return 100000; // Default: 5 platforms x $20,000
+  
+  return (
+    (config.polymarket_starting_balance || 20000) +
+    (config.kalshi_starting_balance || 20000) +
+    (config.binance_starting_balance || 20000) +
+    (config.coinbase_starting_balance || 20000) +
+    (config.alpaca_starting_balance || 20000)
+  );
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
@@ -127,20 +146,23 @@ export async function POST(request: NextRequest) {
       console.warn('Could not reset live stats:', liveStatsError);
     }
 
-    // Insert fresh starting stats with $10000 balance
+    // Get the total starting balance from config
+    const startingBalance = await getTotalStartingBalance();
+
+    // Insert fresh starting stats with configured starting balance
     const { error: statsError } = await supabaseAdmin
       .from('polybot_simulation_stats')
       .insert({
         snapshot_at: new Date().toISOString(),
-        simulated_balance: 10000,
+        simulated_balance: startingBalance,
         total_pnl: 0,
         total_trades: 0,
         win_rate: 0,
         stats_json: {
           total_opportunities_seen: 0,
           total_simulated_trades: 0,
-          simulated_starting_balance: '10000.00',
-          simulated_current_balance: '10000.00',
+          simulated_starting_balance: String(startingBalance) + '.00',
+          simulated_current_balance: String(startingBalance) + '.00',
           total_pnl: '0.00',
           winning_trades: 0,
           losing_trades: 0,
@@ -171,7 +193,7 @@ export async function POST(request: NextRequest) {
       resource_id: 'all',
       details: {
         deleted: counts,
-        new_balance: 10000,
+        new_balance: startingBalance,
         message: `Reset simulation: deleted ${counts.trades} trades, ${counts.opportunities} opportunities, ${counts.stats} stat records`,
       },
       ip_address: metadata.ip_address,
@@ -182,7 +204,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       deleted: counts,
-      message: `Simulation reset complete. Deleted ${counts.trades} trades, ${counts.opportunities} opportunities.`,
+      new_balance: startingBalance,
+      message: `Simulation reset complete. Deleted ${counts.trades} trades, ${counts.opportunities} opportunities. Starting balance: $${startingBalance.toLocaleString()}`,
     });
   } catch (error: any) {
     console.error('Error resetting simulation:', error);

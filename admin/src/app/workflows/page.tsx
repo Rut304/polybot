@@ -305,6 +305,169 @@ const STRATEGIES: Strategy[] = [
       'Stop-loss if |z| > 4',
     ],
   },
+
+  // STOCK STRATEGIES
+  {
+    id: 'stock_mean_reversion',
+    name: 'Stock Mean Reversion',
+    confidence: 70,
+    expectedApy: '10-25%',
+    description: 'Trade stocks that have deviated significantly from their historical average price, expecting them to revert back to the mean.',
+    keyPoints: [
+      'Buy when z-score < -2 (oversold)',
+      'Sell/short when z-score > +2 (overbought)',
+      'Exit when z-score returns to ±0.5',
+      'Works best on range-bound stocks',
+      'Avoid trending stocks',
+    ],
+    platforms: ['Alpaca'],
+    riskLevel: 'medium',
+    category: 'stock',
+    icon: <TrendingUp className="w-6 h-6" />,
+    color: 'from-emerald-500 to-green-500',
+    requirements: [
+      'Alpaca API key (paper or live)',
+      'Historical price data',
+      'Stock screener criteria',
+    ],
+    workflow: [
+      'Screen for liquid, large-cap stocks',
+      'Calculate 20-day moving average',
+      'Compute z-score for each stock',
+      'If z < -2: Buy (oversold)',
+      'If z > +2: Short/avoid (overbought)',
+      'Exit when |z| < 0.5',
+      'Use stop-loss for trend protection',
+    ],
+  },
+  {
+    id: 'stock_momentum',
+    name: 'Stock Momentum',
+    confidence: 65,
+    expectedApy: '15-40%',
+    description: 'Follow the trend - buy stocks that have been going up, short stocks that have been going down. Academic evidence supports momentum.',
+    keyPoints: [
+      'Momentum premium documented since 1993',
+      'Winners tend to keep winning',
+      'Monthly rebalancing recommended',
+      'Crash risk during reversals',
+      'Best combined with value/quality factors',
+    ],
+    platforms: ['Alpaca'],
+    riskLevel: 'medium',
+    category: 'stock',
+    icon: <TrendingUp className="w-6 h-6" />,
+    color: 'from-blue-500 to-indigo-500',
+    requirements: [
+      'Alpaca API key',
+      '12-month historical prices',
+      'Stock ranking system',
+    ],
+    workflow: [
+      'Calculate 12-month returns for universe',
+      'Rank stocks by momentum',
+      'Buy top 10% performers',
+      'Optionally short bottom 10%',
+      'Rebalance monthly',
+      'Use stop-losses for protection',
+    ],
+  },
+  {
+    id: 'sector_rotation',
+    name: 'Sector Rotation',
+    confidence: 60,
+    expectedApy: '8-20%',
+    description: 'Rotate capital between sectors based on economic cycle. Different sectors outperform during different phases of the business cycle.',
+    keyPoints: [
+      'Early cycle: Consumer Discretionary, Financials',
+      'Mid cycle: Technology, Industrials',
+      'Late cycle: Energy, Materials',
+      'Recession: Utilities, Staples, Healthcare',
+      'Use sector ETFs for diversification',
+    ],
+    platforms: ['Alpaca'],
+    riskLevel: 'medium',
+    category: 'stock',
+    icon: <Repeat className="w-6 h-6" />,
+    color: 'from-purple-500 to-pink-500',
+    requirements: [
+      'Alpaca API key',
+      'Economic indicators data',
+      'Sector ETF access (XLF, XLK, etc.)',
+    ],
+    workflow: [
+      'Monitor economic indicators (PMI, yield curve)',
+      'Identify current business cycle phase',
+      'Map phase to outperforming sectors',
+      'Rotate to target sectors monthly',
+      'Maintain defensive allocation',
+      'Rebalance as cycle shifts',
+    ],
+  },
+  {
+    id: 'dividend_growth',
+    name: 'Dividend Growth',
+    confidence: 75,
+    expectedApy: '6-12%',
+    description: 'Build a portfolio of companies with consistent dividend growth. Focus on Dividend Aristocrats - 10+ years of consecutive increases.',
+    keyPoints: [
+      '2-5% yield sweet spot (avoid traps)',
+      'Payout ratio < 60% for sustainability',
+      'Compounding power over time',
+      'Lower volatility than growth stocks',
+      'Tax-advantaged qualified dividends',
+    ],
+    platforms: ['Alpaca'],
+    riskLevel: 'low',
+    category: 'stock',
+    icon: <DollarSign className="w-6 h-6" />,
+    color: 'from-green-500 to-teal-500',
+    requirements: [
+      'Alpaca API key',
+      'Dividend data (history, yield)',
+      'Financial screening criteria',
+    ],
+    workflow: [
+      'Screen for 10+ year dividend growth',
+      'Filter by yield (2-5%)',
+      'Check payout ratio < 60%',
+      'Verify earnings support dividend',
+      'Build diversified portfolio',
+      'Enable dividend reinvestment (DRIP)',
+    ],
+  },
+  {
+    id: 'earnings_momentum',
+    name: 'Earnings Momentum',
+    confidence: 65,
+    expectedApy: '15-35%',
+    description: 'Trade around earnings announcements. Stocks that beat estimates tend to continue outperforming (Post-Earnings Announcement Drift).',
+    keyPoints: [
+      'PEAD documented academically since 1968',
+      'Drift continues for ~60 days',
+      'High volatility around announcements',
+      'Options can define risk',
+      'Track analyst revisions',
+    ],
+    platforms: ['Alpaca'],
+    riskLevel: 'high',
+    category: 'stock',
+    icon: <Zap className="w-6 h-6" />,
+    color: 'from-yellow-500 to-orange-500',
+    requirements: [
+      'Alpaca API key',
+      'Earnings calendar data',
+      'Analyst estimates data',
+    ],
+    workflow: [
+      'Track upcoming earnings dates',
+      'Compare estimates vs whisper numbers',
+      'Position before earnings (optional)',
+      'Buy stocks that beat estimates',
+      'Sell/short stocks that miss',
+      'Hold for ~30 days for PEAD capture',
+    ],
+  },
 ];
 
 const categoryColors = {
@@ -335,6 +498,7 @@ export default function WorkflowsPage() {
 
   const predictionStrategies = STRATEGIES.filter(s => s.category === 'prediction');
   const cryptoStrategies = STRATEGIES.filter(s => s.category === 'crypto');
+  const stockStrategies = STRATEGIES.filter(s => s.category === 'stock');
 
   return (
     <div className="p-6 space-y-8">
@@ -373,6 +537,14 @@ export default function WorkflowsPage() {
             }`}
           >
             ₿ Crypto
+          </button>
+          <button
+            onClick={() => setFilterCategory('stock')}
+            className={`px-4 py-2 rounded-lg transition-all ${
+              filterCategory === 'stock' ? 'bg-green-600' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+          >
+            📈 Stocks
           </button>
         </div>
       </div>
@@ -436,6 +608,13 @@ export default function WorkflowsPage() {
               </div>
               <div className="text-center">
                 <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 w-32">
+                  <div className="text-2xl mb-1">📈</div>
+                  <div className="text-sm font-medium">Alpaca</div>
+                  <div className="text-xs text-gray-400">US Stocks</div>
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="bg-cyan-500/20 border border-cyan-500/30 rounded-xl p-4 w-32">
                   <div className="text-2xl mb-1">📰</div>
                   <div className="text-sm font-medium">News Feed</div>
                   <div className="text-xs text-gray-400">NewsAPI</div>
@@ -445,7 +624,7 @@ export default function WorkflowsPage() {
             
             {/* Arrows Down */}
             <div className="flex justify-center gap-8 mb-4">
-              {[1, 2, 3, 4].map((i) => (
+              {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="w-32 flex justify-center">
                   <ArrowDown className="text-gray-500" />
                 </div>
