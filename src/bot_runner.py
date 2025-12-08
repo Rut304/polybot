@@ -454,51 +454,69 @@ class PolybotRunner:
                 enabled_exchanges.append("kucoin")
             
             if enabled_exchanges:
-                # Initialize CCXT with first enabled exchange that has credentials
-                primary_exchange = None
-                exchange_creds = None
-                
+                # Try each enabled exchange until one works
+                # Some exchanges may be geoblocked (Binance/Bybit from AWS)
                 logger.info(f"🔍 Checking credentials for exchanges: {enabled_exchanges}")
                 
+                # First pass: try exchanges with credentials
                 for exchange in enabled_exchanges:
                     creds = self.db.get_exchange_credentials(exchange)
                     has_key = bool(creds.get('api_key'))
                     has_secret = bool(creds.get('api_secret'))
                     logger.info(f"  {exchange}: api_key={'✓' if has_key else '✗'}, api_secret={'✓' if has_secret else '✗'}")
+                    
                     if has_key and has_secret:
-                        primary_exchange = exchange
-                        exchange_creds = creds
-                        break
+                        # Try to initialize this exchange
+                        logger.info(f"  Attempting to connect to {exchange}...")
+                        self.ccxt_client = CCXTClient(
+                            exchange_id=exchange,
+                            api_key=creds.get('api_key'),
+                            api_secret=creds.get('api_secret'),
+                            password=creds.get('password'),
+                            sandbox=False,  # Production API (testnets often geoblocked)
+                        )
+                        ccxt_initialized = await self.ccxt_client.initialize()
+                        if ccxt_initialized:
+                            logger.info(
+                                f"✓ CCXT Client initialized with {exchange}"
+                            )
+                            break  # Success!
+                        else:
+                            logger.warning(f"  ⚠️ {exchange} failed to connect (may be geoblocked)")
+                            self.ccxt_client = None
                 
-                if primary_exchange and exchange_creds:
-                    self.ccxt_client = CCXTClient(
-                        exchange_id=primary_exchange,
-                        api_key=exchange_creds.get('api_key'),
-                        api_secret=exchange_creds.get('api_secret'),
-                        password=exchange_creds.get('password'),
-                        sandbox=self.simulation_mode,
-                    )
-                    # CRITICAL: Must call async initialize() to load markets!
-                    ccxt_initialized = await self.ccxt_client.initialize()
-                    if ccxt_initialized:
-                        logger.info(
-                            f"✓ CCXT Client initialized "
-                            f"(primary: {primary_exchange}, "
-                            f"enabled: {', '.join(enabled_exchanges)})"
-                        )
-                    else:
-                        logger.error(
-                            f"❌ CCXT Client failed to initialize - "
-                            f"crypto strategies will not work"
-                        )
-                        self.ccxt_client = None
-                else:
-                    logger.warning(
-                        "⚠️ Crypto exchanges enabled but no API keys configured!"
+                # Second pass (simulation mode only): try without credentials for read-only data
+                if not self.ccxt_client and self.simulation_mode:
+                    logger.info("  Trying exchanges without credentials (simulation mode)...")
+                    # Exchanges known to work without auth for public data
+                    fallback_exchanges = ["okx", "kraken", "kucoin", "gate"]
+                    for exchange in fallback_exchanges:
+                        if exchange in enabled_exchanges or True:  # Try even if not enabled
+                            logger.info(f"  Attempting {exchange} without credentials...")
+                            self.ccxt_client = CCXTClient(
+                                exchange_id=exchange,
+                                api_key=None,
+                                api_secret=None,
+                                sandbox=False,
+                            )
+                            ccxt_initialized = await self.ccxt_client.initialize()
+                            if ccxt_initialized:
+                                logger.info(
+                                    f"✓ CCXT Client initialized with {exchange} (read-only)"
+                                )
+                                logger.info(
+                                    f"  ℹ️ Add {exchange.upper()} credentials in Admin → Secrets for live trading"
+                                )
+                                break
+                            else:
+                                self.ccxt_client = None
+                
+                if not self.ccxt_client:
+                    logger.error(
+                        "❌ All CCXT exchanges failed - crypto strategies disabled"
                     )
                     logger.info(
-                        f"  Enabled: {', '.join(enabled_exchanges)} - "
-                        "add API keys in Admin → Secrets"
+                        "  💡 This may be due to geoblocking. Try enabling OKX, Kraken, or KuCoin."
                     )
             else:
                 logger.warning(
