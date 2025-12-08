@@ -124,10 +124,13 @@ async function generateAnalysis(sessionId: string) {
   const response = await fetch('/api/simulation/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify({ session_id: sessionId }),
   });
   
-  if (!response.ok) throw new Error('Failed to generate analysis');
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Failed to generate analysis');
+  }
   return response.json();
 }
 
@@ -760,6 +763,10 @@ export default function HistoryPage() {
     mutationFn: (sessionId: string) => generateAnalysis(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['simulation-sessions'] });
+    },
+    onError: (error: Error) => {
+      console.error('Analysis failed:', error.message);
+      alert(`Analysis failed: ${error.message}`);
     },
   });
   

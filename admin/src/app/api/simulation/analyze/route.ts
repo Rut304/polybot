@@ -10,9 +10,9 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 // POST - Generate AI analysis for a simulation session
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting - more restrictive for AI calls
+    // Rate limiting - allow 10 requests per 5 minutes
     const metadata = await getRequestMetadata(request);
-    const rateLimitResult = await checkRateLimit(metadata.ip_address, 'simulation.analyze', 3, 300);
+    const rateLimitResult = await checkRateLimit(metadata.ip_address, 'simulation.analyze', 10, 300);
     if (!rateLimitResult.allowed) {
       return rateLimitResponse(rateLimitResult.resetAt);
     }
