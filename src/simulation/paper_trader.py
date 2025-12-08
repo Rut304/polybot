@@ -67,7 +67,7 @@ class PaperTradingStats:
     total_simulated_trades: int = 0
     
     # P&L tracking
-    simulated_starting_balance: Decimal = Decimal("5000.00")
+    simulated_starting_balance: Decimal = Decimal("10000.00")
     simulated_current_balance: Decimal = Decimal("5000.00")
     total_simulated_profit: Decimal = Decimal("0.00")
     total_simulated_loss: Decimal = Decimal("0.00")
@@ -138,7 +138,7 @@ class PaperTrader:
     def __init__(
         self,
         db_client,
-        starting_balance: Decimal = Decimal("5000.00"),
+        starting_balance: Decimal = Decimal("10000.00"),
         max_position_pct: float = 10.0,  # Max 10% of balance per trade
         min_profit_threshold: float = 0.5,  # Only sim trades with 0.5%+ expected profit
     ):

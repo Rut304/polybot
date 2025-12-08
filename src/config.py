@@ -19,7 +19,7 @@ class TradingConfig:
     dry_run: bool = True
     
     # Simulation starting balance for paper trading (USD)
-    simulation_starting_balance: float = 5000.0
+    simulation_starting_balance: float = 10000.0
     
     # Minimum profit threshold (percentage) to execute a trade
     min_profit_percent: float = 1.0

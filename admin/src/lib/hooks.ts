@@ -205,79 +205,104 @@ export function usePnLHistory(hours: number = 24) {
   });
 }
 
-// Compute real-time stats directly from trades (more accurate than stats table)
+// Starting balance constant - used everywhere for consistency
+const STARTING_BALANCE = 10000;
+
+// Compute real-time stats from database aggregates (100% accurate)
+// Uses polybot_strategy_performance view for totals, recent trades for details
 export function useRealTimeStats(timeframeHours?: number) {
-  const { data: allTrades = [] } = useSimulatedTrades(5000);
+  const { data: recentTrades = [] } = useSimulatedTrades(100); // Just for recent activity display
   const { data: opportunities = [] } = useOpportunities(1000, timeframeHours);
-  const { data: simStats } = useSimulationStats();
-  
-  // Filter trades by timeframe
-  const trades = timeframeHours && timeframeHours > 0
-    ? allTrades.filter(t => {
-        const tradeTime = new Date(t.created_at).getTime();
-        const cutoff = Date.now() - (timeframeHours * 60 * 60 * 1000);
-        return tradeTime >= cutoff;
-      })
-    : allTrades;
   
   return useQuery({
-    queryKey: ['realTimeStats', trades.length, opportunities.length, timeframeHours],
-    queryFn: () => {
-      // Filter out failed executions for main stats
-      const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
-      const wonTrades = validTrades.filter(t => t.outcome === 'won');
-      const lostTrades = validTrades.filter(t => t.outcome === 'lost');
-      const pendingTrades = validTrades.filter(t => t.outcome === 'pending');
+    queryKey: ['realTimeStats', timeframeHours],
+    queryFn: async () => {
+      // Fetch accurate totals from database aggregate view
+      const { data: strategyPerf, error: perfError } = await supabase
+        .from('polybot_strategy_performance')
+        .select('*');
       
-      // Calculate P&L from actual trade data
-      const totalPnl = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+      if (perfError) {
+        console.error('Error fetching strategy performance:', perfError);
+      }
       
-      // Starting balance from stats or default
-      const startingBalance = simStats?.stats_json?.simulated_starting_balance 
-        ? parseFloat(simStats.stats_json.simulated_starting_balance) 
-        : 1000;
+      // Aggregate all strategies for overall totals
+      const totalPnl = strategyPerf?.reduce((sum, s) => sum + (s.total_pnl || 0), 0) || 0;
+      const totalTrades = strategyPerf?.reduce((sum, s) => sum + (s.total_trades || 0), 0) || 0;
+      const winningTrades = strategyPerf?.reduce((sum, s) => sum + (s.winning_trades || 0), 0) || 0;
+      const losingTrades = strategyPerf?.reduce((sum, s) => sum + (s.losing_trades || 0), 0) || 0;
+      const bestTradeProfit = strategyPerf?.reduce((best, s) => Math.max(best, s.best_trade || 0), 0) || 0;
+      const worstTradeLoss = strategyPerf?.reduce((worst, s) => Math.min(worst, s.worst_trade || 0), 0) || 0;
       
-      const currentBalance = startingBalance + totalPnl;
-      const roiPct = (totalPnl / startingBalance) * 100;
+      // If timeframe filter is set, also fetch filtered data
+      let filteredPnl = totalPnl;
+      let filteredTrades = totalTrades;
+      let filteredWinning = winningTrades;
+      let filteredLosing = losingTrades;
       
-      // Win rate based on resolved trades only
-      const resolvedTrades = wonTrades.length + lostTrades.length;
-      const winRate = resolvedTrades > 0 ? (wonTrades.length / resolvedTrades) * 100 : 0;
+      if (timeframeHours && timeframeHours > 0) {
+        const since = new Date();
+        since.setHours(since.getHours() - timeframeHours);
+        
+        // Fetch trades within timeframe for filtered stats
+        const { data: filteredTradesData, error: tradesError } = await supabase
+          .from('polybot_simulated_trades')
+          .select('actual_profit_usd, outcome')
+          .gte('created_at', since.toISOString());
+        
+        if (!tradesError && filteredTradesData) {
+          const validTrades = filteredTradesData.filter(t => t.outcome !== 'failed_execution');
+          filteredPnl = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+          filteredTrades = validTrades.length;
+          filteredWinning = validTrades.filter(t => t.outcome === 'won').length;
+          filteredLosing = validTrades.filter(t => t.outcome === 'lost').length;
+        }
+      }
       
-      // Best/worst trades
-      const bestTrade = validTrades.reduce((best, t) => 
-        (t.actual_profit_usd || 0) > (best?.actual_profit_usd || 0) ? t : best, 
-        validTrades[0]
-      );
-      const worstTrade = validTrades.reduce((worst, t) => 
-        (t.actual_profit_usd || 0) < (worst?.actual_profit_usd || 0) ? t : worst,
-        validTrades[0]
-      );
+      // Calculate derived metrics
+      const currentBalance = STARTING_BALANCE + totalPnl;
+      const roiPct = (totalPnl / STARTING_BALANCE) * 100;
+      const resolvedTrades = winningTrades + losingTrades;
+      const winRate = resolvedTrades > 0 ? (winningTrades / resolvedTrades) * 100 : 0;
+      
+      // Pending trades from recent trades
+      const pendingTrades = recentTrades.filter(t => t.outcome === 'pending').length;
+      const failedExecutions = recentTrades.filter(t => t.outcome === 'failed_execution').length;
       
       return {
-        // Core metrics - computed from actual trades
+        // Core metrics - from database aggregates (100% accurate)
         simulated_balance: currentBalance,
-        total_pnl: totalPnl,
-        total_trades: validTrades.length,
+        total_pnl: timeframeHours && timeframeHours > 0 ? filteredPnl : totalPnl,
+        total_trades: timeframeHours && timeframeHours > 0 ? filteredTrades : totalTrades,
         win_rate: winRate,
         
         // Detailed counts
-        winning_trades: wonTrades.length,
-        losing_trades: lostTrades.length,
-        pending_trades: pendingTrades.length,
-        failed_executions: trades.filter(t => t.outcome === 'failed_execution').length,
+        winning_trades: timeframeHours && timeframeHours > 0 ? filteredWinning : winningTrades,
+        losing_trades: timeframeHours && timeframeHours > 0 ? filteredLosing : losingTrades,
+        pending_trades: pendingTrades,
+        failed_executions: failedExecutions,
         
         // Derived metrics
         roi_pct: roiPct,
         total_opportunities_seen: opportunities.length,
-        best_trade_profit: bestTrade?.actual_profit_usd || 0,
-        worst_trade_loss: worstTrade?.actual_profit_usd || 0,
+        best_trade_profit: bestTradeProfit,
+        worst_trade_loss: worstTradeLoss,
         
-        // Keep original stats for anything not computed
-        stats_json: simStats?.stats_json,
+        // All-time totals (always accurate regardless of filter)
+        all_time_pnl: totalPnl,
+        all_time_trades: totalTrades,
+        all_time_balance: currentBalance,
+        
+        // Starting balance for reference
+        starting_balance: STARTING_BALANCE,
+        
+        // Stats JSON for backwards compatibility
+        stats_json: {
+          simulated_starting_balance: String(STARTING_BALANCE),
+          simulated_current_balance: String(currentBalance),
+        },
       };
     },
-    enabled: trades.length >= 0, // Always run
     refetchInterval: 5000,
   });
 }

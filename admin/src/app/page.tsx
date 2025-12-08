@@ -59,8 +59,11 @@ export default function Dashboard() {
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
   
-  // Prefer real-time computed stats (more accurate)
-  const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 5000;
+  // Starting balance constant
+  const STARTING_BALANCE = 10000;
+  
+  // Prefer real-time computed stats (more accurate - uses database aggregates)
+  const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? STARTING_BALANCE;
   const isSimulation = botStatus?.dry_run_mode ?? true;
   const totalPnl = realTimeStats?.total_pnl ?? simStats?.total_pnl ?? 0;
   const totalTrades = realTimeStats?.total_trades ?? simStats?.total_trades ?? 0;

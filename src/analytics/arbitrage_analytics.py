@@ -183,7 +183,7 @@ class ArbitrageAnalytics:
     )
     
     # Overall tracking
-    starting_balance: Decimal = Decimal("1000")
+    starting_balance: Decimal = Decimal("10000")
     current_balance: Decimal = Decimal("1000")
     session_start: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)

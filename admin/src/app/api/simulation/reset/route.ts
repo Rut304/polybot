@@ -127,20 +127,20 @@ export async function POST(request: NextRequest) {
       console.warn('Could not reset live stats:', liveStatsError);
     }
 
-    // Insert fresh starting stats with $5000 balance
+    // Insert fresh starting stats with $10000 balance
     const { error: statsError } = await supabaseAdmin
       .from('polybot_simulation_stats')
       .insert({
         snapshot_at: new Date().toISOString(),
-        simulated_balance: 5000,
+        simulated_balance: 10000,
         total_pnl: 0,
         total_trades: 0,
         win_rate: 0,
         stats_json: {
           total_opportunities_seen: 0,
           total_simulated_trades: 0,
-          simulated_starting_balance: '5000.00',
-          simulated_current_balance: '5000.00',
+          simulated_starting_balance: '10000.00',
+          simulated_current_balance: '10000.00',
           total_pnl: '0.00',
           winning_trades: 0,
           losing_trades: 0,
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       resource_id: 'all',
       details: {
         deleted: counts,
-        new_balance: 5000,
+        new_balance: 10000,
         message: `Reset simulation: deleted ${counts.trades} trades, ${counts.opportunities} opportunities, ${counts.stats} stat records`,
       },
       ip_address: metadata.ip_address,

@@ -85,8 +85,8 @@ class SimulatedTrade:
 class RealisticStats:
     """Realistic paper trading statistics"""
     # Balance
-    starting_balance: Decimal = Decimal("1000.00")
-    current_balance: Decimal = Decimal("1000.00")
+    starting_balance: Decimal = Decimal("10000.00")
+    current_balance: Decimal = Decimal("10000.00")
 
     # Opportunities
     opportunities_seen: int = 0
