@@ -30,7 +30,8 @@ export function VersionBadge() {
         if (response.ok) {
           const data = await response.json();
           const botVersion = data.version || data.status?.version || null;
-          const isOnline = data.is_running || data.status?.is_running || false;
+          // Bot returns status: "running" not is_running: true
+          const isOnline = data.status === 'running' || data.is_running || data.status?.is_running || false;
           
           setVersionInfo({
             uiVersion: UI_VERSION,
