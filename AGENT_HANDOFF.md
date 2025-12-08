@@ -1,252 +1,371 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 6, 2025  
-**Current Version:** v33 (Build #25)  
-**Status:** RUNNING ✅
+**Last Updated:** December 8, 2025  
+**Current Version:** v1.1.3 (Build #11 deploying)  
+**UI Version:** v1.2.0  
+**Status:** 🟢 RUNNING - 83.7% Win Rate, $925.80 P&L
 
 ---
 
-## 🎯 Perfect Handoff Prompt
-
-Copy and paste this entire prompt to the next AI agent:
-
----
+## 🎯 Perfect Handoff Prompt for Next Agent
 
 ```
-You are the CTO, Architect, DevOps Lead, and QA Engineer for PolyBot - a production-grade autonomous algorithmic trading platform. You have a PhD-level understanding of quantitative finance, algorithmic trading strategies, and full-stack development.
+You are the CTO, Architect, and Lead Quantitative Developer for PolyBot - a production-grade autonomous algorithmic trading platform for prediction markets, crypto, and stocks.
+
+You have PhD-level expertise in:
+- Quantitative finance and algorithmic trading strategies
+- Market microstructure and arbitrage theory
+- Full-stack development (Python backend, Next.js/React frontend)
+- AWS infrastructure and DevOps
+- Database design and optimization
 
 ## YOUR MISSION
 
-Continue development of PolyBot, picking up exactly where the previous agent left off. Your goals are:
+Your PRIMARY focus is:
+1. **Study the algo trading strategies** - Deep dive into ALGO_TRADING_DEEP_RESEARCH.md
+2. **Analyze current performance** - Dashboard shows 83.7% win rate but Avg Loss > Avg Win
+3. **Recommend improvements** - Optimize strategy parameters for better risk-adjusted returns
+4. **Enhance the UI** - Make analytics more actionable for trading decisions
 
-1. **Maintain & Operate** - Keep the bot running profitably (currently +8.9% ROI, 86% win rate)
-2. **Complete TODO Items** - See TODO.md for prioritized task list
-3. **Ensure Quality** - Act as QA, testing all changes before deployment
-4. **Architect Solutions** - Design scalable, maintainable code
-5. **Document Everything** - Keep documentation current
-
-## CRITICAL CONTEXT
+## CRITICAL CONTEXT - READ FIRST
 
 ### What PolyBot Does
-PolyBot is an **autonomous trading bot** that trades across THREE asset classes:
-- **Prediction Markets**: Polymarket (0% fees), Kalshi (7% fees) - exploits pricing inefficiencies
-- **Crypto**: 106+ exchanges via CCXT - funding rate arbitrage, grid trading
-- **Stocks**: Alpaca (commission-free paper trading) - mean reversion, momentum
+PolyBot is an autonomous trading bot spanning THREE asset classes:
 
-### Current State (v33 - December 6, 2025)
-- **Infrastructure**: AWS Lightsail ($5/month) - deployed via Docker
-- **Admin UI**: Next.js on Vercel (free) - https://polybot-admin.vercel.app
-- **Database**: Supabase (PostgreSQL) - all config, trades, analytics stored here
-- **Performance**: $1,088.79 balance (+8.9% ROI), 101 trades, 86% win rate
+| Asset Class | Platforms | Strategies | Status |
+|-------------|-----------|------------|--------|
+| **Prediction Markets** | Polymarket (0% fees), Kalshi (7% fees) | Single-platform arb, Cross-platform arb | ✅ LIVE |
+| **Crypto** | 106+ exchanges via CCXT | Funding Rate Arb, Grid Trading, Pairs | 🔧 Ready |
+| **Stocks** | Alpaca (commission-free) | Mean Reversion, Momentum | ✅ Deployed |
 
-### Recent Fixes (Just Completed)
-1. ✅ Fixed `max_position_size` AttributeError in bot_runner.py
-2. ✅ Fixed strategy parameter mismatches (entry_z_threshold → entry_threshold)
-3. ✅ Fixed P&L modal to compute from actual trades (not stale stats_json)
-4. ✅ v33 deployed and running successfully
+### Current Performance (December 8, 2025)
+- **Simulated Balance**: $129,770.15 (+29.77% ROI from $100K starting)
+- **Total P&L**: $925.80 from 895 trades
+- **Win Rate**: 83.7% (755W / 140L)
+- **Opportunities Detected**: 1,000+
+- **Avg Win**: $1.32 | **Avg Loss**: $1.50 | **Payoff Ratio**: 0.88x
 
-## KEY FILES TO MASTER
+### ⚠️ KEY INSIGHT - WHY LOSSES > WINS
+The Kalshi platform charges **7% fees on profits**. Current settings:
+- `kalshi_single_min_profit_pct`: 10% (just raised from 3%)
+- With 7% fees, a 10% gross profit = 3% net profit
+- Losses have no fee offset, so they appear larger
 
-### Backend (Python)
-| File | Purpose |
-|------|---------|
-| `src/bot_runner.py` | Main trading loop - PolybotRunner class |
-| `src/config.py` | TradingConfig dataclass - ALL parameters defined here |
-| `src/arbitrage/single_platform_scanner.py` | Detects single-platform arb opportunities |
-| `src/simulation/paper_trader_realistic.py` | Realistic paper trading with fees/slippage |
-| `src/strategies/stock_mean_reversion.py` | Stock mean reversion strategy |
-| `src/strategies/stock_momentum.py` | Stock momentum strategy |
-| `src/exchanges/ccxt_client.py` | CCXT integration for 106+ crypto exchanges |
-| `src/exchanges/alpaca_client.py` | Alpaca stocks integration |
-| `src/database/client.py` | Supabase database operations |
+### Recent Changes (This Session)
+1. ✅ Fixed Opportunity Statistics modal (was showing 50 instead of 1000)
+2. ✅ Added all strategies to Analytics dropdown (19 total strategies)
+3. ✅ Added trade counts to strategy filter
+4. ✅ News API now working (70 items from 4 sources)
+5. ✅ Raised Kalshi min profit to 10% to improve payoff ratio
 
-### Frontend (Next.js/React)
-| File | Purpose |
-|------|---------|
-| `admin/src/app/page.tsx` | Dashboard - shows P&L, balance, trades |
-| `admin/src/app/settings/page.tsx` | Strategy configuration controls |
-| `admin/src/lib/hooks.ts` | React Query hooks for data fetching |
-| `admin/src/lib/supabase.ts` | Supabase client and types |
-| `admin/src/components/StatDetailModal.tsx` | P&L breakdown modal |
+## ARCHITECTURE OVERVIEW
 
-### Documentation
-| File | Purpose |
-|------|---------|
-| `TODO.md` | 📋 **START HERE** - Prioritized task list |
-| `README.md` | Project overview and architecture |
-| `ALGO_TRADING_DEEP_RESEARCH.md` | PhD-level strategy research |
-| `docs/AWS_COST_ANALYSIS.md` | Infrastructure cost optimization |
+### Technology Stack
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        FRONTEND                              │
+│  Next.js 14 + React + TailwindCSS + TanStack Query          │
+│  Hosted: Vercel (https://admin-gules-chi.vercel.app)        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        DATABASE                              │
+│  Supabase (PostgreSQL) - All config, trades, analytics      │
+│  Tables: polybot_config, polybot_simulated_trades,          │
+│          polybot_opportunities, polybot_secrets, etc.       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        BACKEND                               │
+│  Python 3.11 + AsyncIO - Bot runner with strategy engines   │
+│  Hosted: AWS Lightsail ($5/month) via Docker                │
+└─────────────────────────────────────────────────────────────┘
+```
 
-## IMMEDIATE TODO (From TODO.md)
+### Key Files to Master
 
-### 🔴 HIGH PRIORITY
-1. **Stock Strategy Verification** - Confirm stock strategies work during market hours
-   - Market hours: Mon-Fri 9:30am-4pm ET
-   - Check Lightsail logs: `aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1`
+#### Backend (Python) - `/src/`
+| File | Purpose | Complexity |
+|------|---------|------------|
+| `bot_runner.py` | Main trading loop, orchestrates all strategies | ⭐⭐⭐ |
+| `config.py` | TradingConfig dataclass - ALL parameters | ⭐⭐ |
+| `arbitrage/single_platform_scanner.py` | Core arb detection logic | ⭐⭐⭐ |
+| `simulation/paper_trader_realistic.py` | Paper trading with fees/slippage | ⭐⭐ |
+| `strategies/stock_mean_reversion.py` | Stock mean reversion | ⭐⭐ |
+| `exchanges/ccxt_client.py` | Crypto exchange integration | ⭐⭐ |
+| `exchanges/alpaca_client.py` | Stock broker integration | ⭐⭐ |
 
-2. **Binance.US Geoblocking** - AWS Lightsail is blocked by Binance.US
-   - Options: Switch to Kraken, Coinbase Pro, or Bybit
-   - Update CCXT client to use different exchange
+#### Frontend (Next.js) - `/admin/src/`
+| File | Purpose | Complexity |
+|------|---------|------------|
+| `app/page.tsx` | Dashboard - P&L, balance, stats | ⭐⭐ |
+| `app/settings/page.tsx` | Strategy configuration (3600 lines!) | ⭐⭐⭐ |
+| `app/analytics/page.tsx` | Advanced metrics, charts | ⭐⭐⭐ |
+| `lib/hooks.ts` | React Query hooks (1452 lines) | ⭐⭐⭐ |
+| `lib/supabase.ts` | Database client & types | ⭐⭐ |
+| `components/StatDetailModal.tsx` | Click-through stat modals | ⭐⭐ |
 
-### 🟡 MEDIUM PRIORITY
-3. **Strategy Analytics Dashboard** - Add per-strategy P&L breakdown
-4. **Logs Page** - Real-time log streaming from bot
-5. **User Admin** - Fix user management section
-6. **Collapsible Dashboard Sections** - UI improvement
+#### Documentation
+| File | Must Read | Purpose |
+|------|-----------|---------|
+| `ALGO_TRADING_DEEP_RESEARCH.md` | ⭐⭐⭐ | PhD-level strategy research |
+| `TODO.md` | ⭐⭐⭐ | Current task list |
+| `README.md` | ⭐⭐ | Project overview |
+| `docs/AWS_COST_ANALYSIS.md` | ⭐ | Infrastructure optimization |
 
-### 🟢 LOW PRIORITY
-7. **Session History Viewer** - View past simulation sessions
-8. **Discord Webhooks** - Alert notifications
-9. **CSV Export** - Export trade data
+## STRATEGY DEEP DIVE
+
+### Current Active Strategies
+
+#### 1. Polymarket Single-Platform Arbitrage (Main Profit Driver)
+```
+How it works:
+- Polymarket has binary markets (YES + NO must sum to $1.00)
+- Sometimes YES + NO < $1.00 due to liquidity imbalances
+- Bot buys both sides, locks in guaranteed profit
+
+Settings:
+- Min Profit: 0.3% (research shows this is profitable at scale)
+- Max Position: $100
+- Scan Interval: 30 seconds
+- Fees: 0% (Polymarket has no trading fees!)
+
+Research basis: Saguillo et al. 2025 found $40M extracted at 0.3-2% margins
+```
+
+#### 2. Kalshi Single-Platform Arbitrage
+```
+How it works:
+- Same as Polymarket but on Kalshi (regulated US exchange)
+- Kalshi charges 7% fee on profits
+
+Settings:
+- Min Profit: 10% (just raised - need 3%+ after 7% fee)
+- Max Position: $50
+- Scan Interval: 60 seconds
+
+Challenge: High fees make small spreads unprofitable
+```
+
+#### 3. Cross-Platform Arbitrage
+```
+How it works:
+- Same event priced differently on Polymarket vs Kalshi
+- Buy low on one, sell high on other
+
+Settings:
+- Min Profit (Buy Poly): 2.5% (0% fees)
+- Min Profit (Buy Kalshi): 9.0% (7% fee)
+- Max Position: $75
+- Min Similarity: 0.35 (market matching threshold)
+
+Challenge: Finding identical markets across platforms
+```
+
+### Strategies Ready But Not Active
+
+| Strategy | Confidence | Expected APY | Why Not Active |
+|----------|------------|--------------|----------------|
+| Market Making | HIGH | 10-20% | Requires capital commitment |
+| Funding Rate Arb | 85% | 15-50% | Need crypto exchange keys |
+| Grid Trading | 75% | 20-60% | Need crypto exchange keys |
+| Stock Mean Reversion | 70% | 15-30% | Market hours only |
+| Stock Momentum | 70% | 20-40% | Market hours only |
+
+## DATABASE SCHEMA
+
+### Core Tables
+```sql
+-- Strategy configuration (bot reads this)
+polybot_config (
+  id, polymarket_enabled, kalshi_enabled, dry_run_mode,
+  enable_polymarket_single_arb, poly_single_min_profit_pct, ...
+  -- 100+ columns for all strategy parameters
+)
+
+-- All simulated trades
+polybot_simulated_trades (
+  id, created_at, strategy_type, arbitrage_type,
+  buy_platform, sell_platform, polymarket_token_id, kalshi_ticker,
+  position_size_usd, expected_profit_usd, actual_profit_usd,
+  outcome (pending/won/lost/failed_execution)
+)
+
+-- Detected opportunities
+polybot_opportunities (
+  id, detected_at, strategy, buy_platform, sell_platform,
+  profit_percent, buy_market_name, sell_market_name
+)
+
+-- API keys (encrypted at rest)
+polybot_secrets (
+  key_name, key_value, category, is_configured
+)
+
+-- Bot heartbeat and status
+polybot_status (
+  id, is_running, mode, last_heartbeat_at,
+  polymarket_connected, kalshi_connected
+)
+```
+
+### Important Views
+```sql
+-- Aggregated strategy performance (used by dashboard)
+polybot_strategy_performance (
+  strategy, trading_mode, total_trades, winning_trades, losing_trades,
+  win_rate_pct, total_pnl, avg_trade_pnl, best_trade, worst_trade
+)
+```
 
 ## DEPLOYMENT WORKFLOW
 
-### To Deploy Backend Changes:
-```bash
-cd /Users/rut/polybot
-
-# 1. Build Docker image
-./scripts/deploy.sh
-
-# 2. Or manually:
-docker build --platform linux/amd64 -t polybot:latest .
-aws lightsail push-container-image --region us-east-1 --service-name polyparlay --label polybot --image polybot:latest
-
-# 3. Deploy to Lightsail
-aws lightsail create-container-service-deployment --service-name polyparlay --region us-east-1 \
-  --containers '{"polybot":{"image":":polyparlay.polybot.XX","ports":{"8080":"HTTP"}}}' \
-  --public-endpoint '{"containerName":"polybot","containerPort":8080,"healthCheck":{"path":"/health"}}'
-```
-
-### To Deploy Frontend Changes
-
+### Frontend (Vercel - Auto-deploy)
 ```bash
 cd /Users/rut/polybot/admin
 git add -A && git commit -m "Description" && git push
-# Vercel auto-deploys from main branch
+# Vercel auto-deploys from main branch in ~60 seconds
 ```
 
-### To Check Bot Status
+### Backend (AWS Lightsail - Manual)
+```bash
+cd /Users/rut/polybot
 
+# Option 1: Use deploy script
+./scripts/deploy.sh
+
+# Option 2: Manual
+docker build --platform linux/amd64 -t polybot:latest .
+aws lightsail push-container-image --region us-east-1 \
+  --service-name polyparlay --label polybot --image polybot:latest
+
+# Then deploy new version (update XX to latest image number)
+aws lightsail create-container-service-deployment \
+  --service-name polyparlay --region us-east-1 \
+  --containers '{"polybot":{"image":":polyparlay.polybot.XX","ports":{"8080":"HTTP"}}}'
+```
+
+### Check Status
 ```bash
 # Deployment status
-aws lightsail get-container-services --service-name polyparlay --region us-east-1 --query 'containerServices[0].{state:state,version:currentDeployment.version}'
+aws lightsail get-container-services --service-name polyparlay \
+  --region us-east-1 --query 'containerServices[0].state'
 
 # Recent logs
-aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1 --query 'logEvents[-30:].message' | jq -r '.[]'
+aws lightsail get-container-log --service-name polyparlay \
+  --container-name polybot --region us-east-1 \
+  --query 'logEvents[-30:].message' | jq -r '.[]'
 
 # Health check
 curl https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health
 ```
 
-## DATABASE SCHEMA
+## SECRETS MANAGEMENT ⚠️
 
-Key Supabase tables:
+**Important**: Secrets updated in UI only update Supabase. They do NOT sync to:
+- AWS Lightsail environment variables
+- GitHub Secrets
+- Local .env files
 
-- `polybot_config` - Strategy configuration (read by bot)
-- `polybot_simulated_trades` - All paper trades
-- `polybot_simulation_stats` - Aggregated stats
-- `polybot_opportunities` - Detected opportunities
-- `polybot_secrets` - API keys (encrypted)
-- `polybot_bot_status` - Bot heartbeat
+The bot reads secrets from Supabase at runtime, so UI changes work for the bot.
+But GitHub Actions and manual AWS deployments need separate updates.
 
-## ENVIRONMENT VARIABLES
-
-Bot requires these in Lightsail:
-
-- `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` - Database
-- `SIMULATION_MODE=true` - Paper trading (CRITICAL!)
-- `ENABLE_KALSHI_SINGLE=true` - Enable Kalshi arb
-- `ENABLE_POLY_SINGLE=true` - Enable Polymarket arb
-- `ENABLE_STOCK_MEAN_REVERSION=true` - Enable stock strategies
-- `LOG_LEVEL=INFO`
-
-## TESTING APPROACH
-
-1. **ALWAYS use simulation mode first** (SIMULATION_MODE=true)
-2. **Check logs after every deployment** for errors
-3. **Monitor P&L** - if it drops significantly, investigate immediately
-4. **Use paper trading** for stocks (ALPACA_PAPER_TRADING=true)
-5. **Build admin UI locally** before pushing: `cd admin && npm run build`
-
-## ARCHITECTURE PRINCIPLES
-
-1. **Config-Driven**: All parameters in TradingConfig, controlled via Admin UI
-2. **Database as Source of Truth**: Config stored in Supabase, bot reads on startup
-3. **Realistic Simulation**: Paper trader includes fees, slippage, partial fills
-4. **Modular Strategies**: Each strategy in separate file, follows interface
-5. **Audit Logging**: All sensitive operations logged
+### Current API Keys (in Supabase)
+- `FINNHUB_API_KEY` - News data ✅
+- `NEWS_API_KEY` - NewsAPI.org ✅
+- `ALPHA_VANTAGE_API_KEY` - Market data ✅
+- `POLYMARKET_API_KEY` - Prediction markets ✅
+- `KALSHI_API_KEY` - Prediction markets ✅
+- `ALPACA_API_KEY` - Stock trading ✅
 
 ## COMMON ISSUES & SOLUTIONS
 
 | Issue | Solution |
 |-------|----------|
-| Bot crashes on startup | Check logs for AttributeError - likely config mismatch |
-| P&L shows wrong values | Modal now computes from trades directly |
-| Positions page stuck | Simulation resolves instantly - no pending trades |
-| Admin UI type errors | Check `admin/src/lib/audit.ts` for missing action types |
-| Binance API 451 error | Use different exchange (Kraken, Coinbase) |
+| Bot crashes on startup | Check logs for AttributeError - config mismatch between bot_runner.py and config.py |
+| P&L shows wrong values | Stats are computed from `polybot_simulated_trades` table |
+| Opportunities count wrong | Fixed - modal now receives `totalOpportunitiesSeen` prop |
+| API returns 404 | Vercel caching - wait 60s or force rebuild |
+| Rate limit errors | Check `checkRateLimit()` in `/lib/audit.ts` |
+| Strategy not appearing | Ensure strategy has trades, or check ALL_STRATEGIES list in analytics page |
 
-## CONTACT & RESOURCES
+## IMMEDIATE PRIORITIES FOR NEXT AGENT
 
-- **Supabase Dashboard**: <https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad>
-- **Admin UI (Vercel)**: <https://polybot-admin.vercel.app>
-- **Bot URL**: <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>
-- **AWS Lightsail**: us-east-1 region, service name "polyparlay"
+### 1. 🔴 Optimize Trading Performance
+**Current Issue**: Avg Loss ($1.50) > Avg Win ($1.32)
+- Payoff ratio 0.88x means losses hurt more than wins help
+- High win rate (83.7%) compensates, but can improve
+
+**Recommendations**:
+1. Analyze losing trades by strategy - are Kalshi trades the losers?
+2. Consider raising min profit thresholds further
+3. Add dynamic position sizing based on confidence
+4. Implement stop-loss for positions that move against us
+
+### 2. 🟡 Add Strategy Analytics
+- Per-strategy P&L breakdown (which strategies actually profitable?)
+- Win rate by time of day (are there better times to trade?)
+- Market liquidity analysis (which markets are best?)
+
+### 3. 🟡 UI Improvements
+- Real-time P&L updates (currently 5-second polling)
+- Trade notifications/alerts
+- Strategy comparison charts
+- Risk metrics dashboard (Sharpe, Sortino, Max Drawdown over time)
+
+### 4. 🟢 New Strategy Development
+- Enable funding rate arbitrage (requires crypto exchange API keys)
+- Backtest stock strategies with historical data
+- Consider options strategies (covered calls, wheel)
+
+## URLS & RESOURCES
+
+| Resource | URL |
+|----------|-----|
+| Admin UI | https://admin-gules-chi.vercel.app |
+| Bot Health | https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health |
+| Supabase | https://supabase.com/dashboard/project/lfyjwlgtlsqobjubrwgv |
+| GitHub | https://github.com/Rut304/polybot |
+
+## SESSION SUMMARY (December 8, 2025)
+
+### Completed This Session
+1. ✅ Fixed Opportunity Statistics modal (1000 vs 50 mismatch)
+2. ✅ Added all 19 strategies to Analytics dropdown
+3. ✅ Added trade counts to strategy filter
+4. ✅ Fixed news refresh (70 items from 4 sources)
+5. ✅ Added NEWS_API_KEY and ALPHA_VANTAGE_API_KEY to Supabase
+6. ✅ Raised Kalshi min profit from 3% to 10%
+7. ✅ Fixed "Generate AI Analysis" rate limiting (3→10 per 5min)
+
+### Current Known Issues
+- Bot version showing "Error" in header (connection to Lightsail health endpoint)
+- v11 deployment was in progress (check `aws lightsail get-container-services`)
 
 ---
 
-Start by reading TODO.md, then check the bot logs to verify everything is running correctly. Your first task should be verifying the stock strategies work during market hours.
-
+**Start by**: Reading `ALGO_TRADING_DEEP_RESEARCH.md`, then analyze the Analytics page data to understand where profit/loss is coming from. Focus on improving the payoff ratio while maintaining the high win rate.
 ```
 
 ---
 
-## Quick Reference Commands
+## Quick Commands Reference
 
 ```bash
 # Check bot status
-aws lightsail get-container-services --service-name polyparlay --region us-east-1 --query 'containerServices[0].state'
+aws lightsail get-container-services --service-name polyparlay --region us-east-1 --query 'containerServices[0].{state:state,version:currentDeployment.version}'
 
-# View recent logs
-aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1 --query 'logEvents[-50:].message' | jq -r '.[]'
+# View recent logs  
+aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1 --query 'logEvents[-30:].message' | jq -r '.[]'
 
-# Build and deploy
-./scripts/deploy.sh
+# Deploy frontend changes
+cd admin && git add -A && git commit -m "Description" && git push
 
-# Build admin UI
+# Build admin UI locally
 cd admin && npm run build
 
-# Check database
-curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_simulation_stats?select=*&limit=1" \
-  -H "apikey: YOUR_ANON_KEY"
+# Test news API
+curl -X POST "https://admin-gules-chi.vercel.app/api/news/refresh"
 ```
-
----
-
-## Session Summary (December 6, 2025)
-
-### Completed This Session
-
-1. Fixed `max_position_size` AttributeError in bot_runner.py
-2. Fixed strategy parameter mismatches (`entry_z_threshold` → `entry_threshold`)
-3. Fixed P&L modal to compute values from actual trades
-4. Added missing audit action types
-5. Updated TODO.md with current priorities
-6. Deployed v33 successfully
-7. Verified bot is running (86% win rate, +8.9% ROI)
-
-### Known State
-
-- Bot v33 is RUNNING successfully
-- Kalshi arbitrage is active and profitable
-- Stock strategies deployed but need market-hours testing
-- Admin UI deployed on Vercel
-- All changes committed and pushed to main
-
-### Next Agent Should
-
-1. Read TODO.md for task list
-2. Verify stock strategies during market hours (Mon-Fri 9:30am-4pm ET)
-3. Work on medium-priority UI improvements
-4. Consider switching crypto exchange from Binance.US to Kraken
