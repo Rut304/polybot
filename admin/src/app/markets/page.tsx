@@ -183,7 +183,28 @@ export default function MarketsPage() {
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, platform, category, sortBy]);
+  }, [search, platform, category, sortBy, assetType]);
+
+  // Reset platform filter when asset type changes to prevent conflicts
+  // (e.g., selecting Crypto asset type + Alpaca platform = 0 results)
+  useEffect(() => {
+    if (assetType === 'crypto') {
+      // Auto-select crypto platform filter when crypto asset type is selected
+      if (platform !== 'all' && platform !== 'ccxt') {
+        setPlatform('ccxt');
+      }
+    } else if (assetType === 'stock') {
+      // Auto-select alpaca platform filter when stock asset type is selected
+      if (platform !== 'all' && platform !== 'alpaca') {
+        setPlatform('alpaca');
+      }
+    } else if (assetType === 'prediction') {
+      // Reset to all for prediction markets (has polymarket + kalshi)
+      if (platform === 'alpaca' || platform === 'ccxt') {
+        setPlatform('all');
+      }
+    }
+  }, [assetType, platform]);
 
   const openTrade = (market: Market) => {
     setSelectedMarket(market);
