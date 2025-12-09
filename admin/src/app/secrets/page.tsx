@@ -132,7 +132,7 @@ export default function SecretsPage() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState<'aws' | 'github' | 'redeploy' | null>(null);
+  const [syncing, setSyncing] = useState<'aws' | 'github' | 'redeploy' | 'supabase' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -241,6 +241,23 @@ export default function SecretsPage() {
       setError(err.message || 'Failed to load secrets');
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // Refresh secrets from Supabase (re-fetch)
+  const refreshFromSupabase = async () => {
+    setSyncing('supabase');
+    setError(null);
+    
+    try {
+      await fetchSecrets();
+      const count = secrets.filter(s => s.is_configured).length;
+      setSuccess(`✓ Refreshed ${count} secrets from Supabase`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh from Supabase');
+    } finally {
+      setSyncing(null);
     }
   };
   
@@ -553,6 +570,19 @@ export default function SecretsPage() {
           
           {/* Sync Buttons */}
           <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={refreshFromSupabase}
+              disabled={syncing === 'supabase'}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 transition-colors disabled:opacity-50"
+              title="Refresh secrets from Supabase database"
+            >
+              {syncing === 'supabase' ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Supabase
+            </button>
             <button
               onClick={pullFromAWS}
               disabled={syncing === 'aws'}

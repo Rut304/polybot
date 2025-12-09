@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-// GitHub credentials
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+// GitHub credentials - try multiple env var names
+let GITHUB_TOKEN = process.env.MY_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Rut304';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'polybot';
 
@@ -13,6 +13,24 @@ const hasServiceKey = supabaseUrl && supabaseServiceKey;
 const supabaseAdmin = hasServiceKey 
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
+
+// Helper to get GitHub token from Supabase if not in env
+async function getGitHubToken(): Promise<string> {
+  if (GITHUB_TOKEN) return GITHUB_TOKEN;
+  
+  if (!supabaseAdmin) return '';
+  
+  // Try to get from Supabase secrets
+  const { data } = await supabaseAdmin
+    .from('polybot_secrets')
+    .select('key_value')
+    .in('key_name', ['MY_GITHUB_TOKEN', 'GITHUB_TOKEN'])
+    .eq('is_configured', true)
+    .limit(1)
+    .single();
+  
+  return data?.key_value || '';
+}
 
 // Convert sodium public key and encrypt using libsodium
 // For GitHub Actions secrets, we need to encrypt values with the repo's public key
@@ -31,9 +49,12 @@ export async function POST() {
     );
   }
   
-  if (!GITHUB_TOKEN) {
+  // Get GitHub token from env or Supabase
+  const githubToken = await getGitHubToken();
+  
+  if (!githubToken) {
     return NextResponse.json(
-      { error: 'GitHub token not configured. Set GITHUB_TOKEN environment variable.' },
+      { error: 'GitHub token not configured. Set GITHUB_TOKEN in environment or Supabase secrets.' },
       { status: 500 }
     );
   }
@@ -61,7 +82,7 @@ export async function POST() {
       `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/secrets/public-key`,
       {
         headers: {
-          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Authorization': `Bearer ${githubToken}`,
           'Accept': 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
         },
@@ -93,7 +114,7 @@ export async function POST() {
           {
             method: 'PUT',
             headers: {
-              'Authorization': `Bearer ${GITHUB_TOKEN}`,
+              'Authorization': `Bearer ${githubToken}`,
               'Accept': 'application/vnd.github+json',
               'X-GitHub-Api-Version': '2022-11-28',
               'Content-Type': 'application/json',
