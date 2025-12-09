@@ -158,7 +158,7 @@ class NewsSentimentEngine:
         news_api_key: Optional[str] = None,
         finnhub_api_key: Optional[str] = None,
         twitter_bearer_token: Optional[str] = None,
-        check_interval: int = 300,  # 5 minutes
+        check_interval: int = 900,  # 15 minutes (avoids NewsAPI rate limits)
         db_client: Optional[Any] = None,
     ):
         # Store each API key separately for graceful degradation

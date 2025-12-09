@@ -1483,6 +1483,28 @@ class PolybotRunner:
         if self.pairs_trading:
             await self.pairs_trading.stop()
         
+        # Close exchange connections (prevents unclosed session warnings)
+        if self.ccxt_client:
+            try:
+                await self.ccxt_client.close()
+                logger.debug("CCXT client closed")
+            except Exception as e:
+                logger.debug(f"Error closing CCXT client: {e}")
+        
+        if self.alpaca_client:
+            try:
+                await self.alpaca_client.close()
+                logger.debug("Alpaca client closed")
+            except Exception as e:
+                logger.debug(f"Error closing Alpaca client: {e}")
+        
+        if self.single_platform_scanner:
+            try:
+                await self.single_platform_scanner.close()
+                logger.debug("Scanner session closed")
+            except Exception as e:
+                logger.debug(f"Error closing scanner: {e}")
+        
         # Cancel all running tasks
         for task in self._tasks:
             task.cancel()

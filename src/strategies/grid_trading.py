@@ -504,6 +504,16 @@ class GridTradingStrategy:
                 continue
 
             try:
+                # Verify symbol is still valid on exchange
+                if hasattr(self.ccxt_client, 'has_symbol'):
+                    if not self.ccxt_client.has_symbol(grid.config.symbol):
+                        logger.warning(
+                            f"Grid {grid_id} symbol {grid.config.symbol} "
+                            "no longer available - closing grid"
+                        )
+                        await self.close_grid(grid_id, reason="symbol_unavailable")
+                        continue
+                
                 # Get current price
                 ticker = await self.ccxt_client.get_ticker(grid.config.symbol)
                 current_price = Decimal(str(ticker.last))
@@ -520,14 +530,17 @@ class GridTradingStrategy:
                 grid.last_update = datetime.now(timezone.utc)
 
             except Exception as e:
-                logger.error(f"Error checking grid {grid_id}: {e}")
+                # Log at debug level for transient errors, error for persistent ones
+                if "symbol" in str(e).lower() or "market" in str(e).lower():
+                    logger.debug(f"Grid {grid_id} symbol issue: {e}")
+                else:
+                    logger.error(f"Error checking grid {grid_id}: {e}")
 
     async def _check_grid_exits(
         self, grid: Grid, current_price: Decimal
     ) -> None:
         """Check if grid should be closed due to breakout."""
         config = grid.config
-
         # Check stop loss (price broke out of range)
         lower_stop = config.lower_price * (
             1 - self.stop_loss_pct / 100

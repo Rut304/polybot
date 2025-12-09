@@ -394,6 +394,19 @@ class PairsTradingStrategy:
         """Update prices and statistics for all pairs."""
         for pair in self.pairs.values():
             try:
+                # Verify symbols are still valid on exchange
+                if hasattr(self.ccxt_client, 'has_symbol'):
+                    if not self.ccxt_client.has_symbol(pair.symbol_a):
+                        logger.debug(
+                            f"Pair {pair.name}: {pair.symbol_a} not available"
+                        )
+                        continue
+                    if not self.ccxt_client.has_symbol(pair.symbol_b):
+                        logger.debug(
+                            f"Pair {pair.name}: {pair.symbol_b} not available"
+                        )
+                        continue
+                
                 # Fetch current prices
                 ticker_a = await self.ccxt_client.get_ticker(pair.symbol_a)
                 ticker_b = await self.ccxt_client.get_ticker(pair.symbol_b)
@@ -410,7 +423,11 @@ class PairsTradingStrategy:
                 )
 
             except Exception as e:
-                logger.warning(f"Failed to update {pair.name}: {e}")
+                # Log at debug for symbol issues, warning for others
+                if "symbol" in str(e).lower() or "market" in str(e).lower():
+                    logger.debug(f"Pair {pair.name} symbol issue: {e}")
+                else:
+                    logger.warning(f"Failed to update {pair.name}: {e}")
 
     async def _check_signals(self) -> None:
         """Check for entry signals on all pairs."""
