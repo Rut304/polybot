@@ -440,10 +440,43 @@ export default function MarketsPage() {
                       </button>
                     </div>
 
-                    {/* Question */}
-                    <h3 className="font-semibold mb-3 line-clamp-2 min-h-[48px]">
-                      {market.question}
-                    </h3>
+                    {/* Title - Different display for prediction vs crypto/stock */}
+                    {market.asset_type === 'prediction' ? (
+                      /* Prediction Market - Show question */
+                      <h3 className="font-semibold mb-3 line-clamp-2 min-h-[48px]">
+                        {market.question}
+                      </h3>
+                    ) : (
+                      /* Crypto/Stock - Show symbol with image */
+                      <div className="flex items-center gap-3 mb-3 min-h-[48px]">
+                        {market.image && (
+                          <img 
+                            src={market.image} 
+                            alt={market.symbol || ''} 
+                            className="w-10 h-10 rounded-full"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-lg truncate">
+                            {market.symbol || market.question}
+                          </h3>
+                          <p className="text-sm text-gray-400 truncate">
+                            {market.description || market.question}
+                          </p>
+                        </div>
+                        {market.market_cap_tier && (
+                          <span className={cn(
+                            "text-xs px-2 py-0.5 rounded shrink-0",
+                            market.market_cap_tier === 'Mega' ? "bg-purple-500/20 text-purple-400" :
+                            market.market_cap_tier === 'Large' ? "bg-blue-500/20 text-blue-400" :
+                            market.market_cap_tier === 'Mid' ? "bg-green-500/20 text-green-400" :
+                            "bg-gray-500/20 text-gray-400"
+                          )}>
+                            {market.market_cap_tier}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Prices - Different display for prediction vs crypto/stock */}
                     {market.asset_type === 'prediction' ? (
@@ -502,28 +535,56 @@ export default function MarketsPage() {
                       </div>
                     )}
 
-                    {/* Stats */}
+                    {/* Stats - Different for prediction vs crypto/stock */}
                     <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
-                      {market.volume !== undefined && (
-                        <Tooltip content={METRIC_TOOLTIPS.volume} position="top">
-                          <span className="flex items-center gap-1 cursor-help">
-                            <DollarSign className="w-3 h-3" />
-                            {market.volume >= 1000000 
-                              ? `${(market.volume / 1000000).toFixed(1)}M` 
-                              : market.volume >= 1000
-                                ? `${(market.volume / 1000).toFixed(0)}K`
-                                : market.volume.toFixed(0)
-                            } vol
-                          </span>
-                        </Tooltip>
-                      )}
-                      {market.end_date && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(market.end_date) > new Date() 
-                            ? `Ends ${timeAgo(market.end_date)}` 
-                            : 'Ended'}
-                        </span>
+                      {market.asset_type === 'prediction' ? (
+                        /* Prediction market stats */
+                        <>
+                          {market.volume !== undefined && (
+                            <Tooltip content={METRIC_TOOLTIPS.volume} position="top">
+                              <span className="flex items-center gap-1 cursor-help">
+                                <DollarSign className="w-3 h-3" />
+                                {market.volume >= 1000000 
+                                  ? `${(market.volume / 1000000).toFixed(1)}M` 
+                                  : market.volume >= 1000
+                                    ? `${(market.volume / 1000).toFixed(0)}K`
+                                    : market.volume.toFixed(0)
+                                } vol
+                              </span>
+                            </Tooltip>
+                          )}
+                          {market.end_date && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(market.end_date) > new Date() 
+                                ? `Ends ${timeAgo(market.end_date)}` 
+                                : 'Ended'}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        /* Crypto/Stock stats */
+                        <>
+                          {market.volume !== undefined && (
+                            <span className="flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" />
+                              24h Vol: {market.volume >= 1000000000 
+                                ? `$${(market.volume / 1000000000).toFixed(1)}B`
+                                : market.volume >= 1000000 
+                                  ? `$${(market.volume / 1000000).toFixed(1)}M` 
+                                  : market.volume >= 1000
+                                    ? `$${(market.volume / 1000).toFixed(0)}K`
+                                    : `$${market.volume.toFixed(0)}`
+                              }
+                            </span>
+                          )}
+                          {market.category && market.category !== 'Crypto' && (
+                            <span className="flex items-center gap-1">
+                              <BarChart3 className="w-3 h-3" />
+                              {market.category}
+                            </span>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -537,7 +598,7 @@ export default function MarketsPage() {
                         )}
                       >
                         <Plus className="w-4 h-4" />
-                        Trade
+                        {market.asset_type === 'prediction' ? 'Trade' : 'Buy/Sell'}
                       </button>
                       <a
                         href={market.url}
@@ -640,13 +701,13 @@ export default function MarketsPage() {
         />
       )}
 
-      {/* Crypto/Stock Trade Modal - Coming Soon */}
+      {/* Crypto/Stock Trade Modal */}
       {selectedMarket && showTradeModal && selectedMarket.asset_type !== 'prediction' && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">
-                {selectedMarket.asset_type === 'crypto' ? '🪙 Crypto Trade' : '📈 Stock Trade'}
+                {selectedMarket.asset_type === 'crypto' ? '🪙 Trade Crypto' : '📈 Trade Stock'}
               </h2>
               <button
                 onClick={() => {
@@ -654,71 +715,133 @@ export default function MarketsPage() {
                   setSelectedMarket(null);
                 }}
                 className="p-2 hover:bg-dark-border rounded-lg transition-colors"
+                title="Close"
               >
                 ✕
               </button>
             </div>
             
             <div className="space-y-4">
+              {/* Asset Info */}
               <div className="p-4 bg-dark-bg rounded-lg">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-3">
                   {selectedMarket.image && (
                     <img 
                       src={selectedMarket.image} 
                       alt={selectedMarket.symbol || ''} 
-                      className="w-10 h-10 rounded-full"
+                      className="w-12 h-12 rounded-full"
                     />
                   )}
-                  <div>
-                    <div className="text-lg font-medium">{selectedMarket.symbol || selectedMarket.question}</div>
-                    <div className="text-sm text-gray-400">{selectedMarket.question}</div>
+                  <div className="flex-1">
+                    <div className="text-xl font-bold">{selectedMarket.symbol || selectedMarket.question}</div>
+                    <div className="text-sm text-gray-400">{selectedMarket.description || selectedMarket.question}</div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between mt-3">
-                  <div className="text-2xl font-bold text-white">
-                    {selectedMarket.yes_price >= 1000 
-                      ? `$${selectedMarket.yes_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : selectedMarket.yes_price >= 1 
-                        ? `$${selectedMarket.yes_price.toFixed(2)}`
-                        : selectedMarket.yes_price >= 0.01
-                          ? `$${selectedMarket.yes_price.toFixed(4)}`
-                          : `$${selectedMarket.yes_price.toFixed(6)}`
-                    }
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Current Price</p>
+                    <div className="text-3xl font-bold text-white">
+                      {selectedMarket.yes_price >= 1000 
+                        ? `$${selectedMarket.yes_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : selectedMarket.yes_price >= 1 
+                          ? `$${selectedMarket.yes_price.toFixed(2)}`
+                          : selectedMarket.yes_price >= 0.01
+                            ? `$${selectedMarket.yes_price.toFixed(4)}`
+                            : `$${selectedMarket.yes_price.toFixed(8)}`
+                      }
+                    </div>
                   </div>
                   {selectedMarket.change_pct !== undefined && (
-                    <span className={cn(
-                      "text-sm font-medium px-2 py-1 rounded",
-                      selectedMarket.change_pct >= 0 
-                        ? "bg-green-500/20 text-green-400" 
-                        : "bg-red-500/20 text-red-400"
-                    )}>
-                      {selectedMarket.change_pct >= 0 ? '+' : ''}{selectedMarket.change_pct.toFixed(2)}%
-                    </span>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-500 mb-1">24h Change</p>
+                      <span className={cn(
+                        "text-lg font-bold",
+                        selectedMarket.change_pct >= 0 
+                          ? "text-green-400" 
+                          : "text-red-400"
+                      )}>
+                        {selectedMarket.change_pct >= 0 ? '+' : ''}{selectedMarket.change_pct.toFixed(2)}%
+                      </span>
+                    </div>
                   )}
                 </div>
+              </div>
+              
+              {/* Market Stats */}
+              <div className="grid grid-cols-2 gap-3">
+                {selectedMarket.volume !== undefined && (
+                  <div className="p-3 bg-dark-bg rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">24h Volume</p>
+                    <p className="font-semibold">
+                      {selectedMarket.volume >= 1000000000 
+                        ? `$${(selectedMarket.volume / 1000000000).toFixed(2)}B`
+                        : selectedMarket.volume >= 1000000 
+                          ? `$${(selectedMarket.volume / 1000000).toFixed(2)}M`
+                          : `$${selectedMarket.volume.toLocaleString()}`
+                      }
+                    </p>
+                  </div>
+                )}
                 {selectedMarket.market_cap && (
-                  <div className="text-sm text-gray-500 mt-2">
-                    Market Cap: ${(selectedMarket.market_cap / 1e9).toFixed(2)}B
+                  <div className="p-3 bg-dark-bg rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Market Cap</p>
+                    <p className="font-semibold">
+                      {selectedMarket.market_cap >= 1000000000000 
+                        ? `$${(selectedMarket.market_cap / 1000000000000).toFixed(2)}T`
+                        : selectedMarket.market_cap >= 1000000000 
+                          ? `$${(selectedMarket.market_cap / 1000000000).toFixed(2)}B`
+                          : `$${(selectedMarket.market_cap / 1000000).toFixed(2)}M`
+                      }
+                    </p>
                   </div>
                 )}
               </div>
               
-              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                <p className="text-yellow-400 text-sm">
-                  ⚠️ Manual {selectedMarket.asset_type === 'crypto' ? 'crypto' : 'stock'} trading coming soon!
-                  <br /><br />
-                  The bot automatically executes trades based on strategy signals. 
-                  Check the Strategies page to see active positions.
+              {/* Trading Actions */}
+              <div className="grid grid-cols-2 gap-3">
+                <a
+                  href={selectedMarket.asset_type === 'crypto' 
+                    ? `https://www.binance.us/trade/pro/${selectedMarket.symbol?.replace('/USD', '_USD').replace('/', '_')}`
+                    : `https://app.alpaca.markets/trade/${selectedMarket.symbol?.replace('/USD', '')}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-3 bg-green-500 text-white text-center rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  Buy
+                </a>
+                <a
+                  href={selectedMarket.asset_type === 'crypto' 
+                    ? `https://www.binance.us/trade/pro/${selectedMarket.symbol?.replace('/USD', '_USD').replace('/', '_')}`
+                    : `https://app.alpaca.markets/trade/${selectedMarket.symbol?.replace('/USD', '')}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-3 bg-red-500 text-white text-center rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <TrendingUp className="w-4 h-4 rotate-180" />
+                  Sell
+                </a>
+              </div>
+              
+              {/* Bot Trading Info */}
+              <div className="p-3 bg-neon-purple/10 border border-neon-purple/30 rounded-lg">
+                <p className="text-sm text-gray-300">
+                  💡 <strong>Automated Trading:</strong> The bot executes trades automatically based on strategy signals.
+                  Check <a href="/strategies" className="text-neon-purple hover:underline">Strategies</a> for active positions.
                 </p>
               </div>
               
+              {/* View on Exchange */}
               <a
                 href={selectedMarket.url || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full py-3 bg-neon-purple text-center rounded-lg font-medium hover:opacity-80 transition-opacity"
+                className="block w-full py-3 bg-dark-border text-center rounded-lg font-medium hover:bg-dark-border/80 transition-opacity flex items-center justify-center gap-2"
               >
-                Trade on {getPlatformInfo(selectedMarket.platform).name} →
+                <ExternalLink className="w-4 h-4" />
+                View on {selectedMarket.asset_type === 'crypto' ? 'CoinGecko' : 'Yahoo Finance'}
               </a>
             </div>
           </div>
