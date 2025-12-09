@@ -571,6 +571,25 @@ class PolybotRunner:
         
         # Initialize Pairs Trading Strategy (65% CONFIDENCE - 10-25% APY)
         if self.config.trading.enable_pairs_trading and self.ccxt_client:
+            # Detect exchange to use correct symbol format
+            exchange_id = getattr(self.ccxt_client, 'exchange_id', 'binance')
+            is_us_exchange = 'us' in exchange_id.lower()
+            
+            # Choose pairs based on exchange
+            if is_us_exchange:
+                # Binance US uses /USD pairs
+                custom_pairs = [
+                    ("BTC/USD", "ETH/USD", "BTC-ETH", 0.85, 15.0),
+                    ("SOL/USD", "AVAX/USD", "SOL-AVAX", 0.78, 3.5),
+                ]
+            else:
+                # International exchanges use /USDT pairs
+                custom_pairs = [
+                    ("BTC/USDT", "ETH/USDT", "BTC-ETH", 0.85, 15.0),
+                    ("SOL/USDT", "AVAX/USDT", "SOL-AVAX", 0.78, 3.5),
+                    ("LINK/USDT", "UNI/USDT", "LINK-UNI", 0.72, 1.8),
+                ]
+            
             self.pairs_trading = PairsTradingStrategy(
                 ccxt_client=self.ccxt_client,
                 db_client=self.db,
@@ -579,6 +598,7 @@ class PolybotRunner:
                 position_size_usd=self.config.trading.pairs_position_size_usd,
                 max_positions=self.config.trading.pairs_max_positions,
                 max_hold_hours=self.config.trading.pairs_max_hold_hours,
+                custom_pairs=custom_pairs,
                 dry_run=self.simulation_mode,
             )
             logger.info("✓ Pairs Trading initialized (65% CONFIDENCE)")
@@ -586,6 +606,7 @@ class PolybotRunner:
                 f"  📈 Entry z: {self.config.trading.pairs_entry_zscore} | "
                 f"Exit z: {self.config.trading.pairs_exit_zscore}"
             )
+            logger.info(f"  🔗 Pairs: {[p[2] for p in custom_pairs]}")
         elif self.config.trading.enable_pairs_trading:
             logger.info("⏸️ Pairs Trading DISABLED (no CCXT client)")
         else:
@@ -653,7 +674,7 @@ class PolybotRunner:
                 alpaca_client=self.alpaca_client,
                 db_client=self.db,
                 universe=universe,
-                min_momentum_score=70.0,  # Default, could be configurable
+                min_momentum_score=self.config.trading.momentum_min_score,
                 trailing_stop_pct=self.config.trading.stock_mom_stop_loss_pct,
                 max_position_size=self.config.trading.stock_mom_position_size_usd,
                 max_positions=self.config.trading.stock_mom_max_positions,
@@ -1078,6 +1099,38 @@ class PolybotRunner:
         if self.grid_trading:
             logger.info("▶️ Starting Grid Trading Strategy...")
             logger.info("  📊 Profit from sideways price oscillation")
+            
+            # Auto-create default grids if none exist
+            # Detect exchange to use correct symbol format
+            exchange_id = getattr(self.ccxt_client, 'exchange_id', 'binance')
+            is_us_exchange = 'us' in exchange_id.lower()
+            
+            # Choose symbols based on exchange
+            if is_us_exchange:
+                # Binance US uses /USD pairs
+                default_symbols = ["BTC/USD", "ETH/USD"]
+            else:
+                # International exchanges use /USDT pairs
+                default_symbols = ["BTC/USDT", "ETH/USDT"]
+            
+            # Create grids for default symbols if none exist
+            active_grids = len([g for g in self.grid_trading.grids.values() if g.is_active])
+            if active_grids == 0:
+                logger.info(f"  🔧 Auto-creating grids for {default_symbols}")
+                for symbol in default_symbols:
+                    try:
+                        grid = await self.grid_trading.create_grid(
+                            symbol=symbol,
+                            investment=float(self.config.trading.grid_default_investment_usd),
+                            grid_levels=self.config.trading.grid_default_levels,
+                        )
+                        if grid:
+                            logger.info(f"  ✅ Created grid for {symbol}")
+                        else:
+                            logger.warning(f"  ⚠️ Failed to create grid for {symbol}")
+                    except Exception as e:
+                        logger.error(f"  ❌ Error creating grid for {symbol}: {e}")
+            
             # Run indefinitely until stopped
             while self._running:
                 try:

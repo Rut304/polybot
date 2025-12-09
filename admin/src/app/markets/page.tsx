@@ -441,7 +441,8 @@ export default function MarketsPage() {
                     </div>
 
                     {/* Title - Different display for prediction vs crypto/stock */}
-                    {market.asset_type === 'prediction' ? (
+                    {/* Fallback: if platform is binance/bybit/okx or alpaca, treat as non-prediction */}
+                    {(market.asset_type === 'prediction' && !['binance', 'bybit', 'okx', 'alpaca'].includes(market.platform)) ? (
                       /* Prediction Market - Show question */
                       <h3 className="font-semibold mb-3 line-clamp-2 min-h-[48px]">
                         {market.question}
@@ -479,7 +480,8 @@ export default function MarketsPage() {
                     )}
 
                     {/* Prices - Different display for prediction vs crypto/stock */}
-                    {market.asset_type === 'prediction' ? (
+                    {/* Fallback: if platform is binance/bybit/okx or alpaca, treat as non-prediction */}
+                    {(market.asset_type === 'prediction' && !['binance', 'bybit', 'okx', 'alpaca'].includes(market.platform)) ? (
                       /* Prediction Market - Yes/No prices */
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         <Tooltip content={METRIC_TOOLTIPS.yesPrice} position="bottom">
@@ -537,7 +539,7 @@ export default function MarketsPage() {
 
                     {/* Stats - Different for prediction vs crypto/stock */}
                     <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
-                      {market.asset_type === 'prediction' ? (
+                      {(market.asset_type === 'prediction' && !['binance', 'bybit', 'okx', 'alpaca'].includes(market.platform)) ? (
                         /* Prediction market stats */
                         <>
                           {market.volume !== undefined && (
