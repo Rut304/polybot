@@ -134,6 +134,27 @@ if ! echo "$CURRENT_ENV" | grep -q "SUPABASE_URL"; then
     echo "  Please set environment variables manually in Lightsail console first."
     exit 1
 fi
+
+# CRITICAL: Ensure SUPABASE_SERVICE_ROLE_KEY is present (needed for secrets & logs)
+if ! echo "$CURRENT_ENV" | grep -q "SUPABASE_SERVICE_ROLE_KEY"; then
+    echo -e "${YELLOW}WARNING: SUPABASE_SERVICE_ROLE_KEY not found in environment${NC}"
+    # Try to add from local .env file
+    if [ -f "$PROJECT_ROOT/.env" ]; then
+        SERVICE_ROLE_KEY=$(grep "^SUPABASE_SERVICE_ROLE_KEY=" "$PROJECT_ROOT/.env" | cut -d'=' -f2-)
+        if [ -n "$SERVICE_ROLE_KEY" ]; then
+            echo "  Adding SERVICE_ROLE_KEY from local .env..."
+            CURRENT_ENV=$(echo "$CURRENT_ENV" | sed 's/}$/,"SUPABASE_SERVICE_ROLE_KEY":"'"$SERVICE_ROLE_KEY"'"}/')
+            echo -e "  ${GREEN}✓ Added SUPABASE_SERVICE_ROLE_KEY${NC}"
+        else
+            echo -e "${RED}ERROR: SUPABASE_SERVICE_ROLE_KEY not found in .env file${NC}"
+            echo "  The bot requires the service_role key to access secrets and write logs."
+            exit 1
+        fi
+    else
+        echo -e "${RED}ERROR: .env file not found and SUPABASE_SERVICE_ROLE_KEY missing${NC}"
+        exit 1
+    fi
+fi
 echo "  ✓ Environment variables validated"
 
 # Create deployment config

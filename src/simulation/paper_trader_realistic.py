@@ -214,9 +214,68 @@ class RealisticPaperTrader:
     LOSS_SEVERITY_MIN = 0.05
     LOSS_SEVERITY_MAX = 0.15
 
-    # ========== PLATFORM FEES ==========
-    POLYMARKET_FEE_PCT = 2.0    # ~2% on profits
-    KALSHI_FEE_PCT = 7.0        # ~7% on profits (higher fees)
+    # =========================================================================
+    # COMPREHENSIVE FEE STRUCTURES - ALL PLATFORMS (as of December 2025)
+    # =========================================================================
+    # 
+    # PREDICTION MARKETS:
+    # - Polymarket: 0% trading fees (peer-to-peer, no house)
+    #   Source: https://docs.polymarket.com/polymarket-learn/trading/fees
+    # - Kalshi: ~7% fee on PROFITS ONLY at settlement
+    #   Source: https://help.kalshi.com/trading/fees
+    #
+    # CRYPTO EXCHANGES (via CCXT):
+    # - Binance.US: 0.1% maker/taker (0.075% with BNB discount)
+    # - Coinbase: 0.5% spread + 0.6% maker / 1.2% taker (Coinbase One: 0%)
+    # - Coinbase Advanced: 0.6% maker / 1.2% taker (volume discounts available)
+    # - Kraken: 0.16% maker / 0.26% taker (volume discounts)
+    # - Bybit: 0.1% maker / 0.1% taker (VIP discounts)
+    # - OKX: 0.08% maker / 0.1% taker (VIP discounts)
+    # - KuCoin: 0.1% maker / 0.1% taker
+    #
+    # STOCK BROKERS:
+    # - Alpaca: $0 commission for stocks/ETFs (paper and live)
+    # - IBKR: $0 for stocks (Pro: $0.005/share, min $1)
+    #   Note: SEC/FINRA fees still apply (~$0.000008/share sold)
+    #
+    # CRYPTO FUTURES (Funding Rate Arb):
+    # - Binance Futures: 0.02% maker / 0.04% taker
+    # - Bybit Derivatives: 0.01% maker / 0.06% taker
+    # - OKX Perps: 0.02% maker / 0.05% taker
+    # =========================================================================
+    
+    # Prediction Markets
+    POLYMARKET_FEE_PCT = 0.0      # 0% trading fees
+    KALSHI_FEE_PCT = 7.0          # 7% on profits at settlement
+    
+    # Crypto Spot Exchanges (as percentage of trade value)
+    BINANCE_US_MAKER_FEE_PCT = 0.10
+    BINANCE_US_TAKER_FEE_PCT = 0.10
+    COINBASE_MAKER_FEE_PCT = 0.60    # Coinbase Advanced
+    COINBASE_TAKER_FEE_PCT = 1.20    # Higher for takers
+    COINBASE_SPREAD_FEE_PCT = 0.50   # Built into prices on regular Coinbase
+    KRAKEN_MAKER_FEE_PCT = 0.16
+    KRAKEN_TAKER_FEE_PCT = 0.26
+    BYBIT_MAKER_FEE_PCT = 0.10
+    BYBIT_TAKER_FEE_PCT = 0.10
+    OKX_MAKER_FEE_PCT = 0.08
+    OKX_TAKER_FEE_PCT = 0.10
+    KUCOIN_MAKER_FEE_PCT = 0.10
+    KUCOIN_TAKER_FEE_PCT = 0.10
+    
+    # Crypto Futures/Perpetuals
+    BINANCE_FUTURES_MAKER_FEE_PCT = 0.02
+    BINANCE_FUTURES_TAKER_FEE_PCT = 0.04
+    BYBIT_FUTURES_MAKER_FEE_PCT = 0.01
+    BYBIT_FUTURES_TAKER_FEE_PCT = 0.06
+    OKX_FUTURES_MAKER_FEE_PCT = 0.02
+    OKX_FUTURES_TAKER_FEE_PCT = 0.05
+    
+    # Stock Brokers
+    ALPACA_COMMISSION_USD = 0.0       # $0 commission
+    ALPACA_SEC_FEE_PER_SHARE = 0.000008  # SEC fee on sells only
+    IBKR_COMMISSION_USD = 0.0         # $0 for IBKR Lite
+    IBKR_PRO_PER_SHARE = 0.005        # IBKR Pro: $0.005/share
 
     # ========== POSITION SIZING ==========
     MAX_POSITION_PCT = 5.0      # Max % of balance per trade
@@ -311,10 +370,99 @@ class RealisticPaperTrader:
         Prices typically move against you during execution.
         """
         slippage_pct = random.uniform(self.SLIPPAGE_MIN_PCT, self.SLIPPAGE_MAX_PCT)
-        # Slippage usually works against you (price moves unfavorably)
+        # Slippage usually works against you (price moves unfavorable)
         direction = 1 if random.random() > 0.3 else -1  # 70% unfavorable
         slippage = price * Decimal(str(slippage_pct / 100)) * direction
         return slippage
+
+    def calculate_platform_fee(
+        self,
+        platform: str,
+        trade_value: Decimal,
+        gross_profit: Decimal,
+        is_maker: bool = False,
+        is_futures: bool = False,
+        asset_type: str = "prediction",  # prediction, crypto, stock
+    ) -> Decimal:
+        """
+        Calculate trading fee for a specific platform.
+        
+        Args:
+            platform: Platform name (polymarket, kalshi, binance, etc)
+            trade_value: Total trade value in USD
+            gross_profit: Gross profit (for profit-based fees like Kalshi)
+            is_maker: True if maker order, False if taker (crypto)
+            is_futures: True if futures/perpetuals trade
+            asset_type: Type of asset (prediction, crypto, stock)
+        
+        Returns:
+            Fee amount in USD
+        """
+        platform_lower = platform.lower().replace(" ", "").replace("-", "")
+        
+        # ========== PREDICTION MARKETS ==========
+        if platform_lower in ("polymarket", "poly"):
+            return Decimal("0")  # 0% fees
+        
+        if platform_lower == "kalshi":
+            # 7% on profits only, at settlement
+            if gross_profit > 0:
+                return gross_profit * Decimal("0.07")
+            return Decimal("0")
+        
+        # ========== CRYPTO SPOT EXCHANGES ==========
+        if platform_lower in ("binance", "binanceus"):
+            rate = self.BINANCE_US_MAKER_FEE_PCT if is_maker else \
+                   self.BINANCE_US_TAKER_FEE_PCT
+            return trade_value * Decimal(str(rate / 100))
+        
+        if platform_lower in ("coinbase", "coinbasepro", "coinbaseadvanced"):
+            rate = self.COINBASE_MAKER_FEE_PCT if is_maker else \
+                   self.COINBASE_TAKER_FEE_PCT
+            return trade_value * Decimal(str(rate / 100))
+        
+        if platform_lower == "kraken":
+            rate = self.KRAKEN_MAKER_FEE_PCT if is_maker else \
+                   self.KRAKEN_TAKER_FEE_PCT
+            return trade_value * Decimal(str(rate / 100))
+        
+        if platform_lower == "bybit":
+            if is_futures:
+                rate = self.BYBIT_FUTURES_MAKER_FEE_PCT if is_maker else \
+                       self.BYBIT_FUTURES_TAKER_FEE_PCT
+            else:
+                rate = self.BYBIT_MAKER_FEE_PCT if is_maker else \
+                       self.BYBIT_TAKER_FEE_PCT
+            return trade_value * Decimal(str(rate / 100))
+        
+        if platform_lower == "okx":
+            if is_futures:
+                rate = self.OKX_FUTURES_MAKER_FEE_PCT if is_maker else \
+                       self.OKX_FUTURES_TAKER_FEE_PCT
+            else:
+                rate = self.OKX_MAKER_FEE_PCT if is_maker else \
+                       self.OKX_TAKER_FEE_PCT
+            return trade_value * Decimal(str(rate / 100))
+        
+        if platform_lower == "kucoin":
+            rate = self.KUCOIN_MAKER_FEE_PCT if is_maker else \
+                   self.KUCOIN_TAKER_FEE_PCT
+            return trade_value * Decimal(str(rate / 100))
+        
+        # ========== STOCK BROKERS ==========
+        if platform_lower == "alpaca":
+            # Commission-free, but SEC fee on sells
+            # SEC fee is ~$0.000008 per share sold
+            # For simplicity, apply 0.0008% on sell value
+            return trade_value * Decimal("0.000008")
+        
+        if platform_lower in ("ibkr", "interactivebrokers"):
+            return Decimal(str(self.IBKR_COMMISSION_USD))
+        
+        # ========== DEFAULT / UNKNOWN ==========
+        # Default to 0.1% if platform unknown (conservative estimate)
+        logger.warning(f"Unknown platform '{platform}', using 0.1% fee")
+        return trade_value * Decimal("0.001")
 
     def _simulate_execution(
         self,
@@ -336,14 +484,22 @@ class RealisticPaperTrader:
         3. Successful winning trade - profit after costs
         """
         # ========== DIFFERENT RISK PROFILES ==========
+        #
+        # KEY INSIGHT: True arbitrage (single-platform or cross-platform) has
+        # BOUNDED LOSS - you can only lose the spread you're trading, not more.
+        # Loss severity should be proportional to the spread, not a fixed %.
+        #
         if is_cross_platform:
             # TRUE ARBITRAGE: Same event, different platforms, locked-in profit
             # Very low failure rate (both platforms liquid for same event)
-            exec_failure_rate = 0.10  # 10% fail
+            exec_failure_rate = 0.08  # 8% fail (improved execution)
             # Very low loss rate (true arb, both sides of same bet)
-            loss_rate = 0.03  # 3% loss rate - only from execution timing
-            loss_min = 0.05  # 5% loss minimum
-            loss_max = 0.15  # 15% loss max - small slippage losses
+            loss_rate = 0.02  # 2% loss rate - only from execution timing
+            # BOUNDED LOSS: Max loss is the spread + slippage, not arbitrary %
+            # For a 2% spread, max loss is ~3% (spread + slippage)
+            spread_float = float(original_spread_pct)
+            loss_min = 0.02  # 2% min loss (slippage only)
+            loss_max = min(0.08, spread_float / 100 + 0.03)  # Capped at spread + 3%
             profit_reason = "TRUE ARBITRAGE: Locked profit on same event"
         else:
             # SAME-PLATFORM OVERLAP: Different events, correlation assumed
@@ -393,11 +549,14 @@ class RealisticPaperTrader:
         avg_slippage = Decimal(str(slippage_range))
         spread_cost = Decimal(str(self.SPREAD_COST_PCT))
         
-        # Lower fees for cross-platform (optimized routing)
+        # Estimate average fee impact for profit calculation
+        # Note: Actual fees are platform-specific and calculated at trade time
+        # Polymarket: 0%, Kalshi: 7% on profits
+        # Use conservative estimate for filtering
         if is_cross_platform:
-            avg_fee = Decimal("3.0")  # ~3% effective for optimized arb
+            avg_fee = Decimal("3.5")  # ~7% * 50% (one leg on Kalshi)
         else:
-            avg_fee = Decimal("4.5")  # ~4.5% for same-platform
+            avg_fee = Decimal("7.0")  # Kalshi-only trades pay full 7%
 
         actual_profit_pct = original_spread_pct - avg_slippage - spread_cost
 
@@ -582,16 +741,38 @@ class RealisticPaperTrader:
             trade.executed_price_a = price_a + slippage_a
             trade.executed_price_b = price_b + slippage_b
 
-            # Calculate fees (on position size)
-            fee_a = Decimal(str(self.POLYMARKET_FEE_PCT / 100))
-            fee_b = Decimal(str(self.KALSHI_FEE_PCT / 100))
-            trade.fee_a_usd = position_size * fee_a
-            trade.fee_b_usd = position_size * fee_b
-            trade.total_fees_usd = (trade.fee_a_usd + trade.fee_b_usd) / 2
-
-            # Calculate P&L
+            # Calculate P&L BEFORE fees (gross)
             gross_pnl = position_size * actual_profit_pct / Decimal("100")
             trade.gross_profit_usd = gross_pnl
+
+            # ========== PLATFORM-SPECIFIC FEE CALCULATION ==========
+            # Use comprehensive fee calculator for each platform leg
+            # Handles: Polymarket (0%), Kalshi (7% profit), Crypto, Stocks
+            trade.fee_a_usd = self.calculate_platform_fee(
+                platform=platform_a,
+                trade_value=position_size / 2,  # Half position per leg
+                gross_profit=gross_pnl / 2 if gross_pnl > 0 else Decimal("0"),
+                is_maker=False,  # Assume taker for conservative estimate
+                is_futures=False,
+                asset_type="prediction" if platform_a.lower() in (
+                    "polymarket", "kalshi", "poly"
+                ) else "crypto"
+            )
+            
+            trade.fee_b_usd = self.calculate_platform_fee(
+                platform=platform_b,
+                trade_value=position_size / 2,
+                gross_profit=gross_pnl / 2 if gross_pnl > 0 else Decimal("0"),
+                is_maker=False,
+                is_futures=False,
+                asset_type="prediction" if platform_b.lower() in (
+                    "polymarket", "kalshi", "poly"
+                ) else "crypto"
+            )
+
+            trade.total_fees_usd = trade.fee_a_usd + trade.fee_b_usd
+
+            # Net P&L = Gross - Fees
             trade.net_profit_usd = gross_pnl - trade.total_fees_usd
 
             if position_size > 0:
@@ -806,6 +987,367 @@ class RealisticPaperTrader:
                 )
         except Exception as e:
             logger.error(f"Failed to save stats to DB: {e}")
+
+    # =========================================================================
+    # CRYPTO TRADE SIMULATION
+    # Supports: Binance.US, Coinbase, Kraken, Bybit, OKX, KuCoin
+    # =========================================================================
+    async def simulate_crypto_trade(
+        self,
+        symbol: str,
+        exchange: str,
+        side: str,  # "buy" or "sell"
+        size_usd: Decimal,
+        entry_price: Decimal,
+        exit_price: Decimal,
+        strategy: str = "manual",
+        is_futures: bool = False,
+        is_maker: bool = False,
+    ) -> Optional[SimulatedTrade]:
+        """
+        Simulate a crypto trade with realistic fees.
+        
+        Args:
+            symbol: Trading pair (e.g., "BTC/USDT")
+            exchange: Exchange name (binance, coinbase, etc.)
+            side: "buy" or "sell"
+            size_usd: Trade size in USD
+            entry_price: Entry price
+            exit_price: Exit price (for P&L calculation)
+            strategy: Strategy name for tracking
+            is_futures: True if perpetual/futures trade
+            is_maker: True if maker order (lower fees)
+        
+        Returns:
+            SimulatedTrade object or None if execution fails
+        """
+        now = datetime.now(timezone.utc)
+        self.stats.opportunities_seen += 1
+        
+        # Check balance
+        if self.stats.current_balance < size_usd:
+            logger.warning(f"Insufficient balance for crypto trade")
+            return None
+        
+        # Calculate P&L
+        if side == "buy":
+            pnl_pct = (exit_price - entry_price) / entry_price * 100
+        else:
+            pnl_pct = (entry_price - exit_price) / entry_price * 100
+        
+        gross_pnl = size_usd * pnl_pct / Decimal("100")
+        
+        # Calculate fees using comprehensive method
+        entry_fee = self.calculate_platform_fee(
+            platform=exchange,
+            trade_value=size_usd,
+            gross_profit=Decimal("0"),  # Entry has no profit yet
+            is_maker=is_maker,
+            is_futures=is_futures,
+            asset_type="crypto"
+        )
+        exit_fee = self.calculate_platform_fee(
+            platform=exchange,
+            trade_value=size_usd + gross_pnl if gross_pnl > 0 else size_usd,
+            gross_profit=gross_pnl if gross_pnl > 0 else Decimal("0"),
+            is_maker=is_maker,
+            is_futures=is_futures,
+            asset_type="crypto"
+        )
+        total_fees = entry_fee + exit_fee
+        net_pnl = gross_pnl - total_fees
+        
+        # Create trade record
+        trade = SimulatedTrade(
+            id=self._generate_trade_id(),
+            created_at=now,
+            market_a_id=symbol,
+            market_a_title=f"{symbol} {side.upper()} on {exchange}",
+            market_b_id=symbol,
+            market_b_title=f"{strategy}",
+            platform_a=exchange,
+            platform_b=exchange,
+            original_price_a=entry_price,
+            original_price_b=exit_price,
+            original_spread_pct=abs(pnl_pct),
+            intended_size_usd=size_usd,
+            executed_size_usd=size_usd,
+            executed_price_a=entry_price,
+            executed_price_b=exit_price,
+            fee_a_usd=entry_fee,
+            fee_b_usd=exit_fee,
+            total_fees_usd=total_fees,
+            gross_profit_usd=gross_pnl,
+            net_profit_usd=net_pnl,
+            net_profit_pct=net_pnl / size_usd * 100 if size_usd > 0 else Decimal("0"),
+            outcome=TradeOutcome.WON if net_pnl > 0 else TradeOutcome.LOST,
+            outcome_reason=f"{strategy} - {exchange}",
+            resolved_at=now,
+            arbitrage_type=f"crypto_{strategy}",
+        )
+        
+        # Update stats
+        self._update_stats_from_trade(trade)
+        
+        logger.info(
+            f"{'✅' if net_pnl > 0 else '❌'} CRYPTO: {symbol} {side} "
+            f"${size_usd:.2f} | Net: ${net_pnl:+.2f} | "
+            f"Fees: ${total_fees:.4f} ({exchange})"
+        )
+        
+        return trade
+
+    # =========================================================================
+    # STOCK TRADE SIMULATION  
+    # Supports: Alpaca ($0 commission), IBKR
+    # =========================================================================
+    async def simulate_stock_trade(
+        self,
+        symbol: str,
+        broker: str,
+        side: str,  # "buy" or "sell"
+        shares: int,
+        entry_price: Decimal,
+        exit_price: Decimal,
+        strategy: str = "manual",
+    ) -> Optional[SimulatedTrade]:
+        """
+        Simulate a stock trade with realistic fees.
+        
+        Args:
+            symbol: Stock ticker (e.g., "AAPL")
+            broker: Broker name (alpaca, ibkr)
+            side: "buy" or "sell"
+            shares: Number of shares
+            entry_price: Entry price per share
+            exit_price: Exit price per share
+            strategy: Strategy name for tracking
+        
+        Returns:
+            SimulatedTrade object or None if execution fails
+        """
+        now = datetime.now(timezone.utc)
+        self.stats.opportunities_seen += 1
+        
+        size_usd = Decimal(str(shares)) * entry_price
+        
+        # Check balance
+        if self.stats.current_balance < size_usd:
+            logger.warning(f"Insufficient balance for stock trade")
+            return None
+        
+        # Calculate P&L
+        if side == "buy":
+            pnl_pct = (exit_price - entry_price) / entry_price * 100
+        else:
+            pnl_pct = (entry_price - exit_price) / entry_price * 100
+        
+        gross_pnl = size_usd * pnl_pct / Decimal("100")
+        
+        # Calculate fees (Alpaca: $0 commission, SEC fee on sells)
+        # SEC fee: ~$0.000008 per share sold
+        entry_fee = Decimal("0")  # No fee on buys for most brokers
+        exit_fee = Decimal("0")
+        
+        if broker.lower() == "alpaca":
+            # SEC fee only on sells
+            if side == "sell":
+                exit_fee = Decimal(str(shares)) * Decimal("0.000008")
+        elif broker.lower() in ("ibkr", "interactivebrokers"):
+            # IBKR Lite is $0, Pro is $0.005/share
+            exit_fee = Decimal("0")  # Assume Lite
+        
+        total_fees = entry_fee + exit_fee
+        net_pnl = gross_pnl - total_fees
+        exit_value = Decimal(str(shares)) * exit_price
+        
+        # Create trade record
+        trade = SimulatedTrade(
+            id=self._generate_trade_id(),
+            created_at=now,
+            market_a_id=symbol,
+            market_a_title=f"{symbol} {shares} shares {side.upper()}",
+            market_b_id=symbol,
+            market_b_title=f"{strategy}",
+            platform_a=broker,
+            platform_b=broker,
+            original_price_a=entry_price,
+            original_price_b=exit_price,
+            original_spread_pct=abs(pnl_pct),
+            intended_size_usd=size_usd,
+            executed_size_usd=size_usd,
+            executed_price_a=entry_price,
+            executed_price_b=exit_price,
+            fee_a_usd=entry_fee,
+            fee_b_usd=exit_fee,
+            total_fees_usd=total_fees,
+            gross_profit_usd=gross_pnl,
+            net_profit_usd=net_pnl,
+            net_profit_pct=net_pnl / size_usd * 100 if size_usd > 0 else Decimal("0"),
+            outcome=TradeOutcome.WON if net_pnl > 0 else TradeOutcome.LOST,
+            outcome_reason=f"{strategy} - {broker}",
+            resolved_at=now,
+            arbitrage_type=f"stock_{strategy}",
+        )
+        
+        # Update stats
+        self._update_stats_from_trade(trade)
+        
+        logger.info(
+            f"{'✅' if net_pnl > 0 else '❌'} STOCK: {symbol} {shares}sh {side} "
+            f"${size_usd:.2f} | Net: ${net_pnl:+.2f} | "
+            f"Fees: ${total_fees:.4f} ({broker})"
+        )
+        
+        return trade
+
+    # =========================================================================
+    # FUNDING RATE ARB SIMULATION
+    # Simulates delta-neutral funding collection
+    # =========================================================================
+    async def simulate_funding_trade(
+        self,
+        symbol: str,
+        exchange: str,
+        position_size_usd: Decimal,
+        funding_rate_pct: Decimal,  # Per 8 hours
+        hours_held: float = 8.0,
+    ) -> Optional[SimulatedTrade]:
+        """
+        Simulate a funding rate arbitrage position.
+        
+        Funding arb is delta-neutral: long spot + short perp
+        Profit comes from collecting positive funding payments.
+        
+        Args:
+            symbol: Trading pair (e.g., "BTC/USDT")
+            exchange: Exchange name
+            position_size_usd: Position size
+            funding_rate_pct: Funding rate per 8h as percentage
+            hours_held: Hours position was held
+        
+        Returns:
+            SimulatedTrade object
+        """
+        now = datetime.now(timezone.utc)
+        self.stats.opportunities_seen += 1
+        
+        if self.stats.current_balance < position_size_usd:
+            return None
+        
+        # Calculate funding collected
+        funding_periods = hours_held / 8.0
+        funding_collected = position_size_usd * (
+            funding_rate_pct / 100
+        ) * Decimal(str(funding_periods))
+        
+        # Fees for opening position (entry)
+        # Need to buy spot AND short futures
+        spot_entry_fee = self.calculate_platform_fee(
+            platform=exchange,
+            trade_value=position_size_usd,
+            gross_profit=Decimal("0"),
+            is_futures=False,
+            asset_type="crypto"
+        )
+        futures_entry_fee = self.calculate_platform_fee(
+            platform=exchange,
+            trade_value=position_size_usd,
+            gross_profit=Decimal("0"),
+            is_futures=True,
+            asset_type="crypto"
+        )
+        
+        # Fees for closing (exit)
+        spot_exit_fee = self.calculate_platform_fee(
+            platform=exchange,
+            trade_value=position_size_usd,
+            gross_profit=Decimal("0"),
+            is_futures=False,
+            asset_type="crypto"
+        )
+        futures_exit_fee = self.calculate_platform_fee(
+            platform=exchange,
+            trade_value=position_size_usd,
+            gross_profit=Decimal("0"),
+            is_futures=True,
+            asset_type="crypto"
+        )
+        
+        total_fees = spot_entry_fee + futures_entry_fee + \
+                     spot_exit_fee + futures_exit_fee
+        net_pnl = funding_collected - total_fees
+        
+        # Create trade record
+        trade = SimulatedTrade(
+            id=self._generate_trade_id(),
+            created_at=now,
+            market_a_id=symbol,
+            market_a_title=f"{symbol} Funding Arb",
+            market_b_id=f"{symbol}:PERP",
+            market_b_title=f"Delta-neutral {hours_held}h",
+            platform_a=exchange,
+            platform_b=exchange,
+            original_price_a=funding_rate_pct,
+            original_price_b=Decimal(str(hours_held)),
+            original_spread_pct=funding_rate_pct * 3 * 365,  # Annualized
+            intended_size_usd=position_size_usd,
+            executed_size_usd=position_size_usd,
+            fee_a_usd=spot_entry_fee + spot_exit_fee,
+            fee_b_usd=futures_entry_fee + futures_exit_fee,
+            total_fees_usd=total_fees,
+            gross_profit_usd=funding_collected,
+            net_profit_usd=net_pnl,
+            net_profit_pct=net_pnl / position_size_usd * 100,
+            outcome=TradeOutcome.WON if net_pnl > 0 else TradeOutcome.LOST,
+            outcome_reason=f"Funding {funding_rate_pct:.4f}%/8h",
+            resolved_at=now,
+            arbitrage_type="funding_rate_arb",
+        )
+        
+        self._update_stats_from_trade(trade)
+        
+        logger.info(
+            f"{'✅' if net_pnl > 0 else '❌'} FUNDING: {symbol} "
+            f"${position_size_usd:.0f} x {hours_held}h | "
+            f"Collected: ${funding_collected:.4f} | "
+            f"Net: ${net_pnl:+.4f} | Fees: ${total_fees:.4f}"
+        )
+        
+        return trade
+
+    def _update_stats_from_trade(self, trade: SimulatedTrade) -> None:
+        """Update statistics from a completed trade."""
+        self.trades[trade.id] = trade
+        self.stats.opportunities_traded += 1
+        self.stats.successful_executions += 1
+        self.stats.total_fees_paid += trade.total_fees_usd
+        
+        if trade.outcome == TradeOutcome.WON:
+            self.stats.winning_trades += 1
+            self.stats.total_gross_profit += trade.gross_profit_usd
+            self.stats.total_net_profit += trade.net_profit_usd
+            self.stats.current_balance += trade.net_profit_usd
+            if trade.net_profit_usd > self.stats.best_trade_pnl:
+                self.stats.best_trade_pnl = trade.net_profit_usd
+        else:
+            self.stats.losing_trades += 1
+            loss_amount = abs(trade.net_profit_usd)
+            self.stats.total_losses += loss_amount
+            self.stats.current_balance -= loss_amount
+            if trade.net_profit_usd < self.stats.worst_trade_pnl:
+                self.stats.worst_trade_pnl = trade.net_profit_usd
+        
+        # Update average
+        total_trades = self.stats.winning_trades + self.stats.losing_trades
+        if total_trades > 0:
+            self.stats.avg_trade_pnl = (
+                self.stats.total_net_profit - self.stats.total_losses
+            ) / total_trades
+        
+        if not self.stats.first_trade_at:
+            self.stats.first_trade_at = trade.created_at
+        self.stats.last_trade_at = trade.created_at
 
     def get_summary(self) -> str:
         """Get formatted summary of paper trading performance"""

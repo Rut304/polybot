@@ -598,6 +598,55 @@ export default function MarketsPage() {
           }}
         />
       )}
+
+      {/* Crypto/Stock Trade Modal - Coming Soon */}
+      {selectedMarket && (selectedMarket.platform === 'binance' || selectedMarket.platform === 'alpaca') && showTradeModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">
+                {selectedMarket.platform === 'binance' ? '🪙 Crypto Trade' : '📈 Stock Trade'}
+              </h2>
+              <button
+                onClick={() => {
+                  setShowTradeModal(false);
+                  setSelectedMarket(null);
+                }}
+                className="p-2 hover:bg-dark-border rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="p-4 bg-dark-bg rounded-lg">
+                <div className="text-lg font-medium">{selectedMarket.question || selectedMarket.symbol}</div>
+                <div className="text-2xl font-bold text-neon-green mt-2">
+                  ${selectedMarket.price?.toFixed(2) || selectedMarket.yes_price?.toFixed(4) || 'N/A'}
+                </div>
+              </div>
+              
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <p className="text-yellow-400 text-sm">
+                  ⚠️ Manual {selectedMarket.platform === 'binance' ? 'crypto' : 'stock'} trading coming soon!
+                  <br /><br />
+                  The bot automatically executes trades based on strategy signals. 
+                  Check the Strategies page to see active positions.
+                </p>
+              </div>
+              
+              <a
+                href={selectedMarket.url || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full py-3 bg-neon-purple text-center rounded-lg font-medium hover:opacity-80 transition-opacity"
+              >
+                Trade on {selectedMarket.platform === 'binance' ? 'Binance' : 'Alpaca'} →
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

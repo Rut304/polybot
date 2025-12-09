@@ -34,9 +34,21 @@ PolyBot is an autonomous trading bot spanning THREE asset classes:
 
 | Asset Class | Platforms | Strategies | Status |
 |-------------|-----------|------------|--------|
-| **Prediction Markets** | Polymarket (0% fees), Kalshi (7% fees) | Single-platform arb, Cross-platform arb | ✅ LIVE |
-| **Crypto** | 106+ exchanges via CCXT | Funding Rate Arb, Grid Trading, Pairs | 🔧 Ready |
-| **Stocks** | Alpaca (commission-free) | Mean Reversion, Momentum | ✅ Deployed |
+| **Prediction Markets** | Polymarket (0% fees), Kalshi (7% on profits) | Single-platform arb, Cross-platform arb | ✅ LIVE |
+| **Crypto** | Coinbase, Kraken, Bybit, OKX, KuCoin (0.1-1.2% fees) | Funding Rate Arb, Grid Trading, Pairs | 🔧 Ready |
+| **Stocks** | Alpaca ($0 commission) | Mean Reversion, Momentum | ✅ Deployed |
+
+### Complete Fee Reference (docs/FEE_STRUCTURES.md)
+
+| Platform | Fee Structure | Best For |
+|----------|---------------|----------|
+| Polymarket | **0%** | Highest priority - all arb |
+| Kalshi | **7% on profits only** | Large spreads (>10%) |
+| Alpaca | **$0 + SEC fee** | Stock strategies |
+| Binance.US | **0.1% maker/taker** | Crypto (US users) |
+| Coinbase | **0.6%/1.2% maker/taker** | Avoid for small trades |
+| Kraken | **0.16%/0.26%** | Good liquidity |
+| Bybit/OKX | **0.01-0.1%** | Futures arb |
 
 ### Current Performance (December 8, 2025)
 - **Simulated Balance**: $129,770.15 (+29.77% ROI from $100K starting)
@@ -51,21 +63,23 @@ The Kalshi platform charges **7% fees on profits**. Current settings:
 - With 7% fees, a 10% gross profit = 3% net profit
 - Losses have no fee offset, so they appear larger
 
-### Recent Changes (This Session)
-1. ✅ Fixed Opportunity Statistics modal (was showing 50 instead of 1000)
-2. ✅ Added all strategies to Analytics dropdown (19 total strategies)
-3. ✅ Added trade counts to strategy filter
-4. ✅ News API now working (70 items from 4 sources)
-5. ✅ Raised Kalshi min profit to 10% to improve payoff ratio
+### Recent Changes (December 8, 2025)
+1. ✅ Comprehensive fee structures for ALL platforms implemented
+2. ✅ Crypto trade simulation (Binance, Coinbase, Kraken, etc.)
+3. ✅ Stock trade simulation (Alpaca, IBKR)
+4. ✅ Funding rate arbitrage simulation
+5. ✅ Fixed fee calculation (was averaging, now platform-specific)
+6. ✅ Created docs/FEE_STRUCTURES.md with complete reference
 
 ## ARCHITECTURE OVERVIEW
 
 ### Technology Stack
 ```
+
 ┌─────────────────────────────────────────────────────────────┐
 │                        FRONTEND                              │
 │  Next.js 14 + React + TailwindCSS + TanStack Query          │
-│  Hosted: Vercel (https://admin-gules-chi.vercel.app)        │
+│  Hosted: Vercel (<https://admin-gules-chi.vercel.app>)        │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -82,6 +96,7 @@ The Kalshi platform charges **7% fees on profits**. Current settings:
 │  Python 3.11 + AsyncIO - Bot runner with strategy engines   │
 │  Hosted: AWS Lightsail ($5/month) via Docker                │
 └─────────────────────────────────────────────────────────────┘
+
 ```
 
 ### Key Files to Master
@@ -121,47 +136,59 @@ The Kalshi platform charges **7% fees on profits**. Current settings:
 
 #### 1. Polymarket Single-Platform Arbitrage (Main Profit Driver)
 ```
+
 How it works:
+
 - Polymarket has binary markets (YES + NO must sum to $1.00)
 - Sometimes YES + NO < $1.00 due to liquidity imbalances
 - Bot buys both sides, locks in guaranteed profit
 
 Settings:
+
 - Min Profit: 0.3% (research shows this is profitable at scale)
 - Max Position: $100
 - Scan Interval: 30 seconds
 - Fees: 0% (Polymarket has no trading fees!)
 
 Research basis: Saguillo et al. 2025 found $40M extracted at 0.3-2% margins
+
 ```
 
 #### 2. Kalshi Single-Platform Arbitrage
 ```
+
 How it works:
+
 - Same as Polymarket but on Kalshi (regulated US exchange)
 - Kalshi charges 7% fee on profits
 
 Settings:
+
 - Min Profit: 10% (just raised - need 3%+ after 7% fee)
 - Max Position: $50
 - Scan Interval: 60 seconds
 
 Challenge: High fees make small spreads unprofitable
+
 ```
 
 #### 3. Cross-Platform Arbitrage
 ```
+
 How it works:
+
 - Same event priced differently on Polymarket vs Kalshi
 - Buy low on one, sell high on other
 
 Settings:
+
 - Min Profit (Buy Poly): 2.5% (0% fees)
 - Min Profit (Buy Kalshi): 9.0% (7% fee)
 - Max Position: $75
 - Min Similarity: 0.35 (market matching threshold)
 
 Challenge: Finding identical markets across platforms
+
 ```
 
 ### Strategies Ready But Not Active
@@ -212,6 +239,7 @@ polybot_status (
 ```
 
 ### Important Views
+
 ```sql
 -- Aggregated strategy performance (used by dashboard)
 polybot_strategy_performance (
@@ -223,6 +251,7 @@ polybot_strategy_performance (
 ## DEPLOYMENT WORKFLOW
 
 ### Frontend (Vercel - Auto-deploy)
+
 ```bash
 cd /Users/rut/polybot/admin
 git add -A && git commit -m "Description" && git push
@@ -230,6 +259,7 @@ git add -A && git commit -m "Description" && git push
 ```
 
 ### Backend (AWS Lightsail - Manual)
+
 ```bash
 cd /Users/rut/polybot
 
@@ -248,6 +278,7 @@ aws lightsail create-container-service-deployment \
 ```
 
 ### Check Status
+
 ```bash
 # Deployment status
 aws lightsail get-container-services --service-name polyparlay \
@@ -265,6 +296,7 @@ curl https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health
 ## SECRETS MANAGEMENT ⚠️
 
 **Important**: Secrets updated in UI only update Supabase. They do NOT sync to:
+
 - AWS Lightsail environment variables
 - GitHub Secrets
 - Local .env files
@@ -273,6 +305,7 @@ The bot reads secrets from Supabase at runtime, so UI changes work for the bot.
 But GitHub Actions and manual AWS deployments need separate updates.
 
 ### Current API Keys (in Supabase)
+
 - `FINNHUB_API_KEY` - News data ✅
 - `NEWS_API_KEY` - NewsAPI.org ✅
 - `ALPHA_VANTAGE_API_KEY` - Market data ✅
@@ -294,28 +327,34 @@ But GitHub Actions and manual AWS deployments need separate updates.
 ## IMMEDIATE PRIORITIES FOR NEXT AGENT
 
 ### 1. 🔴 Optimize Trading Performance
+
 **Current Issue**: Avg Loss ($1.50) > Avg Win ($1.32)
+
 - Payoff ratio 0.88x means losses hurt more than wins help
 - High win rate (83.7%) compensates, but can improve
 
 **Recommendations**:
+
 1. Analyze losing trades by strategy - are Kalshi trades the losers?
 2. Consider raising min profit thresholds further
 3. Add dynamic position sizing based on confidence
 4. Implement stop-loss for positions that move against us
 
 ### 2. 🟡 Add Strategy Analytics
+
 - Per-strategy P&L breakdown (which strategies actually profitable?)
 - Win rate by time of day (are there better times to trade?)
 - Market liquidity analysis (which markets are best?)
 
 ### 3. 🟡 UI Improvements
+
 - Real-time P&L updates (currently 5-second polling)
 - Trade notifications/alerts
 - Strategy comparison charts
 - Risk metrics dashboard (Sharpe, Sortino, Max Drawdown over time)
 
 ### 4. 🟢 New Strategy Development
+
 - Enable funding rate arbitrage (requires crypto exchange API keys)
 - Backtest stock strategies with historical data
 - Consider options strategies (covered calls, wheel)
@@ -324,14 +363,15 @@ But GitHub Actions and manual AWS deployments need separate updates.
 
 | Resource | URL |
 |----------|-----|
-| Admin UI | https://admin-gules-chi.vercel.app |
-| Bot Health | https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health |
-| Supabase | https://supabase.com/dashboard/project/lfyjwlgtlsqobjubrwgv |
-| GitHub | https://github.com/Rut304/polybot |
+| Admin UI | <https://admin-gules-chi.vercel.app> |
+| Bot Health | <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health> |
+| Supabase | <https://supabase.com/dashboard/project/lfyjwlgtlsqobjubrwgv> |
+| GitHub | <https://github.com/Rut304/polybot> |
 
 ## SESSION SUMMARY (December 8, 2025)
 
 ### Completed This Session
+
 1. ✅ Fixed Opportunity Statistics modal (1000 vs 50 mismatch)
 2. ✅ Added all 19 strategies to Analytics dropdown
 3. ✅ Added trade counts to strategy filter
@@ -341,12 +381,14 @@ But GitHub Actions and manual AWS deployments need separate updates.
 7. ✅ Fixed "Generate AI Analysis" rate limiting (3→10 per 5min)
 
 ### Current Known Issues
+
 - Bot version showing "Error" in header (connection to Lightsail health endpoint)
 - v11 deployment was in progress (check `aws lightsail get-container-services`)
 
 ---
 
 **Start by**: Reading `ALGO_TRADING_DEEP_RESEARCH.md`, then analyze the Analytics page data to understand where profit/loss is coming from. Focus on improving the payoff ratio while maintaining the high win rate.
+
 ```
 
 ---

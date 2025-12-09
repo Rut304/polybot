@@ -116,6 +116,7 @@ class CCXTClient(BaseExchange):
         self.exchange_id = EXCHANGE_MAPPING.get(exchange_id.lower(), exchange_id)
         self.password = password
         self.exchange: Optional[ccxt.Exchange] = None
+        self._session = None  # aiohttp session for IPv4 connections
         
     async def initialize(self) -> bool:
         """Initialize connection to exchange."""
@@ -128,9 +129,19 @@ class CCXTClient(BaseExchange):
             spot_only_exchanges = ['binanceus', 'coinbase', 'kraken', 'gemini']
             default_type = 'spot' if self.exchange_id in spot_only_exchanges else 'future'
             
-            # Configure exchange
+            # Force IPv4 connections for exchanges that don't support IPv6
+            # Binance US specifically returns error -71012 "IPv6 not supported"
+            import aiohttp
+            import socket
+            ipv4_connector = aiohttp.TCPConnector(family=socket.AF_INET)
+            
+            # Configure exchange with IPv4-only session
+            # This fixes Binance US error -71012 "IPv6 not supported"
+            session = aiohttp.ClientSession(connector=ipv4_connector)
+            
             config = {
                 'enableRateLimit': True,  # Built-in rate limiting
+                'session': session,  # Use IPv4-only session
                 'options': {
                     'defaultType': default_type,
                 }
@@ -145,6 +156,7 @@ class CCXTClient(BaseExchange):
             
             # Create exchange instance
             self.exchange = exchange_class(config)
+            self._session = session  # Store for cleanup
             
             # Enable sandbox mode if requested
             if self.sandbox:
@@ -156,7 +168,10 @@ class CCXTClient(BaseExchange):
             
             self._initialized = True
             market_type = "spot" if default_type == 'spot' else "futures"
-            logger.info(f"✅ CCXT {self.exchange_id} initialized ({len(self.exchange.markets)} {market_type} markets)")
+            logger.info(
+                f"✅ CCXT {self.exchange_id} initialized "
+                f"({len(self.exchange.markets)} {market_type} markets)"
+            )
             return True
             
         except Exception as e:
@@ -167,7 +182,9 @@ class CCXTClient(BaseExchange):
         """Close exchange connection."""
         if self.exchange:
             await self.exchange.close()
-            self._initialized = False
+        if hasattr(self, '_session') and self._session:
+            await self._session.close()
+        self._initialized = False
     
     # =========================================================================
     # Market Data Methods
