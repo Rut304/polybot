@@ -191,6 +191,7 @@ class TradingConfig:
     # Requires Alpaca account
     # =========================================================================
     enable_stock_momentum: bool = False         # OFF by default
+    momentum_min_score: float = 60.0            # Min momentum score (0-100) to enter
     stock_mom_roc_period: int = 10              # Rate of change period
     stock_mom_entry_threshold: float = 3.0      # Min ROC % to enter
     stock_mom_exit_threshold: float = -1.0      # Exit when ROC drops below
@@ -646,6 +647,9 @@ class Config:
             # ============================================================
             enable_stock_momentum=self._get_bool(
                 "enable_stock_momentum", "ENABLE_STOCK_MOMENTUM", False
+            ),
+            momentum_min_score=self._get_float(
+                "momentum_min_score", "MOMENTUM_MIN_SCORE", 60.0
             ),
             stock_mom_roc_period=self._get_int(
                 "stock_mom_roc_period", "STOCK_MOM_ROC_PERIOD", 10
