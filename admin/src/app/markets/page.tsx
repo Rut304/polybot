@@ -38,8 +38,12 @@ interface Market {
   no_price: number;
   price?: number;
   change_24h?: number;
+  change_pct?: number;  // 24h price change percentage
   volume?: number;
   liquidity?: number;
+  market_cap?: number;  // For crypto
+  market_cap_tier?: string;  // Mega, Large, Mid, Small
+  image?: string;  // Crypto coin image URL
   end_date?: string;
   platform: 'polymarket' | 'kalshi' | 'alpaca' | 'binance' | 'bybit' | 'okx';
   asset_type: 'prediction' | 'stock' | 'crypto';
@@ -441,25 +445,62 @@ export default function MarketsPage() {
                       {market.question}
                     </h3>
 
-                    {/* Prices */}
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <Tooltip content={METRIC_TOOLTIPS.yesPrice} position="bottom">
-                        <div className="bg-green-500/10 rounded-lg p-3 text-center w-full cursor-help">
-                          <p className="text-xs text-gray-400 mb-1">Yes</p>
-                          <p className="text-xl font-bold text-green-400">
-                            {(market.yes_price * 100).toFixed(0)}¢
+                    {/* Prices - Different display for prediction vs crypto/stock */}
+                    {market.asset_type === 'prediction' ? (
+                      /* Prediction Market - Yes/No prices */
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <Tooltip content={METRIC_TOOLTIPS.yesPrice} position="bottom">
+                          <div className="bg-green-500/10 rounded-lg p-3 text-center w-full cursor-help">
+                            <p className="text-xs text-gray-400 mb-1">Yes</p>
+                            <p className="text-xl font-bold text-green-400">
+                              {(market.yes_price * 100).toFixed(0)}¢
+                            </p>
+                          </div>
+                        </Tooltip>
+                        <Tooltip content={METRIC_TOOLTIPS.noPrice} position="bottom">
+                          <div className="bg-red-500/10 rounded-lg p-3 text-center w-full cursor-help">
+                            <p className="text-xs text-gray-400 mb-1">No</p>
+                            <p className="text-xl font-bold text-red-400">
+                              {(market.no_price * 100).toFixed(0)}¢
+                            </p>
+                          </div>
+                        </Tooltip>
+                      </div>
+                    ) : (
+                      /* Crypto/Stock - Single price with change */
+                      <div className="mb-4">
+                        <div className="bg-dark-border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-gray-400">Price</p>
+                            {market.change_pct !== undefined && (
+                              <span className={cn(
+                                "text-xs font-medium px-2 py-0.5 rounded",
+                                market.change_pct >= 0 
+                                  ? "bg-green-500/20 text-green-400" 
+                                  : "bg-red-500/20 text-red-400"
+                              )}>
+                                {market.change_pct >= 0 ? '+' : ''}{(market.change_pct || 0).toFixed(2)}%
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-2xl font-bold text-white">
+                            {market.yes_price >= 1000 
+                              ? `$${market.yes_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : market.yes_price >= 1 
+                                ? `$${market.yes_price.toFixed(2)}`
+                                : market.yes_price >= 0.01
+                                  ? `$${market.yes_price.toFixed(4)}`
+                                  : `$${market.yes_price.toFixed(6)}`
+                            }
                           </p>
+                          {market.market_cap && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Market Cap: ${(market.market_cap / 1e9).toFixed(2)}B
+                            </p>
+                          )}
                         </div>
-                      </Tooltip>
-                      <Tooltip content={METRIC_TOOLTIPS.noPrice} position="bottom">
-                        <div className="bg-red-500/10 rounded-lg p-3 text-center w-full cursor-help">
-                          <p className="text-xs text-gray-400 mb-1">No</p>
-                          <p className="text-xl font-bold text-red-400">
-                            {(market.no_price * 100).toFixed(0)}¢
-                          </p>
-                        </div>
-                      </Tooltip>
-                    </div>
+                      </div>
+                    )}
 
                     {/* Stats */}
                     <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
@@ -600,12 +641,12 @@ export default function MarketsPage() {
       )}
 
       {/* Crypto/Stock Trade Modal - Coming Soon */}
-      {selectedMarket && (selectedMarket.platform === 'binance' || selectedMarket.platform === 'alpaca') && showTradeModal && (
+      {selectedMarket && showTradeModal && selectedMarket.asset_type !== 'prediction' && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">
-                {selectedMarket.platform === 'binance' ? '🪙 Crypto Trade' : '📈 Stock Trade'}
+                {selectedMarket.asset_type === 'crypto' ? '🪙 Crypto Trade' : '📈 Stock Trade'}
               </h2>
               <button
                 onClick={() => {
@@ -620,15 +661,51 @@ export default function MarketsPage() {
             
             <div className="space-y-4">
               <div className="p-4 bg-dark-bg rounded-lg">
-                <div className="text-lg font-medium">{selectedMarket.question || selectedMarket.symbol}</div>
-                <div className="text-2xl font-bold text-neon-green mt-2">
-                  ${selectedMarket.price?.toFixed(2) || selectedMarket.yes_price?.toFixed(4) || 'N/A'}
+                <div className="flex items-center gap-3">
+                  {selectedMarket.image && (
+                    <img 
+                      src={selectedMarket.image} 
+                      alt={selectedMarket.symbol || ''} 
+                      className="w-10 h-10 rounded-full"
+                    />
+                  )}
+                  <div>
+                    <div className="text-lg font-medium">{selectedMarket.symbol || selectedMarket.question}</div>
+                    <div className="text-sm text-gray-400">{selectedMarket.question}</div>
+                  </div>
                 </div>
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-2xl font-bold text-white">
+                    {selectedMarket.yes_price >= 1000 
+                      ? `$${selectedMarket.yes_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : selectedMarket.yes_price >= 1 
+                        ? `$${selectedMarket.yes_price.toFixed(2)}`
+                        : selectedMarket.yes_price >= 0.01
+                          ? `$${selectedMarket.yes_price.toFixed(4)}`
+                          : `$${selectedMarket.yes_price.toFixed(6)}`
+                    }
+                  </div>
+                  {selectedMarket.change_pct !== undefined && (
+                    <span className={cn(
+                      "text-sm font-medium px-2 py-1 rounded",
+                      selectedMarket.change_pct >= 0 
+                        ? "bg-green-500/20 text-green-400" 
+                        : "bg-red-500/20 text-red-400"
+                    )}>
+                      {selectedMarket.change_pct >= 0 ? '+' : ''}{selectedMarket.change_pct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+                {selectedMarket.market_cap && (
+                  <div className="text-sm text-gray-500 mt-2">
+                    Market Cap: ${(selectedMarket.market_cap / 1e9).toFixed(2)}B
+                  </div>
+                )}
               </div>
               
               <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                 <p className="text-yellow-400 text-sm">
-                  ⚠️ Manual {selectedMarket.platform === 'binance' ? 'crypto' : 'stock'} trading coming soon!
+                  ⚠️ Manual {selectedMarket.asset_type === 'crypto' ? 'crypto' : 'stock'} trading coming soon!
                   <br /><br />
                   The bot automatically executes trades based on strategy signals. 
                   Check the Strategies page to see active positions.
@@ -641,7 +718,7 @@ export default function MarketsPage() {
                 rel="noopener noreferrer"
                 className="block w-full py-3 bg-neon-purple text-center rounded-lg font-medium hover:opacity-80 transition-opacity"
               >
-                Trade on {selectedMarket.platform === 'binance' ? 'Binance' : 'Alpaca'} →
+                Trade on {getPlatformInfo(selectedMarket.platform).name} →
               </a>
             </div>
           </div>
