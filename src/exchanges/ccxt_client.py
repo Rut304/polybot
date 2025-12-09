@@ -384,6 +384,24 @@ class CCXTClient(BaseExchange):
     # Futures-Specific Methods (Funding Rate Arbitrage)
     # =========================================================================
     
+    def has_symbol(self, symbol: str) -> bool:
+        """Check if exchange has a specific symbol."""
+        if not self._initialized or not self.exchange:
+            return False
+        return symbol in self.exchange.markets
+    
+    def filter_valid_symbols(self, symbols: List[str]) -> List[str]:
+        """Filter a list of symbols to only those available on this exchange."""
+        if not self._initialized or not self.exchange:
+            return []
+        return [s for s in symbols if s in self.exchange.markets]
+    
+    def has_futures_support(self) -> bool:
+        """Check if exchange supports futures/perpetual trading."""
+        if not self._initialized or not self.exchange:
+            return False
+        return self.exchange.has.get('fetchFundingRate', False)
+    
     async def get_funding_rate(self, symbol: str) -> FundingRate:
         """
         Get current funding rate for a perpetual futures symbol.
@@ -427,10 +445,24 @@ class CCXTClient(BaseExchange):
         
         symbols = symbols or FUNDING_RATE_SYMBOLS
         
+        # Filter to only symbols available on this exchange
+        valid_symbols = self.filter_valid_symbols(symbols)
+        if not valid_symbols:
+            logger.warning(
+                f"No valid funding rate symbols found on {self.exchange_id}. "
+                f"Exchange may be spot-only."
+            )
+            return {}
+        
+        # Log which symbols were skipped
+        skipped = set(symbols) - set(valid_symbols)
+        if skipped:
+            logger.debug(f"Skipping unavailable symbols: {skipped}")
+        
         # Try batch fetch if supported
         try:
             if hasattr(self.exchange, 'fetch_funding_rates'):
-                rates_data = await self.exchange.fetch_funding_rates(symbols)
+                rates_data = await self.exchange.fetch_funding_rates(valid_symbols)
                 return {
                     symbol: FundingRate(
                         symbol=symbol,
@@ -447,7 +479,7 @@ class CCXTClient(BaseExchange):
         
         # Fetch individually
         results = {}
-        for symbol in symbols:
+        for symbol in valid_symbols:
             try:
                 results[symbol] = await self.get_funding_rate(symbol)
             except Exception as e:

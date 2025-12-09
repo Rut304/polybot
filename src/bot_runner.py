@@ -524,7 +524,12 @@ class PolybotRunner:
                 )
         
         # Initialize Funding Rate Arbitrage Strategy (85% CONFIDENCE - 15-50% APY)
-        if self.config.trading.enable_funding_rate_arb and self.ccxt_client:
+        # NOTE: Requires exchange with futures support (Binance US does NOT have futures)
+        has_futures = False
+        if self.ccxt_client and hasattr(self.ccxt_client, 'exchange') and self.ccxt_client.exchange:
+            has_futures = self.ccxt_client.exchange.has.get('fetchFundingRate', False)
+        
+        if self.config.trading.enable_funding_rate_arb and self.ccxt_client and has_futures:
             self.funding_rate_arb = FundingRateArbStrategy(
                 ccxt_client=self.ccxt_client,
                 db_client=self.db,
@@ -541,6 +546,9 @@ class PolybotRunner:
                 f"  💰 Min rate: {self.config.trading.funding_min_rate_pct}% | "
                 f"Min APY: {self.config.trading.funding_min_apy}%"
             )
+        elif self.config.trading.enable_funding_rate_arb and self.ccxt_client and not has_futures:
+            logger.info("⏸️ Funding Rate Arb DISABLED (exchange doesn't support futures)")
+            logger.info(f"  💡 {getattr(self.ccxt_client, 'exchange_id', 'exchange')} is spot-only")
         elif self.config.trading.enable_funding_rate_arb:
             logger.info("⏸️ Funding Rate Arb DISABLED (no CCXT client)")
         else:
@@ -578,35 +586,50 @@ class PolybotRunner:
             # Choose pairs based on exchange
             if is_us_exchange:
                 # Binance US uses /USD pairs
-                custom_pairs = [
+                candidate_pairs = [
                     ("BTC/USD", "ETH/USD", "BTC-ETH", 0.85, 15.0),
                     ("SOL/USD", "AVAX/USD", "SOL-AVAX", 0.78, 3.5),
                 ]
             else:
                 # International exchanges use /USDT pairs
-                custom_pairs = [
+                candidate_pairs = [
                     ("BTC/USDT", "ETH/USDT", "BTC-ETH", 0.85, 15.0),
                     ("SOL/USDT", "AVAX/USDT", "SOL-AVAX", 0.78, 3.5),
                     ("LINK/USDT", "UNI/USDT", "LINK-UNI", 0.72, 1.8),
                 ]
             
-            self.pairs_trading = PairsTradingStrategy(
-                ccxt_client=self.ccxt_client,
-                db_client=self.db,
-                entry_zscore=self.config.trading.pairs_entry_zscore,
-                exit_zscore=self.config.trading.pairs_exit_zscore,
-                position_size_usd=self.config.trading.pairs_position_size_usd,
-                max_positions=self.config.trading.pairs_max_positions,
-                max_hold_hours=self.config.trading.pairs_max_hold_hours,
-                custom_pairs=custom_pairs,
-                dry_run=self.simulation_mode,
-            )
-            logger.info("✓ Pairs Trading initialized (65% CONFIDENCE)")
-            logger.info(
-                f"  📈 Entry z: {self.config.trading.pairs_entry_zscore} | "
-                f"Exit z: {self.config.trading.pairs_exit_zscore}"
-            )
-            logger.info(f"  🔗 Pairs: {[p[2] for p in custom_pairs]}")
+            # Filter pairs to only those with valid symbols on exchange
+            custom_pairs = []
+            if hasattr(self.ccxt_client, 'has_symbol'):
+                for pair in candidate_pairs:
+                    sym1, sym2, name, corr, hr = pair
+                    if self.ccxt_client.has_symbol(sym1) and self.ccxt_client.has_symbol(sym2):
+                        custom_pairs.append(pair)
+                    else:
+                        logger.debug(f"Skipping pair {name}: symbols not available")
+            else:
+                custom_pairs = candidate_pairs
+            
+            if not custom_pairs:
+                logger.info("⏸️ Pairs Trading DISABLED (no valid pairs on exchange)")
+            else:
+                self.pairs_trading = PairsTradingStrategy(
+                    ccxt_client=self.ccxt_client,
+                    db_client=self.db,
+                    entry_zscore=self.config.trading.pairs_entry_zscore,
+                    exit_zscore=self.config.trading.pairs_exit_zscore,
+                    position_size_usd=self.config.trading.pairs_position_size_usd,
+                    max_positions=self.config.trading.pairs_max_positions,
+                    max_hold_hours=self.config.trading.pairs_max_hold_hours,
+                    custom_pairs=custom_pairs,
+                    dry_run=self.simulation_mode,
+                )
+                logger.info("✓ Pairs Trading initialized (65% CONFIDENCE)")
+                logger.info(
+                    f"  📈 Entry z: {self.config.trading.pairs_entry_zscore} | "
+                    f"Exit z: {self.config.trading.pairs_exit_zscore}"
+                )
+                logger.info(f"  🔗 Pairs: {[p[2] for p in custom_pairs]}")
         elif self.config.trading.enable_pairs_trading:
             logger.info("⏸️ Pairs Trading DISABLED (no CCXT client)")
         else:
@@ -1118,6 +1141,11 @@ class PolybotRunner:
             if active_grids == 0:
                 logger.info(f"  🔧 Auto-creating grids for {default_symbols}")
                 for symbol in default_symbols:
+                    # Check if symbol exists on the exchange first
+                    if hasattr(self.ccxt_client, 'has_symbol'):
+                        if not self.ccxt_client.has_symbol(symbol):
+                            logger.info(f"  ⏭️ Skipping {symbol} - not available on {exchange_id}")
+                            continue
                     try:
                         grid = await self.grid_trading.create_grid(
                             symbol=symbol,
