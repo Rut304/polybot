@@ -19,6 +19,12 @@ import {
   Bitcoin,
   LineChart,
   Layers,
+  Sliders,
+  Settings2,
+  ArrowUpRight,
+  ArrowDownRight,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -30,6 +36,19 @@ import {
   useBotConfig,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
+
+// Strategy tuning recommendation interface
+interface TuningRecommendation {
+  id: string;
+  strategy: string;
+  parameter: string;
+  currentValue: number | string;
+  recommendedValue: number | string;
+  reason: string;
+  impact: 'increase_trades' | 'increase_profit' | 'reduce_risk' | 'balance';
+  confidence: 'high' | 'medium' | 'low';
+  priority: number; // 1-10, higher = more important
+}
 
 interface Insight {
   id: string;
@@ -143,6 +162,109 @@ function InsightCard({ insight, index }: { insight: Insight; index: number }) {
   );
 }
 
+// Tuning Recommendation Card Component
+function TuningCard({ recommendation, index, onApply }: { 
+  recommendation: TuningRecommendation; 
+  index: number;
+  onApply?: (rec: TuningRecommendation) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  
+  const impactColors = {
+    increase_trades: 'from-neon-blue/20 to-transparent border-neon-blue/40',
+    increase_profit: 'from-neon-green/20 to-transparent border-neon-green/40',
+    reduce_risk: 'from-yellow-500/20 to-transparent border-yellow-500/40',
+    balance: 'from-neon-purple/20 to-transparent border-neon-purple/40',
+  };
+  
+  const impactIcons = {
+    increase_trades: <TrendingUp className="w-5 h-5 text-neon-blue" />,
+    increase_profit: <DollarSign className="w-5 h-5 text-neon-green" />,
+    reduce_risk: <AlertTriangle className="w-5 h-5 text-yellow-500" />,
+    balance: <Sliders className="w-5 h-5 text-neon-purple" />,
+  };
+  
+  const impactLabels = {
+    increase_trades: 'Find More Opportunities',
+    increase_profit: 'Maximize Profit',
+    reduce_risk: 'Reduce Risk',
+    balance: 'Optimize Balance',
+  };
+  
+  const confidenceColors = {
+    high: 'bg-neon-green/20 text-neon-green border-neon-green/30',
+    medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    low: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  };
+  
+  const handleCopy = () => {
+    navigator.clipboard.writeText(`${recommendation.parameter}: ${recommendation.recommendedValue}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.1 }}
+      className={cn(
+        "relative p-4 rounded-xl border bg-gradient-to-r",
+        impactColors[recommendation.impact]
+      )}
+    >
+      <div className="flex items-start gap-4">
+        <div className="p-2 bg-dark-bg/50 rounded-lg">
+          {impactIcons[recommendation.impact]}
+        </div>
+        
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <span className="text-xs text-gray-500 uppercase tracking-wider">{recommendation.strategy}</span>
+              <h3 className="font-semibold">{recommendation.parameter}</h3>
+            </div>
+            <span className={cn("px-2 py-0.5 rounded-full border text-xs font-medium", confidenceColors[recommendation.confidence])}>
+              {recommendation.confidence} confidence
+            </span>
+          </div>
+          
+          <p className="text-sm text-gray-400 mb-3">{recommendation.reason}</p>
+          
+          {/* Value Change Display */}
+          <div className="flex items-center gap-3 p-3 bg-dark-bg/50 rounded-lg">
+            <div className="text-center">
+              <span className="text-xs text-gray-500 block">Current</span>
+              <span className="font-mono text-red-400">{recommendation.currentValue}</span>
+            </div>
+            <ArrowRight className="w-5 h-5 text-gray-500" />
+            <div className="text-center">
+              <span className="text-xs text-gray-500 block">Recommended</span>
+              <span className="font-mono text-neon-green font-bold">{recommendation.recommendedValue}</span>
+            </div>
+            <div className="ml-auto flex gap-2">
+              <button
+                onClick={handleCopy}
+                className="p-2 hover:bg-dark-card rounded-lg transition-colors"
+                title="Copy value"
+              >
+                {copied ? <Check className="w-4 h-4 text-neon-green" /> : <Copy className="w-4 h-4 text-gray-400" />}
+              </button>
+            </div>
+          </div>
+          
+          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+            <Target className="w-3 h-3" />
+            <span>{impactLabels[recommendation.impact]}</span>
+            <span className="text-gray-600">•</span>
+            <span>Priority: {recommendation.priority}/10</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export default function InsightsPage() {
   const { data: trades = [] } = useSimulatedTrades(500);
   const { data: opportunities = [] } = useOpportunities(1000);
@@ -153,6 +275,7 @@ export default function InsightsPage() {
   
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<Insight['category'] | 'all'>('all');
+  const [showTuning, setShowTuning] = useState(true);
 
   // Generate insights from data analysis
   const insights = useMemo<Insight[]>(() => {
@@ -612,6 +735,294 @@ export default function InsightsPage() {
     return results;
   }, [trades, opportunities, stats, strategyPerf]);
 
+  // Generate Strategy Tuning Recommendations
+  const tuningRecommendations = useMemo<TuningRecommendation[]>(() => {
+    const recommendations: TuningRecommendation[] = [];
+    if (!config) return recommendations;
+    
+    // Get opportunity stats (cast to any for dynamic properties)
+    const kalshiOpps = opportunities.filter((o: any) => o.platform === 'kalshi' || o.kalshi_ticker);
+    const polyOpps = opportunities.filter((o: any) => o.platform === 'polymarket' || o.polymarket_token_id);
+    const avgKalshiProfit = kalshiOpps.length > 0 
+      ? kalshiOpps.reduce((sum, o: any) => sum + (o.profit_percent || 0), 0) / kalshiOpps.length 
+      : 0;
+    const avgPolyProfit = polyOpps.length > 0 
+      ? polyOpps.reduce((sum, o: any) => sum + (o.profit_percent || 0), 0) / polyOpps.length 
+      : 0;
+    
+    // Analyze trade performance by strategy
+    const kalshiTrades = trades.filter(t => t.kalshi_ticker);
+    const polyTrades = trades.filter(t => t.polymarket_token_id && !t.kalshi_ticker);
+    const kalshiWinRate = kalshiTrades.filter(t => t.outcome === 'won').length / Math.max(1, kalshiTrades.filter(t => t.outcome !== 'pending').length) * 100;
+    const polyWinRate = polyTrades.filter(t => t.outcome === 'won').length / Math.max(1, polyTrades.filter(t => t.outcome !== 'pending').length) * 100;
+    
+    // ============ KALSHI TUNING ============
+    const kalshiMinProfit = config.kalshi_single_min_profit_pct || 3;
+    
+    // If few Kalshi trades but many opportunities with lower spreads
+    if (kalshiTrades.length < 5 && kalshiOpps.length > 20) {
+      const oppsAboveThreshold = kalshiOpps.filter(o => (o.profit_percent || 0) >= kalshiMinProfit).length;
+      const oppsBelowThreshold = kalshiOpps.filter(o => (o.profit_percent || 0) >= kalshiMinProfit * 0.5 && (o.profit_percent || 0) < kalshiMinProfit).length;
+      
+      if (oppsBelowThreshold > oppsAboveThreshold * 0.5) {
+        const suggestedMin = Math.max(1, kalshiMinProfit * 0.6);
+        recommendations.push({
+          id: 'kalshi-lower-threshold',
+          strategy: 'Kalshi Single-Platform Arb',
+          parameter: 'kalshi_single_min_profit_pct',
+          currentValue: `${kalshiMinProfit}%`,
+          recommendedValue: `${suggestedMin.toFixed(1)}%`,
+          reason: `${oppsBelowThreshold} opportunities exist below your ${kalshiMinProfit}% threshold. Lowering it could capture ${Math.round(oppsBelowThreshold * 0.7)} more trades.`,
+          impact: 'increase_trades',
+          confidence: 'high',
+          priority: 9,
+        });
+      }
+    }
+    
+    // If Kalshi has high win rate, increase position size
+    if (kalshiWinRate > 65 && kalshiTrades.length >= 10) {
+      const currentPos = config.kalshi_single_max_position_usd || 50;
+      recommendations.push({
+        id: 'kalshi-increase-position',
+        strategy: 'Kalshi Single-Platform Arb',
+        parameter: 'kalshi_single_max_position_usd',
+        currentValue: `$${currentPos}`,
+        recommendedValue: `$${Math.round(currentPos * 1.5)}`,
+        reason: `${kalshiWinRate.toFixed(0)}% win rate is excellent. Increase position size to maximize returns on high-confidence trades.`,
+        impact: 'increase_profit',
+        confidence: 'high',
+        priority: 8,
+      });
+    }
+    
+    // If Kalshi has low win rate, increase threshold
+    if (kalshiWinRate < 45 && kalshiTrades.length >= 5) {
+      recommendations.push({
+        id: 'kalshi-increase-threshold',
+        strategy: 'Kalshi Single-Platform Arb',
+        parameter: 'kalshi_single_min_profit_pct',
+        currentValue: `${kalshiMinProfit}%`,
+        recommendedValue: `${(kalshiMinProfit * 1.5).toFixed(1)}%`,
+        reason: `${kalshiWinRate.toFixed(0)}% win rate is below target. Higher threshold will select only stronger opportunities.`,
+        impact: 'reduce_risk',
+        confidence: 'high',
+        priority: 9,
+      });
+    }
+    
+    // ============ POLYMARKET TUNING ============
+    const polyMinProfit = config.poly_single_min_profit_pct || 0.5;
+    
+    if (polyTrades.length < 5 && polyOpps.length > 20) {
+      recommendations.push({
+        id: 'poly-lower-threshold',
+        strategy: 'Polymarket Single-Platform Arb',
+        parameter: 'poly_single_min_profit_pct',
+        currentValue: `${polyMinProfit}%`,
+        recommendedValue: `${Math.max(0.3, polyMinProfit * 0.7).toFixed(1)}%`,
+        reason: `Only ${polyTrades.length} Polymarket trades executed. ${polyOpps.length} opportunities available - lower threshold to capture more.`,
+        impact: 'increase_trades',
+        confidence: 'medium',
+        priority: 7,
+      });
+    }
+    
+    // ============ CROSS-PLATFORM ARB TUNING ============
+    const crossPlatMinProfit = config.cross_plat_min_profit_buy_poly_pct || 3;
+    const crossPlatSimilarity = config.cross_plat_min_similarity || 0.3;
+    
+    // If not finding cross-platform opportunities
+    if (!trades.some(t => t.polymarket_token_id && t.kalshi_ticker)) {
+      recommendations.push({
+        id: 'cross-plat-similarity',
+        strategy: 'Cross-Platform Arbitrage',
+        parameter: 'cross_plat_min_similarity',
+        currentValue: crossPlatSimilarity,
+        recommendedValue: Math.max(0.2, crossPlatSimilarity - 0.1).toFixed(2),
+        reason: 'No cross-platform arbitrage trades found. Lowering similarity threshold may find more matching markets.',
+        impact: 'increase_trades',
+        confidence: 'medium',
+        priority: 7,
+      });
+      
+      recommendations.push({
+        id: 'cross-plat-profit',
+        strategy: 'Cross-Platform Arbitrage',
+        parameter: 'cross_plat_min_profit_buy_poly_pct',
+        currentValue: `${crossPlatMinProfit}%`,
+        recommendedValue: `${Math.max(1.5, crossPlatMinProfit * 0.6).toFixed(1)}%`,
+        reason: 'Consider lowering profit threshold to find more cross-platform arbitrage opportunities.',
+        impact: 'increase_trades',
+        confidence: 'medium',
+        priority: 6,
+      });
+    }
+    
+    // ============ CRYPTO STRATEGY TUNING ============
+    if (config.enable_funding_rate_arb) {
+      const fundingMinRate = config.funding_min_rate_pct || 0.03;
+      const fundingMinApy = config.funding_min_apy || 30;
+      
+      // Check if funding rate strategy is finding trades
+      const fundingTrades = trades.filter(t => 
+        t.strategy_type?.includes('funding') || t.arbitrage_type?.includes('funding')
+      );
+      
+      if (fundingTrades.length === 0 && trades.length > 10) {
+        recommendations.push({
+          id: 'funding-lower-rate',
+          strategy: 'Funding Rate Arbitrage',
+          parameter: 'funding_min_rate_pct',
+          currentValue: `${fundingMinRate}%`,
+          recommendedValue: `${Math.max(0.01, fundingMinRate * 0.5).toFixed(3)}%`,
+          reason: 'No funding rate trades executed. Current threshold may be too restrictive for current market conditions.',
+          impact: 'increase_trades',
+          confidence: 'medium',
+          priority: 6,
+        });
+        
+        recommendations.push({
+          id: 'funding-lower-apy',
+          strategy: 'Funding Rate Arbitrage',
+          parameter: 'funding_min_apy',
+          currentValue: `${fundingMinApy}%`,
+          recommendedValue: `${Math.max(15, fundingMinApy * 0.6).toFixed(0)}%`,
+          reason: 'Lower minimum APY target to capture more funding rate opportunities in quieter markets.',
+          impact: 'increase_trades',
+          confidence: 'medium',
+          priority: 5,
+        });
+      }
+    }
+    
+    // ============ GRID TRADING TUNING ============
+    if (config.enable_grid_trading) {
+      const gridRange = config.grid_default_range_pct || 10;
+      const gridLevels = config.grid_default_levels || 20;
+      
+      const gridTrades = trades.filter(t => t.strategy_type?.includes('grid'));
+      
+      if (gridTrades.length === 0 && trades.length > 10) {
+        recommendations.push({
+          id: 'grid-increase-range',
+          strategy: 'Grid Trading',
+          parameter: 'grid_default_range_pct',
+          currentValue: `${gridRange}%`,
+          recommendedValue: `${Math.min(20, gridRange * 1.5).toFixed(0)}%`,
+          reason: 'No grid trades executed. Wider range captures more price movements in volatile markets.',
+          impact: 'increase_trades',
+          confidence: 'medium',
+          priority: 5,
+        });
+      }
+    }
+    
+    // ============ STOCK STRATEGY TUNING ============
+    if (config.enable_stock_mean_reversion) {
+      const mrZscore = config.stock_mr_entry_zscore || 2;
+      const mrStopLoss = config.stock_mr_stop_loss_pct || 5;
+      
+      const stockTrades = trades.filter(t => 
+        t.strategy_type?.includes('stock') || t.strategy_type?.includes('mean_reversion')
+      );
+      
+      if (stockTrades.length === 0 && trades.length > 10) {
+        recommendations.push({
+          id: 'stock-mr-zscore',
+          strategy: 'Stock Mean Reversion',
+          parameter: 'stock_mr_entry_zscore',
+          currentValue: mrZscore,
+          recommendedValue: Math.max(1.5, mrZscore - 0.5).toFixed(1),
+          reason: 'No mean reversion trades found. Lower Z-score threshold to capture more reversion opportunities.',
+          impact: 'increase_trades',
+          confidence: 'medium',
+          priority: 6,
+        });
+      }
+    }
+    
+    if (config.enable_stock_momentum) {
+      const momThreshold = config.stock_mom_entry_threshold || 5;
+      
+      const momTrades = trades.filter(t => t.strategy_type?.includes('momentum'));
+      
+      if (momTrades.length === 0 && trades.length > 10) {
+        recommendations.push({
+          id: 'stock-mom-threshold',
+          strategy: 'Stock Momentum',
+          parameter: 'stock_mom_entry_threshold',
+          currentValue: `${momThreshold}%`,
+          recommendedValue: `${Math.max(3, momThreshold - 1.5).toFixed(1)}%`,
+          reason: 'No momentum trades found. Lower entry threshold to catch earlier momentum signals.',
+          impact: 'increase_trades',
+          confidence: 'medium',
+          priority: 5,
+        });
+      }
+    }
+    
+    // ============ PAIRS TRADING TUNING ============
+    if (config.enable_pairs_trading) {
+      const pairsZscore = config.pairs_entry_zscore || 2;
+      
+      const pairsTrades = trades.filter(t => t.strategy_type?.includes('pair'));
+      
+      if (pairsTrades.length === 0 && trades.length > 10) {
+        recommendations.push({
+          id: 'pairs-zscore',
+          strategy: 'Pairs Trading',
+          parameter: 'pairs_entry_zscore',
+          currentValue: pairsZscore,
+          recommendedValue: Math.max(1.5, pairsZscore - 0.3).toFixed(1),
+          reason: 'No pairs trades found. Lower Z-score entry to capture more mean reversion opportunities between correlated pairs.',
+          impact: 'increase_trades',
+          confidence: 'medium',
+          priority: 5,
+        });
+      }
+    }
+    
+    // ============ GENERAL TUNING ============
+    // If overall win rate is high, suggest increasing position sizes
+    const completedTrades = trades.filter(t => t.outcome !== 'pending');
+    const overallWinRate = completedTrades.filter(t => t.outcome === 'won').length / Math.max(1, completedTrades.length) * 100;
+    
+    if (overallWinRate > 60 && completedTrades.length >= 20) {
+      const currentMaxPos = config.max_position_usd || 100;
+      recommendations.push({
+        id: 'overall-increase-position',
+        strategy: 'Global Settings',
+        parameter: 'max_position_usd',
+        currentValue: `$${currentMaxPos}`,
+        recommendedValue: `$${Math.round(currentMaxPos * 1.25)}`,
+        reason: `${overallWinRate.toFixed(0)}% overall win rate is strong. Consider slightly larger positions to maximize returns.`,
+        impact: 'increase_profit',
+        confidence: 'high',
+        priority: 7,
+      });
+    }
+    
+    // If overall win rate is low, suggest tighter thresholds
+    if (overallWinRate < 45 && completedTrades.length >= 10) {
+      const currentMinProfit = config.min_profit_percent || 5;
+      recommendations.push({
+        id: 'overall-increase-min-profit',
+        strategy: 'Global Settings',
+        parameter: 'min_profit_percent',
+        currentValue: `${currentMinProfit}%`,
+        recommendedValue: `${(currentMinProfit * 1.3).toFixed(1)}%`,
+        reason: `${overallWinRate.toFixed(0)}% win rate needs improvement. Higher profit threshold filters out weaker opportunities.`,
+        impact: 'reduce_risk',
+        confidence: 'high',
+        priority: 8,
+      });
+    }
+    
+    // Sort by priority
+    return recommendations.sort((a, b) => b.priority - a.priority);
+  }, [trades, opportunities, config]);
+
   const filteredInsights = filter === 'all' 
     ? insights 
     : insights.filter(i => i.category === filter);
@@ -667,6 +1078,100 @@ export default function InsightsPage() {
             <p className="text-xs text-gray-500">Opportunities</p>
           </div>
         </motion.div>
+
+        {/* Strategy Tuning Recommendations Section */}
+        {tuningRecommendations.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div 
+              className="flex items-center justify-between mb-4 cursor-pointer"
+              onClick={() => setShowTuning(!showTuning)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-r from-neon-green/20 to-neon-blue/20 rounded-lg">
+                  <Settings2 className="w-6 h-6 text-neon-green" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Strategy Tuning</h2>
+                  <p className="text-sm text-gray-400">AI-powered parameter recommendations to optimize your strategies</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 bg-neon-green/20 text-neon-green rounded-full text-sm font-medium">
+                  {tuningRecommendations.length} suggestions
+                </span>
+                <motion.div
+                  animate={{ rotate: showTuning ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <TrendingDown className="w-5 h-5 text-gray-400" />
+                </motion.div>
+              </div>
+            </div>
+            
+            <AnimatePresence>
+              {showTuning && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="space-y-4">
+                    {tuningRecommendations.slice(0, 6).map((rec, index) => (
+                      <TuningCard key={rec.id} recommendation={rec} index={index} />
+                    ))}
+                    
+                    {tuningRecommendations.length > 6 && (
+                      <div className="text-center py-2">
+                        <p className="text-sm text-gray-500">
+                          +{tuningRecommendations.length - 6} more recommendations available
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Quick Summary */}
+                  <div className="mt-4 p-4 bg-dark-card rounded-xl border border-dark-border">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-yellow-500" />
+                      Quick Summary
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Find More Trades</p>
+                        <p className="font-mono text-neon-blue">
+                          {tuningRecommendations.filter(r => r.impact === 'increase_trades').length} suggestions
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Maximize Profit</p>
+                        <p className="font-mono text-neon-green">
+                          {tuningRecommendations.filter(r => r.impact === 'increase_profit').length} suggestions
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Reduce Risk</p>
+                        <p className="font-mono text-yellow-500">
+                          {tuningRecommendations.filter(r => r.impact === 'reduce_risk').length} suggestions
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Avg Confidence</p>
+                        <p className="font-mono text-neon-purple">
+                          {tuningRecommendations.filter(r => r.confidence === 'high').length > tuningRecommendations.length / 2 ? 'High' : 'Medium'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Filter Tabs */}
         <div className="flex flex-wrap gap-2 mb-6">
