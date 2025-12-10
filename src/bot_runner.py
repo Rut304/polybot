@@ -83,6 +83,20 @@ from src.strategies import (
     PairsTradingStrategy,
     StockMeanReversionStrategy,
     StockMomentumStrategy,
+    # Advanced Framework (Phase 1)
+    KellyPositionSizer,
+    RegimeDetector,
+    CircuitBreaker,
+    get_kelly_sizer,
+    get_regime_detector,
+    get_circuit_breaker,
+    # Strategy Enhancements (Phase 2)
+    TimeDecayAnalyzer,
+    DepegDetector,
+    CorrelationTracker,
+    get_time_decay_analyzer,
+    get_depeg_detector,
+    get_correlation_tracker,
 )
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
@@ -176,6 +190,33 @@ class PolybotRunner:
         self.stock_mean_reversion: Optional[StockMeanReversionStrategy] = None
         self.stock_momentum: Optional[StockMomentumStrategy] = None
         self.alpaca_client: Optional[AlpacaClient] = None
+        
+        # ==============================================
+        # ADVANCED FRAMEWORK MODULES (Phase 1)
+        # ==============================================
+        # These enhance ALL strategies with better risk management
+        
+        # Kelly Criterion Position Sizer - optimal bet sizing
+        self.kelly_sizer: Optional[KellyPositionSizer] = None
+        
+        # Market Regime Detector - adapts strategies to market conditions
+        self.regime_detector: Optional[RegimeDetector] = None
+        
+        # Circuit Breaker - stops trading on excessive drawdown
+        self.circuit_breaker: Optional[CircuitBreaker] = None
+        
+        # ==============================================
+        # STRATEGY ENHANCEMENTS (Phase 2)
+        # ==============================================
+        
+        # Time Decay Analyzer - prediction market theta analysis
+        self.time_decay_analyzer: Optional[TimeDecayAnalyzer] = None
+        
+        # Depeg Detector - stablecoin depeg arbitrage
+        self.depeg_detector: Optional[DepegDetector] = None
+        
+        # Correlation Tracker - position limit enforcement
+        self.correlation_tracker: Optional[CorrelationTracker] = None
         
         # CCXT client for crypto exchange access
         self.ccxt_client: Optional[CCXTClient] = None
@@ -731,6 +772,131 @@ class PolybotRunner:
             alpaca_client=self.alpaca_client,
         )
         logger.info("✓ Balance Aggregator initialized (saves to DB)")
+        
+        # =====================================================================
+        # ADVANCED FRAMEWORK MODULES (Phase 1)
+        # These modules enhance ALL strategies with better risk management
+        # =====================================================================
+        
+        # Initialize Kelly Criterion Position Sizer
+        kelly_enabled = getattr(self.config.trading, 'kelly_sizing_enabled', False)
+        if kelly_enabled:
+            self.kelly_sizer = get_kelly_sizer()
+            self.kelly_sizer.fraction_cap = getattr(
+                self.config.trading, 'kelly_fraction_cap', 0.25
+            )
+            self.kelly_sizer.min_confidence = getattr(
+                self.config.trading, 'kelly_min_confidence', 0.6
+            )
+            logger.info("✓ Kelly Position Sizer initialized")
+            logger.info(
+                f"  📊 Fraction cap: {self.kelly_sizer.fraction_cap} | "
+                f"Min conf: {self.kelly_sizer.min_confidence}"
+            )
+        else:
+            logger.info("⏸️ Kelly Position Sizing DISABLED")
+        
+        # Initialize Market Regime Detector
+        regime_enabled = getattr(self.config.trading, 'regime_detection_enabled', True)
+        if regime_enabled:
+            self.regime_detector = get_regime_detector()
+            self.regime_detector.vix_low_threshold = getattr(
+                self.config.trading, 'regime_vix_low_threshold', 15.0
+            )
+            self.regime_detector.vix_high_threshold = getattr(
+                self.config.trading, 'regime_vix_high_threshold', 25.0
+            )
+            self.regime_detector.vix_crisis_threshold = getattr(
+                self.config.trading, 'regime_vix_crisis_threshold', 35.0
+            )
+            logger.info("✓ Regime Detector initialized")
+            logger.info(
+                f"  📈 VIX thresholds: <{self.regime_detector.vix_low_threshold} LOW | "
+                f">{self.regime_detector.vix_high_threshold} HIGH | "
+                f">{self.regime_detector.vix_crisis_threshold} CRISIS"
+            )
+        else:
+            logger.info("⏸️ Regime Detection DISABLED")
+        
+        # Initialize Circuit Breaker System
+        cb_enabled = getattr(self.config.trading, 'circuit_breaker_enabled', True)
+        if cb_enabled:
+            self.circuit_breaker = get_circuit_breaker()
+            self.circuit_breaker.level1_drawdown_pct = getattr(
+                self.config.trading, 'circuit_breaker_level1_pct', 3.0
+            )
+            self.circuit_breaker.level2_drawdown_pct = getattr(
+                self.config.trading, 'circuit_breaker_level2_pct', 5.0
+            )
+            self.circuit_breaker.level3_drawdown_pct = getattr(
+                self.config.trading, 'circuit_breaker_level3_pct', 10.0
+            )
+            logger.info("✓ Circuit Breaker initialized")
+            logger.info(
+                f"  🚨 Levels: {self.circuit_breaker.level1_drawdown_pct}% → "
+                f"{self.circuit_breaker.level2_drawdown_pct}% → "
+                f"{self.circuit_breaker.level3_drawdown_pct}%"
+            )
+        else:
+            logger.info("⏸️ Circuit Breaker DISABLED")
+        
+        # =====================================================================
+        # STRATEGY ENHANCEMENT MODULES (Phase 2)
+        # =====================================================================
+        
+        # Initialize Time Decay Analyzer (Prediction Markets)
+        td_enabled = getattr(self.config.trading, 'time_decay_enabled', True)
+        if td_enabled:
+            self.time_decay_analyzer = get_time_decay_analyzer()
+            self.time_decay_analyzer.critical_days = getattr(
+                self.config.trading, 'time_decay_critical_days', 7
+            )
+            self.time_decay_analyzer.avoid_entry_hours = getattr(
+                self.config.trading, 'time_decay_avoid_entry_hours', 48
+            )
+            logger.info("✓ Time Decay Analyzer initialized")
+            logger.info(
+                f"  ⏱️ Critical: {self.time_decay_analyzer.critical_days}d | "
+                f"Avoid entry: <{self.time_decay_analyzer.avoid_entry_hours}h"
+            )
+        else:
+            logger.info("⏸️ Time Decay Analysis DISABLED")
+        
+        # Initialize Stablecoin Depeg Detector
+        depeg_enabled = getattr(self.config.trading, 'depeg_detection_enabled', True)
+        if depeg_enabled:
+            self.depeg_detector = get_depeg_detector()
+            self.depeg_detector.alert_threshold = getattr(
+                self.config.trading, 'depeg_alert_threshold_pct', 0.3
+            )
+            self.depeg_detector.arb_threshold = getattr(
+                self.config.trading, 'depeg_arbitrage_threshold_pct', 0.5
+            )
+            logger.info("✓ Depeg Detector initialized")
+            logger.info(
+                f"  💰 Alert: {self.depeg_detector.alert_threshold}% | "
+                f"Arb: {self.depeg_detector.arb_threshold}%"
+            )
+        else:
+            logger.info("⏸️ Depeg Detection DISABLED")
+        
+        # Initialize Correlation Position Limiter
+        corr_enabled = getattr(self.config.trading, 'correlation_limits_enabled', True)
+        if corr_enabled:
+            self.correlation_tracker = get_correlation_tracker()
+            self.correlation_tracker.max_cluster_pct = getattr(
+                self.config.trading, 'correlation_max_cluster_pct', 30.0
+            )
+            self.correlation_tracker.max_correlated_pct = getattr(
+                self.config.trading, 'correlation_max_correlated_pct', 50.0
+            )
+            logger.info("✓ Correlation Tracker initialized")
+            logger.info(
+                f"  📊 Max cluster: {self.correlation_tracker.max_cluster_pct}% | "
+                f"Max correlated: {self.correlation_tracker.max_correlated_pct}%"
+            )
+        else:
+            logger.info("⏸️ Correlation Limits DISABLED")
         
         logger.info("All features initialized!")
     

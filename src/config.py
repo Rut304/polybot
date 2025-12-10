@@ -222,6 +222,67 @@ class TradingConfig:
     # Stock Brokers
     enable_alpaca: bool = False                 # Alpaca (commission-free)
     enable_ibkr: bool = False                   # Interactive Brokers
+    
+    # =========================================================================
+    # ADVANCED FRAMEWORK - PHASE 1 (Risk Management)
+    # These enhance ALL strategies with better position sizing & risk control
+    # =========================================================================
+    
+    # Kelly Criterion Position Sizing
+    # Academic basis: Kelly (1956) - optimal bet sizing for max geometric growth
+    kelly_sizing_enabled: bool = False          # OFF by default (advanced)
+    kelly_fraction_cap: float = 0.25            # Half-Kelly (safer than full)
+    kelly_min_confidence: float = 0.60          # Min confidence to size with Kelly
+    kelly_max_position_pct: float = 10.0        # Max position % of portfolio
+    
+    # Market Regime Detection
+    # Academic basis: Hamilton (1989) - regime-switching models
+    regime_detection_enabled: bool = True       # ON by default
+    regime_vix_low_threshold: float = 15.0      # VIX < 15 = LOW_VOLATILITY
+    regime_vix_high_threshold: float = 25.0     # VIX > 25 = HIGH_VOLATILITY
+    regime_vix_crisis_threshold: float = 35.0   # VIX > 35 = CRISIS
+    regime_auto_adjust: bool = True             # Auto-adjust strategy params
+    
+    # Circuit Breaker System
+    # Automatic trading halts on excessive drawdown
+    circuit_breaker_enabled: bool = True        # ON by default (safety)
+    circuit_breaker_level1_pct: float = 3.0     # Level 1: 3% drawdown → 50% size
+    circuit_breaker_level2_pct: float = 5.0     # Level 2: 5% drawdown → 25% size
+    circuit_breaker_level3_pct: float = 10.0    # Level 3: 10% drawdown → HALT
+    circuit_breaker_reset_hours: int = 24       # Auto-reset after 24 hours
+    
+    # =========================================================================
+    # STRATEGY ENHANCEMENTS - PHASE 2
+    # =========================================================================
+    
+    # Time Decay Analysis (Prediction Markets)
+    # Theta-style decay as markets approach resolution
+    time_decay_enabled: bool = True             # ON by default
+    time_decay_critical_days: int = 7           # Critical zone = 7 days
+    time_decay_avoid_entry_hours: int = 48      # Don't enter < 48h to resolution
+    time_decay_mid_prob_low: float = 0.35       # Mid-prob range start
+    time_decay_mid_prob_high: float = 0.65      # Mid-prob range end
+    
+    # Order Flow Analysis
+    # Real-time order book imbalance signals
+    order_flow_enabled: bool = False            # OFF by default (requires data)
+    order_flow_signal_threshold: float = 0.30   # OFI level for weak signal
+    order_flow_strong_threshold: float = 0.60   # OFI level for strong signal
+    order_flow_lookback_seconds: int = 300      # 5 minute lookback
+    
+    # Stablecoin Depeg Detection
+    # Alert and arbitrage on stablecoin deviations
+    depeg_detection_enabled: bool = True        # ON by default
+    depeg_alert_threshold_pct: float = 0.30     # Alert at 0.3% deviation
+    depeg_arbitrage_threshold_pct: float = 0.50 # Arb opportunity at 0.5%
+    depeg_critical_threshold_pct: float = 5.0   # Critical at 5% (exit all)
+    
+    # Correlation Position Limits
+    # Prevent over-concentration in correlated assets
+    correlation_limits_enabled: bool = True     # ON by default
+    correlation_max_cluster_pct: float = 30.0   # Max 30% in one cluster
+    correlation_max_correlated_pct: float = 50.0  # Max 50% in correlated assets
+    correlation_high_threshold: float = 0.70    # Correlation > 0.7 = "high"
 
 
 @dataclass
@@ -684,6 +745,112 @@ class Config:
             stock_mom_watchlist=self._get_str(
                 "stock_mom_watchlist", "STOCK_MOM_WATCHLIST",
                 "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,AMD,CRM,NFLX"
+            ),
+            # ============================================================
+            # ADVANCED FRAMEWORK - PHASE 1 (Risk Management)
+            # ============================================================
+            # Kelly Criterion Position Sizing
+            kelly_sizing_enabled=self._get_bool(
+                "kelly_sizing_enabled", "KELLY_SIZING_ENABLED", False
+            ),
+            kelly_fraction_cap=self._get_float(
+                "kelly_fraction_cap", "KELLY_FRACTION_CAP", 0.25
+            ),
+            kelly_min_confidence=self._get_float(
+                "kelly_min_confidence", "KELLY_MIN_CONFIDENCE", 0.60
+            ),
+            kelly_max_position_pct=self._get_float(
+                "kelly_max_position_pct", "KELLY_MAX_POSITION_PCT", 10.0
+            ),
+            # Market Regime Detection
+            regime_detection_enabled=self._get_bool(
+                "regime_detection_enabled", "REGIME_DETECTION_ENABLED", True
+            ),
+            regime_vix_low_threshold=self._get_float(
+                "regime_vix_low_threshold", "REGIME_VIX_LOW", 15.0
+            ),
+            regime_vix_high_threshold=self._get_float(
+                "regime_vix_high_threshold", "REGIME_VIX_HIGH", 25.0
+            ),
+            regime_vix_crisis_threshold=self._get_float(
+                "regime_vix_crisis_threshold", "REGIME_VIX_CRISIS", 35.0
+            ),
+            regime_auto_adjust=self._get_bool(
+                "regime_auto_adjust", "REGIME_AUTO_ADJUST", True
+            ),
+            # Circuit Breaker System
+            circuit_breaker_enabled=self._get_bool(
+                "circuit_breaker_enabled", "CIRCUIT_BREAKER_ENABLED", True
+            ),
+            circuit_breaker_level1_pct=self._get_float(
+                "circuit_breaker_level1_pct", "CB_LEVEL1_PCT", 3.0
+            ),
+            circuit_breaker_level2_pct=self._get_float(
+                "circuit_breaker_level2_pct", "CB_LEVEL2_PCT", 5.0
+            ),
+            circuit_breaker_level3_pct=self._get_float(
+                "circuit_breaker_level3_pct", "CB_LEVEL3_PCT", 10.0
+            ),
+            circuit_breaker_reset_hours=self._get_int(
+                "circuit_breaker_reset_hours", "CB_RESET_HOURS", 24
+            ),
+            # ============================================================
+            # STRATEGY ENHANCEMENTS - PHASE 2
+            # ============================================================
+            # Time Decay Analysis
+            time_decay_enabled=self._get_bool(
+                "time_decay_enabled", "TIME_DECAY_ENABLED", True
+            ),
+            time_decay_critical_days=self._get_int(
+                "time_decay_critical_days", "TIME_DECAY_CRITICAL_DAYS", 7
+            ),
+            time_decay_avoid_entry_hours=self._get_int(
+                "time_decay_avoid_entry_hours", "TIME_DECAY_AVOID_HOURS", 48
+            ),
+            time_decay_mid_prob_low=self._get_float(
+                "time_decay_mid_prob_low", "TIME_DECAY_MID_PROB_LOW", 0.35
+            ),
+            time_decay_mid_prob_high=self._get_float(
+                "time_decay_mid_prob_high", "TIME_DECAY_MID_PROB_HIGH", 0.65
+            ),
+            # Order Flow Analysis
+            order_flow_enabled=self._get_bool(
+                "order_flow_enabled", "ORDER_FLOW_ENABLED", False
+            ),
+            order_flow_signal_threshold=self._get_float(
+                "order_flow_signal_threshold", "ORDER_FLOW_SIGNAL_THRESH", 0.30
+            ),
+            order_flow_strong_threshold=self._get_float(
+                "order_flow_strong_threshold", "ORDER_FLOW_STRONG_THRESH", 0.60
+            ),
+            order_flow_lookback_seconds=self._get_int(
+                "order_flow_lookback_seconds", "ORDER_FLOW_LOOKBACK_SEC", 300
+            ),
+            # Stablecoin Depeg Detection
+            depeg_detection_enabled=self._get_bool(
+                "depeg_detection_enabled", "DEPEG_DETECTION_ENABLED", True
+            ),
+            depeg_alert_threshold_pct=self._get_float(
+                "depeg_alert_threshold_pct", "DEPEG_ALERT_PCT", 0.30
+            ),
+            depeg_arbitrage_threshold_pct=self._get_float(
+                "depeg_arbitrage_threshold_pct", "DEPEG_ARB_PCT", 0.50
+            ),
+            depeg_critical_threshold_pct=self._get_float(
+                "depeg_critical_threshold_pct", "DEPEG_CRITICAL_PCT", 5.0
+            ),
+            # Correlation Position Limits
+            correlation_limits_enabled=self._get_bool(
+                "correlation_limits_enabled", "CORRELATION_LIMITS_ENABLED", True
+            ),
+            correlation_max_cluster_pct=self._get_float(
+                "correlation_max_cluster_pct", "CORRELATION_MAX_CLUSTER_PCT", 30.0
+            ),
+            correlation_max_correlated_pct=self._get_float(
+                "correlation_max_correlated_pct", "CORRELATION_MAX_CORR_PCT", 50.0
+            ),
+            correlation_high_threshold=self._get_float(
+                "correlation_high_threshold", "CORRELATION_HIGH_THRESH", 0.70
             ),
         )
         self.polymarket = PolymarketConfig()

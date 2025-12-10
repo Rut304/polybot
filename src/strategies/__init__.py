@@ -135,6 +135,83 @@ from .options_strategies import (
     OPTIONS_STRATEGY_INFO,
 )
 
+# ============================================
+# ADVANCED FRAMEWORK MODULES (Phase 1)
+# ============================================
+
+# Position Sizing - Kelly Criterion
+from .position_sizing import (
+    KellyCriterion,
+    KellyPositionSizer,  # Alias for backward compatibility
+    KellyResult,
+    get_kelly_sizer,
+)
+
+# Market Regime Detection
+from .regime_detection import (
+    RegimeDetector,
+    MarketRegime,
+    RegimeState,
+    RegimeConfig,
+    get_regime_detector,
+)
+
+# Circuit Breaker System
+from .circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerState,
+    CircuitBreakerStatus,
+    DrawdownLevel,
+    get_circuit_breaker,
+    DailyLossCircuitBreaker,
+)
+
+# ============================================
+# STRATEGY ENHANCEMENT MODULES (Phase 2)
+# ============================================
+
+# Time Decay Analysis (Prediction Markets)
+from .time_decay import (
+    TimeDecayAnalyzer,
+    TimeDecayAnalysis,
+    CorrelationArbDetector,
+    CorrelationOpportunity,
+    get_time_decay_analyzer,
+)
+
+# Order Flow Imbalance
+from .order_flow import (
+    OrderFlowAnalyzer,
+    OrderBookSnapshot,
+    OrderBookLevel,
+    OFIResult,
+    OFISignal,
+    TradeFlowAnalyzer,
+    TradeFlowAnalysis,
+    get_order_flow_analyzer,
+    get_trade_flow_analyzer,
+)
+
+# Stablecoin Depeg Detection
+from .depeg_detection import (
+    DepegDetector,
+    DepegAlert,
+    DepegSeverity,
+    DepegDirection,
+    DepegTradingOpportunity,
+    StablecoinPrice,
+    get_depeg_detector,
+)
+
+# Correlation-Based Position Limits
+from .correlation_limits import (
+    CorrelationTracker,
+    CorrelationPair,
+    CorrelationRiskAssessment,
+    Position,
+    get_correlation_tracker,
+)
+
 # Keep old imports for backward compatibility
 from .market_maker import MarketMaker, NewsArbitrageTracker
 
@@ -221,6 +298,60 @@ __all__ = [
     "WheelPhase",
     "create_options_strategy",
     "OPTIONS_STRATEGY_INFO",
+    # ========================================
+    # ADVANCED FRAMEWORK (Phase 1)
+    # ========================================
+    # Position Sizing - Kelly Criterion
+    "KellyCriterion",
+    "KellyPositionSizer",  # Alias
+    "KellyResult",
+    "get_kelly_sizer",
+    # Market Regime Detection
+    "RegimeDetector",
+    "MarketRegime",
+    "RegimeState",
+    "RegimeConfig",
+    "get_regime_detector",
+    # Circuit Breaker System
+    "CircuitBreaker",
+    "CircuitBreakerState",
+    "CircuitBreakerStatus",
+    "DrawdownLevel",
+    "DailyLossCircuitBreaker",
+    "get_circuit_breaker",
+    # ========================================
+    # STRATEGY ENHANCEMENTS (Phase 2)
+    # ========================================
+    # Time Decay Analysis
+    "TimeDecayAnalyzer",
+    "TimeDecayAnalysis",
+    "CorrelationArbDetector",
+    "CorrelationOpportunity",
+    "get_time_decay_analyzer",
+    # Order Flow Imbalance
+    "OrderFlowAnalyzer",
+    "OrderBookSnapshot",
+    "OrderBookLevel",
+    "OFIResult",
+    "OFISignal",
+    "TradeFlowAnalyzer",
+    "TradeFlowAnalysis",
+    "get_order_flow_analyzer",
+    "get_trade_flow_analyzer",
+    # Stablecoin Depeg Detection
+    "DepegDetector",
+    "DepegAlert",
+    "DepegSeverity",
+    "DepegDirection",
+    "DepegTradingOpportunity",
+    "StablecoinPrice",
+    "get_depeg_detector",
+    # Correlation Position Limits
+    "CorrelationTracker",
+    "CorrelationPair",
+    "CorrelationRiskAssessment",
+    "Position",
+    "get_correlation_tracker",
     # Legacy (backward compatibility)
     "MarketMaker",
     "NewsArbitrageTracker",
