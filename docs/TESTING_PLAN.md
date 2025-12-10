@@ -64,6 +64,7 @@ run_all_tests()
 ### Phase 3: Simulation Mode Validation (15 min)
 
 1. **Start bot in simulation mode:**
+
    ```bash
    python -m src.main --simulation
    ```
@@ -75,6 +76,7 @@ run_all_tests()
    - Check P&L calculations in UI
 
 3. **Validation queries:**
+
    ```sql
    -- Check recent trades
    SELECT * FROM polybot_trades 
@@ -136,6 +138,7 @@ run_all_tests()
 ## Expected Test Results
 
 ### Kelly Criterion Tests
+
 ```
 test_kelly_basic_calculation: PASS (0.25 capped correctly)
 test_kelly_negative_edge: PASS (returns 0)
@@ -144,6 +147,7 @@ test_kelly_low_confidence_rejection: PASS (0 position)
 ```
 
 ### Circuit Breaker Tests
+
 ```
 test_level1_triggered: PASS (3% → 50% size)
 test_level2_triggered: PASS (5% → 25% size)
@@ -152,6 +156,7 @@ test_auto_reset: PASS (after cooling period)
 ```
 
 ### Regime Detection Tests
+
 ```
 test_regime_low_volatility: PASS (VIX < 15)
 test_regime_high_volatility: PASS (VIX 25-35)

@@ -286,6 +286,56 @@ export default function SettingsPage() {
   const [showOptionsStrategies, setShowOptionsStrategies] = useState(false);
   
   // =========================================================================
+  // ADVANCED RISK FRAMEWORK (Kelly, Regime, Circuit Breaker, etc.)
+  // These modules enhance ALL strategies with better risk management
+  // =========================================================================
+  
+  // Kelly Criterion Position Sizing
+  const [kellySizingEnabled, setKellySizingEnabled] = useState(config?.kelly_sizing_enabled ?? false);
+  const [kellyFractionCap, setKellyFractionCap] = useState(config?.kelly_fraction_cap ?? 0.25);
+  const [kellyMinConfidence, setKellyMinConfidence] = useState(config?.kelly_min_confidence ?? 0.60);
+  const [kellyMaxPositionPct, setKellyMaxPositionPct] = useState(config?.kelly_max_position_pct ?? 10.0);
+  
+  // Market Regime Detection
+  const [regimeDetectionEnabled, setRegimeDetectionEnabled] = useState(config?.regime_detection_enabled ?? true);
+  const [regimeVixLowThreshold, setRegimeVixLowThreshold] = useState(config?.regime_vix_low_threshold ?? 15.0);
+  const [regimeVixHighThreshold, setRegimeVixHighThreshold] = useState(config?.regime_vix_high_threshold ?? 25.0);
+  const [regimeVixCrisisThreshold, setRegimeVixCrisisThreshold] = useState(config?.regime_vix_crisis_threshold ?? 35.0);
+  const [regimeAutoAdjust, setRegimeAutoAdjust] = useState(config?.regime_auto_adjust ?? true);
+  
+  // Circuit Breaker System
+  const [circuitBreakerEnabled, setCircuitBreakerEnabled] = useState(config?.circuit_breaker_enabled ?? true);
+  const [circuitBreakerLevel1Pct, setCircuitBreakerLevel1Pct] = useState(config?.circuit_breaker_level1_pct ?? 3.0);
+  const [circuitBreakerLevel2Pct, setCircuitBreakerLevel2Pct] = useState(config?.circuit_breaker_level2_pct ?? 5.0);
+  const [circuitBreakerLevel3Pct, setCircuitBreakerLevel3Pct] = useState(config?.circuit_breaker_level3_pct ?? 10.0);
+  const [circuitBreakerResetHours, setCircuitBreakerResetHours] = useState(config?.circuit_breaker_reset_hours ?? 24);
+  
+  // Time Decay Analysis
+  const [timeDecayEnabled, setTimeDecayEnabled] = useState(config?.time_decay_enabled ?? true);
+  const [timeDecayCriticalDays, setTimeDecayCriticalDays] = useState(config?.time_decay_critical_days ?? 7);
+  const [timeDecayAvoidEntryHours, setTimeDecayAvoidEntryHours] = useState(config?.time_decay_avoid_entry_hours ?? 48);
+  
+  // Order Flow Analysis
+  const [orderFlowEnabled, setOrderFlowEnabled] = useState(config?.order_flow_enabled ?? false);
+  const [orderFlowSignalThreshold, setOrderFlowSignalThreshold] = useState(config?.order_flow_signal_threshold ?? 0.30);
+  const [orderFlowStrongThreshold, setOrderFlowStrongThreshold] = useState(config?.order_flow_strong_threshold ?? 0.60);
+  
+  // Stablecoin Depeg Detection
+  const [depegDetectionEnabled, setDepegDetectionEnabled] = useState(config?.depeg_detection_enabled ?? true);
+  const [depegAlertThresholdPct, setDepegAlertThresholdPct] = useState(config?.depeg_alert_threshold_pct ?? 0.30);
+  const [depegArbitrageThresholdPct, setDepegArbitrageThresholdPct] = useState(config?.depeg_arbitrage_threshold_pct ?? 0.50);
+  const [depegCriticalThresholdPct, setDepegCriticalThresholdPct] = useState(config?.depeg_critical_threshold_pct ?? 5.0);
+  
+  // Correlation Position Limits
+  const [correlationLimitsEnabled, setCorrelationLimitsEnabled] = useState(config?.correlation_limits_enabled ?? true);
+  const [correlationMaxClusterPct, setCorrelationMaxClusterPct] = useState(config?.correlation_max_cluster_pct ?? 30.0);
+  const [correlationMaxCorrelatedPct, setCorrelationMaxCorrelatedPct] = useState(config?.correlation_max_correlated_pct ?? 50.0);
+  const [correlationHighThreshold, setCorrelationHighThreshold] = useState(config?.correlation_high_threshold ?? 0.70);
+  
+  // UI state for Advanced Risk Framework section
+  const [showAdvancedRiskFramework, setShowAdvancedRiskFramework] = useState(false);
+  
+  // =========================================================================
   // EXCHANGE ENABLEMENT (which platforms to trade on)
   // =========================================================================
   
@@ -490,6 +540,36 @@ export default function SettingsPage() {
       if (config.binance_starting_balance !== undefined) setBinanceStartingBalance(config.binance_starting_balance);
       if (config.coinbase_starting_balance !== undefined) setCoinbaseStartingBalance(config.coinbase_starting_balance);
       if (config.alpaca_starting_balance !== undefined) setAlpacaStartingBalance(config.alpaca_starting_balance);
+      
+      // Advanced Risk Framework
+      if (config.kelly_sizing_enabled !== undefined) setKellySizingEnabled(config.kelly_sizing_enabled);
+      if (config.kelly_fraction_cap !== undefined) setKellyFractionCap(config.kelly_fraction_cap);
+      if (config.kelly_min_confidence !== undefined) setKellyMinConfidence(config.kelly_min_confidence);
+      if (config.kelly_max_position_pct !== undefined) setKellyMaxPositionPct(config.kelly_max_position_pct);
+      if (config.regime_detection_enabled !== undefined) setRegimeDetectionEnabled(config.regime_detection_enabled);
+      if (config.regime_vix_low_threshold !== undefined) setRegimeVixLowThreshold(config.regime_vix_low_threshold);
+      if (config.regime_vix_high_threshold !== undefined) setRegimeVixHighThreshold(config.regime_vix_high_threshold);
+      if (config.regime_vix_crisis_threshold !== undefined) setRegimeVixCrisisThreshold(config.regime_vix_crisis_threshold);
+      if (config.regime_auto_adjust !== undefined) setRegimeAutoAdjust(config.regime_auto_adjust);
+      if (config.circuit_breaker_enabled !== undefined) setCircuitBreakerEnabled(config.circuit_breaker_enabled);
+      if (config.circuit_breaker_level1_pct !== undefined) setCircuitBreakerLevel1Pct(config.circuit_breaker_level1_pct);
+      if (config.circuit_breaker_level2_pct !== undefined) setCircuitBreakerLevel2Pct(config.circuit_breaker_level2_pct);
+      if (config.circuit_breaker_level3_pct !== undefined) setCircuitBreakerLevel3Pct(config.circuit_breaker_level3_pct);
+      if (config.circuit_breaker_reset_hours !== undefined) setCircuitBreakerResetHours(config.circuit_breaker_reset_hours);
+      if (config.time_decay_enabled !== undefined) setTimeDecayEnabled(config.time_decay_enabled);
+      if (config.time_decay_critical_days !== undefined) setTimeDecayCriticalDays(config.time_decay_critical_days);
+      if (config.time_decay_avoid_entry_hours !== undefined) setTimeDecayAvoidEntryHours(config.time_decay_avoid_entry_hours);
+      if (config.order_flow_enabled !== undefined) setOrderFlowEnabled(config.order_flow_enabled);
+      if (config.order_flow_signal_threshold !== undefined) setOrderFlowSignalThreshold(config.order_flow_signal_threshold);
+      if (config.order_flow_strong_threshold !== undefined) setOrderFlowStrongThreshold(config.order_flow_strong_threshold);
+      if (config.depeg_detection_enabled !== undefined) setDepegDetectionEnabled(config.depeg_detection_enabled);
+      if (config.depeg_alert_threshold_pct !== undefined) setDepegAlertThresholdPct(config.depeg_alert_threshold_pct);
+      if (config.depeg_arbitrage_threshold_pct !== undefined) setDepegArbitrageThresholdPct(config.depeg_arbitrage_threshold_pct);
+      if (config.depeg_critical_threshold_pct !== undefined) setDepegCriticalThresholdPct(config.depeg_critical_threshold_pct);
+      if (config.correlation_limits_enabled !== undefined) setCorrelationLimitsEnabled(config.correlation_limits_enabled);
+      if (config.correlation_max_cluster_pct !== undefined) setCorrelationMaxClusterPct(config.correlation_max_cluster_pct);
+      if (config.correlation_max_correlated_pct !== undefined) setCorrelationMaxCorrelatedPct(config.correlation_max_correlated_pct);
+      if (config.correlation_high_threshold !== undefined) setCorrelationHighThreshold(config.correlation_high_threshold);
     }
   }, [config, saving]);
   
@@ -710,6 +790,35 @@ export default function SettingsPage() {
         binance_starting_balance: binanceStartingBalance,
         coinbase_starting_balance: coinbaseStartingBalance,
         alpaca_starting_balance: alpacaStartingBalance,
+        // Advanced Risk Framework
+        kelly_sizing_enabled: kellySizingEnabled,
+        kelly_fraction_cap: kellyFractionCap,
+        kelly_min_confidence: kellyMinConfidence,
+        kelly_max_position_pct: kellyMaxPositionPct,
+        regime_detection_enabled: regimeDetectionEnabled,
+        regime_vix_low_threshold: regimeVixLowThreshold,
+        regime_vix_high_threshold: regimeVixHighThreshold,
+        regime_vix_crisis_threshold: regimeVixCrisisThreshold,
+        regime_auto_adjust: regimeAutoAdjust,
+        circuit_breaker_enabled: circuitBreakerEnabled,
+        circuit_breaker_level1_pct: circuitBreakerLevel1Pct,
+        circuit_breaker_level2_pct: circuitBreakerLevel2Pct,
+        circuit_breaker_level3_pct: circuitBreakerLevel3Pct,
+        circuit_breaker_reset_hours: circuitBreakerResetHours,
+        time_decay_enabled: timeDecayEnabled,
+        time_decay_critical_days: timeDecayCriticalDays,
+        time_decay_avoid_entry_hours: timeDecayAvoidEntryHours,
+        order_flow_enabled: orderFlowEnabled,
+        order_flow_signal_threshold: orderFlowSignalThreshold,
+        order_flow_strong_threshold: orderFlowStrongThreshold,
+        depeg_detection_enabled: depegDetectionEnabled,
+        depeg_alert_threshold_pct: depegAlertThresholdPct,
+        depeg_arbitrage_threshold_pct: depegArbitrageThresholdPct,
+        depeg_critical_threshold_pct: depegCriticalThresholdPct,
+        correlation_limits_enabled: correlationLimitsEnabled,
+        correlation_max_cluster_pct: correlationMaxClusterPct,
+        correlation_max_correlated_pct: correlationMaxCorrelatedPct,
+        correlation_high_threshold: correlationHighThreshold,
         // Add updated_at timestamp
         updated_at: new Date().toISOString(),
       };
@@ -2010,6 +2119,584 @@ export default function SettingsPage() {
                       className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
                     />
                     <p className="text-[10px] text-gray-500 mt-1">Markets containing these keywords will be monitored for price divergence</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Advanced Risk Framework: Kelly, Regime, Circuit Breaker, etc. */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.235 }}
+        className="card mb-6"
+      >
+        <button
+          onClick={() => setShowAdvancedRiskFramework(!showAdvancedRiskFramework)}
+          className="w-full flex items-center justify-between"
+          type="button"
+          title="Toggle advanced risk framework"
+        >
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Shield className="w-5 h-5 text-neon-green" />
+            Advanced Risk Framework
+            <span className="text-xs bg-neon-green/20 text-neon-green px-2 py-0.5 rounded-full font-normal">7 MODULES</span>
+          </h2>
+          {showAdvancedRiskFramework ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </button>
+        <p className="text-sm text-gray-500 mt-1">Kelly Criterion, Regime Detection, Circuit Breaker, Time Decay, Order Flow, Depeg Detection, Correlation Limits</p>
+
+        <AnimatePresence>
+          {showAdvancedRiskFramework && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              {/* Kelly Criterion Position Sizing */}
+              <div className="mt-6 rounded-xl border-2 border-neon-purple overflow-hidden">
+                <div className="bg-neon-purple/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-neon-purple flex items-center justify-center">
+                      <Target className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Kelly Criterion Sizing
+                        <span className="text-xs bg-neon-purple/30 text-neon-purple px-2 py-0.5 rounded-full">OPTIMAL</span>
+                      </h3>
+                      <p className="text-xs text-neon-purple">Mathematically optimal bet sizing</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={kellySizingEnabled} 
+                    onToggle={() => setKellySizingEnabled(!kellySizingEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-neon-purple/5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Fraction Cap (Half-Kelly)
+                      </label>
+                      <input
+                        type="number"
+                        value={kellyFractionCap}
+                        onChange={(e) => setKellyFractionCap(parseFloat(e.target.value))}
+                        step="0.05"
+                        min="0.1"
+                        max="1.0"
+                        disabled={!isAdmin}
+                        placeholder="0.25"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">0.25 = Quarter-Kelly (conservative)</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Confidence
+                      </label>
+                      <input
+                        type="number"
+                        value={kellyMinConfidence}
+                        onChange={(e) => setKellyMinConfidence(parseFloat(e.target.value))}
+                        step="0.05"
+                        min="0.5"
+                        max="0.95"
+                        disabled={!isAdmin}
+                        placeholder="0.60"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Minimum edge to use Kelly</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Max Position (% of portfolio)
+                      </label>
+                      <input
+                        type="number"
+                        value={kellyMaxPositionPct}
+                        onChange={(e) => setKellyMaxPositionPct(parseFloat(e.target.value))}
+                        step="1"
+                        min="1"
+                        max="25"
+                        disabled={!isAdmin}
+                        placeholder="10"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Hard cap on single position</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Market Regime Detection */}
+              <div className="mt-4 rounded-xl border-2 border-blue-500 overflow-hidden">
+                <div className="bg-blue-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Market Regime Detection
+                        <span className="text-xs bg-blue-500/30 text-blue-400 px-2 py-0.5 rounded-full">ADAPTIVE</span>
+                      </h3>
+                      <p className="text-xs text-blue-400">Adapts strategies to market conditions</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={regimeDetectionEnabled} 
+                    onToggle={() => setRegimeDetectionEnabled(!regimeDetectionEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-blue-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        VIX Low (Bull)
+                      </label>
+                      <input
+                        type="number"
+                        value={regimeVixLowThreshold}
+                        onChange={(e) => setRegimeVixLowThreshold(parseFloat(e.target.value))}
+                        step="1"
+                        min="10"
+                        max="20"
+                        disabled={!isAdmin}
+                        placeholder="15"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        VIX High (Volatile)
+                      </label>
+                      <input
+                        type="number"
+                        value={regimeVixHighThreshold}
+                        onChange={(e) => setRegimeVixHighThreshold(parseFloat(e.target.value))}
+                        step="1"
+                        min="20"
+                        max="35"
+                        disabled={!isAdmin}
+                        placeholder="25"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        VIX Crisis
+                      </label>
+                      <input
+                        type="number"
+                        value={regimeVixCrisisThreshold}
+                        onChange={(e) => setRegimeVixCrisisThreshold(parseFloat(e.target.value))}
+                        step="1"
+                        min="30"
+                        max="50"
+                        disabled={!isAdmin}
+                        placeholder="35"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="flex items-center">
+                      <label className="flex items-center gap-2 text-xs font-medium text-gray-400">
+                        <input
+                          type="checkbox"
+                          checked={regimeAutoAdjust}
+                          onChange={(e) => setRegimeAutoAdjust(e.target.checked)}
+                          disabled={!isAdmin}
+                          className="w-4 h-4 rounded"
+                        />
+                        Auto-adjust params
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Circuit Breaker System */}
+              <div className="mt-4 rounded-xl border-2 border-red-500 overflow-hidden">
+                <div className="bg-red-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center">
+                      <AlertTriangle className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Circuit Breaker
+                        <span className="text-xs bg-red-500/30 text-red-400 px-2 py-0.5 rounded-full">SAFETY</span>
+                      </h3>
+                      <p className="text-xs text-red-400">Stops trading on excessive drawdown</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={circuitBreakerEnabled} 
+                    onToggle={() => setCircuitBreakerEnabled(!circuitBreakerEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-red-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Level 1 (50% size)
+                      </label>
+                      <input
+                        type="number"
+                        value={circuitBreakerLevel1Pct}
+                        onChange={(e) => setCircuitBreakerLevel1Pct(parseFloat(e.target.value))}
+                        step="0.5"
+                        min="1"
+                        max="5"
+                        disabled={!isAdmin}
+                        placeholder="3"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">% drawdown</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Level 2 (25% size)
+                      </label>
+                      <input
+                        type="number"
+                        value={circuitBreakerLevel2Pct}
+                        onChange={(e) => setCircuitBreakerLevel2Pct(parseFloat(e.target.value))}
+                        step="0.5"
+                        min="3"
+                        max="10"
+                        disabled={!isAdmin}
+                        placeholder="5"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">% drawdown</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Level 3 (HALT)
+                      </label>
+                      <input
+                        type="number"
+                        value={circuitBreakerLevel3Pct}
+                        onChange={(e) => setCircuitBreakerLevel3Pct(parseFloat(e.target.value))}
+                        step="1"
+                        min="5"
+                        max="20"
+                        disabled={!isAdmin}
+                        placeholder="10"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">% drawdown</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Reset After (hours)
+                      </label>
+                      <input
+                        type="number"
+                        value={circuitBreakerResetHours}
+                        onChange={(e) => setCircuitBreakerResetHours(parseInt(e.target.value))}
+                        step="1"
+                        min="1"
+                        max="72"
+                        disabled={!isAdmin}
+                        placeholder="24"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Time Decay Analysis */}
+              <div className="mt-4 rounded-xl border-2 border-orange-500 overflow-hidden">
+                <div className="bg-orange-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center">
+                      <Clock className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Time Decay Analysis
+                        <span className="text-xs bg-orange-500/30 text-orange-400 px-2 py-0.5 rounded-full">PREDICTION MARKETS</span>
+                      </h3>
+                      <p className="text-xs text-orange-400">Event horizon theta analysis</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={timeDecayEnabled} 
+                    onToggle={() => setTimeDecayEnabled(!timeDecayEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-orange-500/5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Critical Days
+                      </label>
+                      <input
+                        type="number"
+                        value={timeDecayCriticalDays}
+                        onChange={(e) => setTimeDecayCriticalDays(parseInt(e.target.value))}
+                        step="1"
+                        min="1"
+                        max="30"
+                        disabled={!isAdmin}
+                        placeholder="7"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Days before resolution</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Avoid Entry (hours)
+                      </label>
+                      <input
+                        type="number"
+                        value={timeDecayAvoidEntryHours}
+                        onChange={(e) => setTimeDecayAvoidEntryHours(parseInt(e.target.value))}
+                        step="6"
+                        min="6"
+                        max="168"
+                        disabled={!isAdmin}
+                        placeholder="48"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-orange-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Don&apos;t enter within this window</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Flow Analysis */}
+              <div className="mt-4 rounded-xl border-2 border-cyan-500 overflow-hidden">
+                <div className="bg-cyan-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center">
+                      <TrendingDown className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Order Flow Analysis
+                        <span className="text-xs bg-cyan-500/30 text-cyan-400 px-2 py-0.5 rounded-full">ADVANCED</span>
+                      </h3>
+                      <p className="text-xs text-cyan-400">Order flow imbalance signals</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={orderFlowEnabled} 
+                    onToggle={() => setOrderFlowEnabled(!orderFlowEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-cyan-500/5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Signal Threshold
+                      </label>
+                      <input
+                        type="number"
+                        value={orderFlowSignalThreshold}
+                        onChange={(e) => setOrderFlowSignalThreshold(parseFloat(e.target.value))}
+                        step="0.05"
+                        min="0.1"
+                        max="0.5"
+                        disabled={!isAdmin}
+                        placeholder="0.30"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">OFI threshold for weak signal</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Strong Signal Threshold
+                      </label>
+                      <input
+                        type="number"
+                        value={orderFlowStrongThreshold}
+                        onChange={(e) => setOrderFlowStrongThreshold(parseFloat(e.target.value))}
+                        step="0.05"
+                        min="0.4"
+                        max="0.9"
+                        disabled={!isAdmin}
+                        placeholder="0.60"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">OFI threshold for strong signal</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Stablecoin Depeg Detection */}
+              <div className="mt-4 rounded-xl border-2 border-green-500 overflow-hidden">
+                <div className="bg-green-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Depeg Detection
+                        <span className="text-xs bg-green-500/30 text-green-400 px-2 py-0.5 rounded-full">STABLECOINS</span>
+                      </h3>
+                      <p className="text-xs text-green-400">Arbitrage on stablecoin depegs</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={depegDetectionEnabled} 
+                    onToggle={() => setDepegDetectionEnabled(!depegDetectionEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-green-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Alert Threshold (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={depegAlertThresholdPct}
+                        onChange={(e) => setDepegAlertThresholdPct(parseFloat(e.target.value))}
+                        step="0.1"
+                        min="0.1"
+                        max="1.0"
+                        disabled={!isAdmin}
+                        placeholder="0.30"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Arb Threshold (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={depegArbitrageThresholdPct}
+                        onChange={(e) => setDepegArbitrageThresholdPct(parseFloat(e.target.value))}
+                        step="0.1"
+                        min="0.2"
+                        max="2.0"
+                        disabled={!isAdmin}
+                        placeholder="0.50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Critical (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={depegCriticalThresholdPct}
+                        onChange={(e) => setDepegCriticalThresholdPct(parseFloat(e.target.value))}
+                        step="0.5"
+                        min="1"
+                        max="10"
+                        disabled={!isAdmin}
+                        placeholder="5.0"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Correlation Position Limits */}
+              <div className="mt-4 rounded-xl border-2 border-pink-500 overflow-hidden">
+                <div className="bg-pink-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-pink-500 flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Correlation Limits
+                        <span className="text-xs bg-pink-500/30 text-pink-400 px-2 py-0.5 rounded-full">PORTFOLIO</span>
+                      </h3>
+                      <p className="text-xs text-pink-400">Cross-asset correlation tracking</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch 
+                    enabled={correlationLimitsEnabled} 
+                    onToggle={() => setCorrelationLimitsEnabled(!correlationLimitsEnabled)} 
+                    disabled={!isAdmin}
+                    size="md"
+                  />
+                </div>
+                <div className="p-4 bg-pink-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Max Cluster (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={correlationMaxClusterPct}
+                        onChange={(e) => setCorrelationMaxClusterPct(parseFloat(e.target.value))}
+                        step="5"
+                        min="10"
+                        max="50"
+                        disabled={!isAdmin}
+                        placeholder="30"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-pink-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Max % in correlated cluster</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Max Correlated (%)
+                      </label>
+                      <input
+                        type="number"
+                        value={correlationMaxCorrelatedPct}
+                        onChange={(e) => setCorrelationMaxCorrelatedPct(parseFloat(e.target.value))}
+                        step="5"
+                        min="20"
+                        max="70"
+                        disabled={!isAdmin}
+                        placeholder="50"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-pink-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Max % in any correlation group</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        High Threshold
+                      </label>
+                      <input
+                        type="number"
+                        value={correlationHighThreshold}
+                        onChange={(e) => setCorrelationHighThreshold(parseFloat(e.target.value))}
+                        step="0.05"
+                        min="0.5"
+                        max="0.95"
+                        disabled={!isAdmin}
+                        placeholder="0.70"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-pink-500 text-sm disabled:opacity-50"
+                      />
+                      <p className="text-[10px] text-gray-500 mt-1">Correlation coefficient threshold</p>
+                    </div>
                   </div>
                 </div>
               </div>
