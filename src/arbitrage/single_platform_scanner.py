@@ -17,7 +17,7 @@ Two types of single-platform arbitrage:
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
@@ -124,6 +124,9 @@ class SinglePlatformScanner:
     MAX_PROFIT_PCT = Decimal("15.0")     # Above this is likely bad data
     MIN_LIQUIDITY_USD = Decimal("100")   # Minimum liquidity
     
+    # Deduplication: cooldown period before trading same market again
+    MARKET_COOLDOWN_SECONDS = 300  # 5 minutes between trades on same market
+    
     def __init__(
         self,
         min_profit_pct: float = 0.5,  # Legacy/default for both platforms
@@ -137,6 +140,7 @@ class SinglePlatformScanner:
         kalshi_min_profit_pct: Optional[float] = None,
         kalshi_max_spread_pct: Optional[float] = None,
         kalshi_max_position_usd: Optional[float] = None,
+        market_cooldown_seconds: int = 300,  # 5 min default cooldown
     ):
         self.min_profit_pct = Decimal(str(min_profit_pct))
         # Per-platform thresholds (use defaults if not provided)
@@ -151,6 +155,10 @@ class SinglePlatformScanner:
         self.on_opportunity = on_opportunity
         self.db = db_client
         
+        # Deduplication: track recently traded markets
+        self.market_cooldown_seconds = market_cooldown_seconds
+        self._recently_traded: Dict[str, datetime] = {}  # market_id -> last_trade_time
+        
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
         
@@ -161,12 +169,14 @@ class SinglePlatformScanner:
                 "opportunities_found": 0,
                 "markets_checked": 0,
                 "markets_rejected": 0,
+                "markets_on_cooldown": 0,
             },
             ArbitrageType.KALSHI_SINGLE: {
                 "scans": 0,
                 "opportunities_found": 0,
                 "markets_checked": 0,
                 "markets_rejected": 0,
+                "markets_on_cooldown": 0,
             },
         }
     
@@ -231,6 +241,47 @@ class SinglePlatformScanner:
         """Close the session"""
         if self._session and not self._session.closed:
             await self._session.close()
+    
+    # =========================================================================
+    # COOLDOWN / DEDUPLICATION
+    # =========================================================================
+    
+    def _is_on_cooldown(self, market_id: str, platform: str) -> bool:
+        """Check if a market is on cooldown (recently traded)."""
+        key = f"{platform}:{market_id}"
+        if key not in self._recently_traded:
+            return False
+        
+        last_trade = self._recently_traded[key]
+        elapsed = (datetime.now() - last_trade).total_seconds()
+        return elapsed < self.market_cooldown_seconds
+    
+    def mark_traded(self, market_id: str, platform: str) -> None:
+        """Mark a market as recently traded (starts cooldown)."""
+        key = f"{platform}:{market_id}"
+        self._recently_traded[key] = datetime.now()
+        
+        # Cleanup old entries (older than 2x cooldown)
+        cutoff = datetime.now() - timedelta(
+            seconds=self.market_cooldown_seconds * 2
+        )
+        self._recently_traded = {
+            k: v for k, v in self._recently_traded.items()
+            if v > cutoff
+        }
+    
+    def get_cooldown_stats(self) -> Dict[str, Any]:
+        """Get cooldown statistics."""
+        now = datetime.now()
+        active = sum(
+            1 for v in self._recently_traded.values()
+            if (now - v).total_seconds() < self.market_cooldown_seconds
+        )
+        return {
+            "markets_on_cooldown": active,
+            "total_tracked": len(self._recently_traded),
+            "cooldown_seconds": self.market_cooldown_seconds,
+        }
     
     # =========================================================================
     # POLYMARKET SCANNING
@@ -527,6 +578,11 @@ class SinglePlatformScanner:
         no_price_float = None
         total_float = None
         profit_pct_float = None
+        
+        # Check cooldown first - skip if recently traded
+        if self._is_on_cooldown(market_id, "kalshi"):
+            self.stats[ArbitrageType.KALSHI_SINGLE]["markets_on_cooldown"] += 1
+            return None  # Skip without logging (reduces noise)
         
         try:
             yes_ask = market.get("yes_ask")

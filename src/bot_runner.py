@@ -906,6 +906,12 @@ class PolybotRunner:
             f"{opp.market_title[:50]}..."
         )
         
+        # Mark as traded IMMEDIATELY to prevent duplicate trades
+        # This happens BEFORE execution so even if execution fails,
+        # we don't spam the same market
+        if self.single_platform_scanner:
+            self.single_platform_scanner.mark_traded(opp.market_id, opp.platform)
+        
         # Track in analytics
         self.analytics.record_opportunity(arb_type)
         
