@@ -441,8 +441,8 @@ export default function MarketsPage() {
                     </div>
 
                     {/* Title - Different display for prediction vs crypto/stock */}
-                    {/* Fallback: if platform is binance/bybit/okx or alpaca, treat as non-prediction */}
-                    {(market.asset_type === 'prediction' && !['binance', 'bybit', 'okx', 'alpaca'].includes(market.platform)) ? (
+                    {/* Robust check: prediction markets are ONLY polymarket/kalshi with prediction asset_type */}
+                    {(market.platform === 'polymarket' || market.platform === 'kalshi') ? (
                       /* Prediction Market - Show question */
                       <h3 className="font-semibold mb-3 line-clamp-2 min-h-[48px]">
                         {market.question}
@@ -480,8 +480,8 @@ export default function MarketsPage() {
                     )}
 
                     {/* Prices - Different display for prediction vs crypto/stock */}
-                    {/* Fallback: if platform is binance/bybit/okx or alpaca, treat as non-prediction */}
-                    {(market.asset_type === 'prediction' && !['binance', 'bybit', 'okx', 'alpaca'].includes(market.platform)) ? (
+                    {/* Prediction markets = polymarket or kalshi ONLY */}
+                    {(market.platform === 'polymarket' || market.platform === 'kalshi') ? (
                       /* Prediction Market - Yes/No prices */
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         <Tooltip content={METRIC_TOOLTIPS.yesPrice} position="bottom">
@@ -539,7 +539,7 @@ export default function MarketsPage() {
 
                     {/* Stats - Different for prediction vs crypto/stock */}
                     <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
-                      {(market.asset_type === 'prediction' && !['binance', 'bybit', 'okx', 'alpaca'].includes(market.platform)) ? (
+                      {(market.platform === 'polymarket' || market.platform === 'kalshi') ? (
                         /* Prediction market stats */
                         <>
                           {market.volume !== undefined && (
@@ -600,7 +600,7 @@ export default function MarketsPage() {
                         )}
                       >
                         <Plus className="w-4 h-4" />
-                        {market.asset_type === 'prediction' ? 'Trade' : 'Buy/Sell'}
+                        {(market.platform === 'polymarket' || market.platform === 'kalshi') ? 'Trade' : 'Buy/Sell'}
                       </button>
                       <a
                         href={market.url}
@@ -685,8 +685,8 @@ export default function MarketsPage() {
         )}
       </div>
 
-      {/* Trade Modal - Only for prediction markets */}
-      {selectedMarket && (selectedMarket.platform === 'polymarket' || selectedMarket.platform === 'kalshi') && (
+      {/* Trade Modal - Only for prediction markets (Polymarket/Kalshi) */}
+      {selectedMarket && showTradeModal && (selectedMarket.platform === 'polymarket' || selectedMarket.platform === 'kalshi') && (
         <ManualTradeModal
           isOpen={showTradeModal}
           onClose={() => {
@@ -703,8 +703,8 @@ export default function MarketsPage() {
         />
       )}
 
-      {/* Crypto/Stock Trade Modal */}
-      {selectedMarket && showTradeModal && selectedMarket.asset_type !== 'prediction' && (
+      {/* Crypto/Stock Trade Modal - For non-prediction markets */}
+      {selectedMarket && showTradeModal && selectedMarket.platform !== 'polymarket' && selectedMarket.platform !== 'kalshi' && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
