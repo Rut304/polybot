@@ -125,7 +125,9 @@ class SinglePlatformScanner:
     MIN_LIQUIDITY_USD = Decimal("100")   # Minimum liquidity
     
     # Deduplication: cooldown period before trading same market again
-    MARKET_COOLDOWN_SECONDS = 300  # 5 minutes between trades on same market
+    # 60 seconds is enough to prevent duplicate detection of same opportunity
+    # while allowing the bot to quickly trade NEW opportunities
+    MARKET_COOLDOWN_SECONDS = 60  # 1 minute between trades on same market
     
     def __init__(
         self,
@@ -140,7 +142,7 @@ class SinglePlatformScanner:
         kalshi_min_profit_pct: Optional[float] = None,
         kalshi_max_spread_pct: Optional[float] = None,
         kalshi_max_position_usd: Optional[float] = None,
-        market_cooldown_seconds: int = 300,  # 5 min default cooldown
+        market_cooldown_seconds: int = 60,  # 1 min default cooldown
     ):
         self.min_profit_pct = Decimal(str(min_profit_pct))
         # Per-platform thresholds (use defaults if not provided)
