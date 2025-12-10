@@ -782,7 +782,7 @@ class PolybotRunner:
         kelly_enabled = getattr(self.config.trading, 'kelly_sizing_enabled', False)
         if kelly_enabled:
             self.kelly_sizer = get_kelly_sizer()
-            self.kelly_sizer.fraction_cap = getattr(
+            self.kelly_sizer.kelly_fraction = getattr(
                 self.config.trading, 'kelly_fraction_cap', 0.25
             )
             self.kelly_sizer.min_confidence = getattr(
@@ -790,7 +790,7 @@ class PolybotRunner:
             )
             logger.info("✓ Kelly Position Sizer initialized")
             logger.info(
-                f"  📊 Fraction cap: {self.kelly_sizer.fraction_cap} | "
+                f"  📊 Kelly fraction: {self.kelly_sizer.kelly_fraction} | "
                 f"Min conf: {self.kelly_sizer.min_confidence}"
             )
         else:
@@ -800,20 +800,20 @@ class PolybotRunner:
         regime_enabled = getattr(self.config.trading, 'regime_detection_enabled', True)
         if regime_enabled:
             self.regime_detector = get_regime_detector()
-            self.regime_detector.vix_low_threshold = getattr(
+            self.regime_detector.vix_low = getattr(
                 self.config.trading, 'regime_vix_low_threshold', 15.0
             )
-            self.regime_detector.vix_high_threshold = getattr(
+            self.regime_detector.vix_high = getattr(
                 self.config.trading, 'regime_vix_high_threshold', 25.0
             )
-            self.regime_detector.vix_crisis_threshold = getattr(
+            self.regime_detector.vix_crisis = getattr(
                 self.config.trading, 'regime_vix_crisis_threshold', 35.0
             )
             logger.info("✓ Regime Detector initialized")
             logger.info(
-                f"  📈 VIX thresholds: <{self.regime_detector.vix_low_threshold} LOW | "
-                f">{self.regime_detector.vix_high_threshold} HIGH | "
-                f">{self.regime_detector.vix_crisis_threshold} CRISIS"
+                f"  📈 VIX thresholds: <{self.regime_detector.vix_low} LOW | "
+                f">{self.regime_detector.vix_high} HIGH | "
+                f">{self.regime_detector.vix_crisis} CRISIS"
             )
         else:
             logger.info("⏸️ Regime Detection DISABLED")
@@ -822,20 +822,18 @@ class PolybotRunner:
         cb_enabled = getattr(self.config.trading, 'circuit_breaker_enabled', True)
         if cb_enabled:
             self.circuit_breaker = get_circuit_breaker()
-            self.circuit_breaker.level1_drawdown_pct = getattr(
-                self.config.trading, 'circuit_breaker_level1_pct', 3.0
-            )
-            self.circuit_breaker.level2_drawdown_pct = getattr(
-                self.config.trading, 'circuit_breaker_level2_pct', 5.0
-            )
-            self.circuit_breaker.level3_drawdown_pct = getattr(
-                self.config.trading, 'circuit_breaker_level3_pct', 10.0
-            )
+            # Update level thresholds from config
+            level1_pct = getattr(self.config.trading, 'circuit_breaker_level1_pct', 5.0)
+            level2_pct = getattr(self.config.trading, 'circuit_breaker_level2_pct', 10.0)
+            level3_pct = getattr(self.config.trading, 'circuit_breaker_level3_pct', 15.0)
+            # Update existing levels' thresholds
+            if len(self.circuit_breaker.levels) >= 3:
+                self.circuit_breaker.levels[0].threshold_pct = level1_pct
+                self.circuit_breaker.levels[1].threshold_pct = level2_pct
+                self.circuit_breaker.levels[2].threshold_pct = level3_pct
             logger.info("✓ Circuit Breaker initialized")
             logger.info(
-                f"  🚨 Levels: {self.circuit_breaker.level1_drawdown_pct}% → "
-                f"{self.circuit_breaker.level2_drawdown_pct}% → "
-                f"{self.circuit_breaker.level3_drawdown_pct}%"
+                f"  🚨 Levels: {level1_pct}% → {level2_pct}% → {level3_pct}%"
             )
         else:
             logger.info("⏸️ Circuit Breaker DISABLED")
