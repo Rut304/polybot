@@ -282,7 +282,7 @@ export default function InsightsPage() {
   const [showTuning, setShowTuning] = useState(true);
   const [applyingRecommendations, setApplyingRecommendations] = useState(false);
   const [applyResult, setApplyResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [rsiEnabled, setRsiEnabled] = useState(config?.rsi_auto_tuning_enabled ?? false);
+  const [rsiEnabled, setRsiEnabled] = useState(true); // Default ON - Apply All always works
 
   // Apply all recommendations automatically
   const handleApplyAllRecommendations = useCallback(async (recommendations: TuningRecommendation[]) => {
@@ -327,28 +327,11 @@ export default function InsightsPage() {
     }
   }, [refetchConfig]);
 
-  // Toggle RSI auto-tuning
-  const handleToggleRSI = useCallback(async () => {
-    const newValue = !rsiEnabled;
-    setRsiEnabled(newValue);
-    
-    try {
-      const response = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rsi_auto_tuning_enabled: newValue }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update RSI setting');
-      }
-      
-      refetchConfig?.();
-    } catch (error) {
-      // Revert on error
-      setRsiEnabled(!newValue);
-    }
-  }, [rsiEnabled, refetchConfig]);
+  // Toggle RSI auto-tuning (local state only - DB column doesn't exist yet)
+  const handleToggleRSI = useCallback(() => {
+    setRsiEnabled(prev => !prev);
+    // Note: This is a visual toggle only. Apply All always works regardless of this setting.
+  }, []);
 
   // Generate insights from data analysis
   const insights = useMemo<Insight[]>(() => {
