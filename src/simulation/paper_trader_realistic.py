@@ -201,18 +201,24 @@ class RealisticPaperTrader:
     SKIP_SAME_PLATFORM_OVERLAP = True  # Set to False to allow risky overlap trades
 
     # ========== EXECUTION SIMULATION ==========
-    SLIPPAGE_MIN_PCT = 0.2
-    SLIPPAGE_MAX_PCT = 1.0
-    SPREAD_COST_PCT = 0.5
-    EXECUTION_FAILURE_RATE = 0.10  # Base rate (adjusted per trade type)
-    PARTIAL_FILL_CHANCE = 0.15
-    PARTIAL_FILL_MIN_PCT = 0.70
+    # CONSERVATIVE REALISTIC RATES - Based on actual trading data:
+    # - Professional HFT: 50-55% win rate
+    # - Statistical arbitrage: 55-65% win rate  
+    # - Prediction market arb: 70-82% win rate (still risky!)
+    # - Expected realistic annual ROI: 15-30%
+    SLIPPAGE_MIN_PCT = 0.5  # Real markets have significant slippage
+    SLIPPAGE_MAX_PCT = 2.0  # Can be high during volatile periods
+    SPREAD_COST_PCT = 1.0   # Bid-ask spread cost (~1% typical)
+    EXECUTION_FAILURE_RATE = 0.20  # 20% base rate - conservative
+    PARTIAL_FILL_CHANCE = 0.25  # 25% chance of partial fill
+    PARTIAL_FILL_MIN_PCT = 0.50  # At least 50% fills
 
     # ========== MARKET RESOLUTION RISK ==========
-    # These are overridden based on trade type in _simulate_execution
-    RESOLUTION_LOSS_RATE = 0.03  # 3% for TRUE cross-platform arbitrage
-    LOSS_SEVERITY_MIN = 0.05
-    LOSS_SEVERITY_MAX = 0.15
+    # CONSERVATIVE: Even "true arbitrage" has execution risk!
+    # Key insight: Losses are often LARGER than wins (asymmetry)
+    RESOLUTION_LOSS_RATE = 0.18  # 18% loss rate for true arb
+    LOSS_SEVERITY_MIN = 0.05    # 5% min loss
+    LOSS_SEVERITY_MAX = 0.20    # 20% max loss on arb trades
 
     # =========================================================================
     # COMPREHENSIVE FEE STRUCTURES - ALL PLATFORMS (as of December 2025)
@@ -482,34 +488,45 @@ class RealisticPaperTrader:
         1. Execution failure - opportunity disappears
         2. Successful but losing trade - market resolves against
         3. Successful winning trade - profit after costs
+        
+        REALISTIC RATES based on industry data:
+        - Professional algo trading: 50-55% win rate typical
+        - Statistical arbitrage: 55-65% win rate
+        - Prediction market arb: 65-80% win rate (still risky!)
+        
+        Even "true arbitrage" has significant risks:
+        - Data latency: Prices shown may not be executable
+        - Execution delay: Multi-leg trades don't execute atomically
+        - Liquidity: Order book may not have enough depth
+        - Platform fees: Can exceed apparent spread
         """
         # ========== DIFFERENT RISK PROFILES ==========
         #
-        # KEY INSIGHT: True arbitrage (single-platform or cross-platform) has
-        # BOUNDED LOSS - you can only lose the spread you're trading, not more.
-        # Loss severity should be proportional to the spread, not a fixed %.
+        # CONSERVATIVE REALISTIC RATES - No trading strategy is 98% win rate!
+        # Even "true arbitrage" has significant execution risk.
         #
         if is_cross_platform:
-            # TRUE ARBITRAGE: Same event, different platforms, locked-in profit
-            # Very low failure rate (both platforms liquid for same event)
-            exec_failure_rate = 0.08  # 8% fail (improved execution)
-            # Very low loss rate (true arb, both sides of same bet)
-            loss_rate = 0.02  # 2% loss rate - only from execution timing
-            # BOUNDED LOSS: Max loss is the spread + slippage, not arbitrary %
-            # For a 2% spread, max loss is ~3% (spread + slippage)
+            # TRUE ARBITRAGE: Same event, different platforms
+            # STILL HAS SIGNIFICANT RISKS:
+            # - Execution timing mismatch between platforms
+            # - Price changes between leg executions
+            # - Data feed latency (what you see isn't current)
+            # - Liquidity differences between platforms
+            # - Platform fees can exceed apparent spread
+            exec_failure_rate = 0.20  # 20% fail - conservative
+            loss_rate = 0.18  # 18% loss rate - realistic
             spread_float = float(original_spread_pct)
-            loss_min = 0.02  # 2% min loss (slippage only)
-            loss_max = min(0.08, spread_float / 100 + 0.03)  # Capped at spread + 3%
-            profit_reason = "TRUE ARBITRAGE: Locked profit on same event"
+            loss_min = 0.05  # 5% min loss
+            loss_max = min(0.20, spread_float / 100 + 0.08)
+            profit_reason = "TRUE ARBITRAGE: Profit captured"
         else:
             # SAME-PLATFORM OVERLAP: Different events, correlation assumed
-            # HIGH risk - correlation may not hold!
-            exec_failure_rate = 0.20  # 20% fail
-            # HIGH loss rate - "correlation" often wrong
-            loss_rate = 0.40  # 40% loss rate - correlation failures
+            # VERY HIGH risk - correlation rarely holds!
+            exec_failure_rate = 0.30  # 30% fail
+            loss_rate = 0.50  # 50% loss rate - correlation failures
             loss_min = 0.30  # 30% loss minimum
-            loss_max = 0.80  # 80% loss max - complete correlation failure
-            profit_reason = "OVERLAP: Correlation held (risky)"
+            loss_max = 0.85  # 85% loss max - complete failure
+            profit_reason = "OVERLAP: Correlation held (very risky)"
         
         # Check if opportunity still exists (execution failure)
         if random.random() < exec_failure_rate:
