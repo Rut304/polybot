@@ -513,11 +513,11 @@ class RealisticPaperTrader:
             # - Data feed latency (what you see isn't current)
             # - Liquidity differences between platforms
             # - Platform fees can exceed apparent spread
-            exec_failure_rate = 0.20  # 20% fail - conservative
-            loss_rate = 0.18  # 18% loss rate - realistic
+            exec_failure_rate = self.EXECUTION_FAILURE_RATE  # Use config value
+            loss_rate = self.RESOLUTION_LOSS_RATE  # Use config value
             spread_float = float(original_spread_pct)
-            loss_min = 0.05  # 5% min loss
-            loss_max = min(0.20, spread_float / 100 + 0.08)
+            loss_min = self.LOSS_SEVERITY_MIN  # Use config value
+            loss_max = min(self.LOSS_SEVERITY_MAX, spread_float / 100 + 0.08)
             profit_reason = "TRUE ARBITRAGE: Profit captured"
         else:
             # SAME-PLATFORM OVERLAP: Different events, correlation assumed
