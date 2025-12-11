@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   Brain, 
   Lightbulb,
@@ -25,6 +25,10 @@ import {
   ArrowDownRight,
   Copy,
   Check,
+  PlayCircle,
+  Cpu,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -271,11 +275,80 @@ export default function InsightsPage() {
   const { data: stats } = useSimulationStats();
   const { data: history = [] } = useSimulationHistory(168); // Last 7 days
   const { data: strategyPerf = [] } = useStrategyPerformance();
-  const { data: config } = useBotConfig();
+  const { data: config, refetch: refetchConfig } = useBotConfig();
   
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<Insight['category'] | 'all'>('all');
   const [showTuning, setShowTuning] = useState(true);
+  const [applyingRecommendations, setApplyingRecommendations] = useState(false);
+  const [applyResult, setApplyResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [rsiEnabled, setRsiEnabled] = useState(config?.rsi_auto_tuning_enabled ?? false);
+
+  // Apply all recommendations automatically
+  const handleApplyAllRecommendations = useCallback(async (recommendations: TuningRecommendation[]) => {
+    if (recommendations.length === 0) {
+      setApplyResult({ success: false, message: 'No recommendations to apply' });
+      return;
+    }
+    
+    setApplyingRecommendations(true);
+    setApplyResult(null);
+    
+    try {
+      const response = await fetch('/api/config/auto-tune', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          recommendations,
+          forceApply: true // Apply all regardless of RSI setting
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to apply recommendations');
+      }
+      
+      setApplyResult({
+        success: true,
+        message: `Applied ${data.applied} recommendations (${data.skipped} skipped)`,
+      });
+      
+      // Refresh config
+      refetchConfig?.();
+    } catch (error) {
+      setApplyResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    } finally {
+      setApplyingRecommendations(false);
+    }
+  }, [refetchConfig]);
+
+  // Toggle RSI auto-tuning
+  const handleToggleRSI = useCallback(async () => {
+    const newValue = !rsiEnabled;
+    setRsiEnabled(newValue);
+    
+    try {
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rsi_auto_tuning_enabled: newValue }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update RSI setting');
+      }
+      
+      refetchConfig?.();
+    } catch (error) {
+      // Revert on error
+      setRsiEnabled(!newValue);
+    }
+  }, [rsiEnabled, refetchConfig]);
 
   // Generate insights from data analysis
   const insights = useMemo<Insight[]>(() => {
@@ -1120,6 +1193,81 @@ export default function InsightsPage() {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
+                  {/* RSI Controls Panel */}
+                  <div className="mb-4 p-4 bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 rounded-xl border border-neon-purple/30">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                      <div className="flex items-center gap-3">
+                        <Cpu className="w-5 h-5 text-neon-purple" />
+                        <div>
+                          <h4 className="font-semibold">RSI (Recursive Self-Improvement)</h4>
+                          <p className="text-xs text-gray-400">Auto-tune parameters based on performance</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        {/* RSI Toggle */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleRSI(); }}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dark-border hover:border-neon-purple/50 transition-colors"
+                        >
+                          {rsiEnabled ? (
+                            <>
+                              <ToggleRight className="w-5 h-5 text-neon-green" />
+                              <span className="text-sm text-neon-green">Auto-Tune ON</span>
+                            </>
+                          ) : (
+                            <>
+                              <ToggleLeft className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm text-gray-400">Auto-Tune OFF</span>
+                            </>
+                          )}
+                        </button>
+                        
+                        {/* Apply All Button */}
+                        <button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleApplyAllRecommendations(tuningRecommendations); 
+                          }}
+                          disabled={applyingRecommendations}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-neon-green to-neon-blue text-dark-bg font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                        >
+                          {applyingRecommendations ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              Applying...
+                            </>
+                          ) : (
+                            <>
+                              <PlayCircle className="w-4 h-4" />
+                              Apply All ({tuningRecommendations.length})
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Apply Result Message */}
+                    {applyResult && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={cn(
+                          "mt-3 px-4 py-2 rounded-lg text-sm",
+                          applyResult.success 
+                            ? "bg-neon-green/20 text-neon-green border border-neon-green/30"
+                            : "bg-red-500/20 text-red-400 border border-red-500/30"
+                        )}
+                      >
+                        {applyResult.success ? (
+                          <CheckCircle className="w-4 h-4 inline mr-2" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 inline mr-2" />
+                        )}
+                        {applyResult.message}
+                      </motion.div>
+                    )}
+                  </div>
+                  
                   <div className="space-y-4">
                     {tuningRecommendations.slice(0, 6).map((rec, index) => (
                       <TuningCard key={rec.id} recommendation={rec} index={index} />
