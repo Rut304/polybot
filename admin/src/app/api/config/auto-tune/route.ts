@@ -157,7 +157,8 @@ export async function POST(request: Request) {
         .from('polybot_config')
         .update({
           ...updates,
-          rsi_last_adjustment_at: new Date().toISOString(),
+          // Note: rsi_last_adjustment_at column doesn't exist yet - skip for now
+          updated_at: new Date().toISOString(),
         })
         .eq('id', 1)
         .select();

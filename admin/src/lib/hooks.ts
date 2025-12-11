@@ -240,6 +240,28 @@ export function useRealTimeStats(timeframeHours?: number) {
         console.error('Error fetching strategy performance:', perfError);
       }
       
+      // Fetch ACTUAL opportunities count from database (not limited array)
+      let opportunitiesCount = opportunities.length;
+      if (timeframeHours && timeframeHours > 0) {
+        const since = new Date();
+        since.setHours(since.getHours() - timeframeHours);
+        const { count, error: countError } = await supabase
+          .from('polybot_opportunities')
+          .select('id', { count: 'exact', head: true })
+          .gte('detected_at', since.toISOString());
+        if (!countError && count !== null) {
+          opportunitiesCount = count;
+        }
+      } else {
+        // All-time count
+        const { count, error: countError } = await supabase
+          .from('polybot_opportunities')
+          .select('id', { count: 'exact', head: true });
+        if (!countError && count !== null) {
+          opportunitiesCount = count;
+        }
+      }
+      
       // Aggregate all strategies for overall totals
       const totalPnl = strategyPerf?.reduce((sum, s) => sum + (s.total_pnl || 0), 0) || 0;
       const totalTrades = strategyPerf?.reduce((sum, s) => sum + (s.total_trades || 0), 0) || 0;
@@ -298,7 +320,7 @@ export function useRealTimeStats(timeframeHours?: number) {
         
         // Derived metrics
         roi_pct: roiPct,
-        total_opportunities_seen: opportunities.length,
+        total_opportunities_seen: opportunitiesCount,
         best_trade_profit: bestTradeProfit,
         worst_trade_loss: worstTradeLoss,
         
