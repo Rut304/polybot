@@ -1415,12 +1415,16 @@ export function useSecretsStatus() {
 
 // Compute connected platforms from secrets status
 export function useConnectedPlatforms() {
-  const { data: secrets = [], isLoading } = useSecretsStatus();
+  const { data: secrets = [], isLoading, isError } = useSecretsStatus();
   
   return useQuery({
-    queryKey: ['connectedPlatforms', secrets.length],
+    queryKey: ['connectedPlatforms', secrets.length, secrets.map(s => `${s.key_name}:${s.is_configured}`).join(',')],
     queryFn: (): ConnectedPlatform[] => {
+      // Build a map of key_name -> is_configured
       const secretsMap = new Map(secrets.map(s => [s.key_name, s.is_configured]));
+      
+      // Debug logging
+      console.log('Secrets map size:', secretsMap.size);
       
       return Object.entries(PLATFORM_DEFINITIONS).map(([name, def]) => {
         // Check primary required keys
@@ -1454,7 +1458,8 @@ export function useConnectedPlatforms() {
         };
       });
     },
-    enabled: !isLoading,
+    // Only enable if we have actual secrets data, not loading, and no error
+    enabled: !isLoading && !isError && secrets.length > 0,
   });
 }
 
