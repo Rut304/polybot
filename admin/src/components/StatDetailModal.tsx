@@ -7,17 +7,35 @@ import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { SimulationStats, SimulatedTrade, Opportunity } from '@/lib/supabase';
 import { useBotConfig } from '@/lib/hooks';
 
+// Real-time stats from the view (accurate)
+interface RealTimeStats {
+  simulated_balance: number;
+  total_pnl: number;
+  total_trades: number;
+  win_rate: number;
+  winning_trades: number;
+  losing_trades: number;
+  roi_pct: number;
+  best_trade_profit: number;
+  worst_trade_loss: number;
+  all_time_pnl: number;
+  all_time_trades: number;
+  all_time_balance: number;
+  starting_balance: number;
+}
+
 interface StatDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'balance' | 'pnl' | 'winrate' | 'opportunities';
   stats: SimulationStats | null;
+  realTimeStats?: RealTimeStats | null;
   trades?: SimulatedTrade[];
   opportunities?: Opportunity[];
   totalOpportunitiesSeen?: number;
 }
 
-export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opportunities = [], totalOpportunitiesSeen }: StatDetailModalProps) {
+export function StatDetailModal({ isOpen, onClose, type, stats, realTimeStats, trades = [], opportunities = [], totalOpportunitiesSeen }: StatDetailModalProps) {
   const statsJson = stats?.stats_json;
   const { data: config } = useBotConfig();
   
@@ -116,16 +134,16 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
 
               <div className="space-y-6">
                 {type === 'balance' && (
-                  <BalanceDetails stats={stats} statsJson={statsJson} trades={trades} startingBalance={totalStartingBalance} />
+                  <BalanceDetails stats={stats} statsJson={statsJson} realTimeStats={realTimeStats} trades={trades} startingBalance={totalStartingBalance} />
                 )}
                 {type === 'pnl' && (
-                  <PnLDetails stats={stats} statsJson={statsJson} trades={trades} />
+                  <PnLDetails stats={stats} statsJson={statsJson} realTimeStats={realTimeStats} trades={trades} />
                 )}
                 {type === 'winrate' && (
-                  <WinRateDetails stats={stats} statsJson={statsJson} trades={trades} />
+                  <WinRateDetails stats={stats} statsJson={statsJson} realTimeStats={realTimeStats} trades={trades} />
                 )}
                 {type === 'opportunities' && (
-                  <OpportunityDetails statsJson={statsJson} opportunities={opportunities} trades={trades} totalOpportunitiesSeen={totalOpportunitiesSeen} />
+                  <OpportunityDetails statsJson={statsJson} realTimeStats={realTimeStats} opportunities={opportunities} trades={trades} totalOpportunitiesSeen={totalOpportunitiesSeen} />
                 )}
               </div>
             </div>
@@ -136,18 +154,13 @@ export function StatDetailModal({ isOpen, onClose, type, stats, trades = [], opp
   );
 }
 
-function BalanceDetails({ stats, statsJson, trades, startingBalance }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[]; startingBalance: number }) {
-  // Compute from actual trades for accuracy
-  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
-  const computedPnL = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
-  const expectedTotal = validTrades.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
-  const computedFees = Math.max(0, expectedTotal - computedPnL);
-  
-  const totalPnL = computedPnL || stats?.total_pnl || 0;
-  const currentBalance = startingBalance + totalPnL;
-  const roiPct = startingBalance > 0 ? (totalPnL / startingBalance) * 100 : 0;
-  const totalFees = computedFees || parseFloat(statsJson?.total_fees_paid || '0');
-  const balancePct = Math.min(200, (currentBalance / startingBalance) * 100);
+function BalanceDetails({ stats, statsJson, realTimeStats, trades, startingBalance }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; realTimeStats?: RealTimeStats | null; trades: SimulatedTrade[]; startingBalance: number }) {
+  // PREFER realTimeStats (from view) over stats (stale snapshot)
+  const totalPnL = realTimeStats?.all_time_pnl ?? stats?.total_pnl ?? 0;
+  const currentBalance = realTimeStats?.all_time_balance ?? (startingBalance + totalPnL);
+  const roiPct = realTimeStats?.roi_pct ?? (startingBalance > 0 ? (totalPnL / startingBalance) * 100 : 0);
+  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
+  const balancePct = Math.min(500, (currentBalance / startingBalance) * 100);
   
   return (
     <div className="space-y-4">
@@ -179,42 +192,25 @@ function BalanceDetails({ stats, statsJson, trades, startingBalance }: { stats: 
   );
 }
 
-function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[] }) {
-  // Compute stats from actual trades for accuracy
-  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
-  const wonTradesAll = validTrades.filter(t => t.outcome === 'won');
-  const lostTradesAll = validTrades.filter(t => t.outcome === 'lost');
+function PnLDetails({ stats, statsJson, realTimeStats, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; realTimeStats?: RealTimeStats | null; trades: SimulatedTrade[] }) {
+  // PREFER realTimeStats (from view) over stats (stale snapshot)
+  const totalPnL = realTimeStats?.all_time_pnl ?? stats?.total_pnl ?? 0;
+  const totalTrades = realTimeStats?.all_time_trades ?? stats?.total_trades ?? 0;
+  const winningTradesCount = realTimeStats?.winning_trades ?? statsJson?.winning_trades ?? 0;
+  const losingTradesCount = realTimeStats?.losing_trades ?? statsJson?.losing_trades ?? 0;
   
-  // Calculate P&L from actual trade data (net profit after fees)
-  const computedPnL = validTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
-  const totalPnL = computedPnL || stats?.total_pnl || 0;
-  const totalTrades = validTrades.length || stats?.total_trades || 0;
+  // Get values from statsJson (computed server-side) or realTimeStats
+  const totalLosses = parseFloat(statsJson?.total_losses || '0');
+  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
+  const bestTrade = realTimeStats?.best_trade_profit ?? parseFloat(statsJson?.best_trade_profit || '0');
+  const worstTrade = realTimeStats?.worst_trade_loss ?? parseFloat(statsJson?.worst_trade_loss || '0');
   
-  // Calculate losses (sum of negative actual_profit_usd)
-  const computedLosses = Math.abs(lostTradesAll.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0));
-  const totalLosses = computedLosses || parseFloat(statsJson?.total_losses || '0');
-  
-  // Calculate gross profit from expected_profit_usd (before fees) for won trades
-  // expected_profit_usd = gross profit before fees
-  // actual_profit_usd = net profit after fees
-  const totalGrossProfit = wonTradesAll.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
-  
-  // Fees = Expected profit - Actual profit (the difference is fees + slippage)
-  const expectedTotal = validTrades.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0);
-  const computedFees = Math.max(0, expectedTotal - computedPnL);
-  const totalFees = computedFees || parseFloat(statsJson?.total_fees_paid || '0');
-  
-  // Best/worst from actual trades
-  const computedBestTrade = validTrades.reduce((best, t) => 
-    (t.actual_profit_usd || 0) > best ? (t.actual_profit_usd || 0) : best, 0);
-  const computedWorstTrade = validTrades.reduce((worst, t) => 
-    (t.actual_profit_usd || 0) < worst ? (t.actual_profit_usd || 0) : worst, 0);
-  
-  const bestTrade = computedBestTrade || parseFloat(statsJson?.best_trade_profit || '0');
-  const worstTrade = computedWorstTrade || parseFloat(statsJson?.worst_trade_loss || '0');
+  // Gross profit = P&L + Losses (since P&L already accounts for losses)
+  const totalGrossProfit = totalPnL + totalLosses + totalFees;
   
   const avgPnL = totalTrades > 0 ? totalPnL / totalTrades : 0;
   
+  // Use trades for recent activity display only
   const recentTrades = trades.slice(0, 10);
   const wonTrades = recentTrades.filter(t => t.outcome === 'won').length;
   const lostTrades = recentTrades.filter(t => t.outcome === 'lost').length;
@@ -260,22 +256,18 @@ function PnLDetails({ stats, statsJson, trades }: { stats: SimulationStats | nul
   );
 }
 
-function WinRateDetails({ stats, statsJson, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; trades: SimulatedTrade[] }) {
-  // Compute from actual trades
-  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
-  const wonTradesAll = validTrades.filter(t => t.outcome === 'won');
-  const lostTradesAll = validTrades.filter(t => t.outcome === 'lost');
-  const failedAll = trades.filter(t => t.outcome === 'failed_execution');
-  
-  const winningTrades = wonTradesAll.length || statsJson?.winning_trades || 0;
-  const losingTrades = lostTradesAll.length || statsJson?.losing_trades || 0;
+function WinRateDetails({ stats, statsJson, realTimeStats, trades }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; realTimeStats?: RealTimeStats | null; trades: SimulatedTrade[] }) {
+  // PREFER realTimeStats (from view) over stats (stale snapshot)
+  const winningTrades = realTimeStats?.winning_trades ?? statsJson?.winning_trades ?? 0;
+  const losingTrades = realTimeStats?.losing_trades ?? statsJson?.losing_trades ?? 0;
   const totalTrades = winningTrades + losingTrades;
-  const failedExecutions = failedAll.length || statsJson?.failed_executions || 0;
+  const failedExecutions = statsJson?.failed_executions || 0;
   
-  const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : (stats?.win_rate || 0);
-  const executionRate = (totalTrades + failedExecutions) > 0 
-    ? (totalTrades / (totalTrades + failedExecutions)) * 100 
-    : (statsJson?.execution_success_rate_pct || 100);
+  const winRate = realTimeStats?.win_rate ?? (totalTrades > 0 ? (winningTrades / totalTrades) * 100 : (stats?.win_rate || 0));
+  const executionRate = statsJson?.execution_success_rate_pct || 
+    ((totalTrades + failedExecutions) > 0 
+      ? (totalTrades / (totalTrades + failedExecutions)) * 100 
+      : 100);
   
   const winPct = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
   const lossPct = totalTrades > 0 ? (losingTrades / totalTrades) * 100 : 0;
@@ -314,14 +306,12 @@ function WinRateDetails({ stats, statsJson, trades }: { stats: SimulationStats |
   );
 }
 
-function OpportunityDetails({ statsJson, opportunities, trades, totalOpportunitiesSeen }: { statsJson: SimulationStats['stats_json'] | undefined; opportunities: Opportunity[]; trades: SimulatedTrade[]; totalOpportunitiesSeen?: number }) {
-  // Use actual trade count (excluding failed executions)
-  const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
-  const totalTraded = validTrades.length;
+function OpportunityDetails({ statsJson, realTimeStats, opportunities, trades, totalOpportunitiesSeen }: { statsJson: SimulationStats['stats_json'] | undefined; realTimeStats?: RealTimeStats | null; opportunities: Opportunity[]; trades: SimulatedTrade[]; totalOpportunitiesSeen?: number }) {
+  // PREFER realTimeStats for accurate trade count
+  const totalTraded = realTimeStats?.all_time_trades ?? statsJson?.total_simulated_trades ?? trades.filter(t => t.outcome !== 'failed_execution').length;
   
   // Use the actual total from stats (not limited array length)
-  // This matches what's shown on the dashboard card
-  const totalSeen = totalOpportunitiesSeen ?? opportunities.length;
+  const totalSeen = totalOpportunitiesSeen ?? statsJson?.total_opportunities_seen ?? opportunities.length;
   const conversionRate = totalSeen > 0 ? (totalTraded / totalSeen) * 100 : 0;
   
   const byStrategy = opportunities.reduce((acc, opp) => {

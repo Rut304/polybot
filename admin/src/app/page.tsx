@@ -88,6 +88,7 @@ export default function Dashboard() {
         onClose={() => setModalType(null)}
         type={modalType || 'balance'}
         stats={simStats || null}
+        realTimeStats={realTimeStats || null}
         trades={allTrades || trades || []}
         opportunities={opportunities || []}
         totalOpportunitiesSeen={totalOpportunities}
