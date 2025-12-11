@@ -27,6 +27,8 @@ import {
   Newspaper,
   History,
   Users,
+  Receipt,
+  Building2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -61,6 +63,13 @@ const navSections: NavSection[] = [
       { href: '/positions', label: 'Positions', icon: BarChart3 },
       { href: '/analytics', label: 'Analytics', icon: TrendingUp },
       { href: '/history', label: 'History', icon: History },
+    ],
+  },
+  {
+    title: 'Business',
+    items: [
+      { href: '/business', label: 'P&L Dashboard', icon: Building2, adminOnly: true },
+      { href: '/taxes', label: 'Tax Center', icon: Receipt, adminOnly: true },
     ],
   },
   {

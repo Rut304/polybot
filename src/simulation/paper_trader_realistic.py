@@ -899,6 +899,7 @@ class RealisticPaperTrader:
                 "strategy_type": strategy_type,
                 "trading_mode": "paper",  # Paper trading mode
                 "platform": trade.platform_a,
+                "session_label": "simulation_v1",  # Session tracking for continuous data
             }
 
             # Try multiple ways to save to database

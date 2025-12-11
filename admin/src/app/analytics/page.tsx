@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Filter,
   Layers,
+  CalendarRange,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -53,7 +54,7 @@ import { format, subDays, subHours, startOfDay, startOfHour } from 'date-fns';
 import { Tooltip, LabelWithTooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 import { StrategyBreakdown } from '@/components/StrategyBreakdown';
 
-type TimeRange = '24h' | '7d' | '30d' | 'all';
+type TimeRange = '24h' | '7d' | '30d' | 'mtd' | 'ytd' | 'all' | 'custom';
 
 const COLORS = {
   green: '#00ff88',
@@ -114,6 +115,9 @@ function MetricLabel({ label, tooltip }: { label: string; tooltip: string }) {
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
   const [selectedStrategy, setSelectedStrategy] = useState<string>('all');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [showStrategyComparison, setShowStrategyComparison] = useState(false);
   
   // Fetch config for starting balances
   const { data: config } = useBotConfig();
@@ -128,8 +132,27 @@ export default function AnalyticsPage() {
     return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
   }, [config]);
   
-  // Fetch data
-  const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : timeRange === '30d' ? 720 : 2160;
+  // Fetch data - calculate hours based on time range
+  const hours = useMemo(() => {
+    const now = new Date();
+    switch (timeRange) {
+      case '24h': return 24;
+      case '7d': return 168;
+      case '30d': return 720;
+      case 'mtd': return Math.ceil((now.getTime() - new Date(now.getFullYear(), now.getMonth(), 1).getTime()) / (1000 * 60 * 60)) || 24;
+      case 'ytd': return Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / (1000 * 60 * 60)) || 24;
+      case 'custom': {
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60)) || 24;
+        }
+        return 720;
+      }
+      default: return 8760; // 1 year
+    }
+  }, [timeRange, customStartDate, customEndDate]);
+  
   const { data: history = [] } = useSimulationHistory(hours);
   const { data: trades = [] } = useSimulatedTrades(500);
   const { data: opportunities = [] } = useOpportunities(1000);
@@ -360,20 +383,190 @@ export default function AnalyticsPage() {
             
             {/* Time range selector */}
             <div className="flex bg-dark-card rounded-lg border border-dark-border p-1">
-              {(['24h', '7d', '30d', 'all'] as const).map((range) => (
+              {(['24h', '7d', '30d', 'mtd', 'ytd', 'all'] as const).map((range) => (
                 <button
                   key={range}
                   onClick={() => setTimeRange(range)}
                   className={cn(
-                    "px-4 py-2 rounded-md text-sm transition-colors",
+                    "px-3 py-2 rounded-md text-sm transition-colors",
                     timeRange === range ? 'bg-neon-green/20 text-neon-green' : 'text-gray-400 hover:text-white'
                   )}
                 >
-                  {range === 'all' ? 'All Time' : range}
+                  {range === 'all' ? 'All' : range === 'mtd' ? 'MTD' : range === 'ytd' ? 'YTD' : range}
                 </button>
               ))}
+              <button
+                onClick={() => setTimeRange('custom')}
+                className={cn(
+                  "px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-1",
+                  timeRange === 'custom' ? 'bg-neon-green/20 text-neon-green' : 'text-gray-400 hover:text-white'
+                )}
+              >
+                <CalendarRange className="w-3 h-3" />
+                Custom
+              </button>
             </div>
           </div>
+        </div>
+
+        {/* Custom Date Range Picker */}
+        {timeRange === 'custom' && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="card mb-4 p-4"
+          >
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-400">From:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  title="Start date"
+                  placeholder="Start date"
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-400">To:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  title="End date"
+                  placeholder="End date"
+                  className="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                    setCustomStartDate(firstDay.toISOString().split('T')[0]);
+                    setCustomEndDate(today.toISOString().split('T')[0]);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+                >
+                  This Month
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                    setCustomStartDate(lastMonth.toISOString().split('T')[0]);
+                    setCustomEndDate(lastMonthEnd.toISOString().split('T')[0]);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+                >
+                  Last Month
+                </button>
+                <button
+                  onClick={() => {
+                    const today = new Date();
+                    const q1Start = new Date(today.getFullYear(), Math.floor(today.getMonth() / 3) * 3, 1);
+                    setCustomStartDate(q1Start.toISOString().split('T')[0]);
+                    setCustomEndDate(today.toISOString().split('T')[0]);
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded-md transition-colors"
+                >
+                  This Quarter
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Strategy Comparison Toggle */}
+        <div className="card mb-6 p-4">
+          <button
+            onClick={() => setShowStrategyComparison(!showStrategyComparison)}
+            className="w-full flex items-center justify-between hover:bg-gray-800/50 rounded-lg p-2 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Target className="w-5 h-5 text-neon-blue" />
+              <h2 className="text-lg font-semibold">Strategy Comparison</h2>
+              <span className="text-xs text-gray-500">
+                ({strategies.filter(s => s.net_pnl !== 0).length} active strategies)
+              </span>
+            </div>
+            <span className="text-gray-400 text-sm">
+              {showStrategyComparison ? '▼ Hide' : '▶ Show'}
+            </span>
+          </button>
+          
+          {showStrategyComparison && (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-700">
+                    <th className="text-left py-2 px-3 text-gray-400">Strategy</th>
+                    <th className="text-right py-2 px-3 text-gray-400">Trades</th>
+                    <th className="text-right py-2 px-3 text-gray-400">Win Rate</th>
+                    <th className="text-right py-2 px-3 text-gray-400">Net P&L</th>
+                    <th className="text-right py-2 px-3 text-gray-400">Avg Trade</th>
+                    <th className="text-right py-2 px-3 text-gray-400">Best Trade</th>
+                    <th className="text-right py-2 px-3 text-gray-400">Worst Trade</th>
+                    <th className="text-center py-2 px-3 text-gray-400">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {strategies
+                    .sort((a, b) => (b.net_pnl || 0) - (a.net_pnl || 0))
+                    .map((strategy) => (
+                      <tr key={strategy.strategy} className="border-b border-gray-800 hover:bg-gray-800/30">
+                        <td className="py-3 px-3 font-medium">
+                          {strategy.strategy?.replace(/_/g, ' ') || 'Unknown'}
+                        </td>
+                        <td className="text-right py-3 px-3">{strategy.total_trades || 0}</td>
+                        <td className="text-right py-3 px-3">
+                          <span className={cn(
+                            (strategy.win_rate || 0) >= 60 ? 'text-green-400' :
+                            (strategy.win_rate || 0) >= 40 ? 'text-yellow-400' : 'text-red-400'
+                          )}>
+                            {(strategy.win_rate || 0).toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="text-right py-3 px-3">
+                          <span className={cn(
+                            (strategy.net_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                          )}>
+                            ${(strategy.net_pnl || 0).toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="text-right py-3 px-3">
+                          ${strategy.total_trades ? ((strategy.net_pnl || 0) / strategy.total_trades).toFixed(2) : '0.00'}
+                        </td>
+                        <td className="text-right py-3 px-3 text-green-400">
+                          +${(strategy.best_trade || 0).toFixed(2)}
+                        </td>
+                        <td className="text-right py-3 px-3 text-red-400">
+                          ${(strategy.worst_trade || 0).toFixed(2)}
+                        </td>
+                        <td className="text-center py-3 px-3">
+                          {(strategy.net_pnl || 0) > 0 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400">
+                              ✓ Profitable
+                            </span>
+                          ) : (strategy.net_pnl || 0) < 0 ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-400">
+                              ✗ Loss
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">
+                              — No Data
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Strategy Performance Breakdown */}
