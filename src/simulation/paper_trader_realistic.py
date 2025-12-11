@@ -12,7 +12,6 @@ Simulates real trading conditions including:
 - FALSE POSITIVE DETECTION - rejects unrealistic "opportunities"
 """
 
-import json
 import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
