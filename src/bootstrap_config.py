@@ -1,25 +1,50 @@
 """
 Bootstrap Configuration for PolyBot
 
-This file contains the minimal credentials needed to connect to Supabase.
-All other configuration is pulled from the Supabase database after connection.
+Gets Supabase credentials from secure sources:
+1. AWS Secrets Manager (production - Lightsail)
+2. Environment variables (local development)
 
-This approach allows the bot to run autonomously on AWS Lightsail without
-requiring environment variables to be passed on every deployment.
-
-SECURITY NOTE:
-- These are service_role keys with full database access
-- The Supabase project has Row Level Security (RLS) enabled
-- This file is gitignored - never commit actual credentials
-- In production, this is baked into the Docker image at build time
+NEVER hardcode secrets in this file!
 """
 
-# Supabase connection credentials
-# These are the only credentials needed to bootstrap the bot
-# Everything else is pulled from polybot_config and polybot_secrets tables
+import os
+import json
+import logging
 
-SUPABASE_URL = "https://ytaltvltxkkfczlvjgad.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw"
+logger = logging.getLogger(__name__)
+
+
+def _get_from_aws_secrets_manager():
+    """
+    Fetch Supabase credentials from AWS Secrets Manager.
+    Used in production (Lightsail containers have IAM role access).
+    """
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+        
+        # Create a Secrets Manager client
+        client = boto3.client(
+            service_name='secretsmanager',
+            region_name='us-east-1'
+        )
+        
+        # Try to get the secret
+        secret_name = "polybot/supabase"
+        response = client.get_secret_value(SecretId=secret_name)
+        
+        if 'SecretString' in response:
+            secret = json.loads(response['SecretString'])
+            logger.info("✓ Loaded Supabase credentials from AWS Secrets Manager")
+            return secret.get('url'), secret.get('key')
+        
+    except ImportError:
+        logger.debug("boto3 not available, skipping AWS Secrets Manager")
+    except Exception as e:
+        logger.debug(f"AWS Secrets Manager not available: {e}")
+    
+    return None, None
 
 
 def get_bootstrap_config():
@@ -27,15 +52,24 @@ def get_bootstrap_config():
     Get bootstrap configuration for Supabase connection.
     
     Priority:
-    1. Environment variables (for local dev override)
-    2. Hardcoded values above (for production Docker)
+    1. Environment variables (always checked first - works everywhere)
+    2. AWS Secrets Manager (production fallback)
     
     Returns:
         dict: Contains 'url' and 'key' for Supabase
     """
-    import os
+    # First try environment variables (set by deploy script or .env)
+    url = os.getenv('SUPABASE_URL')
+    key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
     
-    return {
-        'url': os.getenv('SUPABASE_URL', SUPABASE_URL),
-        'key': os.getenv('SUPABASE_KEY', SUPABASE_KEY),
-    }
+    if url and key:
+        return {'url': url, 'key': key}
+    
+    # Fall back to AWS Secrets Manager (for Lightsail without env vars)
+    aws_url, aws_key = _get_from_aws_secrets_manager()
+    if aws_url and aws_key:
+        return {'url': aws_url, 'key': aws_key}
+    
+    # Return empty - will fail gracefully in Database class
+    logger.warning("No Supabase credentials found in env vars or AWS Secrets Manager")
+    return {'url': None, 'key': None}
