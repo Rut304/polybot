@@ -19,6 +19,20 @@ except ImportError:
     logger.warning("supabase package not installed - database features unavailable")
 
 
+def _get_bootstrap_credentials():
+    """
+    Get Supabase credentials from bootstrap config (baked into Docker image)
+    or fall back to environment variables for local development.
+    """
+    try:
+        from src.bootstrap_config import get_bootstrap_config
+        bootstrap = get_bootstrap_config()
+        return bootstrap['url'], bootstrap['key']
+    except ImportError:
+        # Fallback to environment variables (local dev)
+        return os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")
+
+
 class Database:
     """
     Supabase database client for PolyBot.
@@ -30,10 +44,16 @@ class Database:
     """
     
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
-        # Auto-fetch from environment if not provided
+        # Auto-fetch from bootstrap config (baked into Docker) or environment
         # Use SERVICE_ROLE key to access secrets (bypasses RLS)
-        self.url = url or os.getenv("SUPABASE_URL")
-        self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+        if url and key:
+            self.url = url
+            self.key = key
+        else:
+            bootstrap_url, bootstrap_key = _get_bootstrap_credentials()
+            self.url = bootstrap_url
+            self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or bootstrap_key
+        
         self._client: Optional[Client] = None
         
         if self.url and self.key and SUPABASE_AVAILABLE:
