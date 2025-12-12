@@ -26,6 +26,142 @@ async function getTotalStartingBalance(): Promise<number> {
   );
 }
 
+// Archive the current simulation session before reset
+async function archiveCurrentSession(): Promise<{ sessionId: string | null; tradesArchived: number }> {
+  try {
+    // Get current simulation stats
+    const { data: currentStats } = await supabaseAdmin
+      .from('polybot_simulation_stats')
+      .select('*')
+      .order('snapshot_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    // Get trade counts
+    const { count: tradesCount } = await supabaseAdmin
+      .from('polybot_simulated_trades')
+      .select('*', { count: 'exact', head: true });
+
+    // Don't archive if no trades exist
+    if (!tradesCount || tradesCount === 0) {
+      return { sessionId: null, tradesArchived: 0 };
+    }
+
+    const endingBalance = currentStats?.simulated_balance || 
+      parseFloat(currentStats?.stats_json?.simulated_current_balance || '100000');
+    const totalPnl = currentStats?.total_pnl || 
+      parseFloat(currentStats?.stats_json?.total_pnl || '0');
+
+    // Try to use the database function first
+    const { data: archiveResult, error: archiveError } = await supabaseAdmin
+      .rpc('archive_simulation_session', {
+        p_ending_balance: endingBalance,
+        p_total_pnl: totalPnl,
+        p_notes: `Session archived on reset at ${new Date().toISOString()}`
+      });
+
+    if (!archiveError && archiveResult) {
+      return { sessionId: archiveResult, tradesArchived: tradesCount };
+    }
+
+    // Fallback: Manual archive if function doesn't exist
+    console.log('Fallback: Using manual archive method');
+    
+    // Create session record manually
+    const sessionId = crypto.randomUUID();
+    
+    // Get trade stats
+    const { data: trades } = await supabaseAdmin
+      .from('polybot_simulated_trades')
+      .select('*');
+
+    const winningTrades = trades?.filter(t => t.outcome === 'won').length || 0;
+    const losingTrades = trades?.filter(t => t.outcome === 'lost').length || 0;
+    const failedTrades = trades?.filter(t => t.outcome === 'failed_execution').length || 0;
+    const totalTrades = trades?.length || 0;
+    const winRate = (winningTrades + losingTrades) > 0 
+      ? (winningTrades / (winningTrades + losingTrades)) * 100 
+      : 0;
+
+    // Get starting balance from first stat record or config
+    const { data: firstStat } = await supabaseAdmin
+      .from('polybot_simulation_stats')
+      .select('simulated_balance, stats_json')
+      .order('snapshot_at', { ascending: true })
+      .limit(1)
+      .single();
+    
+    const startingBalance = firstStat?.simulated_balance || 
+      parseFloat(firstStat?.stats_json?.simulated_starting_balance || '100000');
+
+    // Insert session
+    const { error: sessionError } = await supabaseAdmin
+      .from('polybot_simulation_sessions')
+      .insert({
+        session_id: sessionId,
+        started_at: trades?.[0]?.created_at || new Date().toISOString(),
+        ended_at: new Date().toISOString(),
+        status: 'completed',
+        starting_balance: startingBalance,
+        ending_balance: endingBalance,
+        total_pnl: totalPnl,
+        roi_pct: startingBalance > 0 ? (totalPnl / startingBalance) * 100 : 0,
+        total_trades: totalTrades,
+        winning_trades: winningTrades,
+        losing_trades: losingTrades,
+        failed_trades: failedTrades,
+        win_rate: winRate,
+        notes: `Session archived on reset at ${new Date().toISOString()}`,
+        config_snapshot: currentStats?.stats_json || {},
+      });
+
+    if (sessionError) {
+      console.error('Failed to create session record:', sessionError);
+      return { sessionId: null, tradesArchived: 0 };
+    }
+
+    // Copy trades to session_trades
+    if (trades && trades.length > 0) {
+      const sessionTrades = trades.map(trade => ({
+        session_id: sessionId,
+        original_trade_id: trade.id,
+        position_id: trade.position_id,
+        created_at: trade.created_at,
+        platform: trade.arbitrage_type?.includes('kalshi') ? 'Kalshi' : 
+                  trade.arbitrage_type?.includes('poly') ? 'Polymarket' : 'Unknown',
+        market_id: trade.polymarket_token_id || trade.kalshi_ticker,
+        market_title: trade.polymarket_market_title || trade.kalshi_market_title,
+        trade_type: trade.trade_type,
+        arbitrage_type: trade.arbitrage_type,
+        side: trade.polymarket_yes_price > 0 ? 'yes' : 'no',
+        position_size_usd: trade.position_size_usd,
+        yes_price: trade.polymarket_yes_price,
+        no_price: trade.polymarket_no_price,
+        expected_profit_pct: trade.expected_profit_pct,
+        expected_profit_usd: trade.expected_profit_usd,
+        actual_profit_usd: trade.actual_profit_usd,
+        outcome: trade.outcome,
+        resolution_notes: trade.resolution_notes,
+        resolved_at: trade.resolved_at,
+        raw_data: trade,
+      }));
+
+      const { error: tradesError } = await supabaseAdmin
+        .from('polybot_session_trades')
+        .insert(sessionTrades);
+
+      if (tradesError) {
+        console.error('Failed to archive trades:', tradesError);
+      }
+    }
+
+    return { sessionId, tradesArchived: tradesCount };
+  } catch (error) {
+    console.error('Error archiving session:', error);
+    return { sessionId: null, tradesArchived: 0 };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting
@@ -49,6 +185,10 @@ export async function POST(request: NextRequest) {
       });
       return unauthorizedResponse();
     }
+
+    // ARCHIVE SESSION FIRST - before deleting any data
+    const archiveResult = await archiveCurrentSession();
+    console.log('Archive result:', archiveResult);
 
     // Track what we're deleting
     const counts = {
@@ -194,7 +334,9 @@ export async function POST(request: NextRequest) {
       details: {
         deleted: counts,
         new_balance: startingBalance,
-        message: `Reset simulation: deleted ${counts.trades} trades, ${counts.opportunities} opportunities, ${counts.stats} stat records`,
+        archived_session_id: archiveResult.sessionId,
+        trades_archived: archiveResult.tradesArchived,
+        message: `Reset simulation: archived ${archiveResult.tradesArchived} trades to session ${archiveResult.sessionId || 'none'}, deleted ${counts.trades} trades, ${counts.opportunities} opportunities, ${counts.stats} stat records`,
       },
       ip_address: metadata.ip_address,
       user_agent: metadata.user_agent,
@@ -205,7 +347,13 @@ export async function POST(request: NextRequest) {
       success: true,
       deleted: counts,
       new_balance: startingBalance,
-      message: `Simulation reset complete. Deleted ${counts.trades} trades, ${counts.opportunities} opportunities. Starting balance: $${startingBalance.toLocaleString()}`,
+      archived: {
+        session_id: archiveResult.sessionId,
+        trades_archived: archiveResult.tradesArchived,
+      },
+      message: archiveResult.sessionId 
+        ? `Simulation reset complete. Archived ${archiveResult.tradesArchived} trades to session history. Starting balance: $${startingBalance.toLocaleString()}`
+        : `Simulation reset complete. No trades to archive. Starting balance: $${startingBalance.toLocaleString()}`,
     });
   } catch (error: any) {
     console.error('Error resetting simulation:', error);
