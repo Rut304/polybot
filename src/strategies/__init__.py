@@ -212,6 +212,54 @@ from .correlation_limits import (
     get_correlation_tracker,
 )
 
+# ============================================
+# TWITTER-DERIVED STRATEGIES (2024)
+# ============================================
+
+# BTC Bracket Arbitrage (Intra-market arb on 15-min brackets)
+from .btc_bracket_arb import (
+    BTCBracketArbStrategy,
+    BracketOpportunity as BTCBracketOpportunity,
+    BTC_BRACKET_ARB_INFO,
+)
+
+# Bracket Compression (Mean reversion on stretched brackets)
+from .bracket_compression import (
+    BracketCompressionStrategy,
+    CompressionOpportunity as BracketCompressionOpportunity,
+    BRACKET_COMPRESSION_INFO,
+)
+
+# Kalshi Mention Market Sniping (Fast execution on resolved markets)
+from .kalshi_mention_snipe import (
+    KalshiMentionSnipeStrategy,
+    SnipeOpportunity as MentionMarketOpportunity,
+    KALSHI_MENTION_SNIPE_INFO,
+)
+
+# Whale Copy Trading (Track and copy profitable wallets)
+from .whale_copy_trading import (
+    WhaleCopyTradingStrategy,
+    WhaleProfile as TrackedWallet,
+    WhaleTrade as WalletTrade,
+    WHALE_COPY_TRADING_INFO as WHALE_COPY_INFO,
+)
+
+# Macro Board Strategy (Heavy exposure to macro events)
+from .macro_board import (
+    MacroBoardStrategy,
+    MacroTheme as MacroMarket,
+    MacroOpportunity as MacroPosition,
+    MACRO_BOARD_INFO,
+)
+
+# Fear Premium Contrarian (Trade against extreme sentiment)
+from .fear_premium_contrarian import (
+    FearPremiumContrarianStrategy,
+    FearPremiumOpportunity,
+    FEAR_PREMIUM_CONTRARIAN_INFO,
+)
+
 # Keep old imports for backward compatibility
 from .market_maker import MarketMaker, NewsArbitrageTracker
 
@@ -352,6 +400,35 @@ __all__ = [
     "CorrelationRiskAssessment",
     "Position",
     "get_correlation_tracker",
+    # ========================================
+    # TWITTER-DERIVED STRATEGIES (2024)
+    # ========================================
+    # BTC Bracket Arbitrage (20-200K/month potential)
+    "BTCBracketArbStrategy",
+    "BTCBracketOpportunity",
+    "BTC_BRACKET_ARB_INFO",
+    # Bracket Compression (Mean reversion)
+    "BracketCompressionStrategy",
+    "BracketCompressionOpportunity",
+    "BRACKET_COMPRESSION_INFO",
+    # Kalshi Mention Sniping ($120+/event)
+    "KalshiMentionSnipeStrategy",
+    "MentionMarketOpportunity",
+    "KALSHI_MENTION_SNIPE_INFO",
+    # Whale Copy Trading (80%+ win rate wallets)
+    "WhaleCopyTradingStrategy",
+    "TrackedWallet",
+    "WalletTrade",
+    "WHALE_COPY_INFO",
+    # Macro Board Strategy ($62K/month potential)
+    "MacroBoardStrategy",
+    "MacroMarket",
+    "MacroPosition",
+    "MACRO_BOARD_INFO",
+    # Fear Premium Contrarian (91.4% win rate)
+    "FearPremiumContrarianStrategy",
+    "FearPremiumOpportunity",
+    "FEAR_PREMIUM_CONTRARIAN_INFO",
     # Legacy (backward compatibility)
     "MarketMaker",
     "NewsArbitrageTracker",
