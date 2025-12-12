@@ -924,7 +924,7 @@ class Config:
         new_config = db_client.get_trading_config()
         if new_config:
             self._supabase_config = new_config
-            # Update trading config
+            # Update ALL trading strategy enable flags
             self.trading.enable_polymarket_single_arb = self._get_bool(
                 "enable_polymarket_single_arb", 
                 "ENABLE_POLYMARKET_SINGLE_ARB", 
@@ -939,6 +939,67 @@ class Config:
                 "enable_cross_platform_arb", 
                 "ENABLE_CROSS_PLATFORM_ARB", 
                 True
+            )
+            self.trading.enable_market_making = self._get_bool(
+                "enable_market_making",
+                "ENABLE_MARKET_MAKING",
+                False
+            )
+            self.trading.enable_news_arbitrage = self._get_bool(
+                "enable_news_arbitrage",
+                "ENABLE_NEWS_ARBITRAGE",
+                False
+            )
+            self.trading.enable_funding_rate_arb = self._get_bool(
+                "enable_funding_rate_arb",
+                "ENABLE_FUNDING_RATE_ARB",
+                False
+            )
+            self.trading.enable_grid_trading = self._get_bool(
+                "enable_grid_trading",
+                "ENABLE_GRID_TRADING",
+                False
+            )
+            self.trading.enable_pairs_trading = self._get_bool(
+                "enable_pairs_trading",
+                "ENABLE_PAIRS_TRADING",
+                False
+            )
+            self.trading.enable_stock_mean_reversion = self._get_bool(
+                "enable_stock_mean_reversion",
+                "ENABLE_STOCK_MEAN_REVERSION",
+                False
+            )
+            self.trading.enable_stock_momentum = self._get_bool(
+                "enable_stock_momentum",
+                "ENABLE_STOCK_MOMENTUM",
+                False
+            )
+            # Exchange enables
+            self.trading.enable_binance = self._get_bool(
+                "enable_binance",
+                "ENABLE_BINANCE",
+                False
+            )
+            self.trading.enable_coinbase = self._get_bool(
+                "enable_coinbase",
+                "ENABLE_COINBASE",
+                False
+            )
+            self.trading.enable_alpaca = self._get_bool(
+                "enable_alpaca",
+                "ENABLE_ALPACA",
+                False
+            )
+            self.trading.enable_bybit = self._get_bool(
+                "enable_bybit",
+                "ENABLE_BYBIT",
+                False
+            )
+            self.trading.enable_okx = self._get_bool(
+                "enable_okx",
+                "ENABLE_OKX",
+                False
             )
             return True
         return False
