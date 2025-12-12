@@ -348,7 +348,7 @@ class SinglePlatformScanner:
         - If sum of all YES prices > $1 → BUY NO (or sell YES) on all
         - If sum of all YES prices < $1 → BUY YES on all
         """
-        market_id = market.get("condition_id", "unknown")
+        market_id = market.get("conditionId") or market.get("condition_id", "unknown")
         market_title = market.get("question", "Unknown")
         rejection_reason = None
         qualifies = False
@@ -357,10 +357,39 @@ class SinglePlatformScanner:
         profit_pct_float = None
         
         try:
-            # Get tokens (each token = one condition/outcome)
+            # Get tokens - gamma-api uses outcomePrices/outcomes strings, clob-api uses tokens array
             tokens = market.get("tokens", [])
+            
+            # Handle gamma-api format: outcomePrices is JSON string like '["0.55", "0.45"]'
             if not tokens:
-                rejection_reason = "No tokens found"
+                outcome_prices_str = market.get("outcomePrices")
+                outcomes_str = market.get("outcomes")
+                
+                if outcome_prices_str and outcomes_str:
+                    import json
+                    try:
+                        # Parse JSON strings
+                        prices = json.loads(outcome_prices_str) if isinstance(outcome_prices_str, str) else outcome_prices_str
+                        outcomes = json.loads(outcomes_str) if isinstance(outcomes_str, str) else outcomes_str
+                        
+                        # Build tokens from parsed data
+                        tokens = []
+                        clob_ids = market.get("clobTokenIds")
+                        if clob_ids and isinstance(clob_ids, str):
+                            clob_ids = json.loads(clob_ids)
+                        
+                        for i, (price, outcome) in enumerate(zip(prices, outcomes)):
+                            token_id = clob_ids[i] if clob_ids and i < len(clob_ids) else f"token_{i}"
+                            tokens.append({
+                                "token_id": token_id,
+                                "price": price,
+                                "outcome": outcome,
+                            })
+                    except (json.JSONDecodeError, TypeError) as e:
+                        logger.debug(f"Failed to parse gamma-api prices: {e}")
+            
+            if not tokens:
+                rejection_reason = "No tokens/prices found"
                 await self._log_market_scan(
                     scanner_type="polymarket_single",
                     platform="polymarket",
@@ -368,7 +397,7 @@ class SinglePlatformScanner:
                     market_title=market_title,
                     qualifies=False,
                     rejection_reason=rejection_reason,
-                    raw_data={"tokens_count": 0},
+                    raw_data={"tokens_count": 0, "had_outcomePrices": bool(market.get("outcomePrices"))},
                 )
                 return None
             

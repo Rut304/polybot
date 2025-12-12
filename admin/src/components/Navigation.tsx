@@ -70,6 +70,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/business', label: 'P&L Dashboard', icon: Building2, adminOnly: true },
       { href: '/taxes', label: 'Tax Center', icon: Receipt, adminOnly: true },
+      { href: '/strategy-history', label: 'Strategy History', icon: History, adminOnly: true },
     ],
   },
   {

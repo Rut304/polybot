@@ -135,22 +135,55 @@ export async function PATCH(request: NextRequest) {
         profileUpdates.notifications_enabled = updates.notifications_enabled;
       }
 
-      const { data, error } = await supabase
+      // First check if profile exists
+      const { data: existingProfile } = await supabase
         .from('polybot_user_profiles')
-        .upsert({
-          id: userId,
-          ...profileUpdates,
-          updated_at: new Date().toISOString(),
-        })
-        .select();
+        .select('id')
+        .eq('id', userId)
+        .single();
 
-      if (error) {
-        return NextResponse.json(
-          { error: `Failed to update profile: ${error.message}` },
-          { status: 500 }
-        );
+      let profileResult;
+      if (existingProfile) {
+        // Update existing profile
+        const { data, error } = await supabase
+          .from('polybot_user_profiles')
+          .update({
+            ...profileUpdates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId)
+          .select();
+        
+        if (error) {
+          console.error('Profile update error:', error);
+          return NextResponse.json(
+            { error: `Failed to update profile: ${error.message}` },
+            { status: 500 }
+          );
+        }
+        profileResult = data;
+      } else {
+        // Insert new profile
+        const { data, error } = await supabase
+          .from('polybot_user_profiles')
+          .insert({
+            id: userId,
+            ...profileUpdates,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select();
+        
+        if (error) {
+          console.error('Profile insert error:', error);
+          return NextResponse.json(
+            { error: `Failed to create profile: ${error.message}` },
+            { status: 500 }
+          );
+        }
+        profileResult = data;
       }
-      results.profile = data;
+      results.profile = profileResult;
     }
 
     return NextResponse.json({

@@ -14,7 +14,7 @@ Simulates real trading conditions including:
 
 import random
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_DOWN
 from enum import Enum
 from typing import Optional, Dict, Any
@@ -286,6 +286,11 @@ class RealisticPaperTrader:
     MAX_POSITION_PCT = 5.0      # Max % of balance per trade
     MAX_POSITION_USD = 50.0     # Max $ per trade
     MIN_POSITION_USD = 5.0      # Minimum trade size
+    
+    # ========== COOLDOWN / DEDUPLICATION ==========
+    # CRITICAL: Prevent unrealistic repeated trades on same market
+    MARKET_COOLDOWN_SECONDS = 86400  # 24 hours between trades on same market
+    MAX_TRADES_PER_MARKET_PER_DAY = 2  # Hard limit per market
 
     def __init__(
         self,
@@ -299,6 +304,9 @@ class RealisticPaperTrader:
         )
         self.trades: Dict[str, SimulatedTrade] = {}
         self._trade_counter = 0
+        
+        # Cooldown tracking - CRITICAL to prevent unrealistic repeated trades
+        self._market_trade_times: Dict[str, list] = {}  # market_id -> [trade_times]
         
         # Load config from database (overrides class defaults)
         self._load_config_from_db()
@@ -368,6 +376,58 @@ class RealisticPaperTrader:
         self._trade_counter += 1
         ts = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')
         return f"SIM-{ts}-{self._trade_counter:04d}"
+
+    def _is_market_on_cooldown(self, market_id: str, platform: str) -> tuple:
+        """
+        Check if a market is on cooldown (recently traded).
+        
+        CRITICAL: This prevents unrealistic repeated trades on the same market.
+        In real trading, you can't infinitely buy/sell the same position.
+        
+        Returns: (is_on_cooldown: bool, reason: str)
+        """
+        key = f"{platform}:{market_id}"
+        now = datetime.now(timezone.utc)
+        
+        if key not in self._market_trade_times:
+            return False, ""
+        
+        trade_times = self._market_trade_times[key]
+        
+        # Clean up old entries (older than 48 hours)
+        cutoff = now - timedelta(seconds=172800)
+        trade_times = [t for t in trade_times if t > cutoff]
+        self._market_trade_times[key] = trade_times
+        
+        if not trade_times:
+            return False, ""
+        
+        # Check cooldown since last trade
+        last_trade = max(trade_times)
+        elapsed = (now - last_trade).total_seconds()
+        
+        if elapsed < self.MARKET_COOLDOWN_SECONDS:
+            remaining = int(self.MARKET_COOLDOWN_SECONDS - elapsed)
+            return True, f"Cooldown: {remaining}s remaining"
+        
+        # Check daily trade limit
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_trades = sum(1 for t in trade_times if t >= day_start)
+        
+        if today_trades >= self.MAX_TRADES_PER_MARKET_PER_DAY:
+            return True, f"Daily limit: {today_trades} trades today"
+        
+        return False, ""
+    
+    def _mark_market_traded(self, market_id: str, platform: str) -> None:
+        """Mark a market as recently traded (starts cooldown)."""
+        key = f"{platform}:{market_id}"
+        now = datetime.now(timezone.utc)
+        
+        if key not in self._market_trade_times:
+            self._market_trade_times[key] = []
+        
+        self._market_trade_times[key].append(now)
 
     def _calculate_slippage(self, price: Decimal) -> Decimal:
         """
@@ -624,6 +684,7 @@ class RealisticPaperTrader:
         - Platform fees
         - Partial fills
         - MARKET RESOLUTION RISK: Trades can lose money!
+        - COOLDOWN ENFORCEMENT: Prevents repeated trades on same market
         """
         now = datetime.now(timezone.utc)
 
@@ -632,6 +693,24 @@ class RealisticPaperTrader:
         if self.stats.first_trade_at is None:
             self.stats.first_trade_at = now
         self.stats.last_trade_at = now
+
+        # ========== COOLDOWN CHECK (CRITICAL!) ==========
+        # Prevent unrealistic repeated trades on same market
+        # In real trading, you can't infinitely buy/sell the same position
+        on_cooldown_a, reason_a = self._is_market_on_cooldown(
+            market_a_id, platform_a
+        )
+        on_cooldown_b, reason_b = self._is_market_on_cooldown(
+            market_b_id, platform_b
+        )
+        
+        if on_cooldown_a or on_cooldown_b:
+            self.stats.opportunities_skipped_too_small += 1
+            reason = reason_a or reason_b
+            logger.info(
+                f"🚫 SKIPPED (cooldown): {market_a_title[:40]}... - {reason}"
+            )
+            return None
 
         # ========== SAME-PLATFORM FILTER ==========
         # Skip same-platform "overlap" trades - they're NOT real arbitrage!
@@ -848,6 +927,12 @@ class RealisticPaperTrader:
 
         # Store trade
         self.trades[trade.id] = trade
+        
+        # ========== MARK MARKETS AS TRADED (COOLDOWN) ==========
+        # CRITICAL: This prevents unrealistic repeated trades
+        self._mark_market_traded(trade.market_a_id, trade.platform_a)
+        if trade.market_b_id != trade.market_a_id:
+            self._mark_market_traded(trade.market_b_id, trade.platform_b)
 
         # Save to database
         await self._save_trade_to_db(trade)
