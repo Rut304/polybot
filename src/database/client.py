@@ -19,18 +19,15 @@ except ImportError:
     logger.warning("supabase package not installed - database features unavailable")
 
 
-def _get_bootstrap_credentials():
+def _get_supabase_credentials():
     """
-    Get Supabase credentials from bootstrap config (baked into Docker image)
-    or fall back to environment variables for local development.
+    Get Supabase credentials from environment variables.
+    Works in both Docker (Lightsail) and local development.
     """
-    try:
-        from src.bootstrap_config import get_bootstrap_config
-        bootstrap = get_bootstrap_config()
-        return bootstrap['url'], bootstrap['key']
-    except ImportError:
-        # Fallback to environment variables (local dev)
-        return os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY")
+    # Use os.environ.get for direct access (proven to work in logging_handler)
+    url = os.environ.get("SUPABASE_URL", "")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY", "")
+    return url, key
 
 
 class Database:
@@ -50,7 +47,7 @@ class Database:
             self.url = url
             self.key = key
         else:
-            bootstrap_url, bootstrap_key = _get_bootstrap_credentials()
+            bootstrap_url, bootstrap_key = _get_supabase_credentials()
             self.url = bootstrap_url
             self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or bootstrap_key
         
