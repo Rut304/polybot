@@ -358,6 +358,13 @@ class RealisticPaperTrader:
                 self.MAX_POSITION_USD = float(config['max_trade_size'])
                 loaded_count += 1
             
+            # Load skip_same_platform_overlap setting (NEW)
+            # False = ALLOW overlapping arb, True = SKIP overlapping arb
+            if 'skip_same_platform_overlap' in config:
+                self.SKIP_SAME_PLATFORM_OVERLAP = bool(config['skip_same_platform_overlap'])
+                loaded_count += 1
+                logger.info(f"  Overlapping arb: {'DISABLED' if self.SKIP_SAME_PLATFORM_OVERLAP else 'ENABLED'}")
+            
             logger.info(f"✓ Loaded {loaded_count} config values from database")
             
             # Log current settings
