@@ -111,6 +111,76 @@ Bot detects opportunity → Paper Trader simulates trade →
 
 ---
 
+## ⚙️ Settings Flow - Single Source of Truth (v1.1.13+)
+
+### Where Settings Come From
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    config.py (SOURCE OF TRUTH)                   │
+│                                                                  │
+│  Strategy-Specific Settings:                                     │
+│  - poly_single_min_profit_pct = 0.3%  (Polymarket)              │
+│  - poly_single_max_spread_pct = 30%                              │
+│  - kalshi_single_min_profit_pct = 8%  (covers 7% fee)           │
+│  - kalshi_single_max_spread_pct = 30%                            │
+│                                                                  │
+│  These settings apply to BOTH simulation and live trading!       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Passed to
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              SinglePlatformScanner (FILTERING)                   │
+│                                                                  │
+│  Uses config settings to filter opportunities:                   │
+│  - Is spread >= min_profit_pct? → PASS/SKIP                     │
+│  - Is spread <= max_spread_pct? → PASS/SKIP                     │
+│  - Is liquidity >= min_liquidity? → PASS/SKIP                   │
+│                                                                  │
+│  Scanner output = Same for simulation AND live!                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ Routes to
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   bot_runner.py (ROUTING)                        │
+│                                                                  │
+│  if simulation_mode:                                             │
+│      → paper_trader.simulate_opportunity()                       │
+│  else:                                                           │
+│      → [live execution] (TODO placeholder)                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+            ┌─────────────────┴─────────────────┐
+            ▼                                   ▼
+┌───────────────────────┐           ┌───────────────────────┐
+│    SIMULATION MODE    │           │      LIVE MODE        │
+│                       │           │                       │
+│  paper_trader only    │           │  Uses same scanner    │
+│  adds:                │           │  thresholds from      │
+│  - Slippage (0.1-0.5%)│           │  config.py            │
+│  - Execution failures │           │                       │
+│  - Fee simulation     │           │  (execution code TBD) │
+│                       │           │                       │
+│  NO duplicate profit  │           │                       │
+│  thresholds!          │           │                       │
+└───────────────────────┘           └───────────────────────┘
+```
+
+### Key Insight (v1.1.13 Fix)
+
+**Before:** Paper trader had duplicate profit thresholds (5% hardcoded) that blocked valid Polymarket opportunities (0.3-5%).
+
+**After:** Paper trader ONLY has simulation-specific settings:
+- `MAX_REALISTIC_SPREAD_PCT = 25%` (sanity check)
+- `EXECUTION_FAILURE_RATE = 10%` (simulates failures)
+- `SLIPPAGE_MIN/MAX` (simulates price movement)
+
+All profit thresholds come from config.py → used by scanner → shared by both modes.
+
+---
+
 ## 🔒 Deployment Setup - What Runs Where
 
 ### Admin UI (Vercel)

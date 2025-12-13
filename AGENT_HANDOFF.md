@@ -1,37 +1,105 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 12, 2025  
-**Current Version:** v1.1.12 (Build #74)  
-**Deployment:** v95 on AWS Lightsail (pending)  
+**Last Updated:** December 13, 2025  
+**Current Version:** v1.1.13 (Build #75)  
+**Deployment:** v96 on AWS Lightsail  
 **Status:** 🟢 RUNNING - Simulation Mode
 
 ---
 
-## ✅ CRITICAL FIX DEPLOYED (v1.1.12)
+## ✅ CRITICAL FIX DEPLOYED (v1.1.13)
 
-**ROOT CAUSE IDENTIFIED & FIXED:** The 88% skip rate was caused by TWO bugs in `paper_trader_realistic.py`:
+**ROOT CAUSE IDENTIFIED & FIXED:** The 88% skip rate was caused by TWO bugs creating **duplicate filtering**:
 
-### Bug #1: Double-filtering profit threshold
+### Bug #1: Paper trader had duplicate profit thresholds (REMOVED)
 
-- **Scanner** allowed Polymarket opportunities ≥0.3% (correct - 0% fees)
-- **Paper Trader** had ADDITIONAL filter rejecting <5% spreads
-- **Impact:** ALL Polymarket 0.3-5% opportunities were being SKIPPED
-- **Fix:** Made profit threshold platform-specific:
-  - Polymarket: 0.3% minimum (0% fees = tiny spreads are profitable!)
-  - Kalshi: 8.0% minimum (covers 7% fee + profit margin)
+- **Scanner** used strategy-specific thresholds from `config.py` (correct)
+- **Paper Trader** had ADDITIONAL hardcoded `MIN_PROFIT_THRESHOLD_PCT=5.0%`
+- **Impact:** ALL Polymarket 0.3-5% opportunities were SKIPPED after passing scanner
+- **Fix:** **REMOVED all duplicate profit filtering from paper_trader** - now scanner is single source of truth
 
-### Bug #2: Max spread filter too low
+### Bug #2: Max spread filter too low (FIXED)
 
-- **Scanner** allowed up to 15%
-- **Paper Trader** rejected >12% as "false positives"
-- **Impact:** 13%+ profit opportunities (like the 16.21%!) were being REJECTED
-- **Fix:** Raised `MAX_REALISTIC_SPREAD_PCT` from 12% to 25%
+- **Old:** `MAX_REALISTIC_SPREAD_PCT=12%` in paper_trader, `MAX_PROFIT_PCT=15%` in scanner
+- **Impact:** 13%+ profit opportunities (like 16.21%!) were rejected as "false positives"
+- **Fix:**
+  - `MAX_REALISTIC_SPREAD_PCT` raised to **25%** (paper_trader)
+  - `MAX_PROFIT_PCT` raised to **30%** (scanner)
+  - `poly_single_max_spread_pct` raised to **30%** (config.py)
+  - `kalshi_single_max_spread_pct` raised to **30%** (config.py)
+
+### Architecture Clarification
+
+```text
+config.py (SINGLE SOURCE OF TRUTH)
+    ↓
+SinglePlatformScanner (uses config settings)
+    ↓
+Opportunity Detection (shared by both modes)
+    ↓
+bot_runner.py routes based on simulation_mode:
+    • simulation_mode=True → paper_trader (simulation-specific settings only)
+    • simulation_mode=False → live execution (uses same scanner thresholds)
+```
+
+**Key insight:** Scanner thresholds apply to BOTH simulation and live trading. Paper trader now only has simulation-specific settings (slippage, execution failure rate, etc.).
 
 ### Expected Impact
 
-- **Polymarket trades:** Should increase significantly (was rejecting 0.3-5%)
+- **Polymarket trades:** Should increase significantly (no more 5% floor blocking 0.3-5%)
 - **High-value trades:** 13%+ opportunities will now execute
-- **Conversion rate:** Target improvement from 12% → 40%+
+- **Conversion rate:** Target improvement from 12% → **60-80%**
+
+---
+
+## 📋 AUTHORITATIVE SETTINGS REFERENCE (v1.1.13)
+
+### Strategy-Specific Settings (config.py - Source of Truth)
+
+| Setting | Value | Location | Purpose |
+|---------|-------|----------|---------|
+| `poly_single_min_profit_pct` | **0.3%** | config.py | Min profit for Polymarket (0% fees!) |
+| `poly_single_max_spread_pct` | **30%** | config.py | Max profit before "too good to be true" |
+| `poly_single_max_position_usd` | $100 | config.py | Max position size |
+| `kalshi_single_min_profit_pct` | **8%** | config.py | Min profit for Kalshi (covers 7% fee) |
+| `kalshi_single_max_spread_pct` | **30%** | config.py | Max profit before "too good to be true" |
+| `kalshi_single_max_position_usd` | $100 | config.py | Max position size |
+
+### Scanner Settings (single_platform_scanner.py)
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `MAX_PROFIT_PCT` | **30%** | Scanner-level sanity check |
+| `MIN_LIQUIDITY_USD` | $50 | Minimum market liquidity |
+| `poly_min_profit_pct` | From config | Passed from config.py |
+| `kalshi_min_profit_pct` | From config | Passed from config.py |
+
+### Paper Trader Settings (SIMULATION ONLY)
+
+| Setting | Value | Purpose |
+|---------|-------|---------|
+| `MAX_REALISTIC_SPREAD_PCT` | **25%** | Upper bound for realistic opportunities |
+| `EXECUTION_FAILURE_RATE` | 10% | Simulates failed trades |
+| `SLIPPAGE_MIN/MAX` | 0.1%-0.5% | Simulates price movement |
+| `FEE_STRUCTURES` | Varies | Platform-specific fee simulation |
+
+**Note:** Paper trader NO LONGER has min profit thresholds - those are handled by the scanner.
+
+### Settings Hierarchy
+
+```text
+1. config.py (strategy-specific) → AUTHORITATIVE
+2. SinglePlatformScanner (uses config) → FILTERING
+3. paper_trader (simulation extras) → EXECUTION SIMULATION ONLY
+```
+
+### Target Conversion Rates by Strategy
+
+| Strategy | Good Conversion | Why |
+|----------|-----------------|-----|
+| Single-Platform Arb | **60-80%** | Real spreads, should execute most |
+| Cross-Platform Arb | 30-50% | Timing-sensitive |
+| News/Sentiment | 20-40% | Market conditions vary |
 
 ---
 
@@ -274,15 +342,16 @@ cd /Users/rut/polybot/admin && npx vercel --prod
 
 ## YOUR IMMEDIATE PRIORITIES
 
-1. **Diagnose the 12% conversion rate** - Trace why 88% of opportunities are skipped
-2. **Find the 16%+ opportunities** in logs - Why aren't we trading these?
-3. **Tune parameters** - Adjust thresholds in Supabase `polybot_config` table via admin UI
-4. **Enable BTC Bracket Arb** - 90% confidence, highest expected returns
-5. **Scale what works** - Kalshi single-platform has 86% win rate, can we do more?
+1. ✅ ~~**Diagnose the 12% conversion rate**~~ - FIXED in v1.1.13 (duplicate filtering bug)
+2. ✅ ~~**Find the 16%+ opportunities**~~ - FIXED (MAX_SPREAD was 12%, now 25-30%)
+3. **Monitor conversion rate** - Target: 60-80% for single-platform arb
+4. **Implement live trading execution** - `bot_runner.py` line 1287 has TODO placeholder
+5. **Enable BTC Bracket Arb** - 90% confidence, highest expected returns
+6. **Scale what works** - Kalshi single-platform has 86% win rate, can we do more?
 
 ## SUCCESS METRICS
 
-- Conversion rate: 12% → 25%+
+- Conversion rate: ~~12%~~ → **60-80%** (for single-platform arb)
 - Daily P&L: +$43 → +$200+
 - Win rate: Maintain 80%+
 - New strategies enabled: At least BTC Bracket Arb
@@ -418,7 +487,16 @@ cd /Users/rut/polybot/admin && npx vercel --prod --force
 
 ## 📈 RECENT HISTORY
 
-### December 12, 2025
+### December 13, 2025 - v1.1.13 (CURRENT)
+
+- ✅ Fixed 88% skip rate bug (duplicate profit filtering)
+- ✅ Removed hardcoded thresholds from paper_trader
+- ✅ Raised max spread limits: 12% → 25-30%
+- ✅ Deployed v96 to Lightsail
+- ✅ Updated documentation with authoritative settings reference
+- 🎯 **Target:** Monitor conversion rate, expect 60-80%
+
+### December 12, 2025 - v1.1.12
 
 - ✅ Implemented 6 Twitter-derived strategies
 - ✅ Fixed security issue (removed hardcoded secrets)
@@ -428,7 +506,7 @@ cd /Users/rut/polybot/admin && npx vercel --prod --force
 
 ### Key Insight from Session
 
-Kalshi single-platform arbitrage is working great (86% win rate, +$43.48). The bot is finding opportunities but being too conservative about executing them. The thresholds or liquidity checks may be too strict.
+The scanner thresholds in `config.py` are the **single source of truth** for both simulation and live trading. Paper trader should only have simulation-specific settings (slippage, execution failure, etc.) - NOT duplicate profit thresholds.
 
 ---
 
@@ -436,13 +514,15 @@ Kalshi single-platform arbitrage is working great (86% win rate, +$43.48). The b
 
 1. **Service name is `polyparlay`** (not polybot-service)
 2. **ALWAYS include SUPABASE env vars** in deployments
-3. **Polymarket = 0% fees** (prioritize these!)
-4. **Kalshi = 7% fees** (need 8%+ spreads)
+3. **Polymarket = 0% fees** (prioritize these! min profit 0.3%)
+4. **Kalshi = 7% fees** (need 8%+ spreads to be profitable)
 5. **Test in simulation first** (dry_run_mode in Settings)
 6. **Update AGENT_HANDOFF.md** after significant changes
+7. **Scanner settings = SHARED** between simulation and live trading
+8. **Paper trader = SIMULATION-ONLY** extras (slippage, failure rate)
 
 ---
 
-**Current deployment:** v94 (Build #73)  
-**Bot URL:** <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>  
+**Current deployment:** v96 (Build #75)
+**Bot URL:** <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>
 **Admin UI:** <https://admin-qyj8xxwtx-rut304s-projects.vercel.app>
