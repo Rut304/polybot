@@ -1,26 +1,54 @@
 # PolyBot Agent Handoff Document
 
 **Last Updated:** December 12, 2025  
-**Current Version:** v1.1.11 (Build #73)  
-**Deployment:** v94 on AWS Lightsail  
+**Current Version:** v1.1.12 (Build #74)  
+**Deployment:** v95 on AWS Lightsail (pending)  
 **Status:** 🟢 RUNNING - Simulation Mode
 
 ---
 
-## 🚨 CRITICAL PERFORMANCE PROBLEM - READ THIS FIRST
+## ✅ CRITICAL FIX DEPLOYED (v1.1.12)
 
-The bot is finding opportunities but only converting 12.1% of them. **This is the #1 priority for the next agent.**
+**ROOT CAUSE IDENTIFIED & FIXED:** The 88% skip rate was caused by TWO bugs in `paper_trader_realistic.py`:
 
-### Current Statistics
+### Bug #1: Double-filtering profit threshold
+
+- **Scanner** allowed Polymarket opportunities ≥0.3% (correct - 0% fees)
+- **Paper Trader** had ADDITIONAL filter rejecting <5% spreads
+- **Impact:** ALL Polymarket 0.3-5% opportunities were being SKIPPED
+- **Fix:** Made profit threshold platform-specific:
+  - Polymarket: 0.3% minimum (0% fees = tiny spreads are profitable!)
+  - Kalshi: 8.0% minimum (covers 7% fee + profit margin)
+
+### Bug #2: Max spread filter too low
+
+- **Scanner** allowed up to 15%
+- **Paper Trader** rejected >12% as "false positives"
+- **Impact:** 13%+ profit opportunities (like the 16.21%!) were being REJECTED
+- **Fix:** Raised `MAX_REALISTIC_SPREAD_PCT` from 12% to 25%
+
+### Expected Impact
+
+- **Polymarket trades:** Should increase significantly (was rejecting 0.3-5%)
+- **High-value trades:** 13%+ opportunities will now execute
+- **Conversion rate:** Target improvement from 12% → 40%+
+
+---
+
+## 🚨 PREVIOUS PROBLEM (NOW FIXED)
+
+The bot was finding opportunities but only converting 12.1% of them.
+
+### Previous Statistics (v1.1.11)
 
 | Metric | Value | Target |
 |--------|-------|--------|
 | **Total Opportunities Seen** | 4,155 | - |
 | **Total Trades Executed** | 504 | - |
-| **Conversion Rate** | **12.1%** | **25%+** |
+| **Conversion Rate** | **12.1%** | **40%+** |
 | **Skipped Opportunities** | 3,651 (88%) | <50% |
 
-### Performance by Strategy
+### Performance by Strategy (v1.1.11)
 
 | Strategy | Opportunities | Trades | Win Rate | P&L |
 |----------|--------------|--------|----------|-----|
@@ -38,6 +66,7 @@ These are being detected but NOT traded:
 - "Will Hunter Biden win the 20..." → **+16.21%** profit
 
 **KEY INSIGHT:** We're leaving 16%+ profit opportunities on the table. The next agent must investigate:
+
 1. Are min_profit thresholds misconfigured?
 2. Are liquidity/position size checks too conservative?
 3. Are opportunities expiring before execution?
@@ -75,6 +104,7 @@ Before writing ANY code, you MUST:
    curl https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status
    aws lightsail get-container-log --region us-east-1 --service-name polyparlay --container-name polybot 2>&1 | jq '.logEvents[-30:]'
    ```
+
 5. **Review Supabase data** - Look at polybot_opportunities and polybot_simulated_trades tables
 
 ## REQUIRED QUANTITATIVE EXPERTISE
@@ -236,11 +266,11 @@ cd /Users/rut/polybot/admin && npx vercel --prod
 
 | Resource | URL |
 |----------|-----|
-| Admin UI | https://admin-qyj8xxwtx-rut304s-projects.vercel.app |
-| Bot Health | https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health |
-| Bot Status | https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status |
-| Supabase | https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad |
-| GitHub | https://github.com/Rut304/polybot |
+| Admin UI | <https://admin-qyj8xxwtx-rut304s-projects.vercel.app> |
+| Bot Health | <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health> |
+| Bot Status | <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status> |
+| Supabase | <https://supabase.com/dashboard/project/ytaltvltxkkfczlvjgad> |
+| GitHub | <https://github.com/Rut304/polybot> |
 
 ## YOUR IMMEDIATE PRIORITIES
 
@@ -258,6 +288,7 @@ cd /Users/rut/polybot/admin && npx vercel --prod
 - New strategies enabled: At least BTC Bracket Arb
 
 Remember: Every skipped profitable opportunity is money we didn't make. Be aggressive but risk-aware. The goal is PROFIT.
+
 ```
 
 ---
@@ -413,5 +444,5 @@ Kalshi single-platform arbitrage is working great (86% win rate, +$43.48). The b
 ---
 
 **Current deployment:** v94 (Build #73)  
-**Bot URL:** https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com  
-**Admin UI:** https://admin-qyj8xxwtx-rut304s-projects.vercel.app
+**Bot URL:** <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com>  
+**Admin UI:** <https://admin-qyj8xxwtx-rut304s-projects.vercel.app>

@@ -121,7 +121,10 @@ class SinglePlatformScanner:
     
     # Thresholds
     MIN_PROFIT_PCT = Decimal("0.5")      # Minimum 0.5% profit to be interesting
-    MAX_PROFIT_PCT = Decimal("15.0")     # Above this is likely bad data
+    # FIXED: Raised from 15% to 30% - prediction markets CAN have large mispricings!
+    # Academic research shows significant arbitrage opportunities exist at various levels.
+    # Previously we were rejecting 16%+ profit opportunities as "bad data" - WRONG!
+    MAX_PROFIT_PCT = Decimal("30.0")     # Raised from 15% - big spreads are real!
     MIN_LIQUIDITY_USD = Decimal("100")   # Minimum liquidity
     
     # Deduplication: cooldown period before trading same market again

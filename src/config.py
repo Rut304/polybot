@@ -67,19 +67,19 @@ class TradingConfig:
     # POLYMARKET SINGLE - PhD Research Optimized (Saguillo et al., 2025)
     # Academic data: $40M extracted at 0.3-2% margins, 0% trading fees
     # =========================================================================
-    poly_single_min_profit_pct: float = 0.3    # Aggressive: capture micro-arb (research shows 0.3%+ profitable)
-    poly_single_max_spread_pct: float = 12.0   # Reject >12% (likely stale data or illiquid)
-    poly_single_max_position_usd: float = 100.0 # Increased - single-plat is safest
-    poly_single_scan_interval_sec: int = 5     # FASTEST: every 5 seconds - catch all edges
-    poly_single_min_conditions: int = 2        # Prioritize 3+ condition markets (more errors)
+    poly_single_min_profit_pct: float = 0.3    # Aggressive: 0% fees = micro-arb works
+    poly_single_max_spread_pct: float = 30.0   # RAISED from 12% - big spreads are real!
+    poly_single_max_position_usd: float = 100.0 # Single-plat is safest
+    poly_single_scan_interval_sec: int = 5     # Every 5 seconds - catch all edges
+    poly_single_min_conditions: int = 2        # Prioritize 3+ condition markets
     
     # =========================================================================
     # KALSHI SINGLE - Fee-Adjusted (7% on profits = need 8%+ gross)
     # Only profitable if spread exceeds fee drag significantly
     # =========================================================================
     kalshi_single_min_profit_pct: float = 8.0  # RAISED: 7% fees + 1% net = 8% minimum
-    kalshi_single_max_spread_pct: float = 15.0
-    kalshi_single_max_position_usd: float = 30.0  # REDUCED: higher risk due to fees
+    kalshi_single_max_spread_pct: float = 30.0 # RAISED from 15% - big spreads are real!
+    kalshi_single_max_position_usd: float = 50.0  # Increased from 30 - scale wins
     kalshi_single_scan_interval_sec: int = 5   # FASTEST: every 5 seconds
     
     # =========================================================================

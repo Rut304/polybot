@@ -186,14 +186,22 @@ class RealisticPaperTrader:
     3. Slippage: Prices move 0.2-1.0% by the time you execute
     4. Spread cost: Bid-ask spread ~0.5% on prediction markets
     5. Execution failure: ~10% for cross-platform, ~20% for overlap
-    6. Platform fees: ~2% on Polymarket, ~7% on Kalshi profits
+    6. Platform fees: 0% on Polymarket, ~7% on Kalshi profits
     7. RESOLUTION RISK: 3% for true arb, 40% for overlap (correlation failure)
-    8. Minimum profit threshold: 5% to cover costs
+    8. Minimum profit threshold: Platform-specific (0.3% Poly, 8% Kalshi)
     """
 
     # ========== DEFAULT VALUES (overridden by database config) ==========
-    MAX_REALISTIC_SPREAD_PCT = 12.0  # Max believable spread
-    MIN_PROFIT_THRESHOLD_PCT = 5.0   # Min spread to trade
+    # FIXED: Raised from 12% to 25% - prediction markets CAN have 15%+ spreads!
+    # Academic research shows $40M was extracted at various spread levels.
+    # Previously we were rejecting 13%+ profit opportunities as "false positives"
+    MAX_REALISTIC_SPREAD_PCT = 25.0  # Max believable spread (raised from 12%)
+    
+    # NOTE: Min profit thresholds are REMOVED from paper trader!
+    # They are now handled ONLY by the strategy-specific scanners in config.py:
+    # - poly_single_min_profit_pct (0.3%) in scanner
+    # - kalshi_single_min_profit_pct (8.0%) in scanner
+    # This eliminates the double-filtering bug that was skipping opportunities.
 
     # ========== CRITICAL: Skip same-platform overlap by default ==========
     # Same-platform "overlap" is NOT true arbitrage and loses money!
@@ -324,9 +332,9 @@ class RealisticPaperTrader:
                 return
             
             # Map database columns to instance attributes
+            # NOTE: min_profit_threshold_pct REMOVED - handled by strategy scanners
             config_mapping = {
                 'max_realistic_spread_pct': 'MAX_REALISTIC_SPREAD_PCT',
-                'min_profit_threshold_pct': 'MIN_PROFIT_THRESHOLD_PCT',
                 'slippage_min_pct': 'SLIPPAGE_MIN_PCT',
                 'slippage_max_pct': 'SLIPPAGE_MAX_PCT',
                 'spread_cost_pct': 'SPREAD_COST_PCT',
@@ -349,27 +357,24 @@ class RealisticPaperTrader:
                     loaded_count += 1
                     logger.debug(f"Loaded {attr_name} = {value} from database")
             
-            # Also load basic settings if present
-            if config.get('min_profit_percent') is not None:
-                self.MIN_PROFIT_THRESHOLD_PCT = float(config['min_profit_percent'])
-                loaded_count += 1
-            
+            # max_trade_size maps to MAX_POSITION_USD (global limit)
             if config.get('max_trade_size') is not None:
                 self.MAX_POSITION_USD = float(config['max_trade_size'])
                 loaded_count += 1
             
-            # Load skip_same_platform_overlap setting (NEW)
+            # Load skip_same_platform_overlap setting
             # False = ALLOW overlapping arb, True = SKIP overlapping arb
             if 'skip_same_platform_overlap' in config:
-                self.SKIP_SAME_PLATFORM_OVERLAP = bool(config['skip_same_platform_overlap'])
+                skip_val = config['skip_same_platform_overlap']
+                self.SKIP_SAME_PLATFORM_OVERLAP = bool(skip_val)
                 loaded_count += 1
-                logger.info(f"  Overlapping arb: {'DISABLED' if self.SKIP_SAME_PLATFORM_OVERLAP else 'ENABLED'}")
+                status = 'DISABLED' if self.SKIP_SAME_PLATFORM_OVERLAP else 'ENABLED'
+                logger.info(f"  Overlapping arb: {status}")
             
             logger.info(f"✓ Loaded {loaded_count} config values from database")
             
-            # Log current settings
+            # Log current settings (removed min profit - handled by scanners)
             logger.info(f"  Max spread: {self.MAX_REALISTIC_SPREAD_PCT}%")
-            logger.info(f"  Min profit: {self.MIN_PROFIT_THRESHOLD_PCT}%")
             logger.info(f"  Max position: ${self.MAX_POSITION_USD}")
             logger.info(f"  Exec failure rate: {self.EXECUTION_FAILURE_RATE*100:.0f}%")
             logger.info(f"  Resolution loss rate: {self.RESOLUTION_LOSS_RATE*100:.0f}%")
@@ -738,6 +743,7 @@ class RealisticPaperTrader:
 
         # ========== FALSE POSITIVE FILTER ==========
         # Reject opportunities with unrealistically large spreads
+        # This is a safety valve for bad data, not a strategy threshold
         if float(spread_pct) > self.MAX_REALISTIC_SPREAD_PCT:
             self.stats.opportunities_skipped_too_small += 1
             logger.info(
@@ -746,14 +752,11 @@ class RealisticPaperTrader:
             )
             return None
 
-        # Skip if spread too small to be profitable after costs
-        if float(spread_pct) < self.MIN_PROFIT_THRESHOLD_PCT:
-            self.stats.opportunities_skipped_too_small += 1
-            logger.debug(
-                f"Skipping: {spread_pct:.2f}% spread "
-                f"below {self.MIN_PROFIT_THRESHOLD_PCT}% threshold"
-            )
-            return None
+        # NOTE: Minimum profit thresholds REMOVED from paper trader!
+        # They are now handled ONLY by strategy-specific scanners:
+        # - SinglePlatformScanner uses poly_min_profit_pct (0.3%)
+        # - SinglePlatformScanner uses kalshi_min_profit_pct (8.0%)
+        # This eliminates the double-filtering that was skipping opportunities.
 
         # Check if we have enough balance
         min_size = Decimal(str(self.MIN_POSITION_USD))
