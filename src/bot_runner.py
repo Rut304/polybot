@@ -1147,6 +1147,9 @@ class PolybotRunner:
         # Paper trade if in simulation mode
         if self.simulation_mode and self.paper_trader:
             try:
+                # IMPORTANT: Pass arbitrage_type="overlapping_arb" to distinguish from
+                # true single-platform arbitrage (YES+NO=$1). Overlapping arb is
+                # correlation-based between DIFFERENT markets - much riskier!
                 await self.paper_trader.simulate_opportunity(
                     market_a_id=opp.market_a.condition_id or "unknown",
                     market_a_title=opp.market_a.question[:200],
@@ -1158,6 +1161,7 @@ class PolybotRunner:
                     price_b=Decimal(str(opp.market_b.yes_price or 0.5)),
                     spread_pct=Decimal(str(opp.deviation)),
                     trade_type=f"overlapping_{opp.relationship}",
+                    arbitrage_type="overlapping_arb",  # CRITICAL: Not "polymarket_single"!
                 )
             except Exception as e:
                 logger.error(f"Error paper trading arb: {e}")

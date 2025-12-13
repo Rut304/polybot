@@ -995,10 +995,15 @@ class RealisticPaperTrader:
         """Save trade to Supabase polybot_simulated_trades table"""
         try:
             # Determine strategy type from arbitrage_type or trade platforms
+            # CRITICAL: Use the explicit arbitrage_type if provided!
+            # This prevents overlapping_arb being mislabeled as polymarket_single
             strategy_type = trade.arbitrage_type
             if not strategy_type:
+                # Fallback only if arbitrage_type not explicitly provided
                 if trade.platform_a == trade.platform_b:
-                    strategy_type = f"{trade.platform_a}_single"
+                    # WARNING: This could be overlapping arb OR single-platform arb
+                    # Should be explicitly set by the caller
+                    strategy_type = f"{trade.platform_a}_overlap"  # Default to overlap
                 else:
                     strategy_type = "cross_platform"
 
