@@ -5,10 +5,10 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY!;
 
 // AWS credentials for Lightsail Container Service
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-const LIGHTSAIL_SERVICE_NAME = process.env.LIGHTSAIL_SERVICE_NAME || 'polyparlay';
+const AWS_ACCESS_KEY_ID = (process.env.AWS_ACCESS_KEY_ID || '').trim();
+const AWS_SECRET_ACCESS_KEY = (process.env.AWS_SECRET_ACCESS_KEY || '').trim();
+const AWS_REGION = (process.env.AWS_REGION || 'us-east-1').trim();
+const LIGHTSAIL_SERVICE_NAME = (process.env.LIGHTSAIL_SERVICE_NAME || 'polyparlay').trim();
 
 export async function POST(request: Request) {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
