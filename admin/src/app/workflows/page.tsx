@@ -1060,6 +1060,169 @@ export default function WorkflowsPage() {
         </Link>
       </div>
 
+      {/* ════════════════════════════════════════════════════════════════════════
+          FULL SYSTEM ARCHITECTURE DIAGRAM
+          ════════════════════════════════════════════════════════════════════════ */}
+      <div className="card p-6">
+        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+          <Activity className="text-blue-400" />
+          System Architecture Overview
+        </h2>
+        
+        {/* Visual Flow Diagram */}
+        <div className="relative bg-gray-900/50 rounded-xl p-8 overflow-x-auto">
+          <div className="min-w-[900px]">
+            {/* Data Sources Layer */}
+            <div className="text-center mb-4">
+              <span className="text-xs text-gray-500 uppercase tracking-wider">Data Sources</span>
+            </div>
+            <div className="flex justify-center gap-6 mb-6">
+              <div className="text-center">
+                <div className="bg-purple-500/20 border border-purple-500/30 rounded-xl p-4 w-28 hover:scale-105 transition-transform">
+                  <div className="text-2xl mb-1">🎯</div>
+                  <div className="text-sm font-medium">Polymarket</div>
+                  <div className="text-xs text-gray-400">0% fees</div>
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 w-28 hover:scale-105 transition-transform">
+                  <div className="text-2xl mb-1">📊</div>
+                  <div className="text-sm font-medium">Kalshi</div>
+                  <div className="text-xs text-gray-400">7% fees</div>
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="bg-orange-500/20 border border-orange-500/30 rounded-xl p-4 w-28 hover:scale-105 transition-transform">
+                  <div className="text-2xl mb-1">₿</div>
+                  <div className="text-sm font-medium">CCXT</div>
+                  <div className="text-xs text-gray-400">106+ exchanges</div>
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 w-28 hover:scale-105 transition-transform">
+                  <div className="text-2xl mb-1">📈</div>
+                  <div className="text-sm font-medium">Alpaca</div>
+                  <div className="text-xs text-gray-400">US Stocks</div>
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="bg-cyan-500/20 border border-cyan-500/30 rounded-xl p-4 w-28 hover:scale-105 transition-transform">
+                  <div className="text-2xl mb-1">📰</div>
+                  <div className="text-sm font-medium">News APIs</div>
+                  <div className="text-xs text-gray-400">Finnhub/NewsAPI</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Arrows Down */}
+            <div className="flex justify-center gap-6 mb-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="w-28 flex justify-center">
+                  <ArrowDown className="text-gray-600 w-5 h-5" />
+                </div>
+              ))}
+            </div>
+            
+            {/* Bot Core */}
+            <div className="flex justify-center mb-4">
+              <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/40 rounded-2xl p-6 w-[600px]">
+                <div className="text-center mb-4">
+                  <div className="text-3xl mb-2">🤖</div>
+                  <div className="text-xl font-bold">PolyBot Core</div>
+                  <div className="text-sm text-gray-400">Async Strategy Orchestrator • v1.1.16</div>
+                </div>
+                <div className="grid grid-cols-4 gap-3 text-sm">
+                  <div className="bg-gray-900/60 rounded-lg p-3 text-center">
+                    <div className="font-medium text-purple-400">Config</div>
+                    <div className="text-xs text-gray-500">Supabase</div>
+                  </div>
+                  <div className="bg-gray-900/60 rounded-lg p-3 text-center">
+                    <div className="font-medium text-blue-400">Risk Mgr</div>
+                    <div className="text-xs text-gray-500">Limits & Stops</div>
+                  </div>
+                  <div className="bg-gray-900/60 rounded-lg p-3 text-center">
+                    <div className="font-medium text-green-400">Paper/Live</div>
+                    <div className="text-xs text-gray-500">Simulation</div>
+                  </div>
+                  <div className="bg-gray-900/60 rounded-lg p-3 text-center">
+                    <div className="font-medium text-orange-400">Analytics</div>
+                    <div className="text-xs text-gray-500">P&L Track</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Arrows Down */}
+            <div className="flex justify-center mb-4">
+              <ArrowDown className="text-gray-600 w-5 h-5" />
+            </div>
+            
+            {/* Strategy Execution Layer */}
+            <div className="text-center mb-4">
+              <span className="text-xs text-gray-500 uppercase tracking-wider">Strategy Execution ({STRATEGIES.length} strategies)</span>
+            </div>
+            <div className="flex justify-center gap-3 flex-wrap mb-6">
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-purple-400">🎯 Prediction Arb</span>
+              </div>
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-purple-400">🔄 Cross-Platform</span>
+              </div>
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-purple-400">📊 Market Making</span>
+              </div>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-orange-400">💰 Funding Rate</span>
+              </div>
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-orange-400">📶 Grid Trading</span>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-green-400">📈 Mean Reversion</span>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-green-400">🚀 Momentum</span>
+              </div>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 text-xs">
+                <span className="text-blue-400">🛡️ Risk Framework</span>
+              </div>
+            </div>
+            
+            {/* Arrows Down */}
+            <div className="flex justify-center mb-4">
+              <ArrowDown className="text-gray-600 w-5 h-5" />
+            </div>
+            
+            {/* Output Layer */}
+            <div className="text-center mb-4">
+              <span className="text-xs text-gray-500 uppercase tracking-wider">Outputs</span>
+            </div>
+            <div className="flex justify-center gap-6">
+              <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 w-32 text-center hover:scale-105 transition-transform">
+                <Wallet className="w-6 h-6 mx-auto mb-2 text-green-400" />
+                <div className="text-sm font-medium">Trades</div>
+                <div className="text-xs text-gray-400">Execute orders</div>
+              </div>
+              <div className="bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 w-32 text-center hover:scale-105 transition-transform">
+                <BarChart3 className="w-6 h-6 mx-auto mb-2 text-blue-400" />
+                <div className="text-sm font-medium">Analytics</div>
+                <div className="text-xs text-gray-400">Track P&L</div>
+              </div>
+              <div className="bg-purple-500/20 border border-purple-500/30 rounded-xl p-4 w-32 text-center hover:scale-105 transition-transform">
+                <Shield className="w-6 h-6 mx-auto mb-2 text-purple-400" />
+                <div className="text-sm font-medium">Alerts</div>
+                <div className="text-xs text-gray-400">Discord/Telegram</div>
+              </div>
+              <div className="bg-orange-500/20 border border-orange-500/30 rounded-xl p-4 w-32 text-center hover:scale-105 transition-transform">
+                <Activity className="w-6 h-6 mx-auto mb-2 text-orange-400" />
+                <div className="text-sm font-medium">Logs</div>
+                <div className="text-xs text-gray-400">Supabase</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Strategy Grid - Sorted by Confidence */}
       <div className="card p-6">
         <div className="flex items-center justify-between mb-6">

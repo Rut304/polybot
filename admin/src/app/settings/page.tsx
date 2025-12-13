@@ -3329,8 +3329,9 @@ export default function SettingsPage() {
           title="Toggle stock strategies"
         >
           <h2 className="text-xl font-semibold flex items-center gap-2">
-            <TrendingDown className="w-5 h-5 text-blue-500" />
+            <TrendingUp className="w-5 h-5 text-blue-500" />
             Stock Strategies (via Alpaca)
+            <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full font-normal">US MARKETS</span>
           </h2>
           {showStockStrategies ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
@@ -3344,171 +3345,429 @@ export default function SettingsPage() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              {/* Stock Mean Reversion */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Stock Mean Reversion</h3>
-                    <p className="text-sm text-gray-500">Buy oversold, sell overbought stocks (15-30% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  STOCK MEAN REVERSION - Full Card Layout
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-6 rounded-xl border-2 border-blue-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-blue-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
+                      <TrendingDown className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Stock Mean Reversion
+                        <span className="text-xs bg-blue-500/30 text-blue-400 px-2 py-0.5 rounded-full">70% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-blue-400">RSI-based oversold/overbought trading</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableStockMeanReversion} onToggle={() => setEnableStockMeanReversion(!enableStockMeanReversion)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableStockMeanReversion} onToggle={() => setEnableStockMeanReversion(!enableStockMeanReversion)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableStockMeanReversion && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-blue-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">RSI Oversold</label>
-                      <input type="number" value={meanRevRsiOversold} onChange={(e) => setMeanRevRsiOversold(parseFloat(e.target.value))} step="5" min="10" max="40" disabled={!isAdmin} title="RSI oversold threshold" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Scans stocks for RSI extremes. Buys when RSI {"<"} 30 (oversold), sells when RSI {">"} 70 (overbought). Classic contrarian strategy.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">RSI Overbought</label>
-                      <input type="number" value={meanRevRsiOverbought} onChange={(e) => setMeanRevRsiOverbought(parseFloat(e.target.value))} step="5" min="60" max="90" disabled={!isAdmin} title="RSI overbought threshold" placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Stocks tend to <span className="text-blue-400 font-semibold">revert to their mean price</span> after extreme moves. Works best on large-cap liquid stocks with high volatility.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
-                      <input type="number" value={meanRevPositionSizeUsd} onChange={(e) => setMeanRevPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} title="Position size in USD" placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
-                      <input type="number" value={meanRevMaxPositions} onChange={(e) => setMeanRevMaxPositions(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Maximum number of positions" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Stop Loss %</label>
-                      <input type="number" value={meanRevStopLossPct} onChange={(e) => setMeanRevStopLossPct(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Stop loss percentage" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Take Profit %</label>
-                      <input type="number" value={meanRevTakeProfitPct} onChange={(e) => setMeanRevTakeProfitPct(parseFloat(e.target.value))} step="1" min="1" max="50" disabled={!isAdmin} title="Take profit percentage" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-blue-400 font-semibold">15-30% APY</span> with disciplined stops.
+                        Win rate: ~55-60%. Requires patience for setups.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-blue-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <TrendingDown className="w-3 h-3" />
+                        RSI Oversold
+                      </label>
+                      <input type="number" value={meanRevRsiOversold} onChange={(e) => setMeanRevRsiOversold(parseFloat(e.target.value))} step="5" min="10" max="40" disabled={!isAdmin} placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Buy signal threshold</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <TrendingUp className="w-3 h-3" />
+                        RSI Overbought
+                      </label>
+                      <input type="number" value={meanRevRsiOverbought} onChange={(e) => setMeanRevRsiOverbought(parseFloat(e.target.value))} step="5" min="60" max="90" disabled={!isAdmin} placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Sell signal threshold</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input type="number" value={meanRevPositionSizeUsd} onChange={(e) => setMeanRevPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Per trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Max Positions
+                      </label>
+                      <input type="number" value={meanRevMaxPositions} onChange={(e) => setMeanRevMaxPositions(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Concurrent trades</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Shield className="w-3 h-3" />
+                        Stop Loss %
+                      </label>
+                      <input type="number" value={meanRevStopLossPct} onChange={(e) => setMeanRevStopLossPct(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Risk per trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Take Profit %
+                      </label>
+                      <input type="number" value={meanRevTakeProfitPct} onChange={(e) => setMeanRevTakeProfitPct(parseFloat(e.target.value))} step="1" min="1" max="50" disabled={!isAdmin} placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Exit target</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Stock Momentum */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Stock Momentum</h3>
-                    <p className="text-sm text-gray-500">Ride trending stocks with trailing stops (20-40% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  STOCK MOMENTUM - Full Card Layout
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-6 rounded-xl border-2 border-green-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-green-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center">
+                      <TrendingUp className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Stock Momentum
+                        <span className="text-xs bg-green-500/30 text-green-400 px-2 py-0.5 rounded-full">65% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-green-400">Ride trending stocks with trailing stops</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableStockMomentum} onToggle={() => setEnableStockMomentum(!enableStockMomentum)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableStockMomentum} onToggle={() => setEnableStockMomentum(!enableStockMomentum)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableStockMomentum && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-green-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Lookback Days</label>
-                      <input type="number" value={momentumLookbackDays} onChange={(e) => setMomentumLookbackDays(parseInt(e.target.value))} step="5" min="5" max="90" disabled={!isAdmin} title="Momentum lookback period" placeholder="20" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Ranks stocks by momentum score (price performance + volume). Buys top performers with trailing stops to capture uptrends.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Score (0-100)</label>
-                      <input type="number" value={momentumMinScore} onChange={(e) => setMomentumMinScore(parseInt(e.target.value))} step="5" min="50" max="95" disabled={!isAdmin} title="Minimum momentum score" placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300"><span className="text-green-400 font-semibold">&quot;Trend is your friend&quot;</span> - stocks that are rising tend to keep rising. Momentum factor has been profitable for decades across markets.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
-                      <input type="number" value={momentumPositionSizeUsd} onChange={(e) => setMomentumPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} title="Position size in USD" placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
-                      <input type="number" value={momentumMaxPositions} onChange={(e) => setMomentumMaxPositions(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Maximum positions" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Trailing Stop %</label>
-                      <input type="number" value={momentumTrailingStopPct} onChange={(e) => setMomentumTrailingStopPct(parseFloat(e.target.value))} step="1" min="3" max="20" disabled={!isAdmin} title="Trailing stop percentage" placeholder="8" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-green-400 font-semibold">20-40% APY</span> in trending markets.
+                        Underperforms in choppy/sideways conditions. Works best in bull markets.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-green-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Lookback Days
+                      </label>
+                      <input type="number" value={momentumLookbackDays} onChange={(e) => setMomentumLookbackDays(parseInt(e.target.value))} step="5" min="5" max="90" disabled={!isAdmin} placeholder="20" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Momentum calculation period</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Min Score (0-100)
+                      </label>
+                      <input type="number" value={momentumMinScore} onChange={(e) => setMomentumMinScore(parseInt(e.target.value))} step="5" min="50" max="95" disabled={!isAdmin} placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Higher = fewer but stronger picks</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input type="number" value={momentumPositionSizeUsd} onChange={(e) => setMomentumPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Per position</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Max Positions
+                      </label>
+                      <input type="number" value={momentumMaxPositions} onChange={(e) => setMomentumMaxPositions(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Portfolio diversity</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Shield className="w-3 h-3" />
+                        Trailing Stop %
+                      </label>
+                      <input type="number" value={momentumTrailingStopPct} onChange={(e) => setMomentumTrailingStopPct(parseFloat(e.target.value))} step="1" min="3" max="20" disabled={!isAdmin} placeholder="8" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Lock in gains</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Sector Rotation */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Sector Rotation</h3>
-                    <p className="text-sm text-gray-500">Rotate into strongest sectors via ETFs (15-25% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  SECTOR ROTATION - Full Card Layout
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-6 rounded-xl border-2 border-purple-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-purple-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
+                      <RefreshCw className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Sector Rotation
+                        <span className="text-xs bg-purple-500/30 text-purple-400 px-2 py-0.5 rounded-full">60% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-purple-400">Rotate capital into strongest sector ETFs</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableSectorRotation} onToggle={() => setEnableSectorRotation(!enableSectorRotation)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableSectorRotation} onToggle={() => setEnableSectorRotation(!enableSectorRotation)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableSectorRotation && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-purple-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Lookback Days</label>
-                      <input type="number" value={sectorRotationPeriodDays} onChange={(e) => setSectorRotationPeriodDays(parseInt(e.target.value))} step="5" min="5" max="90" disabled={!isAdmin} title="Sector rotation lookback" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Ranks 11 S&P sector ETFs by performance. Rotates into top performers (XLK, XLF, XLE, etc.) and exits underperformers monthly.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Top N Sectors</label>
-                      <input type="number" value={sectorTopN} onChange={(e) => setSectorTopN(parseInt(e.target.value))} step="1" min="1" max="5" disabled={!isAdmin} title="Number of top sectors" placeholder="3" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Different sectors lead in different <span className="text-purple-400 font-semibold">business cycle phases</span>. Tech leads early cycle, Energy leads late cycle. Systematic rotation captures this.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
-                      <input type="number" value={sectorPositionSizeUsd} onChange={(e) => setSectorPositionSizeUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} title="Position size per sector" placeholder="2000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Rebalance Days</label>
-                      <input type="number" value={sectorRebalanceFrequencyDays} onChange={(e) => setSectorRebalanceFrequencyDays(parseInt(e.target.value))} step="1" min="1" max="30" disabled={!isAdmin} title="Rebalance frequency" placeholder="7" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-purple-400 font-semibold">8-20% APY</span> long-term average.
+                        Low turnover, tax-efficient. Beats buy-and-hold in most decades.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-purple-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Lookback Days
+                      </label>
+                      <input type="number" value={sectorRotationPeriodDays} onChange={(e) => setSectorRotationPeriodDays(parseInt(e.target.value))} step="5" min="5" max="90" disabled={!isAdmin} placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Performance window</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Top N Sectors
+                      </label>
+                      <input type="number" value={sectorTopN} onChange={(e) => setSectorTopN(parseInt(e.target.value))} step="1" min="1" max="5" disabled={!isAdmin} placeholder="3" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">How many sectors to hold</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input type="number" value={sectorPositionSizeUsd} onChange={(e) => setSectorPositionSizeUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} placeholder="2000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Per sector ETF</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <RefreshCw className="w-3 h-3" />
+                        Rebalance Days
+                      </label>
+                      <input type="number" value={sectorRebalanceFrequencyDays} onChange={(e) => setSectorRebalanceFrequencyDays(parseInt(e.target.value))} step="1" min="1" max="30" disabled={!isAdmin} placeholder="7" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">How often to rotate</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Dividend Growth */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Dividend Growth</h3>
-                    <p className="text-sm text-gray-500">Income from quality dividend growers (8-12% APY + dividends)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  DIVIDEND GROWTH - Full Card Layout
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-6 rounded-xl border-2 border-emerald-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-emerald-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Dividend Growth
+                        <span className="text-xs bg-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">75% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-emerald-400">Income + growth from dividend aristocrats</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableDividendGrowth} onToggle={() => setEnableDividendGrowth(!enableDividendGrowth)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableDividendGrowth} onToggle={() => setEnableDividendGrowth(!enableDividendGrowth)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableDividendGrowth && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-emerald-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Yield %</label>
-                      <input type="number" value={dividendMinYieldPct} onChange={(e) => setDividendMinYieldPct(parseFloat(e.target.value))} step="0.5" min="0.5" max="10" disabled={!isAdmin} title="Minimum dividend yield" placeholder="2.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Screens for &quot;Dividend Aristocrats&quot; - companies with 10+ years of consecutive dividend increases. Builds a portfolio of quality income stocks.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Growth Years</label>
-                      <input type="number" value={dividendMinGrowthYears} onChange={(e) => setDividendMinGrowthYears(parseInt(e.target.value))} step="1" min="5" max="25" disabled={!isAdmin} title="Minimum consecutive years of growth" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Companies that <span className="text-emerald-400 font-semibold">grow dividends consistently</span> are financially healthy. Dividend reinvestment compounds returns. Lower volatility than growth stocks.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
-                      <input type="number" value={dividendPositionSizeUsd} onChange={(e) => setDividendPositionSizeUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} title="Position size per stock" placeholder="2000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
-                      <input type="number" value={dividendMaxPositions} onChange={(e) => setDividendMaxPositions(parseInt(e.target.value))} step="1" min="5" max="30" disabled={!isAdmin} title="Maximum positions" placeholder="15" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-emerald-400 font-semibold">8-12% APY</span> + 2-4% dividend yield.
+                        Defensive in bear markets. Great for long-term wealth building.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-emerald-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Yield %
+                      </label>
+                      <input type="number" value={dividendMinYieldPct} onChange={(e) => setDividendMinYieldPct(parseFloat(e.target.value))} step="0.5" min="0.5" max="10" disabled={!isAdmin} placeholder="2.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Minimum dividend yield</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Min Growth Years
+                      </label>
+                      <input type="number" value={dividendMinGrowthYears} onChange={(e) => setDividendMinGrowthYears(parseInt(e.target.value))} step="1" min="5" max="25" disabled={!isAdmin} placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Consecutive dividend growth</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input type="number" value={dividendPositionSizeUsd} onChange={(e) => setDividendPositionSizeUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} placeholder="2000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Per stock</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Max Positions
+                      </label>
+                      <input type="number" value={dividendMaxPositions} onChange={(e) => setDividendMaxPositions(parseInt(e.target.value))} step="1" min="5" max="30" disabled={!isAdmin} placeholder="15" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Portfolio diversification</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Earnings Momentum */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Earnings Momentum</h3>
-                    <p className="text-sm text-gray-500">Trade around earnings surprises (15-30% APY, higher risk)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  EARNINGS MOMENTUM - Full Card Layout
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-6 rounded-xl border-2 border-yellow-500 overflow-hidden">
+                {/* Header with toggle */}
+                <div className="bg-yellow-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-yellow-500 flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-black" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Earnings Momentum
+                        <span className="text-xs bg-yellow-500/30 text-yellow-400 px-2 py-0.5 rounded-full">⚠️ 60% CONFIDENCE</span>
+                      </h3>
+                      <p className="text-xs text-yellow-400">Trade post-earnings drift on beat/miss</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableEarningsMomentum} onToggle={() => setEnableEarningsMomentum(!enableEarningsMomentum)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableEarningsMomentum} onToggle={() => setEnableEarningsMomentum(!enableEarningsMomentum)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableEarningsMomentum && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                
+                {/* Strategy explanation */}
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-yellow-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Surprise %</label>
-                      <input type="number" value={earningsMinSurprisePct} onChange={(e) => setEarningsMinSurprisePct(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Minimum earnings surprise" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Buys stocks that beat earnings expectations by 5%+. Holds for 5 days to capture post-earnings announcement drift (PEAD).</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Hold Days</label>
-                      <input type="number" value={earningsHoldDays} onChange={(e) => setEarningsHoldDays(parseInt(e.target.value))} step="1" min="1" max="30" disabled={!isAdmin} title="Days to hold after earnings" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Markets <span className="text-yellow-400 font-semibold">underreact to earnings surprises</span>. A big beat often leads to continued upward drift as analysts raise estimates and funds reposition.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
-                      <input type="number" value={earningsPositionSizeUsd} onChange={(e) => setEarningsPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} title="Position size per trade" placeholder="500" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Positions</label>
-                      <input type="number" value={earningsMaxPositions} onChange={(e) => setEarningsMaxPositions(parseInt(e.target.value))} step="1" min="1" max="10" disabled={!isAdmin} title="Maximum positions" placeholder="3" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-yellow-400 font-semibold">15-30% APY</span> but higher volatility.
+                        Risk: Gap reversals can be painful. Use smaller sizes.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-yellow-500/5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Surprise %
+                      </label>
+                      <input type="number" value={earningsMinSurprisePct} onChange={(e) => setEarningsMinSurprisePct(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">EPS beat threshold</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Hold Days
+                      </label>
+                      <input type="number" value={earningsHoldDays} onChange={(e) => setEarningsHoldDays(parseInt(e.target.value))} step="1" min="1" max="30" disabled={!isAdmin} placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Post-earnings drift window</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input type="number" value={earningsPositionSizeUsd} onChange={(e) => setEarningsPositionSizeUsd(parseFloat(e.target.value))} step="100" min="100" disabled={!isAdmin} placeholder="500" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Keep smaller due to volatility</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        Max Positions
+                      </label>
+                      <input type="number" value={earningsMaxPositions} onChange={(e) => setEarningsMaxPositions(parseInt(e.target.value))} step="1" min="1" max="10" disabled={!isAdmin} placeholder="3" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Limit earnings exposure</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
