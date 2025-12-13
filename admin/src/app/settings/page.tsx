@@ -3790,6 +3790,7 @@ export default function SettingsPage() {
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Target className="w-5 h-5 text-purple-500" />
             Options Strategies (Requires IBKR)
+            <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full font-normal">4 STRATEGIES</span>
           </h2>
           {showOptionsStrategies ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
@@ -3804,109 +3805,276 @@ export default function SettingsPage() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              {/* Covered Calls */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Covered Calls</h3>
-                    <p className="text-sm text-gray-500">Generate income on long stock positions (10-20% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  COVERED CALLS - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-6 rounded-xl border-2 border-green-500 overflow-hidden">
+                <div className="bg-green-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center">
+                      <span className="text-lg">📈</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Covered Calls
+                        <span className="text-xs bg-green-500/30 text-green-400 px-2 py-0.5 rounded-full">INCOME</span>
+                      </h3>
+                      <p className="text-xs text-green-400">Generate income on long stock positions (10-20% APY)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableCoveredCalls} onToggle={() => setEnableCoveredCalls(!enableCoveredCalls)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableCoveredCalls} onToggle={() => setEnableCoveredCalls(!enableCoveredCalls)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableCoveredCalls && (
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-green-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Days to Expiry</label>
-                      <input type="number" value={coveredCallDaysToExpiry} onChange={(e) => setCoveredCallDaysToExpiry(parseInt(e.target.value))} step="7" min="7" max="60" disabled={!isAdmin} title="Days to expiration" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Sell call options against stocks you own. Collect premium upfront while capping upside at strike price.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Delta Target</label>
-                      <input type="number" value={coveredCallDeltaTarget} onChange={(e) => setCoveredCallDeltaTarget(parseFloat(e.target.value))} step="0.05" min="0.1" max="0.5" disabled={!isAdmin} title="Target delta for calls" placeholder="0.30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Options <span className="text-green-400 font-semibold">decay over time (theta)</span>. Collecting premium in sideways markets compounds returns.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
-                      <input type="number" value={coveredCallMinPremiumPct} onChange={(e) => setCoveredCallMinPremiumPct(parseFloat(e.target.value))} step="0.25" min="0.5" max="5" disabled={!isAdmin} title="Minimum premium collected" placeholder="1.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-green-400 font-semibold">10-20% APY</span> additional yield. 
+                        Lower risk profile but capped gains if stock rallies.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                <div className="p-4 bg-green-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Days to Expiry
+                      </label>
+                      <input type="number" value={coveredCallDaysToExpiry} onChange={(e) => setCoveredCallDaysToExpiry(parseInt(e.target.value))} step="7" min="7" max="60" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">30-45 days optimal</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Delta Target
+                      </label>
+                      <input type="number" value={coveredCallDeltaTarget} onChange={(e) => setCoveredCallDeltaTarget(parseFloat(e.target.value))} step="0.05" min="0.1" max="0.5" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">0.30 = 30% ITM chance</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Premium %
+                      </label>
+                      <input type="number" value={coveredCallMinPremiumPct} onChange={(e) => setCoveredCallMinPremiumPct(parseFloat(e.target.value))} step="0.25" min="0.5" max="5" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Min premium to collect</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Cash-Secured Puts */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Cash-Secured Puts</h3>
-                    <p className="text-sm text-gray-500">Acquire stocks at discount or collect premium (15-30% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  CASH-SECURED PUTS - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-blue-500 overflow-hidden">
+                <div className="bg-blue-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
+                      <span className="text-lg">💰</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Cash-Secured Puts
+                        <span className="text-xs bg-blue-500/30 text-blue-400 px-2 py-0.5 rounded-full">ACQUISITION</span>
+                      </h3>
+                      <p className="text-xs text-blue-400">Acquire stocks at discount or collect premium (15-30% APY)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableCashSecuredPuts} onToggle={() => setEnableCashSecuredPuts(!enableCashSecuredPuts)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableCashSecuredPuts} onToggle={() => setEnableCashSecuredPuts(!enableCashSecuredPuts)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableCashSecuredPuts && (
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-blue-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Days to Expiry</label>
-                      <input type="number" value={cspDaysToExpiry} onChange={(e) => setCspDaysToExpiry(parseInt(e.target.value))} step="7" min="7" max="60" disabled={!isAdmin} title="Days to expiration" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Sell put options on stocks you want to own. Get paid to wait for a lower price, or collect premium if it never drops.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Delta Target</label>
-                      <input type="number" value={cspDeltaTarget} onChange={(e) => setCspDeltaTarget(parseFloat(e.target.value))} step="0.05" min="-0.5" max="-0.1" disabled={!isAdmin} title="Target delta for puts (negative)" placeholder="-0.30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Win-win: Either <span className="text-blue-400 font-semibold">buy stock at discount</span> or keep premium. Fear premium makes puts expensive.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
-                      <input type="number" value={cspMinPremiumPct} onChange={(e) => setCspMinPremiumPct(parseFloat(e.target.value))} step="0.25" min="0.5" max="5" disabled={!isAdmin} title="Minimum premium collected" placeholder="1.5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-blue-400 font-semibold">15-30% APY</span> on cash. 
+                        Higher returns than covered calls but requires capital reserve.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                <div className="p-4 bg-blue-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Days to Expiry
+                      </label>
+                      <input type="number" value={cspDaysToExpiry} onChange={(e) => setCspDaysToExpiry(parseInt(e.target.value))} step="7" min="7" max="60" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">30-45 days optimal</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Delta Target
+                      </label>
+                      <input type="number" value={cspDeltaTarget} onChange={(e) => setCspDeltaTarget(parseFloat(e.target.value))} step="0.05" min="-0.5" max="-0.1" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">-0.30 = 30% assignment risk</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Premium %
+                      </label>
+                      <input type="number" value={cspMinPremiumPct} onChange={(e) => setCspMinPremiumPct(parseFloat(e.target.value))} step="0.25" min="0.5" max="5" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Min premium to collect</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Iron Condor */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Iron Condor</h3>
-                    <p className="text-sm text-gray-500">Range-bound premium collection (20-40% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  IRON CONDOR - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-purple-500 overflow-hidden">
+                <div className="bg-purple-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
+                      <span className="text-lg">🦅</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Iron Condor
+                        <span className="text-xs bg-purple-500/30 text-purple-400 px-2 py-0.5 rounded-full">RANGE-BOUND</span>
+                      </h3>
+                      <p className="text-xs text-purple-400">Range-bound premium collection (20-40% APY)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableIronCondor} onToggle={() => setEnableIronCondor(!enableIronCondor)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableIronCondor} onToggle={() => setEnableIronCondor(!enableIronCondor)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableIronCondor && (
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-purple-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Days to Expiry</label>
-                      <input type="number" value={ironCondorDaysToExpiry} onChange={(e) => setIronCondorDaysToExpiry(parseInt(e.target.value))} step="7" min="14" max="60" disabled={!isAdmin} title="Days to expiration" placeholder="45" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Sell both a put spread and call spread. Profit if stock stays within a price range until expiration.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Wing Width ($)</label>
-                      <input type="number" value={ironCondorWingWidth} onChange={(e) => setIronCondorWingWidth(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Width between strikes" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Markets are <span className="text-purple-400 font-semibold">range-bound 70% of the time</span>. Collect premium from both sides with defined risk.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
-                      <input type="number" value={ironCondorMinPremiumPct} onChange={(e) => setIronCondorMinPremiumPct(parseFloat(e.target.value))} step="0.5" min="1" max="10" disabled={!isAdmin} title="Minimum premium collected" placeholder="2.0" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-purple-400 font-semibold">20-40% APY</span> on margin. 
+                        High win rate (70%+) but losses can exceed gains.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                <div className="p-4 bg-purple-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Days to Expiry
+                      </label>
+                      <input type="number" value={ironCondorDaysToExpiry} onChange={(e) => setIronCondorDaysToExpiry(parseInt(e.target.value))} step="7" min="14" max="60" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">45 days = optimal theta</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Wing Width ($)
+                      </label>
+                      <input type="number" value={ironCondorWingWidth} onChange={(e) => setIronCondorWingWidth(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Wider = more premium</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Premium %
+                      </label>
+                      <input type="number" value={ironCondorMinPremiumPct} onChange={(e) => setIronCondorMinPremiumPct(parseFloat(e.target.value))} step="0.5" min="1" max="10" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">% of width collected</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Wheel Strategy */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">Wheel Strategy</h3>
-                    <p className="text-sm text-gray-500">Systematic CSP → Covered Call rotation (20-35% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  WHEEL STRATEGY - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-amber-500 overflow-hidden">
+                <div className="bg-amber-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center">
+                      <span className="text-lg">🎡</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Wheel Strategy
+                        <span className="text-xs bg-amber-500/30 text-amber-400 px-2 py-0.5 rounded-full">SYSTEMATIC</span>
+                      </h3>
+                      <p className="text-xs text-amber-400">Systematic CSP → Covered Call rotation (20-35% APY)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableWheelStrategy} onToggle={() => setEnableWheelStrategy(!enableWheelStrategy)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableWheelStrategy} onToggle={() => setEnableWheelStrategy(!enableWheelStrategy)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableWheelStrategy && (
-                  <div className="grid grid-cols-2 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-amber-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Stock List</label>
-                      <input type="text" value={wheelStockList} onChange={(e) => setWheelStockList(e.target.value)} disabled={!isAdmin} title="Comma-separated stock symbols" placeholder="AAPL,MSFT,GOOGL" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
-                      <p className="text-[10px] text-gray-500 mt-1">Comma-separated symbols</p>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Sell puts until assigned, then sell covered calls until called away. Repeat the cycle indefinitely on quality stocks.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Position Size ($)</label>
-                      <input type="number" value={wheelPositionSizeUsd} onChange={(e) => setWheelPositionSizeUsd(parseFloat(e.target.value))} step="1000" min="1000" disabled={!isAdmin} title="Position size per stock" placeholder="5000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Combines both strategies: <span className="text-amber-400 font-semibold">continuous premium income</span> while building positions in stocks you want to own.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-amber-400 font-semibold">20-35% APY</span> consistently. 
+                        Most reliable options income strategy with clear rules.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                <div className="p-4 bg-amber-500/5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Activity className="w-3 h-3" />
+                        Stock List
+                      </label>
+                      <input type="text" value={wheelStockList} onChange={(e) => setWheelStockList(e.target.value)} disabled={!isAdmin} placeholder="AAPL,MSFT,GOOGL" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Quality stocks you want to own</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Position Size ($)
+                      </label>
+                      <input type="number" value={wheelPositionSizeUsd} onChange={(e) => setWheelPositionSizeUsd(parseFloat(e.target.value))} step="1000" min="1000" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Capital per stock (100 shares)</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
