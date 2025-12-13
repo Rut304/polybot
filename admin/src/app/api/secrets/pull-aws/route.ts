@@ -10,8 +10,8 @@ const supabaseAdmin = hasServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-// AWS Configuration
-const awsRegion = process.env.AWS_REGION || 'us-east-2';
+// AWS Configuration - us-east-1 is where Lightsail is deployed
+const awsRegion = process.env.AWS_REGION || 'us-east-1';
 const hasAwsConfig = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
 
 const secretsClient = hasAwsConfig ? new SecretsManagerClient({ 
