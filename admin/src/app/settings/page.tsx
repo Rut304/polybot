@@ -186,7 +186,7 @@ export default function SettingsPage() {
   const [newsMaxLagMinutes, setNewsMaxLagMinutes] = useState(config?.news_max_lag_minutes ?? 30);
   const [newsPositionSizeUsd, setNewsPositionSizeUsd] = useState(config?.news_position_size_usd ?? 50.0);
   const [newsScanIntervalSec, setNewsScanIntervalSec] = useState(config?.news_scan_interval_sec ?? 30);
-  const [newsKeywords, setNewsKeywords] = useState(config?.news_keywords ?? 'election,fed,trump,bitcoin,crypto,verdict');
+  const [newsKeywords, setNewsKeywords] = useState(config?.news_keywords ?? 'fed,fomc,powell,rate cut,rate hike,inflation,cpi,ppi,jobs report,unemployment,nonfarm,gdp,recession,tariff,sanctions,iran,israel,ukraine,russia,china,taiwan,north korea,missile,nuclear,war,ceasefire,invasion,bitcoin,btc,eth,ethereum,crypto,sec,gensler,etf approval,halving,binance,coinbase,tether,stablecoin,trump,biden,harris,vance,impeach,pardon,executive order,indictment,verdict,guilty,acquit,trial,scotus,supreme court,roe,abortion,gun,shooting,fbi,doj,subpoena,elon,musk,tesla,spacex,openai,gpt,ai,nvidia,apple,google,meta,amazon,microsoft,earnings,guidance,layoffs,merger,acquisition,ipo,bankruptcy,default,downgrade,upgrade');
   
   // =========================================================================
   // CRYPTO STRATEGIES (NEW - High Priority from Research)
@@ -2236,7 +2236,7 @@ export default function SettingsPage() {
                       value={newsKeywords}
                       onChange={(e) => setNewsKeywords(e.target.value)}
                       disabled={!isAdmin}
-                      placeholder="election,fed,trump,bitcoin,crypto,verdict"
+                      placeholder="fed,fomc,powell,bitcoin,trump,verdict,earnings,layoffs..."
                       className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 text-sm disabled:opacity-50"
                     />
                     <p className="text-[10px] text-gray-500 mt-1">Markets containing these keywords will be monitored for price divergence</p>
@@ -4078,120 +4078,304 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Kalshi Mention Sniping */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">⚡ Kalshi Mention Sniping</h3>
-                    <p className="text-sm text-gray-500">Fast execution on resolved mention markets ($120+/event)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  KALSHI MENTION SNIPING - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-purple-500 overflow-hidden">
+                <div className="bg-purple-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
+                      <span className="text-lg">⚡</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Kalshi Mention Sniping
+                        <span className="text-xs bg-purple-500/30 text-purple-400 px-2 py-0.5 rounded-full">LATENCY ARB</span>
+                      </h3>
+                      <p className="text-xs text-purple-400">Fast execution on resolved mention markets ($120+/event)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableKalshiMentionSnipe} onToggle={() => setEnableKalshiMentionSnipe(!enableKalshiMentionSnipe)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableKalshiMentionSnipe} onToggle={() => setEnableKalshiMentionSnipe(!enableKalshiMentionSnipe)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableKalshiMentionSnipe && (
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-purple-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Profit (¢)</label>
-                      <input type="number" value={kalshiSnipeMinProfitCents} onChange={(e) => setKalshiSnipeMinProfitCents(parseInt(e.target.value))} step="1" min="1" max="10" disabled={!isAdmin} title="Minimum profit in cents" placeholder="2" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Monitors Kalshi &quot;mention&quot; markets (will X mention Y?). When resolution is confirmed, snipe remaining mispriced contracts before full market adjustment.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Position ($)</label>
-                      <input type="number" value={kalshiSnipeMaxPositionUsd} onChange={(e) => setKalshiSnipeMaxPositionUsd(parseFloat(e.target.value))} step="25" min="25" disabled={!isAdmin} title="Maximum position size" placeholder="100" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Mention markets have <span className="text-purple-400 font-semibold">delayed resolution</span>. Fast monitoring + execution captures spread before market corrects.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Latency (ms)</label>
-                      <input type="number" value={kalshiSnipeMaxLatencyMs} onChange={(e) => setKalshiSnipeMaxLatencyMs(parseInt(e.target.value))} step="100" min="100" max="5000" disabled={!isAdmin} title="Maximum acceptable latency" placeholder="1000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-purple-400 font-semibold">$120+/event</span> when successful. 
+                        Limited by event frequency. Near 100% win rate when latency is met.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-purple-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Zap className="w-3 h-3" />
+                        Min Profit (¢)
+                      </label>
+                      <input type="number" value={kalshiSnipeMinProfitCents} onChange={(e) => setKalshiSnipeMinProfitCents(parseInt(e.target.value))} step="1" min="1" max="10" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">1¢ = max opportunities</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Position ($)
+                      </label>
+                      <input type="number" value={kalshiSnipeMaxPositionUsd} onChange={(e) => setKalshiSnipeMaxPositionUsd(parseFloat(e.target.value))} step="25" min="25" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Higher = more profit per snipe</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Max Latency (ms)
+                      </label>
+                      <input type="number" value={kalshiSnipeMaxLatencyMs} onChange={(e) => setKalshiSnipeMaxLatencyMs(parseInt(e.target.value))} step="100" min="100" max="5000" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">2000ms = more forgiving</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Whale Copy Trading */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">🐋 Whale Copy Trading</h3>
-                    <p className="text-sm text-gray-500">Track and copy high win-rate wallets (25-50% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  WHALE COPY TRADING - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-cyan-500 overflow-hidden">
+                <div className="bg-cyan-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center">
+                      <span className="text-lg">🐋</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Whale Copy Trading
+                        <span className="text-xs bg-cyan-500/30 text-cyan-400 px-2 py-0.5 rounded-full">SOCIAL ALPHA</span>
+                      </h3>
+                      <p className="text-xs text-cyan-400">Track and copy high win-rate wallets (25-50% APY)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableWhaleCopyTrading} onToggle={() => setEnableWhaleCopyTrading(!enableWhaleCopyTrading)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableWhaleCopyTrading} onToggle={() => setEnableWhaleCopyTrading(!enableWhaleCopyTrading)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableWhaleCopyTrading && (
-                  <div className="grid grid-cols-4 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-cyan-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Win Rate %</label>
-                      <input type="number" value={whaleCopyMinWinRate} onChange={(e) => setWhaleCopyMinWinRate(parseInt(e.target.value))} step="5" min="60" max="100" disabled={!isAdmin} title="Minimum wallet win rate" placeholder="80" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Tracks on-chain activity of proven whale wallets with 65%+ historical win rates. Copies their positions with configurable delay and sizing.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Copy Delay (s)</label>
-                      <input type="number" value={whaleCopyDelaySeconds} onChange={(e) => setWhaleCopyDelaySeconds(parseInt(e.target.value))} step="10" min="0" max="300" disabled={!isAdmin} title="Delay before copying" placeholder="30" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Whales have <span className="text-cyan-400 font-semibold">information edge</span> and proven track records. Following smart money is a proven strategy across markets.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Size ($)</label>
-                      <input type="number" value={whaleCopyMaxSizeUsd} onChange={(e) => setWhaleCopyMaxSizeUsd(parseFloat(e.target.value))} step="10" min="10" disabled={!isAdmin} title="Maximum copy size" placeholder="50" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Concurrent</label>
-                      <input type="number" value={whaleCopyMaxConcurrent} onChange={(e) => setWhaleCopyMaxConcurrent(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} title="Maximum concurrent copies" placeholder="5" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-cyan-400 font-semibold">25-50% APY</span> historically. 
+                        Win rate mirrors tracked whales. Lower risk via diversification.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-cyan-500/5">
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Min Win Rate %
+                      </label>
+                      <input type="number" value={whaleCopyMinWinRate} onChange={(e) => setWhaleCopyMinWinRate(parseInt(e.target.value))} step="5" min="60" max="100" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">65% = more whales</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Copy Delay (s)
+                      </label>
+                      <input type="number" value={whaleCopyDelaySeconds} onChange={(e) => setWhaleCopyDelaySeconds(parseInt(e.target.value))} step="10" min="0" max="300" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">15s = faster copies</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Size ($)
+                      </label>
+                      <input type="number" value={whaleCopyMaxSizeUsd} onChange={(e) => setWhaleCopyMaxSizeUsd(parseFloat(e.target.value))} step="10" min="10" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">Per whale copy</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Activity className="w-3 h-3" />
+                        Max Concurrent
+                      </label>
+                      <input type="number" value={whaleCopyMaxConcurrent} onChange={(e) => setWhaleCopyMaxConcurrent(parseInt(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">10 = diversified</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Macro Board Strategy */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">🌍 Macro Board Strategy</h3>
-                    <p className="text-sm text-gray-500">Heavy weighted exposure to macro events ($62K/month potential)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  MACRO BOARD STRATEGY - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-emerald-500 overflow-hidden">
+                <div className="bg-emerald-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center">
+                      <span className="text-lg">🌍</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Macro Board Strategy
+                        <span className="text-xs bg-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">DIRECTIONAL</span>
+                      </h3>
+                      <p className="text-xs text-emerald-400">Heavy weighted exposure to macro events ($62K/month potential)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableMacroBoard} onToggle={() => setEnableMacroBoard(!enableMacroBoard)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableMacroBoard} onToggle={() => setEnableMacroBoard(!enableMacroBoard)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableMacroBoard && (
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-emerald-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Exposure ($)</label>
-                      <input type="number" value={macroMaxExposureUsd} onChange={(e) => setMacroMaxExposureUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} title="Maximum total exposure" placeholder="5000" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Maintains weighted exposure to high-conviction macro events (Fed decisions, elections, geopolitics). Rebalances portfolio based on conviction scores.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Conviction</label>
-                      <input type="number" value={macroMinConvictionScore} onChange={(e) => setMacroMinConvictionScore(parseInt(e.target.value))} step="5" min="50" max="100" disabled={!isAdmin} title="Minimum conviction score" placeholder="70" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Macro events are <span className="text-emerald-400 font-semibold">predictable with research</span>. Concentrated bets on high-conviction outcomes compound returns.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Rebalance (hrs)</label>
-                      <input type="number" value={macroRebalanceIntervalHours} onChange={(e) => setMacroRebalanceIntervalHours(parseInt(e.target.value))} step="6" min="6" max="168" disabled={!isAdmin} title="Rebalance interval in hours" placeholder="24" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-emerald-400 font-semibold">$62K/month</span> at scale. 
+                        Requires capital allocation. Higher variance but higher upside.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-emerald-500/5">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Exposure ($)
+                      </label>
+                      <input type="number" value={macroMaxExposureUsd} onChange={(e) => setMacroMaxExposureUsd(parseFloat(e.target.value))} step="500" min="500" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">$10K = aggressive</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Min Conviction
+                      </label>
+                      <input type="number" value={macroMinConvictionScore} onChange={(e) => setMacroMinConvictionScore(parseInt(e.target.value))} step="5" min="50" max="100" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">55 = more positions</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <RefreshCw className="w-3 h-3" />
+                        Rebalance (hrs)
+                      </label>
+                      <input type="number" value={macroRebalanceIntervalHours} onChange={(e) => setMacroRebalanceIntervalHours(parseInt(e.target.value))} step="6" min="6" max="168" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">12h = more active</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Fear Premium Contrarian */}
-              <div className="mt-6 pt-6 border-t border-dark-border">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-medium">😱 Fear Premium Contrarian</h3>
-                    <p className="text-sm text-gray-500">Trade against extreme sentiment - 91.4% win rate approach (25-60% APY)</p>
+              {/* ══════════════════════════════════════════════════════════════════════
+                  FEAR PREMIUM CONTRARIAN - Full Card
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-red-500 overflow-hidden">
+                <div className="bg-red-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-500 flex items-center justify-center">
+                      <span className="text-lg">😱</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Fear Premium Contrarian
+                        <span className="text-xs bg-red-500/30 text-red-400 px-2 py-0.5 rounded-full">SENTIMENT</span>
+                      </h3>
+                      <p className="text-xs text-red-400">Trade against extreme sentiment - 91.4% win rate approach (25-60% APY)</p>
+                    </div>
                   </div>
-                  <ToggleSwitch enabled={enableFearPremiumContrarian} onToggle={() => setEnableFearPremiumContrarian(!enableFearPremiumContrarian)} disabled={!isAdmin} />
+                  <ToggleSwitch enabled={enableFearPremiumContrarian} onToggle={() => setEnableFearPremiumContrarian(!enableFearPremiumContrarian)} disabled={!isAdmin} size="md" />
                 </div>
-                {enableFearPremiumContrarian && (
-                  <div className="grid grid-cols-4 gap-4 mt-4">
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-red-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Extreme Low</label>
-                      <input type="number" value={fearExtremeLowThreshold} onChange={(e) => setFearExtremeLowThreshold(parseFloat(e.target.value))} step="0.01" min="0.05" max="0.25" disabled={!isAdmin} title="Extreme low price threshold" placeholder="0.15" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Identifies markets where fear/greed has pushed prices to extremes (&lt;20¢ or &gt;80¢). Fades the crowd by betting on mean reversion.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Extreme High</label>
-                      <input type="number" value={fearExtremeHighThreshold} onChange={(e) => setFearExtremeHighThreshold(parseFloat(e.target.value))} step="0.01" min="0.75" max="0.95" disabled={!isAdmin} title="Extreme high price threshold" placeholder="0.85" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Extreme sentiment creates <span className="text-red-400 font-semibold">fat-tail mispricings</span>. Markets overreact to news, creating contrarian edges.</p>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-400 mb-1">Min Premium %</label>
-                      <input type="number" value={fearMinPremiumPct} onChange={(e) => setFearMinPremiumPct(parseInt(e.target.value))} step="5" min="5" max="50" disabled={!isAdmin} title="Minimum fear premium" placeholder="10" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 mb-1">Max Position ($)</label>
-                      <input type="number" value={fearMaxPositionUsd} onChange={(e) => setFearMaxPositionUsd(parseFloat(e.target.value))} step="25" min="25" disabled={!isAdmin} title="Maximum position size" placeholder="200" className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" />
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Expected Returns</p>
+                      <p className="text-gray-300">
+                        <span className="text-red-400 font-semibold">25-60% APY</span> with 91.4% historical win rate. 
+                        Requires patience for extreme setups.
+                      </p>
                     </div>
                   </div>
-                )}
+                </div>
+                
+                {/* Settings */}
+                <div className="p-4 bg-red-500/5">
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <TrendingDown className="w-3 h-3" />
+                        Extreme Low
+                      </label>
+                      <input type="number" value={fearExtremeLowThreshold} onChange={(e) => setFearExtremeLowThreshold(parseFloat(e.target.value))} step="0.01" min="0.05" max="0.25" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">0.20 = more signals</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <TrendingUp className="w-3 h-3" />
+                        Extreme High
+                      </label>
+                      <input type="number" value={fearExtremeHighThreshold} onChange={(e) => setFearExtremeHighThreshold(parseFloat(e.target.value))} step="0.01" min="0.75" max="0.95" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">0.80 = more signals</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Premium %
+                      </label>
+                      <input type="number" value={fearMinPremiumPct} onChange={(e) => setFearMinPremiumPct(parseInt(e.target.value))} step="5" min="5" max="50" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">5% = more trades</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Position ($)
+                      </label>
+                      <input type="number" value={fearMaxPositionUsd} onChange={(e) => setFearMaxPositionUsd(parseFloat(e.target.value))} step="25" min="25" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50" />
+                      <p className="text-[10px] text-gray-500 mt-1">$400 = conviction sizing</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
