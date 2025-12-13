@@ -88,3 +88,4 @@ admin/.next/
 admin/.env.local
 .vercel
 .env*.local
+.env.lightsail

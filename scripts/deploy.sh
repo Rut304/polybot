@@ -108,54 +108,110 @@ if [ -z "$IMAGE_REF" ]; then
 fi
 echo "  ✓ Image pushed: $IMAGE_REF"
 
-# Step 6: Get current environment variables from running deployment
+# Step 6: Build environment variables from LOCAL .env (SOURCE OF TRUTH)
 echo -e "\n${YELLOW}[6/7] Preparing deployment config...${NC}"
 
-# Get current env vars
-CURRENT_ENV=$(aws lightsail get-container-services \
-    --service-name "$SERVICE_NAME" \
-    --region "$REGION" \
-    --query 'containerServices[0].currentDeployment.containers.polybot.environment' \
-    --output json 2>/dev/null)
+# ====================================================================================
+# CRITICAL FIX: Always build environment from local .env file as SOURCE OF TRUTH
+# This prevents secrets loss when a bad deployment corrupts the Lightsail environment
+# ====================================================================================
 
-if [ "$CURRENT_ENV" == "null" ] || [ -z "$CURRENT_ENV" ] || [ "$CURRENT_ENV" == "{}" ]; then
-    echo -e "${RED}WARNING: No environment variables found in current deployment!${NC}"
-    echo "  Using default environment variables..."
-    CURRENT_ENV='{
-        "LOG_LEVEL": "INFO",
-        "SIMULATION_MODE": "true"
-    }'
-fi
+ENV_FILE="$PROJECT_ROOT/.env"
+SECRETS_BACKUP="$PROJECT_ROOT/.env.lightsail"
 
-# Verify critical env vars
-if ! echo "$CURRENT_ENV" | grep -q "SUPABASE_URL"; then
-    echo -e "${RED}ERROR: SUPABASE_URL not found in environment!${NC}"
-    echo "  Current env: $CURRENT_ENV"
-    echo "  Please set environment variables manually in Lightsail console first."
+if [ ! -f "$ENV_FILE" ]; then
+    echo -e "${RED}ERROR: .env file not found at $ENV_FILE${NC}"
+    echo "  The .env file is the source of truth for deployment secrets."
+    echo "  Create it with: cp .env.example .env && edit with your secrets"
     exit 1
 fi
 
-# CRITICAL: Ensure SUPABASE_SERVICE_ROLE_KEY is present (needed for secrets & logs)
-if ! echo "$CURRENT_ENV" | grep -q "SUPABASE_SERVICE_ROLE_KEY"; then
-    echo -e "${YELLOW}WARNING: SUPABASE_SERVICE_ROLE_KEY not found in environment${NC}"
-    # Try to add from local .env file
-    if [ -f "$PROJECT_ROOT/.env" ]; then
-        SERVICE_ROLE_KEY=$(grep "^SUPABASE_SERVICE_ROLE_KEY=" "$PROJECT_ROOT/.env" | cut -d'=' -f2-)
-        if [ -n "$SERVICE_ROLE_KEY" ]; then
-            echo "  Adding SERVICE_ROLE_KEY from local .env..."
-            CURRENT_ENV=$(echo "$CURRENT_ENV" | sed 's/}$/,"SUPABASE_SERVICE_ROLE_KEY":"'"$SERVICE_ROLE_KEY"'"}/')
-            echo -e "  ${GREEN}✓ Added SUPABASE_SERVICE_ROLE_KEY${NC}"
-        else
-            echo -e "${RED}ERROR: SUPABASE_SERVICE_ROLE_KEY not found in .env file${NC}"
-            echo "  The bot requires the service_role key to access secrets and write logs."
-            exit 1
+echo "  Reading secrets from local .env file (source of truth)..."
+
+# Required secrets that MUST exist
+REQUIRED_SECRETS=(
+    "SUPABASE_URL"
+    "SUPABASE_SERVICE_ROLE_KEY"
+    "POLYMARKET_API_KEY"
+    "POLYMARKET_SECRET"
+    "KALSHI_API_KEY"
+)
+
+# Optional secrets to include if present
+OPTIONAL_SECRETS=(
+    "SUPABASE_KEY"
+    "KALSHI_PRIVATE_KEY_PATH"
+    "DISCORD_WEBHOOK"
+)
+
+# Build JSON environment from .env file
+build_env_json() {
+    local json="{"
+    local first=true
+    
+    # Always include these deployment metadata
+    json="$json\"BOT_VERSION\":\"$VERSION\""
+    json="$json,\"BUILD_NUMBER\":\"$NEW_BUILD\""
+    json="$json,\"LOG_LEVEL\":\"INFO\""
+    json="$json,\"SIMULATION_MODE\":\"true\""
+    
+    # Read and add required secrets
+    for key in "${REQUIRED_SECRETS[@]}"; do
+        value=$(grep "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2-)
+        if [ -z "$value" ]; then
+            echo -e "${RED}ERROR: Required secret $key not found in .env${NC}"
+            return 1
         fi
-    else
-        echo -e "${RED}ERROR: .env file not found and SUPABASE_SERVICE_ROLE_KEY missing${NC}"
-        exit 1
-    fi
+        # Escape quotes in value
+        value=$(echo "$value" | sed 's/"/\\"/g')
+        json="$json,\"$key\":\"$value\""
+    done
+    
+    # Read and add optional secrets if they exist
+    for key in "${OPTIONAL_SECRETS[@]}"; do
+        value=$(grep "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2-)
+        if [ -n "$value" ]; then
+            value=$(echo "$value" | sed 's/"/\\"/g')
+            json="$json,\"$key\":\"$value\""
+        fi
+    done
+    
+    json="$json}"
+    echo "$json"
+}
+
+# Build the environment JSON
+CURRENT_ENV=$(build_env_json)
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Failed to build environment from .env file${NC}"
+    exit 1
 fi
-echo "  ✓ Environment variables validated"
+
+# Validate we got actual content
+if [ -z "$CURRENT_ENV" ] || [ "$CURRENT_ENV" == "{}" ]; then
+    echo -e "${RED}ERROR: Failed to build environment variables${NC}"
+    exit 1
+fi
+
+# Create a backup of what we're deploying (for recovery)
+echo "$CURRENT_ENV" | python3 -c "import sys,json; d=json.load(sys.stdin); print('\n'.join(f'{k}={v}' for k,v in d.items()))" > "$SECRETS_BACKUP" 2>/dev/null
+echo "  ✓ Backup saved to .env.lightsail"
+
+# Count secrets
+SECRET_COUNT=$(echo "$CURRENT_ENV" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "?")
+echo -e "  ${GREEN}✓ Environment built with $SECRET_COUNT variables from local .env${NC}"
+
+# Final validation
+if ! echo "$CURRENT_ENV" | grep -q "SUPABASE_URL"; then
+    echo -e "${RED}FATAL: SUPABASE_URL missing after build - this should never happen${NC}"
+    exit 1
+fi
+if ! echo "$CURRENT_ENV" | grep -q "SUPABASE_SERVICE_ROLE_KEY"; then
+    echo -e "${RED}FATAL: SUPABASE_SERVICE_ROLE_KEY missing after build - this should never happen${NC}"
+    exit 1
+fi
+
+echo "  ✓ All required secrets validated"
 
 # Create deployment config
 DEPLOY_CONFIG=$(cat <<EOF
