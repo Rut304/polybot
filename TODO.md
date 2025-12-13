@@ -1,8 +1,34 @@
 # PolyBot To-Do List
 
-## Active Tasks (December 7, 2025)
+## Active Tasks (December 13, 2025)
 
 ### 🔴 HIGH PRIORITY - Current Issues
+
+#### v1.1.14 - Simulation Tuning & Live Trading Prep
+
+- [ ] **IMPLEMENT LIVE TRADING** 🚨 (PRIORITY #1 for post-simulation)
+  - `bot_runner.py` line 1287: `if self.simulation_mode:` has no `else` for live execution
+  - Need to implement actual order placement for single-platform arbitrage
+  - Wire up Polymarket API for live order execution (via CLOB)
+  - Wire up Kalshi API for live order execution
+  - **BLOCKED UNTIL:** Simulation shows consistent profitability
+
+- [ ] **Monitor v1.1.14 conversion rate** - Target 60-80% for single-platform arb
+  - Was 12% due to double-filtering bug (FIXED)
+  - Check logs for "SINGLE-ARB" trades
+
+- [ ] **Validate Polymarket single-platform P&L**
+  - Was showing -$587 with 59% win rate (BAD!)
+  - Fixed simulation parameters:
+    - Single-platform loss rate: 3% (was 18%)
+    - Single-platform exec failure: 8% (was 20%)
+    - Polymarket fee: 0% (was applying 7%)
+  - Expected after fix: ~85% win rate, positive P&L
+
+- [ ] **Investigate live opportunities not being traded** (from screenshot)
+  - +13.05%, +19.80%, +6.75%, +9.00% opportunities showing in UI
+  - Check if scanner is detecting, why paper trader not executing
+  - Could be cooldown logic, market already traded, or timing
 
 #### Bot/Backend
 

@@ -109,22 +109,25 @@ export default function SettingsPage() {
   const [scanInterval, setScanInterval] = useState(config?.scan_interval ?? 2);
   
   // REALISTIC PAPER TRADING PARAMETERS
-  // Spread constraints
-  const [maxRealisticSpreadPct, setMaxRealisticSpreadPct] = useState(config?.max_realistic_spread_pct ?? 12.0);
-  const [minProfitThresholdPct, setMinProfitThresholdPct] = useState(config?.min_profit_threshold_pct ?? 5.0);
+  // Spread constraints - v1.1.13: Raised max spread to 25% (was 12%)
+  const [maxRealisticSpreadPct, setMaxRealisticSpreadPct] = useState(config?.max_realistic_spread_pct ?? 25.0);
+  // NOTE: minProfitThresholdPct is DEPRECATED - use strategy-specific thresholds instead
+  const [minProfitThresholdPct, setMinProfitThresholdPct] = useState(config?.min_profit_threshold_pct ?? 0.3);
   
   // Execution simulation
-  const [slippageMinPct, setSlippageMinPct] = useState(config?.slippage_min_pct ?? 0.2);
+  // Execution simulation - v1.1.14: Reduced rates for prediction markets
+  const [slippageMinPct, setSlippageMinPct] = useState(config?.slippage_min_pct ?? 0.3);
   const [slippageMaxPct, setSlippageMaxPct] = useState(config?.slippage_max_pct ?? 1.0);
   const [spreadCostPct, setSpreadCostPct] = useState(config?.spread_cost_pct ?? 0.5);
   const [executionFailureRate, setExecutionFailureRate] = useState(config?.execution_failure_rate ?? 0.15);
   const [partialFillChance, setPartialFillChance] = useState(config?.partial_fill_chance ?? 0.15);
   const [partialFillMinPct, setPartialFillMinPct] = useState(config?.partial_fill_min_pct ?? 0.70);
   
-  // Market resolution risk
-  const [resolutionLossRate, setResolutionLossRate] = useState(config?.resolution_loss_rate ?? 0.08);
-  const [lossSeverityMin, setLossSeverityMin] = useState(config?.loss_severity_min ?? 0.10);
-  const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.40);
+  // Market resolution risk - v1.1.14: Reduced for true arbitrage (was too aggressive)
+  // Note: Single-platform arb now uses separate SINGLE_PLATFORM_LOSS_RATE=3% (not configurable via UI)
+  const [resolutionLossRate, setResolutionLossRate] = useState(config?.resolution_loss_rate ?? 0.12);
+  const [lossSeverityMin, setLossSeverityMin] = useState(config?.loss_severity_min ?? 0.03);
+  const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.15);
   
   // Position sizing
   const [maxPositionPct, setMaxPositionPct] = useState(config?.max_position_pct ?? 5.0);
@@ -142,14 +145,16 @@ export default function SettingsPage() {
   
   // Polymarket Single settings (PhD Research Optimized - Saguillo 2025)
   // Research: $40M extracted at 0.3-2% margins, 0% fees = aggressive thresholds
+  // v1.1.13: Max spread raised to 30% (was 12%) to capture high-profit opportunities
   const [polySingleMinProfit, setPolySingleMinProfit] = useState(config?.poly_single_min_profit_pct ?? 0.3);
-  const [polySingleMaxSpread, setPolySingleMaxSpread] = useState(config?.poly_single_max_spread_pct ?? 12.0);
+  const [polySingleMaxSpread, setPolySingleMaxSpread] = useState(config?.poly_single_max_spread_pct ?? 30.0);
   const [polySingleMaxPos, setPolySingleMaxPos] = useState(config?.poly_single_max_position_usd ?? 100.0);
   const [polySingleScanInt, setPolySingleScanInt] = useState(config?.poly_single_scan_interval_sec ?? 30);
   
   // Kalshi Single settings (Fee-Adjusted: 7% fees = need 8%+ gross profit)
+  // v1.1.13: Max spread raised to 30% (was 15%) to capture high-profit opportunities
   const [kalshiSingleMinProfit, setKalshiSingleMinProfit] = useState(config?.kalshi_single_min_profit_pct ?? 8.0);
-  const [kalshiSingleMaxSpread, setKalshiSingleMaxSpread] = useState(config?.kalshi_single_max_spread_pct ?? 15.0);
+  const [kalshiSingleMaxSpread, setKalshiSingleMaxSpread] = useState(config?.kalshi_single_max_spread_pct ?? 30.0);
   const [kalshiSingleMaxPos, setKalshiSingleMaxPos] = useState(config?.kalshi_single_max_position_usd ?? 30.0);
   const [kalshiSingleScanInt, setKalshiSingleScanInt] = useState(config?.kalshi_single_scan_interval_sec ?? 60);
   

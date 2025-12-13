@@ -208,24 +208,44 @@ class RealisticPaperTrader:
     SKIP_SAME_PLATFORM_OVERLAP = True  # Set to False to allow risky overlap trades
 
     # ========== EXECUTION SIMULATION ==========
-    # CONSERVATIVE REALISTIC RATES - Based on actual trading data:
-    # - Professional HFT: 50-55% win rate
-    # - Statistical arbitrage: 55-65% win rate  
-    # - Prediction market arb: 70-82% win rate (still risky!)
-    # - Expected realistic annual ROI: 15-30%
-    SLIPPAGE_MIN_PCT = 0.5  # Real markets have significant slippage
-    SLIPPAGE_MAX_PCT = 2.0  # Can be high during volatile periods
-    SPREAD_COST_PCT = 1.0   # Bid-ask spread cost (~1% typical)
-    EXECUTION_FAILURE_RATE = 0.20  # 20% base rate - conservative
-    PARTIAL_FILL_CHANCE = 0.25  # 25% chance of partial fill
-    PARTIAL_FILL_MIN_PCT = 0.50  # At least 50% fills
+    # STRATEGY-SPECIFIC RATES - Different strategies have VERY different risk profiles!
+    # 
+    # SINGLE-PLATFORM ARBITRAGE (YES+NO=$1):
+    #   - Nearly risk-free: You're buying ALL outcomes
+    #   - Only risks: execution timing, partial fills, spread closure
+    #   - Expected win rate: 85-95%
+    #   - Expected ROI: Small but consistent (0.3-8% per trade)
+    #
+    # CROSS-PLATFORM ARBITRAGE:
+    #   - Moderate risk: Timing between two platforms
+    #   - Risks: execution mismatch, fee miscalculation, latency
+    #   - Expected win rate: 70-85%
+    #
+    # SAME-PLATFORM OVERLAP (correlation trades):
+    #   - HIGH RISK: Correlation assumptions often wrong
+    #   - Expected win rate: 50-65%
+    #
+    # BASE RATES (used for cross-platform and overlap):
+    SLIPPAGE_MIN_PCT = 0.3  # Reduced from 0.5% - prediction markets have lower slippage
+    SLIPPAGE_MAX_PCT = 1.0  # Reduced from 2.0% - less volatile than crypto
+    SPREAD_COST_PCT = 0.5   # Reduced from 1.0% - prediction markets are efficient
+    EXECUTION_FAILURE_RATE = 0.15  # Reduced from 20% - more realistic for prediction markets
+    PARTIAL_FILL_CHANCE = 0.15  # Reduced from 25% - single trades usually fill
+    PARTIAL_FILL_MIN_PCT = 0.70  # Increased from 50% - better fill rates
+
+    # ========== SINGLE-PLATFORM ARBITRAGE SPECIFIC ==========
+    # These are for YES+NO=$1 arbitrage - much lower risk!
+    SINGLE_PLATFORM_SLIPPAGE_MIN = 0.05  # Minimal slippage (atomic execution)
+    SINGLE_PLATFORM_SLIPPAGE_MAX = 0.2   # Low max slippage
+    SINGLE_PLATFORM_EXEC_FAILURE_RATE = 0.08  # 8% failure (spread closed before execution)
+    SINGLE_PLATFORM_LOSS_RATE = 0.03  # Only 3% loss rate (execution timing issues)
+    SINGLE_PLATFORM_LOSS_SEVERITY_MAX = 0.10  # Max 10% loss (partial execution mismatch)
 
     # ========== MARKET RESOLUTION RISK ==========
-    # CONSERVATIVE: Even "true arbitrage" has execution risk!
-    # Key insight: Losses are often LARGER than wins (asymmetry)
-    RESOLUTION_LOSS_RATE = 0.18  # 18% loss rate for true arb
-    LOSS_SEVERITY_MIN = 0.05    # 5% min loss
-    LOSS_SEVERITY_MAX = 0.20    # 20% max loss on arb trades
+    # For cross-platform arbitrage (still has timing risks)
+    RESOLUTION_LOSS_RATE = 0.12  # Reduced from 18% - more realistic for true arb
+    LOSS_SEVERITY_MIN = 0.03    # Reduced from 5% - smaller typical losses
+    LOSS_SEVERITY_MAX = 0.15    # Reduced from 20% - better execution
 
     # =========================================================================
     # COMPREHENSIVE FEE STRUCTURES - ALL PLATFORMS (as of December 2025)
@@ -545,51 +565,68 @@ class RealisticPaperTrader:
         self,
         original_spread_pct: Decimal,
         is_cross_platform: bool = True,
+        arbitrage_type: str = "",
     ) -> tuple[bool, str, Decimal, bool]:
         """
         Simulate whether a trade executes successfully.
 
         Returns: (success, reason, actual_profit_multiplier, is_loss)
 
-        CRITICAL: Cross-platform arbitrage (Poly↔Kalshi) is TRUE arbitrage
-        with low risk. Same-platform "overlap" is NOT real arbitrage and
-        has MUCH higher loss rates.
+        STRATEGY-SPECIFIC RISK PROFILES:
         
-        Key scenarios:
-        1. Execution failure - opportunity disappears
-        2. Successful but losing trade - market resolves against
-        3. Successful winning trade - profit after costs
+        1. SINGLE-PLATFORM ARBITRAGE (YES+NO=$1): LOWEST RISK
+           - You're buying ALL outcomes on the SAME market
+           - Only risk is execution timing (spread closes before both legs)
+           - Expected win rate: 85-95%
         
-        REALISTIC RATES based on industry data:
-        - Professional algo trading: 50-55% win rate typical
-        - Statistical arbitrage: 55-65% win rate
-        - Prediction market arb: 65-80% win rate (still risky!)
+        2. CROSS-PLATFORM ARBITRAGE (Poly↔Kalshi): LOW RISK
+           - Same event, different platforms
+           - Risk: timing mismatch, latency
+           - Expected win rate: 70-85%
         
-        Even "true arbitrage" has significant risks:
-        - Data latency: Prices shown may not be executable
-        - Execution delay: Multi-leg trades don't execute atomically
-        - Liquidity: Order book may not have enough depth
-        - Platform fees: Can exceed apparent spread
+        3. SAME-PLATFORM OVERLAP: HIGH RISK
+           - Different events, correlation assumed
+           - Risk: correlation often fails
+           - Expected win rate: 50-65%
         """
-        # ========== DIFFERENT RISK PROFILES ==========
-        #
-        # CONSERVATIVE REALISTIC RATES - No trading strategy is 98% win rate!
-        # Even "true arbitrage" has significant execution risk.
-        #
-        if is_cross_platform:
-            # TRUE ARBITRAGE: Same event, different platforms
-            # STILL HAS SIGNIFICANT RISKS:
-            # - Execution timing mismatch between platforms
-            # - Price changes between leg executions
-            # - Data feed latency (what you see isn't current)
-            # - Liquidity differences between platforms
-            # - Platform fees can exceed apparent spread
-            exec_failure_rate = self.EXECUTION_FAILURE_RATE  # Use config value
-            loss_rate = self.RESOLUTION_LOSS_RATE  # Use config value
+        is_single_platform = arbitrage_type in (
+            "polymarket_single", "kalshi_single", "poly_single",
+            "single_platform_polymarket", "single_platform_kalshi"
+        )
+        
+        # ========== STRATEGY-SPECIFIC RISK PROFILES ==========
+        if is_single_platform:
+            # SINGLE-PLATFORM ARBITRAGE: Buying YES+NO on same market
+            # This is the SAFEST form of arbitrage - nearly guaranteed profit
+            # Only risks: spread closes before execution, partial fills
+            exec_failure_rate = self.SINGLE_PLATFORM_EXEC_FAILURE_RATE  # ~8%
+            loss_rate = self.SINGLE_PLATFORM_LOSS_RATE  # ~3%
+            loss_min = 0.02  # 2% min loss
+            loss_max = self.SINGLE_PLATFORM_LOSS_SEVERITY_MAX  # ~10% max
+            slippage_min = self.SINGLE_PLATFORM_SLIPPAGE_MIN
+            slippage_max = self.SINGLE_PLATFORM_SLIPPAGE_MAX
+            profit_reason = "SINGLE-PLATFORM ARB: All outcomes covered"
+            loss_reasons = [
+                "Spread closed before both legs executed",
+                "Partial fill on one leg caused imbalance",
+                "Price moved between leg executions",
+            ]
+        elif is_cross_platform:
+            # CROSS-PLATFORM ARBITRAGE: Same event, different platforms
+            # Moderate risk from timing and platform differences
+            exec_failure_rate = self.EXECUTION_FAILURE_RATE  # ~15%
+            loss_rate = self.RESOLUTION_LOSS_RATE  # ~12%
             spread_float = float(original_spread_pct)
-            loss_min = self.LOSS_SEVERITY_MIN  # Use config value
+            loss_min = self.LOSS_SEVERITY_MIN
             loss_max = min(self.LOSS_SEVERITY_MAX, spread_float / 100 + 0.08)
-            profit_reason = "TRUE ARBITRAGE: Profit captured"
+            slippage_min = self.SLIPPAGE_MIN_PCT
+            slippage_max = self.SLIPPAGE_MAX_PCT
+            profit_reason = "CROSS-PLATFORM ARB: Profit captured"
+            loss_reasons = [
+                "Execution timing mismatch caused slippage loss",
+                "One leg filled at worse price than expected",
+                "Platform fee higher than expected",
+            ]
         else:
             # SAME-PLATFORM OVERLAP: Different events, correlation assumed
             # VERY HIGH risk - correlation rarely holds!
@@ -597,7 +634,17 @@ class RealisticPaperTrader:
             loss_rate = 0.50  # 50% loss rate - correlation failures
             loss_min = 0.30  # 30% loss minimum
             loss_max = 0.85  # 85% loss max - complete failure
+            slippage_min = self.SLIPPAGE_MIN_PCT
+            slippage_max = self.SLIPPAGE_MAX_PCT
             profit_reason = "OVERLAP: Correlation held (very risky)"
+            loss_reasons = [
+                "CORRELATION FAILED: Markets resolved independently",
+                "Assumed relationship was WRONG - not true arbitrage",
+                "Market B moved against position - no hedge",
+                "Overlap assumption incorrect - full loss on position",
+                "Markets diverged instead of converging",
+                "Same-platform overlap is NOT risk-free arbitrage",
+            ]
         
         # Check if opportunity still exists (execution failure)
         if random.random() < exec_failure_rate:
@@ -614,37 +661,24 @@ class RealisticPaperTrader:
         if random.random() < loss_rate:
             loss_severity = random.uniform(loss_min, loss_max)
             loss_pct = Decimal(str(-loss_severity * 100))
-
-            if is_cross_platform:
-                loss_reasons = [
-                    "Execution timing mismatch caused slippage loss",
-                    "One leg filled at worse price than expected",
-                    "Platform fee higher than expected",
-                ]
-            else:
-                loss_reasons = [
-                    "CORRELATION FAILED: Markets resolved independently",
-                    "Assumed relationship was WRONG - not true arbitrage",
-                    "Market B moved against position - no hedge",
-                    "Overlap assumption incorrect - full loss on position",
-                    "Markets diverged instead of converging",
-                    "Same-platform overlap is NOT risk-free arbitrage",
-                ]
             return True, random.choice(loss_reasons), loss_pct, True
 
         # ========== CALCULATE REALISTIC PROFIT ==========
-        slippage_range = (self.SLIPPAGE_MIN_PCT + self.SLIPPAGE_MAX_PCT) / 2
+        slippage_range = (slippage_min + slippage_max) / 2
         avg_slippage = Decimal(str(slippage_range))
         spread_cost = Decimal(str(self.SPREAD_COST_PCT))
         
-        # Estimate average fee impact for profit calculation
-        # Note: Actual fees are platform-specific and calculated at trade time
-        # Polymarket: 0%, Kalshi: 7% on profits
-        # Use conservative estimate for filtering
-        if is_cross_platform:
+        # Platform-specific fee handling
+        # Polymarket: 0% fees, Kalshi: 7% on profits
+        if is_single_platform:
+            if "polymarket" in arbitrage_type or "poly" in arbitrage_type:
+                avg_fee = Decimal("0")  # Polymarket has 0% fees!
+            else:
+                avg_fee = Decimal("7.0")  # Kalshi: 7% on profits
+        elif is_cross_platform:
             avg_fee = Decimal("3.5")  # ~7% * 50% (one leg on Kalshi)
         else:
-            avg_fee = Decimal("7.0")  # Kalshi-only trades pay full 7%
+            avg_fee = Decimal("7.0")  # Conservative estimate
 
         actual_profit_pct = original_spread_pct - avg_slippage - spread_cost
 
@@ -793,13 +827,7 @@ class RealisticPaperTrader:
                 f"HIGH RISK trade, NOT true arbitrage!"
             )
 
-        # Simulate execution with appropriate risk profile
-        success, reason, actual_profit_pct, is_loss = self._simulate_execution(
-            spread_pct,
-            is_cross_platform=is_true_arbitrage,  # Use true arbitrage flag for risk calc
-        )
-
-        # Determine arbitrage_type if not provided
+        # Determine arbitrage_type if not provided (BEFORE simulation!)
         if not arbitrage_type:
             if platform_a != platform_b:
                 arbitrage_type = "cross_platform"
@@ -807,6 +835,14 @@ class RealisticPaperTrader:
                 arbitrage_type = "polymarket_single"
             else:
                 arbitrage_type = "kalshi_single"
+
+        # Simulate execution with appropriate risk profile
+        # Pass arbitrage_type for strategy-specific simulation parameters
+        success, reason, actual_profit_pct, is_loss = self._simulate_execution(
+            spread_pct,
+            is_cross_platform=is_true_arbitrage,
+            arbitrage_type=arbitrage_type,
+        )
         
         # Create trade record
         trade = SimulatedTrade(

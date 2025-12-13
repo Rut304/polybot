@@ -173,6 +173,7 @@ Bot detects opportunity → Paper Trader simulates trade →
 **Before:** Paper trader had duplicate profit thresholds (5% hardcoded) that blocked valid Polymarket opportunities (0.3-5%).
 
 **After:** Paper trader ONLY has simulation-specific settings:
+
 - `MAX_REALISTIC_SPREAD_PCT = 25%` (sanity check)
 - `EXECUTION_FAILURE_RATE = 10%` (simulates failures)
 - `SLIPPAGE_MIN/MAX` (simulates price movement)
