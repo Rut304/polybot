@@ -96,6 +96,19 @@ export async function POST(request: Request) {
       }
     }
 
+    // CRITICAL: Validate that essential infrastructure secrets are present
+    // These MUST exist for the bot to function - fail deployment if missing
+    const REQUIRED_SECRETS = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+    const missingSecrets = REQUIRED_SECRETS.filter(key => !environment[key]);
+    
+    if (missingSecrets.length > 0) {
+      console.error('Missing required secrets in polybot_secrets table:', missingSecrets);
+      return NextResponse.json({
+        success: false,
+        error: `Missing required secrets: ${missingSecrets.join(', ')}. Add them to the polybot_secrets table in Supabase.`,
+      }, { status: 400 });
+    }
+
     let updatedContainers: Record<string, any> = {};
     let publicEndpoint: any = undefined;
 
