@@ -296,14 +296,15 @@ class SinglePlatformScanner:
     
     async def fetch_polymarket_markets(self) -> List[Dict]:
         """
-        Fetch active markets from Polymarket.
-        Focus on multi-condition markets (where arbitrage is most common).
+        Fetch active binary markets from Polymarket.
+        NOTE: Binary markets (YES/NO) always sum to $1 - no arbitrage here!
+        Real opportunities are in EVENTS (multi-outcome markets).
         """
         session = await self._get_session()
         markets = []
         
         try:
-            # Fetch active markets
+            # Fetch active markets (binary YES/NO only)
             url = f"{self.POLYMARKET_API}/markets"
             params = {
                 "active": "true",
@@ -315,7 +316,7 @@ class SinglePlatformScanner:
                 if resp.status == 200:
                     data = await resp.json()
                     markets = data if isinstance(data, list) else data.get("data", [])
-                    logger.debug(f"Fetched {len(markets)} Polymarket markets")
+                    logger.debug(f"Fetched {len(markets)} Polymarket binary markets")
                 else:
                     logger.warning(f"Polymarket API returned {resp.status}")
         
@@ -323,6 +324,234 @@ class SinglePlatformScanner:
             logger.error(f"Error fetching Polymarket markets: {e}")
         
         return markets
+    
+    async def fetch_polymarket_events(self) -> List[Dict]:
+        """
+        Fetch active EVENTS from Polymarket - THIS IS WHERE THE MONEY IS!
+        
+        Events contain multi-outcome markets where prices often sum > $1.
+        Example: "Largest Company 2025" event has options like Apple, NVIDIA, etc.
+        If all option prices sum to > $1, we have an arbitrage opportunity!
+        
+        From academic research (Saguillo et al., 2025):
+        - Multi-outcome markets have 2x the pricing errors of binary markets
+        - Events with 3+ outcomes average 5-10% mispricings
+        - $40M extracted from Polymarket in 1 year from these opportunities
+        """
+        session = await self._get_session()
+        events = []
+        
+        try:
+            # Fetch high-volume events (most liquid = fastest execution)
+            url = f"{self.POLYMARKET_API}/events"
+            params = {
+                "closed": "false",
+                "limit": 50,  # Top 50 active events
+                "order": "volume24hr",
+                "ascending": "false",
+            }
+            
+            async with session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    events = data if isinstance(data, list) else data.get("data", [])
+                    logger.debug(
+                        f"Fetched {len(events)} Polymarket events "
+                        f"(multi-outcome markets)"
+                    )
+                else:
+                    logger.warning(f"Polymarket events API returned {resp.status}")
+        
+        except Exception as e:
+            logger.error(f"Error fetching Polymarket events: {e}")
+        
+        return events
+    
+    async def analyze_polymarket_event(
+        self,
+        event: Dict,
+    ) -> Optional[SinglePlatformOpportunity]:
+        """
+        Analyze a Polymarket EVENT for multi-outcome arbitrage.
+        
+        Events contain multiple markets (outcomes). If the sum of all outcome
+        prices > $1, we can buy all outcomes and guarantee profit.
+        
+        Example: "Who will win 2024 election?" event
+        - Biden: $0.35
+        - Trump: $0.40  
+        - Other: $0.30
+        - Total: $1.05 → 5% guaranteed profit by buying all!
+        """
+        event_id = event.get("id", "unknown")
+        event_slug = event.get("slug", "")
+        event_title = event.get("title", event.get("question", "Unknown Event"))
+        rejection_reason = None
+        qualifies = False
+        opportunity = None
+        
+        try:
+            # Get markets (outcomes) within this event
+            markets = event.get("markets", [])
+            
+            if not markets or len(markets) < 2:
+                rejection_reason = f"Only {len(markets)} outcomes (need 2+)"
+                await self._log_market_scan(
+                    scanner_type="polymarket_single",
+                    platform="polymarket",
+                    market_id=event_id,
+                    market_title=f"[EVENT] {event_title}",
+                    qualifies=False,
+                    rejection_reason=rejection_reason,
+                )
+                return None
+            
+            # Sum all outcome prices
+            # Each market in event is an outcome with YES price
+            outcome_prices = []
+            conditions = []
+            
+            for market in markets:
+                # Get YES price for this outcome
+                yes_price = None
+                
+                # Try different price field formats
+                outcome_prices_str = market.get("outcomePrices")
+                if outcome_prices_str:
+                    import json
+                    try:
+                        prices = json.loads(outcome_prices_str) if isinstance(
+                            outcome_prices_str, str
+                        ) else outcome_prices_str
+                        # First price is YES
+                        yes_price = Decimal(str(prices[0]))
+                    except (json.JSONDecodeError, IndexError, TypeError):
+                        pass
+                
+                # Fallback to other price fields
+                if yes_price is None:
+                    yes_price = (
+                        market.get("yes_price") or 
+                        market.get("lastTradePrice") or 
+                        market.get("bestBid")
+                    )
+                    if yes_price:
+                        yes_price = Decimal(str(yes_price))
+                
+                if yes_price and yes_price > 0:
+                    outcome_prices.append(yes_price)
+                    conditions.append({
+                        "market_id": market.get("conditionId", market.get("id")),
+                        "outcome": market.get("question", market.get("outcome", "?")),
+                        "yes_price": float(yes_price),
+                    })
+            
+            if len(outcome_prices) < 2:
+                rejection_reason = f"Only {len(outcome_prices)} valid prices"
+                await self._log_market_scan(
+                    scanner_type="polymarket_single",
+                    platform="polymarket",
+                    market_id=event_id,
+                    market_title=f"[EVENT] {event_title}",
+                    qualifies=False,
+                    rejection_reason=rejection_reason,
+                    raw_data={"markets_count": len(markets)},
+                )
+                return None
+            
+            # Calculate total - should be $1 for fair pricing
+            total_price = sum(outcome_prices)
+            total_price_float = float(total_price)
+            
+            # Multi-outcome arbitrage:
+            # If total > $1: outcomes are OVERPRICED (buy NO on all)
+            # If total < $1: outcomes are UNDERPRICED (buy YES on all)
+            if total_price > Decimal("1.0"):
+                profit_pct = (total_price - Decimal("1.0")) * 100
+                arb_direction = "BUY_ALL_NO"  # Or sell YES
+            elif total_price < Decimal("1.0"):
+                profit_pct = (Decimal("1.0") - total_price) * 100
+                arb_direction = "BUY_ALL_YES"
+            else:
+                rejection_reason = "Perfectly balanced (no arb)"
+                profit_pct = Decimal("0")
+                await self._log_market_scan(
+                    scanner_type="polymarket_single",
+                    platform="polymarket",
+                    market_id=event_id,
+                    market_title=f"[EVENT] {event_title}",
+                    total_price=total_price_float,
+                    spread_pct=0.0,
+                    qualifies=False,
+                    rejection_reason=rejection_reason,
+                )
+                return None
+            
+            profit_pct_float = float(profit_pct)
+            
+            # Check thresholds
+            if profit_pct < self.poly_min_profit:
+                rejection_reason = f"Profit {profit_pct:.2f}% < min {self.poly_min_profit}%"
+                self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_rejected"] += 1
+            elif profit_pct > self.MAX_PROFIT_PCT:
+                rejection_reason = f"Profit {profit_pct:.2f}% > max (bad data?)"
+                self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_rejected"] += 1
+            else:
+                # 🎯 QUALIFIES FOR TRADE!
+                qualifies = True
+                opportunity = SinglePlatformOpportunity(
+                    id=f"poly_event_{event_id}_{int(datetime.now().timestamp())}",
+                    detected_at=datetime.now(timezone.utc),
+                    platform="polymarket",
+                    arb_type=ArbitrageType.POLYMARKET_SINGLE,
+                    market_id=event_id,
+                    market_title=f"[EVENT] {event_title}",
+                    market_slug=event_slug,
+                    conditions=conditions,
+                    total_price=total_price,
+                    profit_pct=profit_pct,
+                    buy_prices=outcome_prices,
+                )
+                
+                # Calculate score
+                opp_score = opportunity.calculate_score()
+                
+                logger.info(
+                    f"🎯 POLYMARKET EVENT ARB FOUND: {event_title[:50]}... | "
+                    f"Outcomes={len(conditions)} | Total=${total_price:.4f} | "
+                    f"Profit={profit_pct:.2f}% | Score={opp_score:.1f}"
+                )
+            
+            # Log scan
+            await self._log_market_scan(
+                scanner_type="polymarket_single",
+                platform="polymarket",
+                market_id=event_id,
+                market_title=f"[EVENT] {event_title}",
+                total_price=total_price_float,
+                spread_pct=profit_pct_float,
+                qualifies=qualifies,
+                rejection_reason=rejection_reason,
+                opportunity_id=opportunity.id if opportunity else None,
+                raw_data={
+                    "outcomes": len(conditions),
+                    "direction": arb_direction if qualifies else None,
+                },
+            )
+            
+            return opportunity
+            
+        except Exception as e:
+            logger.error(f"Error analyzing event {event_id}: {e}")
+            await self._log_market_scan(
+                scanner_type="polymarket_single",
+                platform="polymarket",
+                market_id=event_id,
+                market_title=f"[EVENT] {event_title}",
+                qualifies=False,
+                rejection_reason=f"Error: {str(e)}",
+            )
+            return None
     
     async def fetch_polymarket_market_details(self, condition_id: str) -> Optional[Dict]:
         """Fetch detailed market data including order book"""
@@ -524,22 +753,45 @@ class SinglePlatformScanner:
             return None
     
     async def scan_polymarket(self) -> List[SinglePlatformOpportunity]:
-        """Scan Polymarket for single-platform arbitrage opportunities"""
+        """
+        Scan Polymarket for single-platform arbitrage opportunities.
+        
+        Scans BOTH:
+        1. Binary markets (/markets) - usually no arb (YES+NO=$1)
+        2. Events (/events) - THIS IS WHERE THE MONEY IS!
+           Multi-outcome markets where prices often sum > $1
+        """
         opportunities = []
         self.stats[ArbitrageType.POLYMARKET_SINGLE]["scans"] += 1
         
-        markets = await self.fetch_polymarket_markets()
-        checked = len(markets)
-        self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_checked"] += checked
+        # === SCAN EVENTS (Multi-outcome markets - where $40M was extracted!) ===
+        events = await self.fetch_polymarket_events()
+        logger.info(f"📊 Scanning {len(events)} Polymarket EVENTS (multi-outcome)...")
         
-        logger.info(f"📊 Scanning {checked} Polymarket markets...")
+        for event in events:
+            opp = await self.analyze_polymarket_event(event)
+            if opp:
+                opportunities.append(opp)
+                self.stats[ArbitrageType.POLYMARKET_SINGLE]["opportunities_found"] += 1
+        
+        self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_checked"] += len(events)
+        
+        # === SCAN BINARY MARKETS (less likely to have arb, but check anyway) ===
+        markets = await self.fetch_polymarket_markets()
+        logger.info(f"📊 Scanning {len(markets)} Polymarket binary markets...")
         
         for market in markets:
             opp = await self.analyze_polymarket_multi_condition(market)
             if opp:
                 opportunities.append(opp)
-                found = self.stats[ArbitrageType.POLYMARKET_SINGLE]
-                found["opportunities_found"] += 1
+                self.stats[ArbitrageType.POLYMARKET_SINGLE]["opportunities_found"] += 1
+        
+        self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_checked"] += len(markets)
+        
+        logger.info(
+            f"🔍 Polymarket scan complete: {len(opportunities)} opportunities "
+            f"from {len(events)} events + {len(markets)} binary markets"
+        )
         
         return opportunities
     
