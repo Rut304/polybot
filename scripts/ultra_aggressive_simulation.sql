@@ -133,8 +133,8 @@ UPDATE polybot_config SET
     execution_failure_rate = 0.05,            -- Was 0.08, now 5%
     resolution_loss_rate = 0.03,              -- Was 0.05, now 3%
     slippage_min_pct = 0.02,                  -- Was 0.05, now 0.02%
-    slippage_max_pct = 0.3,                   -- Was 0.5, now 0.3%
-    market_cooldown_seconds = 300             -- Was 900, now 5 min
+    slippage_max_pct = 0.3                    -- Was 0.5, now 0.3%
+    -- market_cooldown_seconds = 1800         -- KEEP AT 30 MIN TO PREVENT DUPLICATE TRADES!
 WHERE id = 1;
 
 -- =====================================================================================

@@ -109,21 +109,42 @@ async function fetchSessionTrades(sessionId: string): Promise<SessionTrade[]> {
 
 // Save current simulation as a new session
 async function saveCurrentSession(notes?: string) {
+  // Get the current session for authentication
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in again.');
+  }
+
   const response = await fetch('/api/simulation/history', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify({ notes }),
   });
   
-  if (!response.ok) throw new Error('Failed to save session');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to save session');
+  }
   return response.json();
 }
 
 // Generate AI analysis for a session
 async function generateAnalysis(sessionId: string) {
+  // Get the current session for authentication
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in again.');
+  }
+
   const response = await fetch('/api/simulation/analyze', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify({ session_id: sessionId }),
   });
   
@@ -136,9 +157,18 @@ async function generateAnalysis(sessionId: string) {
 
 // Implement all recommendations
 async function implementRecommendations(sessionId: string) {
+  // Get the current session for authentication
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not authenticated. Please sign in again.');
+  }
+
   const response = await fetch('/api/simulation/analyze', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify({ sessionId, action: 'implement_all' }),
   });
   
