@@ -378,6 +378,15 @@ class SinglePlatformScanner:
         prices > $1, we can buy all outcomes and guarantee profit.
         
         Example: "Who will win 2024 election?" event
+        """
+        event_id = event.get("id", "unknown")
+        
+        # Check cooldown first - skip if recently traded
+        if self._is_on_cooldown(event_id, "polymarket"):
+            self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_on_cooldown"] += 1
+            return None  # Skip without logging (reduces noise)
+        
+        """
         - Biden: $0.35
         - Trump: $0.40  
         - Other: $0.30
@@ -582,6 +591,12 @@ class SinglePlatformScanner:
         """
         market_id = market.get("conditionId") or market.get("condition_id", "unknown")
         market_title = market.get("question", "Unknown")
+        
+        # Check cooldown first - skip if recently traded
+        if self._is_on_cooldown(market_id, "polymarket"):
+            self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_on_cooldown"] += 1
+            return None  # Skip without logging (reduces noise)
+        
         rejection_reason = None
         qualifies = False
         opportunity = None

@@ -280,6 +280,63 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Clear current trades after archiving (this is what makes "Save Session" finalize a session)
+    const { error: deleteTradesError } = await supabaseAdmin
+      .from('polybot_simulated_trades')
+      .delete()
+      .not('id', 'is', null);
+    
+    if (deleteTradesError) {
+      console.warn('Error clearing trades after archive:', deleteTradesError);
+    }
+    
+    // Reset stats to starting balance
+    const { error: deleteStatsError } = await supabaseAdmin
+      .from('polybot_simulation_stats')
+      .delete()
+      .not('id', 'is', null);
+    
+    if (deleteStatsError) {
+      console.warn('Error clearing stats after archive:', deleteStatsError);
+    }
+    
+    // Insert fresh starting stats
+    await supabaseAdmin
+      .from('polybot_simulation_stats')
+      .insert({
+        snapshot_at: new Date().toISOString(),
+        simulated_balance: startingBalance,
+        total_pnl: 0,
+        total_trades: 0,
+        win_rate: 0,
+      });
+    
+    // Clear opportunities table
+    await supabaseAdmin
+      .from('polybot_opportunities')
+      .delete()
+      .not('id', 'is', null);
+    
+    // Clear positions table
+    await supabaseAdmin
+      .from('polybot_positions')
+      .delete()
+      .not('id', 'is', null);
+    
+    // Reset bot status session counters
+    await supabaseAdmin
+      .from('polybot_status')
+      .update({
+        opportunities_this_session: 0,
+        trades_this_session: 0,
+        daily_trades_count: 0,
+        daily_profit_usd: 0,
+        daily_loss_usd: 0,
+        last_opportunity_at: null,
+        last_trade_at: null,
+      })
+      .not('id', 'is', null);
+    
     // Log audit event
     await logAuditEvent({
       user_id: authResult.user_id,
@@ -305,7 +362,9 @@ export async function POST(request: NextRequest) {
         trades_archived: trades.length,
         ending_balance: endingBalance,
         total_pnl: totalPnl,
-        message: `Archived ${trades.length} trades. Session ID: ${sessionId}`,
+        starting_balance: startingBalance,
+        roi_pct: (totalPnl / startingBalance) * 100,
+        message: `Session saved! Archived ${trades.length} trades. Simulation reset to $${startingBalance.toLocaleString()} starting balance.`,
       },
     });
   } catch (error: any) {
