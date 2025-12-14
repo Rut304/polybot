@@ -9,13 +9,27 @@
 
 ## 🆕 LATEST UPDATES (December 14, 2025)
 
+### Vercel GitHub Integration FIX (Critical)
+
+**Root Cause Found & Fixed:** Vercel's GitHub-triggered deployments were failing instantly (0ms builds) because the project's `rootDirectory` was `null`. The Next.js admin UI lives in the `admin/` subfolder, not the repo root.
+
+**Fix Applied:**
+
+```bash
+curl -X PATCH "https://api.vercel.com/v9/projects/prj_bN7avcXG0SRU3XNHF3ymz3KccTm5" \
+  -H "Authorization: Bearer <vercel_token>" \
+  -d '{"rootDirectory": "admin"}'
+```
+
+**Verification:** After the fix, GitHub pushes now trigger successful Vercel deployments (34-60s builds vs 5s failures).
+
 ### New Features Added
 
 1. **Business Page Toggle** - `/business` now has Simulated/Live toggle to view P&L by trading mode
 2. **Whale Tracker Page** - `/whales` page for tracking high win-rate Polymarket traders
 3. **All Twitter Strategies Enabled** - BTC Bracket, Kalshi Snipe, Whale Copy, Macro Board, Fear Premium, Bracket Compression
 
-### Database Schema to Execute
+### Database Schema (Already Executed)
 
 The whale tracking system requires new tables. Run this SQL in Supabase SQL Editor:
 
