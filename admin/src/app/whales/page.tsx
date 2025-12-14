@@ -33,12 +33,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
-// Whale tier definitions
+// Whale tier definitions based on PnL and volume
 const WHALE_TIERS = {
-  mega_whale: { label: 'Mega Whale', color: 'text-purple-400', bg: 'bg-purple-500/20', icon: Crown, minVolume: 100000, minWinRate: 80 },
-  whale: { label: 'Whale', color: 'text-blue-400', bg: 'bg-blue-500/20', icon: Award, minVolume: 50000, minWinRate: 75 },
-  smart_money: { label: 'Smart Money', color: 'text-green-400', bg: 'bg-green-500/20', icon: Medal, minVolume: 10000, minWinRate: 70 },
-  retail: { label: 'Retail', color: 'text-gray-400', bg: 'bg-gray-500/20', icon: Users, minVolume: 0, minWinRate: 0 },
+  mega_whale: { label: 'Mega Whale', color: 'text-purple-400', bg: 'bg-purple-500/20', icon: Crown, minVolume: 10000000, minPnl: 500000 },
+  whale: { label: 'Whale', color: 'text-blue-400', bg: 'bg-blue-500/20', icon: Award, minVolume: 1000000, minPnl: 100000 },
+  smart_money: { label: 'Smart Money', color: 'text-green-400', bg: 'bg-green-500/20', icon: Medal, minVolume: 100000, minPnl: 10000 },
+  retail: { label: 'Retail', color: 'text-gray-400', bg: 'bg-gray-500/20', icon: Users, minVolume: 0, minPnl: 0 },
 };
 
 interface TrackedWhale {
@@ -66,10 +66,10 @@ interface LeaderboardWhale {
   address: string;
   username?: string;
   volume: number;
-  win_rate: number;
-  predictions: number;
-  pnl?: number;
+  pnl: number;
   rank?: number;
+  profileImage?: string;
+  tier?: string;
 }
 
 interface WhaleTrade {
@@ -85,12 +85,12 @@ interface WhaleTrade {
 }
 
 type TimeFilter = 'week' | 'month' | 'year' | 'all';
-type SortField = 'win_rate' | 'volume' | 'predictions' | 'copy_pnl';
+type SortField = 'pnl' | 'volume' | 'rank' | 'copy_pnl';
 
 export default function WhalesPage() {
   const queryClient = useQueryClient();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
-  const [sortField, setSortField] = useState<SortField>('win_rate');
+  const [sortField, setSortField] = useState<SortField>('pnl');
   const [sortAsc, setSortAsc] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [tierFilter, setTierFilter] = useState<string>('all');
@@ -197,8 +197,8 @@ export default function WhalesPage() {
             address,
             alias: whale?.username || null,
             total_volume_usd: whale?.volume || 0,
-            win_rate: whale?.win_rate || 0,
-            total_predictions: whale?.predictions || 0,
+            win_rate: 0, // Not available from Polymarket leaderboard
+            total_predictions: 0, // Not available from Polymarket leaderboard
             copy_enabled: false,
             discovery_source: 'manual',
           }, { onConflict: 'address' });
@@ -272,11 +272,11 @@ export default function WhalesPage() {
     setTimeout(() => setCopiedAddress(null), 2000);
   };
 
-  // Get whale tier
-  const getWhaleTier = (volume: number, winRate: number) => {
-    if (volume >= 100000 && winRate >= 80) return 'mega_whale';
-    if (volume >= 50000 && winRate >= 75) return 'whale';
-    if (volume >= 10000 && winRate >= 70) return 'smart_money';
+  // Get whale tier based on volume and PnL
+  const getWhaleTier = (volume: number, pnl: number) => {
+    if (volume >= 10000000 && pnl >= 500000) return 'mega_whale';
+    if (volume >= 1000000 && pnl >= 100000) return 'whale';
+    if (volume >= 100000 && pnl >= 10000) return 'smart_money';
     return 'retail';
   };
 
@@ -309,8 +309,8 @@ export default function WhalesPage() {
     if (tierFilter !== 'all') {
       whales = whales.filter(w => {
         const volume = 'total_volume_usd' in w ? w.total_volume_usd : ('volume' in w ? w.volume : 0);
-        const winRate = w.win_rate;
-        return getWhaleTier(volume, winRate) === tierFilter;
+        const pnl = 'pnl' in w ? w.pnl : ('copy_pnl' in w ? w.copy_pnl : 0);
+        return getWhaleTier(volume, pnl) === tierFilter;
       });
     }
 
@@ -319,18 +319,19 @@ export default function WhalesPage() {
       let aVal: number, bVal: number;
       
       switch (sortField) {
-        case 'win_rate':
-          aVal = 'win_rate' in a ? a.win_rate : 0;
-          bVal = 'win_rate' in b ? b.win_rate : 0;
+        case 'pnl':
+          aVal = 'pnl' in a ? a.pnl : ('copy_pnl' in a ? a.copy_pnl : 0);
+          bVal = 'pnl' in b ? b.pnl : ('copy_pnl' in b ? b.copy_pnl : 0);
           break;
         case 'volume':
           aVal = 'total_volume_usd' in a ? a.total_volume_usd : ('volume' in a ? a.volume : 0);
           bVal = 'total_volume_usd' in b ? b.total_volume_usd : ('volume' in b ? b.volume : 0);
           break;
-        case 'predictions':
-          aVal = 'total_predictions' in a ? a.total_predictions : ('predictions' in a ? a.predictions : 0);
-          bVal = 'total_predictions' in b ? b.total_predictions : ('predictions' in b ? b.predictions : 0);
-          break;
+        case 'rank':
+          aVal = 'rank' in a ? (a.rank || 999) : 999;
+          bVal = 'rank' in b ? (b.rank || 999) : 999;
+          // For rank, lower is better so reverse the default order
+          return sortAsc ? bVal - aVal : aVal - bVal;
         case 'copy_pnl':
           aVal = 'copy_pnl' in a ? a.copy_pnl : 0;
           bVal = 'copy_pnl' in b ? b.copy_pnl : 0;
@@ -488,6 +489,7 @@ export default function WhalesPage() {
               value={timeFilter}
               onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
               className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm"
+              title="Time period filter"
             >
               <option value="week">This Week</option>
               <option value="month">This Month</option>
@@ -503,6 +505,7 @@ export default function WhalesPage() {
               value={tierFilter}
               onChange={(e) => setTierFilter(e.target.value)}
               className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm"
+              title="Whale tier filter"
             >
               <option value="all">All Tiers</option>
               <option value="mega_whale">🐋 Mega Whale</option>
@@ -532,10 +535,11 @@ export default function WhalesPage() {
               value={sortField}
               onChange={(e) => setSortField(e.target.value as SortField)}
               className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm"
+              title="Sort by field"
             >
-              <option value="win_rate">Win Rate</option>
+              <option value="pnl">P&L</option>
               <option value="volume">Volume</option>
-              <option value="predictions">Predictions</option>
+              <option value="rank">Rank</option>
               <option value="copy_pnl">Copy P&L</option>
             </select>
             <button
@@ -576,10 +580,10 @@ export default function WhalesPage() {
             {displayedWhales.map((whale, index) => {
               const address = whale.address;
               const volume = 'total_volume_usd' in whale ? whale.total_volume_usd : ('volume' in whale ? whale.volume : 0);
-              const winRate = whale.win_rate;
-              const predictions = 'total_predictions' in whale ? whale.total_predictions : ('predictions' in whale ? whale.predictions : 0);
+              const pnl = 'pnl' in whale ? whale.pnl : ('copy_pnl' in whale ? whale.copy_pnl : 0);
+              const rank = 'rank' in whale ? whale.rank : (index + 1);
               const name = 'alias' in whale ? whale.alias : ('username' in whale ? whale.username : null);
-              const tier = getWhaleTier(volume, winRate);
+              const tier = 'tier' in whale && whale.tier ? (whale.tier as string) : getWhaleTier(volume, pnl);
               const tierInfo = WHALE_TIERS[tier as keyof typeof WHALE_TIERS];
               const TierIcon = tierInfo.icon;
               const tracked = getTrackedWhale(address);
@@ -647,7 +651,7 @@ export default function WhalesPage() {
                         <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">
                           <span className={tierInfo.color}>{tierInfo.label}</span>
                           <span>•</span>
-                          <span>{predictions} predictions</span>
+                          <span>Rank #{rank}</span>
                           {tracked && (
                             <>
                               <span>•</span>
@@ -663,21 +667,22 @@ export default function WhalesPage() {
                     {/* Stats */}
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <p className="text-sm text-gray-400">Win Rate</p>
+                        <p className="text-sm text-gray-400">P&L</p>
                         <p className={`text-lg font-bold ${
-                          winRate >= 80 ? 'text-green-400' :
-                          winRate >= 70 ? 'text-blue-400' :
-                          winRate >= 60 ? 'text-yellow-400' :
-                          'text-red-400'
+                          pnl >= 500000 ? 'text-green-400' :
+                          pnl >= 100000 ? 'text-blue-400' :
+                          pnl >= 10000 ? 'text-yellow-400' :
+                          pnl < 0 ? 'text-red-400' :
+                          'text-gray-400'
                         }`}>
-                          {winRate.toFixed(1)}%
+                          ${pnl >= 1000000 ? `${(pnl / 1000000).toFixed(2)}M` : pnl >= 1000 ? `${(pnl / 1000).toFixed(0)}K` : pnl.toFixed(0)}
                         </p>
                       </div>
 
                       <div className="text-right">
                         <p className="text-sm text-gray-400">Volume</p>
                         <p className="text-lg font-bold">
-                          ${(volume / 1000).toFixed(0)}K
+                          ${volume >= 1000000 ? `${(volume / 1000000).toFixed(1)}M` : `${(volume / 1000).toFixed(0)}K`}
                         </p>
                       </div>
 
@@ -768,6 +773,7 @@ export default function WhalesPage() {
                                       maxSize: tracked.max_copy_size_usd,
                                     })}
                                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                                    title="Copy multiplier (0.1-2x)"
                                   />
                                   <p className="text-xs text-gray-500 mt-1">
                                     {(tracked.copy_multiplier * 100).toFixed(0)}% of whale&apos;s position
@@ -789,6 +795,7 @@ export default function WhalesPage() {
                                       maxSize: parseFloat(e.target.value),
                                     })}
                                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                                    title="Maximum copy size in USD"
                                   />
                                 </div>
                               </div>
