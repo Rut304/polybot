@@ -1,9 +1,44 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 13, 2025 (11:35 PM EST)  
+**Last Updated:** December 13, 2025 (11:45 PM EST)  
 **Current Version:** v1.1.19 (Build #80)  
 **Deployment:** v5 on AWS Lightsail  
 **Status:** 🟢 RUNNING - Simulation Mode with ULTRA AGGRESSIVE settings - **VERIFIED WORKING**
+
+---
+
+## 🚀 QUICK VERIFICATION COMMANDS
+
+Copy and paste these to verify bot status:
+
+```bash
+# Check bot status
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
+
+# Check health  
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health"
+
+# Check deployment state
+aws lightsail get-container-services --service-name polyparlay --region us-east-1 | jq '.containerServices[0].currentDeployment | {version, state}'
+
+# Check recent opportunities (last 5)
+curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_opportunities?order=created_at.desc&limit=5" \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw" | jq '.[] | {created_at, strategy}'
+
+# Check recent simulated trades
+curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_simulated_trades?order=created_at.desc&limit=5" \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw" | jq '.[] | {created_at, trade_type, outcome, actual_profit_usd}'
+
+# Check container logs (may have ~30 min delay)
+aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1 --output json 2>/dev/null | jq -r '.logEvents[-30:] | .[] | "\(.createdAt): \(.message)"'
+
+# Check current config from Supabase
+curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_config?id=eq.1" \
+  -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw" | jq '.[0] | {poly_single_min_profit_pct, kalshi_single_min_profit_pct, whale_copy_min_win_rate, macro_min_conviction_score, max_concurrent_positions}'
+```
 
 ---
 
@@ -47,7 +82,7 @@ max_concurrent_positions = 50           -- (was 35) More trades
 
 ### Deployment Details
 
-- **Service URL:** https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/
+- **Service URL:** <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/>
 - **Lightsail Image:** `:polyparlay.polybot.77`
 - **Deploy Version:** 5 (ACTIVE)
 - **Region:** us-east-1
