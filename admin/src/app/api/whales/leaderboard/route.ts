@@ -63,6 +63,7 @@ async function fetchPolymarketLeaderboard(params: LeaderboardParams = {}): Promi
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const limit = parseInt(searchParams.get('limit') || '50', 10);
+  const offset = parseInt(searchParams.get('offset') || '0', 10);
   const minVolume = parseFloat(searchParams.get('minVolume') || '10000'); // $10k minimum
   const minPnl = parseFloat(searchParams.get('minPnl') || '0'); // Minimum profit
   const timePeriod = (searchParams.get('timePeriod') || 'ALL') as 'DAY' | 'WEEK' | 'MONTH' | 'ALL';
@@ -72,8 +73,8 @@ export async function GET(request: Request) {
   try {
     // Fetch from Polymarket Data-API leaderboard
     const traders = await fetchPolymarketLeaderboard({
-      limit: Math.min(limit * 2, 200), // Fetch more to account for filtering
-      offset: 0,
+      limit: Math.min(limit, 50), // API max is 50 per request
+      offset,
       timePeriod,
       orderBy,
       category,

@@ -32,6 +32,7 @@ import {
   Fish,
   Landmark,
   Briefcase,
+  Trophy,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -81,6 +82,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/news', label: 'News Feed', icon: Newspaper },
       { href: '/whales', label: 'Whale Tracker', icon: Fish, adminOnly: true },
+      { href: '/leaderboard', label: 'Leaderboard Analysis', icon: Trophy, adminOnly: true },
       { href: '/congress', label: 'Congress Tracker', icon: Landmark, adminOnly: true },
       { href: '/insights', label: 'AI Insights', icon: Brain },
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
