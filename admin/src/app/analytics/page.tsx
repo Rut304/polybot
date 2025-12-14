@@ -166,9 +166,18 @@ export default function AnalyticsPage() {
     'poly_single',
     'kalshi_single', 
     'cross_platform',
+    'overlapping_arb',
     // Advanced Strategies
     'market_making',
     'news_arbitrage',
+    // Twitter-Derived Strategies (2024)
+    'btc_bracket_arb',
+    'bracket_compression',
+    'kalshi_mention_snipe',
+    'whale_copy_trading',
+    'congressional_tracker',
+    'macro_board',
+    'fear_premium_contrarian',
     // Crypto Strategies
     'funding_rate_arb',
     'grid_trading',
