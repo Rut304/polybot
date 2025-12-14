@@ -344,6 +344,18 @@ export default function SettingsPage() {
   const [fearMinPremiumPct, setFearMinPremiumPct] = useState(config?.fear_min_premium_pct ?? 10);
   const [fearMaxPositionUsd, setFearMaxPositionUsd] = useState(config?.fear_max_position_usd ?? 200);
   
+  // Congressional Tracker (70% confidence - 15-40% APY)
+  // Copy trades made by members of Congress using STOCK Act disclosures
+  const [enableCongressionalTracker, setEnableCongressionalTracker] = useState(config?.enable_congressional_tracker ?? false);
+  const [congressChambers, setCongressChambers] = useState<string>(config?.congress_chambers ?? 'both'); // house, senate, both
+  const [congressParties, setCongressParties] = useState<string>(config?.congress_parties ?? 'any'); // D, R, I, any
+  const [congressCopyScalePct, setCongressCopyScalePct] = useState(config?.congress_copy_scale_pct ?? 10);
+  const [congressMaxPositionUsd, setCongressMaxPositionUsd] = useState(config?.congress_max_position_usd ?? 500);
+  const [congressMinTradeAmountUsd, setCongressMinTradeAmountUsd] = useState(config?.congress_min_trade_amount_usd ?? 15000);
+  const [congressDelayHours, setCongressDelayHours] = useState(config?.congress_delay_hours ?? 0);
+  const [congressScanIntervalHours, setCongressScanIntervalHours] = useState(config?.congress_scan_interval_hours ?? 6);
+  const [congressTrackedPoliticians, setCongressTrackedPoliticians] = useState<string>(config?.congress_tracked_politicians ?? 'Nancy Pelosi,Tommy Tuberville,Dan Crenshaw');
+  
   // =========================================================================
   // ADVANCED RISK FRAMEWORK (Kelly, Regime, Circuit Breaker, etc.)
   // These modules enhance ALL strategies with better risk management
@@ -616,6 +628,17 @@ export default function SettingsPage() {
       if (config.fear_extreme_high_threshold !== undefined) setFearExtremeHighThreshold(config.fear_extreme_high_threshold);
       if (config.fear_min_premium_pct !== undefined) setFearMinPremiumPct(config.fear_min_premium_pct);
       if (config.fear_max_position_usd !== undefined) setFearMaxPositionUsd(config.fear_max_position_usd);
+      
+      // Congressional Tracker
+      if (config.enable_congressional_tracker !== undefined) setEnableCongressionalTracker(config.enable_congressional_tracker);
+      if (config.congress_chambers !== undefined) setCongressChambers(config.congress_chambers);
+      if (config.congress_parties !== undefined) setCongressParties(config.congress_parties);
+      if (config.congress_copy_scale_pct !== undefined) setCongressCopyScalePct(config.congress_copy_scale_pct);
+      if (config.congress_max_position_usd !== undefined) setCongressMaxPositionUsd(config.congress_max_position_usd);
+      if (config.congress_min_trade_amount_usd !== undefined) setCongressMinTradeAmountUsd(config.congress_min_trade_amount_usd);
+      if (config.congress_delay_hours !== undefined) setCongressDelayHours(config.congress_delay_hours);
+      if (config.congress_scan_interval_hours !== undefined) setCongressScanIntervalHours(config.congress_scan_interval_hours);
+      if (config.congress_tracked_politicians !== undefined) setCongressTrackedPoliticians(config.congress_tracked_politicians);
       
       // Exchange Enablement (NEW)
       if (config.enable_binance !== undefined) setEnableBinance(config.enable_binance);
@@ -896,6 +919,16 @@ export default function SettingsPage() {
         fear_extreme_high_threshold: fearExtremeHighThreshold,
         fear_min_premium_pct: fearMinPremiumPct,
         fear_max_position_usd: fearMaxPositionUsd,
+        // Congressional Tracker
+        enable_congressional_tracker: enableCongressionalTracker,
+        congress_chambers: congressChambers,
+        congress_parties: congressParties,
+        congress_copy_scale_pct: congressCopyScalePct,
+        congress_max_position_usd: congressMaxPositionUsd,
+        congress_min_trade_amount_usd: congressMinTradeAmountUsd,
+        congress_delay_hours: congressDelayHours,
+        congress_scan_interval_hours: congressScanIntervalHours,
+        congress_tracked_politicians: congressTrackedPoliticians,
         // Exchange Enablement
         enable_binance: enableBinance,
         enable_bybit: enableBybit,
@@ -4657,6 +4690,153 @@ export default function SettingsPage() {
                       <input type="number" value={fearMaxPositionUsd} onChange={(e) => setFearMaxPositionUsd(parseFloat(e.target.value))} step="25" min="25" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-red-500 text-sm disabled:opacity-50" />
                       <p className="text-[10px] text-gray-500 mt-1">$400 = conviction sizing</p>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ══════════════════════════════════════════════════════════════════════
+                  CONGRESSIONAL TRACKER - Full Card (NEW)
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-amber-500 overflow-hidden">
+                <div className="bg-amber-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500 flex items-center justify-center">
+                      <span className="text-lg">🏛️</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Congressional Tracker
+                        <span className="text-xs bg-amber-500/30 text-amber-400 px-2 py-0.5 rounded-full">STOCK ACT</span>
+                        <span className="text-xs bg-green-500/30 text-green-400 px-2 py-0.5 rounded-full">FREE DATA</span>
+                      </h3>
+                      <p className="text-xs text-amber-400">Copy stock trades from members of Congress (15-40% APY)</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch enabled={enableCongressionalTracker} onToggle={() => setEnableCongressionalTracker(!enableCongressionalTracker)} disabled={!isAdmin} size="md" />
+                </div>
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-amber-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Tracks STOCK Act disclosures from House &amp; Senate members. Congress must report trades within 45 days. We copy scaled to your bankroll.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300">Congress has <span className="text-amber-400 font-semibold">information edge</span> from briefings &amp; legislation knowledge. Studies show they outperform S&amp;P by ~12% annually.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Data Sources</p>
+                      <p className="text-gray-300">
+                        <span className="text-amber-400 font-semibold">House &amp; Senate Stock Watcher</span> (free APIs).
+                        Real-time disclosure tracking.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Settings Row 1 - Core Settings */}
+                <div className="p-4 bg-amber-500/5 border-b border-amber-500/20">
+                  <p className="text-xs font-medium text-amber-400 mb-3 uppercase tracking-wider">Copy Settings</p>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Copy Scale %
+                      </label>
+                      <input type="number" value={congressCopyScalePct} onChange={(e) => setCongressCopyScalePct(parseFloat(e.target.value))} step="1" min="1" max="100" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" placeholder="10" />
+                      <p className="text-[10px] text-gray-500 mt-1">% of their trade to copy</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Position ($)
+                      </label>
+                      <input type="number" value={congressMaxPositionUsd} onChange={(e) => setCongressMaxPositionUsd(parseFloat(e.target.value))} step="100" min="50" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" placeholder="500" />
+                      <p className="text-[10px] text-gray-500 mt-1">Max per copy trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Min Trade ($)
+                      </label>
+                      <input type="number" value={congressMinTradeAmountUsd} onChange={(e) => setCongressMinTradeAmountUsd(parseFloat(e.target.value))} step="1000" min="1000" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" placeholder="15000" />
+                      <p className="text-[10px] text-gray-500 mt-1">Min politician trade size</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Delay (hrs)
+                      </label>
+                      <input type="number" value={congressDelayHours} onChange={(e) => setCongressDelayHours(parseInt(e.target.value))} step="1" min="0" max="168" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" placeholder="0" />
+                      <p className="text-[10px] text-gray-500 mt-1">Wait after disclosure</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Settings Row 2 - Filters */}
+                <div className="p-4 bg-amber-500/5">
+                  <p className="text-xs font-medium text-amber-400 mb-3 uppercase tracking-wider">Filters &amp; Politicians</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        🏛️ Chamber
+                      </label>
+                      <select 
+                        value={congressChambers} 
+                        onChange={(e) => setCongressChambers(e.target.value)} 
+                        disabled={!isAdmin} 
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50"
+                      >
+                        <option value="both">Both Chambers</option>
+                        <option value="house">House Only</option>
+                        <option value="senate">Senate Only</option>
+                      </select>
+                      <p className="text-[10px] text-gray-500 mt-1">Which chamber to track</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        🗳️ Party Filter
+                      </label>
+                      <select 
+                        value={congressParties} 
+                        onChange={(e) => setCongressParties(e.target.value)} 
+                        disabled={!isAdmin} 
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50"
+                      >
+                        <option value="any">All Parties</option>
+                        <option value="D">Democrats Only</option>
+                        <option value="R">Republicans Only</option>
+                        <option value="I">Independents Only</option>
+                      </select>
+                      <p className="text-[10px] text-gray-500 mt-1">Filter by party</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <RefreshCw className="w-3 h-3" />
+                        Scan Interval (hrs)
+                      </label>
+                      <input type="number" value={congressScanIntervalHours} onChange={(e) => setCongressScanIntervalHours(parseInt(e.target.value))} step="1" min="1" max="24" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" placeholder="6" />
+                      <p className="text-[10px] text-gray-500 mt-1">How often to check</p>
+                    </div>
+                  </div>
+                  
+                  {/* Tracked Politicians */}
+                  <div className="mt-4">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                      👤 Tracked Politicians (comma-separated)
+                    </label>
+                    <input 
+                      type="text" 
+                      value={congressTrackedPoliticians} 
+                      onChange={(e) => setCongressTrackedPoliticians(e.target.value)} 
+                      disabled={!isAdmin} 
+                      placeholder="Nancy Pelosi,Tommy Tuberville,Dan Crenshaw" 
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-amber-500 text-sm disabled:opacity-50" 
+                    />
+                    <p className="text-[10px] text-gray-500 mt-1">
+                      Leave blank to track all (auto-discovery). Known top performers: Nancy Pelosi, Tommy Tuberville, Dan Crenshaw, Josh Gottheimer, Michael McCaul
+                    </p>
                   </div>
                 </div>
               </div>

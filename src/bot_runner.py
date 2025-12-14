@@ -105,6 +105,7 @@ from src.strategies import (
     MacroBoardStrategy,
     FearPremiumContrarianStrategy,
 )
+from src.strategies.congressional_tracker import CongressionalTrackerStrategy
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.notifications import Notifier, NotificationConfig
@@ -214,6 +215,9 @@ class PolybotRunner:
         
         # Whale Copy Trading - follow profitable wallets
         self.whale_copy_trading: Optional[WhaleCopyTradingStrategy] = None
+        
+        # Congressional Tracker - copy stock trades from Congress
+        self.congressional_tracker: Optional[CongressionalTrackerStrategy] = None
         
         # Macro Board - weighted macro event exposure
         self.macro_board: Optional[MacroBoardStrategy] = None
@@ -930,6 +934,52 @@ class PolybotRunner:
         else:
             logger.info("⏸️ Fear Premium Contrarian DISABLED")
         
+        # Initialize Congressional Tracker (70% CONFIDENCE - 15-40% APY)
+        congress_enabled = getattr(
+            self.config.trading, 'enable_congressional_tracker', False
+        )
+        if congress_enabled:
+            # Parse tracked politicians from config
+            tracked_str = getattr(
+                self.config.trading, 'congress_tracked_politicians', 
+                'Nancy Pelosi,Tommy Tuberville,Dan Crenshaw'
+            )
+            tracked_list = [
+                p.strip() for p in tracked_str.split(',') if p.strip()
+            ] if tracked_str else None
+            
+            # Get chambers setting
+            chambers_str = getattr(
+                self.config.trading, 'congress_chambers', 'both'
+            )
+            from src.strategies.congressional_tracker import Chamber
+            chambers = Chamber(chambers_str) if chambers_str else Chamber.BOTH
+            
+            self.congressional_tracker = CongressionalTrackerStrategy(
+                tracked_politicians=tracked_list,
+                chambers=chambers,
+                copy_scale_pct=getattr(
+                    self.config.trading, 'congress_copy_scale_pct', 10.0
+                ),
+                max_position_usd=getattr(
+                    self.config.trading, 'congress_max_position_usd', 500.0
+                ),
+                min_trade_amount_usd=getattr(
+                    self.config.trading, 'congress_min_trade_amount_usd', 15000.0
+                ),
+                delay_hours=getattr(
+                    self.config.trading, 'congress_delay_hours', 0
+                ),
+                scan_interval_seconds=getattr(
+                    self.config.trading, 'congress_scan_interval_hours', 6
+                ) * 3600,
+                db_client=self.db,
+            )
+            logger.info("✓ Congressional Tracker initialized (70% CONFIDENCE)")
+            logger.info(f"  🏛️ Tracking: {', '.join(tracked_list or ['ALL'])}")
+        else:
+            logger.info("⏸️ Congressional Tracker DISABLED")
+        
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
             self.paper_trader = RealisticPaperTrader(
@@ -1645,6 +1695,17 @@ class PolybotRunner:
             # Use the strategy's own run method
             await self.fear_premium_contrarian.run()
 
+    async def run_congressional_tracker(self):
+        """Run Congressional Tracker (75% CONFIDENCE - Copy Congress trades)."""
+        if not getattr(self.config.trading, 'enable_congressional_tracker', False):
+            return
+
+        if self.congressional_tracker:
+            logger.info("▶️ Starting Congressional Tracker...")
+            logger.info("  🏛️ Copying Congress member trades")
+            # Use the strategy's own run method
+            await self.congressional_tracker.run()
+
     async def run_position_manager(self):
         """Run position manager."""
         if self.position_manager:
@@ -1788,12 +1849,14 @@ class PolybotRunner:
         wh_copy = getattr(self.config.trading, 'enable_whale_copy_trading', False)
         mac_board = getattr(self.config.trading, 'enable_macro_board', False)
         fear_pr = getattr(self.config.trading, 'enable_fear_premium_contrarian', False)
+        cong_tr = getattr(self.config.trading, 'enable_congressional_tracker', False)
         logger.info(f"  - BTC Bracket Arb (85%): {'ON' if btc_br else 'OFF'}")
         logger.info(f"  - Bracket Compression (70%): {'ON' if br_comp else 'OFF'}")
         logger.info(f"  - Kalshi Mention Snipe (80%): {'ON' if kal_snipe else 'OFF'}")
         logger.info(f"  - Whale Copy Trading (75%): {'ON' if wh_copy else 'OFF'}")
         logger.info(f"  - Macro Board (65%): {'ON' if mac_board else 'OFF'}")
         logger.info(f"  - Fear Premium Contrarian (70%): {'ON' if fear_pr else 'OFF'}")
+        logger.info(f"  - Congressional Tracker (75%): {'ON' if cong_tr else 'OFF'}")
         logger.info("=" * 60)
         
         # Send startup notification
@@ -1899,6 +1962,13 @@ class PolybotRunner:
         )
         if fear_prem and self.fear_premium_contrarian:
             tasks.append(asyncio.create_task(self.run_fear_premium_contrarian()))
+
+        # Run Congressional Tracker (75% CONFIDENCE)
+        congress = getattr(
+            self.config.trading, 'enable_congressional_tracker', False
+        )
+        if congress and self.congressional_tracker:
+            tasks.append(asyncio.create_task(self.run_congressional_tracker()))
         
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))

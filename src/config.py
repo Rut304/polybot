@@ -334,6 +334,17 @@ class TradingConfig:
     fear_min_premium_pct: int = 10              # Min fear premium (%)
     fear_max_position_usd: float = 200.0        # Max position size
 
+    # Congressional Tracker (75% CONFIDENCE - 15-40% APY)
+    # Copy Congress member stock trades (scaled to your bankroll)
+    enable_congressional_tracker: bool = False  # OFF by default
+    congress_tracked_politicians: str = ""      # Comma-separated names
+    congress_chamber_filter: str = "both"       # house, senate, both
+    congress_copy_scale_pct: float = 10.0       # % of bankroll to copy
+    congress_min_trade_amount_usd: float = 100.0  # Min trade to copy
+    congress_max_position_usd: float = 500.0    # Max position size
+    congress_copy_delay_hours: int = 24         # Delay after disclosure
+    congress_data_source: str = "house_watcher"  # Data source
+
 
 @dataclass
 class PolymarketConfig:
@@ -998,6 +1009,31 @@ class Config:
             ),
             fear_max_position_usd=self._get_float(
                 "fear_max_position_usd", "FEAR_MAX_POS", 200.0
+            ),
+            # Congressional Tracker config
+            enable_congressional_tracker=self._get_bool(
+                "enable_congressional_tracker", "ENABLE_CONGRESS_TRACKER", False
+            ),
+            congress_tracked_politicians=self._get_str(
+                "congress_tracked_politicians", "CONGRESS_TRACKED_POLS", ""
+            ),
+            congress_chamber_filter=self._get_str(
+                "congress_chamber_filter", "CONGRESS_CHAMBER", "both"
+            ),
+            congress_copy_scale_pct=self._get_float(
+                "congress_copy_scale_pct", "CONGRESS_COPY_SCALE", 10.0
+            ),
+            congress_min_trade_amount_usd=self._get_float(
+                "congress_min_trade_amount_usd", "CONGRESS_MIN_TRADE", 100.0
+            ),
+            congress_max_position_usd=self._get_float(
+                "congress_max_position_usd", "CONGRESS_MAX_POS", 500.0
+            ),
+            congress_copy_delay_hours=self._get_int(
+                "congress_copy_delay_hours", "CONGRESS_COPY_DELAY", 24
+            ),
+            congress_data_source=self._get_str(
+                "congress_data_source", "CONGRESS_DATA_SOURCE", "house_watcher"
             ),
         )
         self.polymarket = PolymarketConfig()

@@ -724,6 +724,40 @@ const STRATEGIES: Strategy[] = [
     ],
     configKey: 'enable_fear_premium_contrarian',
   },
+  {
+    id: 'congressional_tracker',
+    name: 'Congressional Tracker',
+    emoji: '🏛️',
+    confidence: 70,
+    expectedApy: '15-40%',
+    description: 'Copy stock trades from members of Congress. STOCK Act requires 45-day disclosure. Studies show ~12% annual outperformance vs S&P 500.',
+    keyPoints: [
+      'Free data from House/Senate Stock Watcher APIs',
+      'Congress has information edge from briefings & legislation',
+      'Top performers: Pelosi, Tuberville, Crenshaw',
+      'Scale trades to your bankroll (10% default)',
+      'Filter by politician, party, or chamber',
+    ],
+    platforms: ['Alpaca', 'IBKR', 'Any Broker'],
+    riskLevel: 'medium',
+    category: 'stock',
+    icon: <Users className="w-6 h-6" />,
+    color: 'from-amber-500 to-yellow-500',
+    requirements: [
+      'Stock broker with API (Alpaca recommended)',
+      'Capital for stock purchases',
+      'Patience for disclosure lag (up to 45 days)',
+    ],
+    workflow: [
+      'Fetch trades from House/Senate Stock Watcher',
+      'Filter by tracked politicians or criteria',
+      'Calculate copy size (% of their trade)',
+      'Execute via broker API',
+      'Track performance per politician',
+      'Adjust tracking list based on results',
+    ],
+    configKey: 'enable_congressional_tracker',
+  },
 
   // ===== 65% CONFIDENCE =====
   {
