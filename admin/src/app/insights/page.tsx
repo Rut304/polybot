@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Brain, 
   Lightbulb,
@@ -29,6 +29,8 @@ import {
   Cpu,
   ToggleLeft,
   ToggleRight,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -269,6 +271,14 @@ function TuningCard({ recommendation, index, onApply }: {
   );
 }
 
+// Interface for suggestion history
+interface SuggestionHistoryEntry {
+  id: string;
+  timestamp: string;
+  recommendations: TuningRecommendation[];
+  appliedCount: number;
+}
+
 export default function InsightsPage() {
   const { data: trades = [] } = useSimulatedTrades(500);
   const { data: opportunities = [] } = useOpportunities(1000);
@@ -283,6 +293,20 @@ export default function InsightsPage() {
   const [applyingRecommendations, setApplyingRecommendations] = useState(false);
   const [applyResult, setApplyResult] = useState<{ success: boolean; message: string } | null>(null);
   const [rsiEnabled, setRsiEnabled] = useState(true); // Default ON - Apply All always works
+  const [showHistory, setShowHistory] = useState(false);
+  const [suggestionHistory, setSuggestionHistory] = useState<SuggestionHistoryEntry[]>([]);
+
+  // Load suggestion history from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('suggestionHistory');
+      if (stored) {
+        setSuggestionHistory(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error('Failed to load suggestion history:', e);
+    }
+  }, []);
 
   // Apply all recommendations automatically
   const handleApplyAllRecommendations = useCallback(async (recommendations: TuningRecommendation[]) => {
@@ -313,6 +337,24 @@ export default function InsightsPage() {
       setApplyResult({
         success: true,
         message: `Applied ${data.applied} recommendations (${data.skipped} skipped)`,
+      });
+      
+      // Save to history
+      const historyEntry: SuggestionHistoryEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        recommendations,
+        appliedCount: data.applied || 0,
+      };
+      
+      setSuggestionHistory(prev => {
+        const newHistory = [historyEntry, ...prev].slice(0, 20); // Keep last 20 entries
+        try {
+          localStorage.setItem('suggestionHistory', JSON.stringify(newHistory));
+        } catch (e) {
+          console.error('Failed to save suggestion history:', e);
+        }
+        return newHistory;
       });
       
       // Refresh config
@@ -1075,8 +1117,29 @@ export default function InsightsPage() {
       });
     }
     
+    // Filter out recommendations where current value already matches recommended value
+    const filteredRecommendations = recommendations.filter(rec => {
+      // Normalize values for comparison
+      const normalizeValue = (val: string | number): number => {
+        if (typeof val === 'number') return val;
+        // Remove $ and % symbols and parse
+        const cleaned = val.replace(/[$%]/g, '').trim();
+        return parseFloat(cleaned) || 0;
+      };
+      
+      const currentNum = normalizeValue(rec.currentValue);
+      const recommendedNum = normalizeValue(rec.recommendedValue);
+      
+      // Consider values "matching" if they're within 5% of each other
+      if (currentNum === 0 && recommendedNum === 0) return false;
+      const tolerance = Math.abs(recommendedNum) * 0.05 || 0.01;
+      const isAlreadyApplied = Math.abs(currentNum - recommendedNum) <= tolerance;
+      
+      return !isAlreadyApplied;
+    });
+    
     // Sort by priority
-    return recommendations.sort((a, b) => b.priority - a.priority);
+    return filteredRecommendations.sort((a, b) => b.priority - a.priority);
   }, [trades, opportunities, config]);
 
   const filteredInsights = filter === 'all' 
@@ -1346,6 +1409,73 @@ export default function InsightsPage() {
             </div>
           )}
         </div>
+
+        {/* Suggestion History Dropdown */}
+        {suggestionHistory.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-8"
+          >
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="w-full flex items-center justify-between p-4 bg-dark-card rounded-xl border border-dark-border hover:border-gray-600 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-gray-400" />
+                <span className="font-medium">Suggestion History</span>
+                <span className="text-sm text-gray-500">({suggestionHistory.length} entries)</span>
+              </div>
+              {showHistory ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+            </button>
+            
+            <AnimatePresence>
+              {showHistory && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-2 space-y-2 max-h-[400px] overflow-y-auto">
+                    {suggestionHistory.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="p-4 bg-dark-card/50 rounded-lg border border-dark-border/50"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {new Date(entry.timestamp).toLocaleDateString()} at {new Date(entry.timestamp).toLocaleTimeString()}
+                            </span>
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
+                              Applied {entry.appliedCount}/{entry.recommendations.length}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {entry.recommendations.slice(0, 3).map((rec) => (
+                            <div key={rec.id} className="text-sm text-gray-400 flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-gray-600"></span>
+                              <span className="font-mono text-xs">{rec.parameter}</span>
+                              <span className="text-gray-600">→</span>
+                              <span className="text-gray-300">{rec.recommendedValue}</span>
+                            </div>
+                          ))}
+                          {entry.recommendations.length > 3 && (
+                            <p className="text-xs text-gray-500 pl-4">
+                              +{entry.recommendations.length - 3} more changes
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* AI Recommendations Footer */}
         <motion.div 

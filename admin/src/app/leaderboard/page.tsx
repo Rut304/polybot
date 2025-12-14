@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   Trophy,
   TrendingUp,
@@ -24,9 +24,19 @@ import {
   AlertCircle,
   BadgeCheck,
   Activity,
+  Play,
+  Check,
+  UserPlus,
+  Settings,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { createClient } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface LeaderboardTrader {
   rank: number;
@@ -65,6 +75,9 @@ interface StrategyInsight {
   recommendation: string;
   type: 'pattern' | 'warning' | 'opportunity';
   confidence: 'high' | 'medium' | 'low';
+  implementable?: boolean;
+  implementAction?: 'add_elite_traders' | 'enable_high_conviction' | 'enable_politics_focus' | 'go_to_settings';
+  implementLabel?: string;
 }
 
 const TIER_INFO = {
@@ -148,6 +161,9 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       recommendation: 'Focus on fewer, higher-confidence predictions rather than spreading capital across many markets.',
       type: 'pattern',
       confidence: 'high',
+      implementable: true,
+      implementAction: 'add_elite_traders',
+      implementLabel: 'Track Elite Traders',
     });
   }
   
@@ -161,6 +177,9 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       recommendation: 'Avoid chasing volume. Track ROI as primary metric, not total profit.',
       type: 'warning',
       confidence: 'high',
+      implementable: true,
+      implementAction: 'enable_high_conviction',
+      implementLabel: 'Enable High Conviction Mode',
     });
   }
   
@@ -179,6 +198,9 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       recommendation: 'Target markets with sufficient liquidity. For $1K bets, focus on markets with >$100K volume.',
       type: 'opportunity',
       confidence: 'medium',
+      implementable: true,
+      implementAction: 'go_to_settings',
+      implementLabel: 'Adjust Position Sizing',
     });
   }
   
@@ -199,6 +221,9 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       recommendation: 'Political events offer high-conviction opportunities. Build expertise in political forecasting.',
       type: 'pattern',
       confidence: 'medium',
+      implementable: true,
+      implementAction: 'enable_politics_focus',
+      implementLabel: 'Enable Political Strategy',
     });
   }
   
@@ -214,6 +239,9 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
     recommendation: 'Develop systematic rules for entry/exit. Paper trade strategies before deploying capital.',
     type: 'opportunity',
     confidence: 'high',
+    implementable: true,
+    implementAction: 'go_to_settings',
+    implementLabel: 'Configure Strategy Rules',
   });
   
   // Insight 6: Verified traders
@@ -227,6 +255,9 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       recommendation: 'Monitor verified traders\' positions for potential market-moving information.',
       type: 'opportunity',
       confidence: 'medium',
+      implementable: true,
+      implementAction: 'add_elite_traders',
+      implementLabel: 'Track Verified Traders',
     });
   }
   
@@ -237,11 +268,15 @@ type SortField = 'rank' | 'pnl' | 'volume' | 'roi';
 type TierFilter = 'all' | 'elite' | 'pro' | 'skilled' | 'active' | 'volume';
 
 export default function LeaderboardPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('rank');
   const [sortAsc, setSortAsc] = useState(true);
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
   const [showInsights, setShowInsights] = useState(true);
+  const [implementingInsight, setImplementingInsight] = useState<string | null>(null);
+  const [implementResult, setImplementResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
 
   const { data: traders = [], isLoading, refetch } = useQuery({
     queryKey: ['leaderboard'],
@@ -287,6 +322,97 @@ export default function LeaderboardPage() {
 
   // Generate insights
   const insights = useMemo(() => generateInsights(traders), [traders]);
+
+  // Handle implementing an insight
+  const handleImplementInsight = useCallback(async (insight: StrategyInsight) => {
+    if (!insight.implementAction) return;
+    
+    setImplementingInsight(insight.id);
+    setImplementResult(null);
+    
+    try {
+      switch (insight.implementAction) {
+        case 'add_elite_traders': {
+          // Add top 5 elite or verified traders to whale tracking
+          const eliteTraders = insight.id === 'verified-signal' 
+            ? traders.filter(t => t.verified).slice(0, 5)
+            : traders.filter(t => t.tier === 'elite').slice(0, 5);
+          
+          for (const trader of eliteTraders) {
+            await supabase.from('polybot_tracked_whales').upsert({
+              address: trader.address,
+              name: trader.username,
+              tier: trader.tier,
+              roi_pct: trader.roi,
+              volume_usd: trader.volume,
+              copy_enabled: false,
+              track_enabled: true,
+            }, { onConflict: 'address' });
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ['trackedWhales'] });
+          setImplementResult({
+            id: insight.id,
+            success: true,
+            message: `Added ${eliteTraders.length} traders to whale tracking`,
+          });
+          break;
+        }
+        
+        case 'enable_high_conviction': {
+          // Update config to enable high conviction mode
+          const { error } = await supabase
+            .from('polybot_config')
+            .update({ 
+              min_confidence_threshold: 0.75,
+              max_concurrent_positions: 3,
+            })
+            .eq('id', 1);
+          
+          if (error) throw error;
+          
+          setImplementResult({
+            id: insight.id,
+            success: true,
+            message: 'Enabled high conviction mode (75% threshold, max 3 positions)',
+          });
+          break;
+        }
+        
+        case 'enable_politics_focus': {
+          // Update config to focus on political markets
+          const { error } = await supabase
+            .from('polybot_config')
+            .update({ 
+              market_focus: 'politics',
+              enable_event_trading: true,
+            })
+            .eq('id', 1);
+          
+          if (error) throw error;
+          
+          setImplementResult({
+            id: insight.id,
+            success: true,
+            message: 'Enabled political market focus',
+          });
+          break;
+        }
+        
+        case 'go_to_settings':
+          router.push('/settings');
+          return;
+      }
+    } catch (error) {
+      setImplementResult({
+        id: insight.id,
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to implement',
+      });
+    } finally {
+      setImplementingInsight(null);
+    }
+  }, [traders, router, queryClient]);
 
   // Filter and sort traders
   const displayedTraders = useMemo(() => {
@@ -446,6 +572,7 @@ export default function LeaderboardPage() {
           <h3 className="font-medium flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-yellow-400" />
             Strategy Insights & Recommendations
+            <span className="text-xs text-gray-500">• 1-click implement</span>
           </h3>
           {showInsights ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
@@ -474,21 +601,60 @@ export default function LeaderboardPage() {
                      <Zap className="w-5 h-5 text-green-400" />}
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-medium">{insight.title}</h4>
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        insight.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
-                        insight.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-gray-500/20 text-gray-400'
-                      }`}>
-                        {insight.confidence} confidence
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium">{insight.title}</h4>
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          insight.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
+                          insight.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {insight.confidence} confidence
+                        </span>
+                      </div>
+                      
+                      {/* 1-Click Implement Button */}
+                      {insight.implementable && (
+                        <button
+                          onClick={() => handleImplementInsight(insight)}
+                          disabled={implementingInsight === insight.id}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                            implementResult?.id === insight.id && implementResult.success
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white'
+                          }`}
+                        >
+                          {implementingInsight === insight.id ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : implementResult?.id === insight.id && implementResult.success ? (
+                            <Check className="w-4 h-4" />
+                          ) : insight.implementAction === 'go_to_settings' ? (
+                            <Settings className="w-4 h-4" />
+                          ) : insight.implementAction === 'add_elite_traders' ? (
+                            <UserPlus className="w-4 h-4" />
+                          ) : (
+                            <Play className="w-4 h-4" />
+                          )}
+                          {implementResult?.id === insight.id && implementResult.success 
+                            ? 'Done!' 
+                            : insight.implementLabel || 'Implement'}
+                        </button>
+                      )}
                     </div>
                     <p className="text-gray-400 text-sm mt-1">{insight.description}</p>
                     <p className="text-gray-500 text-sm mt-1 italic">"{insight.evidence}"</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs text-gray-500">💡 Recommendation:</span>
-                      <span className="text-sm">{insight.recommendation}</span>
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">💡 Recommendation:</span>
+                        <span className="text-sm">{insight.recommendation}</span>
+                      </div>
+                      
+                      {/* Show result message */}
+                      {implementResult?.id === insight.id && (
+                        <span className={`text-xs ${implementResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                          {implementResult.message}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -468,6 +468,52 @@ export default function WhalesPage() {
         </motion.div>
       </div>
 
+      {/* Currently Following Panel */}
+      {trackedWhales.filter(w => w.copy_enabled).length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card p-4 border-2 border-green-500/30 bg-green-500/5"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Zap className="w-5 h-5 text-green-400" />
+              <span className="text-green-400">Currently Copy Trading</span>
+              <span className="text-sm text-gray-400">({trackedWhales.filter(w => w.copy_enabled).length} traders)</span>
+            </h3>
+            <button
+              onClick={() => setShowTrackedOnly(true)}
+              className="text-sm text-blue-400 hover:text-blue-300"
+            >
+              View All →
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {trackedWhales.filter(w => w.copy_enabled).map(whale => (
+              <div
+                key={whale.address}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg border border-gray-700 hover:border-green-500/50 transition-colors"
+              >
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="font-medium">
+                  {whale.alias || `${whale.address.slice(0, 6)}...${whale.address.slice(-4)}`}
+                </span>
+                <span className={`text-sm ${whale.copy_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ${whale.copy_pnl >= 0 ? '+' : ''}{whale.copy_pnl.toFixed(2)}
+                </span>
+                <button
+                  onClick={() => toggleCopyMutation.mutate({ address: whale.address, enabled: false })}
+                  className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-red-400"
+                  title="Stop copying"
+                >
+                  <EyeOff className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Filters */}
       <div className="card p-4">
         <div className="flex flex-wrap items-center gap-4">
