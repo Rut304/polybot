@@ -1,19 +1,66 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 13, 2025 (10:30 PM EST)  
-**Current Version:** v1.1.19 (Build #79)  
-**Deployment:** v4 on AWS Lightsail (fresh service - recreated)  
-**Status:** 🟢 RUNNING - Simulation Mode - **VERIFIED WORKING**
+**Last Updated:** December 13, 2025 (11:35 PM EST)  
+**Current Version:** v1.1.19 (Build #80)  
+**Deployment:** v5 on AWS Lightsail  
+**Status:** 🟢 RUNNING - Simulation Mode with ULTRA AGGRESSIVE settings - **VERIFIED WORKING**
 
 ---
 
-## 🎉 CRITICAL FIX DEPLOYED (v1.1.19) - December 13, 2025
+## 🎉 ULTRA AGGRESSIVE DEPLOYMENT COMPLETE (Build #80) - December 13, 2025
 
-### ROOT CAUSE IDENTIFIED & FIXED: Container Startup Crash
+### What Was Done
+
+1. **Fixed 5 strategy initialization bugs** (Build #79) - Parameter name mismatches causing container crash
+2. **Fixed config→strategy parameter mapping** (Build #80) - Supabase columns map to different strategy parameters
+3. **Ultra Aggressive SQL applied** - User applied `ultra_aggressive_simulation.sql` in Supabase
+
+### Issue: Config Column Names vs Strategy Parameters
+
+The Supabase columns (and config.py attributes) have different names than the actual strategy class parameters:
+
+| Supabase Column | Strategy Parameter | Conversion |
+|----------------|-------------------|------------|
+| `bracket_max_imbalance_threshold` | `entry_z_score` | `value * 6.67` |
+| `bracket_take_profit_pct` | `min_profit_pct` | direct |
+| `kalshi_snipe_min_profit_cents` | `min_profit_pct` | `value / 100.0` |
+| `macro_min_conviction_score` | `min_edge_pct` | `value / 10.0` |
+| `macro_rebalance_interval_hours` | `scan_interval_seconds` | `value * 3600` |
+
+### Ultra Aggressive Settings Now Active
+
+```sql
+-- Key settings from ultra_aggressive_simulation.sql:
+poly_single_min_profit_pct = 0.1        -- (was 0.2) Almost any spread!
+kalshi_single_min_profit_pct = 3        -- (was 8) Much more aggressive
+whale_copy_min_win_rate = 65            -- (was 80) Follow more whales
+macro_min_conviction_score = 55         -- (was 70) More macro positions
+max_concurrent_positions = 50           -- (was 35) More trades
+```
+
+### Verification
+
+- ✅ Status endpoint: `{"status": "running", "service": "polybot", "version": "1.1.19", "build": 80}`
+- ✅ Health endpoint: `OK`
+- ✅ **Actively logging opportunities** - most recent at 04:33 UTC
+- ✅ Deployment v5 is ACTIVE
+
+### Deployment Details
+
+- **Service URL:** https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/
+- **Lightsail Image:** `:polyparlay.polybot.77`
+- **Deploy Version:** 5 (ACTIVE)
+- **Region:** us-east-1
+
+---
+
+## 📝 PREVIOUS FIXES THIS SESSION
+
+### Fix #1: Container Startup Crash (Build #79)
 
 The bot was **crashing on startup** due to **5 TypeError bugs** in strategy initialization. These were **parameter name mismatches** between `bot_runner.py` and the actual strategy class `__init__` signatures.
 
-#### Bugs Fixed in `src/bot_runner.py`:
+#### Bugs Fixed in `src/bot_runner.py`
 
 | Strategy | Wrong Parameter | Correct Parameter | Line |
 |----------|-----------------|-------------------|------|
@@ -24,19 +71,22 @@ The bot was **crashing on startup** due to **5 TypeError bugs** in strategy init
 | `WhaleCopyTradingStrategy` | `max_concurrent_copies` | removed (not in signature) | ~858 |
 | `MacroBoardStrategy` | `min_conviction_score`, `rebalance_interval_hours` | `min_edge_pct`, `scan_interval_seconds` | ~885 |
 
-#### Error from Logs (Before Fix):
+#### Error from Logs (Before Fix)
+
 ```
 TypeError: BTCBracketArbStrategy.__init__() got an unexpected keyword argument 'min_combined_discount_pct'
 ```
 
-#### Verification:
+#### Verification
+
 - ✅ Status endpoint: `{"status": "running", "service": "polybot", "version": "1.1.19", "build": 79}`
 - ✅ Health endpoint: `OK`
 - ✅ **50+ opportunities logged in 10 minutes** to `polybot_opportunities` table
 - ✅ Code committed and pushed to GitHub
 
-#### Deployment Details:
-- **Service URL:** https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/
+#### Deployment Details
+
+- **Service URL:** <https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/>
 - **Lightsail Image:** `:polyparlay.polybot.76`
 - **Deploy Version:** 4 (ACTIVE)
 - **Region:** us-east-1
@@ -46,9 +96,11 @@ TypeError: BTCBracketArbStrategy.__init__() got an unexpected keyword argument '
 ## ⚠️ IMPORTANT CONTEXT FOR NEXT AGENT
 
 ### Why the Service Was Recreated
+
 The original service had 100+ failed deployments due to debugging the wrong issue (env vars). The service was deleted and recreated fresh to start clean. The NEW service ARN is different.
 
 ### Environment Variables (Confirmed Working)
+
 ```json
 {
   "BOT_VERSION": "1.1.19",
@@ -64,6 +116,7 @@ The original service had 100+ failed deployments due to debugging the wrong issu
 ```
 
 ### Useful Commands
+
 ```bash
 # Check bot status
 curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
