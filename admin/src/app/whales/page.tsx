@@ -28,6 +28,7 @@ import {
   Crown,
   Award,
   Medal,
+  BadgeCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,6 +66,8 @@ interface TrackedWhale {
 interface LeaderboardWhale {
   address: string;
   username?: string;
+  xUsername?: string;
+  verified?: boolean;
   volume: number;
   pnl: number;
   rank?: number;
@@ -583,6 +586,8 @@ export default function WhalesPage() {
               const pnl = 'pnl' in whale ? whale.pnl : ('copy_pnl' in whale ? whale.copy_pnl : 0);
               const rank = 'rank' in whale ? whale.rank : (index + 1);
               const name = 'alias' in whale ? whale.alias : ('username' in whale ? whale.username : null);
+              const xUsername = 'xUsername' in whale ? whale.xUsername : null;
+              const verified = 'verified' in whale ? whale.verified : false;
               const tier = 'tier' in whale && whale.tier ? (whale.tier as string) : getWhaleTier(volume, pnl);
               const tierInfo = WHALE_TIERS[tier as keyof typeof WHALE_TIERS];
               const TierIcon = tierInfo.icon;
@@ -627,6 +632,22 @@ export default function WhalesPage() {
                           <span className="font-medium">
                             {name || `${address.slice(0, 6)}...${address.slice(-4)}`}
                           </span>
+                          {verified && (
+                            <span title="Verified trader">
+                              <BadgeCheck className="w-4 h-4 text-blue-400" />
+                            </span>
+                          )}
+                          {xUsername && (
+                            <a
+                              href={`https://x.com/${xUsername}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-gray-400 hover:text-blue-400"
+                              title={`@${xUsername} on X`}
+                            >
+                              @{xUsername}
+                            </a>
+                          )}
                           <button
                             onClick={() => copyAddress(address)}
                             className="p-1 hover:bg-gray-700 rounded"
