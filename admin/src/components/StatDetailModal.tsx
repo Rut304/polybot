@@ -314,13 +314,21 @@ function OpportunityDetails({ statsJson, realTimeStats, opportunities, trades, t
   const totalSeen = totalOpportunitiesSeen ?? statsJson?.total_opportunities_seen ?? opportunities.length;
   const conversionRate = totalSeen > 0 ? (totalTraded / totalSeen) * 100 : 0;
   
-  const byStrategy = opportunities.reduce((acc, opp) => {
+  // Filter to real arbitrage opportunities (not activity signals)
+  const realOpportunities = opportunities.filter(opp => {
+    const hasProfit = (opp.profit_percent || 0) > 0;
+    const hasPrices = (opp.buy_price || 0) > 0 && (opp.sell_price || 0) > 0;
+    const isNotActivitySignal = !opp.buy_market_name?.startsWith('High activity:');
+    return (hasProfit || hasPrices) && isNotActivitySignal;
+  });
+  
+  const byStrategy = realOpportunities.reduce((acc, opp) => {
     const strategy = opp.strategy || 'unknown';
     acc[strategy] = (acc[strategy] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   
-  const recentOpps = opportunities.slice(0, 5);
+  const recentOpps = realOpportunities.slice(0, 5);
   
   return (
     <div className="space-y-4">
@@ -345,7 +353,7 @@ function OpportunityDetails({ statsJson, realTimeStats, opportunities, trades, t
         </div>
       )}
 
-      {recentOpps.length > 0 && (
+      {recentOpps.length > 0 ? (
         <div className="bg-dark-border/50 rounded-xl p-4">
           <h4 className="text-sm font-medium text-gray-400 mb-3">Recent Opportunities</h4>
           <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -354,12 +362,20 @@ function OpportunityDetails({ statsJson, realTimeStats, opportunities, trades, t
                 <span className="text-gray-400 truncate max-w-[200px]" title={opp.buy_market_name || ''}>
                   {(opp.buy_market_name || 'Unknown').substring(0, 30)}...
                 </span>
-                <span className="text-neon-green font-medium">
+                <span className={cn(
+                  "font-medium",
+                  (opp.profit_percent || 0) >= 2 ? "text-neon-green" : 
+                  (opp.profit_percent || 0) >= 1 ? "text-neon-yellow" : "text-gray-400"
+                )}>
                   {formatPercent(opp.profit_percent || 0)}
                 </span>
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        <div className="bg-dark-border/50 rounded-xl p-4 text-center text-gray-500">
+          <p className="text-sm">No arbitrage opportunities with profit detected yet</p>
         </div>
       )}
     </div>

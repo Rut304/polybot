@@ -372,11 +372,12 @@ class PolybotRunner:
         
         if self.enable_arb_detection:
             self.arb_detector = OverlappingArbDetector(
-                min_liquidity=5000,
-                min_deviation=3.0,
-                check_interval=120,
+                min_liquidity=10000,  # Increased from 5000
+                min_deviation=5.0,    # Increased from 3.0 - require higher deviation
+                check_interval=180,   # Increased from 120 - less frequent scanning
             )
-            logger.info("✓ Overlapping Arbitrage Detector initialized")
+            logger.info("✓ Overlapping Arbitrage Detector initialized (tuned)")
+            logger.info("  📊 min_deviation=5%, min_liquidity=$10K, confidence>=0.6")
         
         if self.enable_position_manager and self.wallet_address:
             self.position_manager = PositionManager(

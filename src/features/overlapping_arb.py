@@ -86,12 +86,20 @@ class OverlappingArbDetector:
     1. Implication: If A implies B, then P(A) <= P(B). Violation = opportunity
     2. Mutual Exclusion: If A and B can't both happen, P(A) + P(B) <= 100%
     3. Exhaustive: If A, B, C cover all outcomes, P(A) + P(B) + P(C) = 100%
+    
+    TUNING NOTES (Dec 2025):
+    - Increased min_deviation from 3% to 5% to filter marginal opportunities
+    - Added min_confidence filter (0.6) to skip low-confidence correlated trades
+    - Increased liquidity requirements for confidence calculation
+    - Correlated markets disabled by default (too risky without semantic analysis)
     """
     
     GAMMA_API = "https://gamma-api.polymarket.com"
-    MIN_LIQUIDITY = 5000  # Minimum liquidity to consider
-    MIN_VOLUME = 1000  # Minimum 24h volume
-    MIN_DEVIATION = 5.0  # Minimum deviation to flag (5%)
+    MIN_LIQUIDITY = 10000  # Increased from 5000 - need more liquid markets
+    MIN_VOLUME = 5000      # Increased from 1000
+    MIN_DEVIATION = 5.0    # Increased from 3.0 - require higher deviation to trade
+    MIN_CONFIDENCE = 0.6   # NEW: Minimum confidence to generate signal
+    ENABLE_CORRELATED = False  # NEW: Disable correlated markets (too risky)
     
     # Keywords that indicate related markets
     RELATION_KEYWORDS = {
@@ -261,6 +269,8 @@ class OverlappingArbDetector:
     ) -> Optional[OverlapOpportunity]:
         """
         Analyze a pair of related markets for arbitrage opportunity.
+        
+        TUNING: Added confidence and relationship filters to reduce losing trades.
         """
         price_a = market_a.yes_price
         price_b = market_b.yes_price
@@ -268,14 +278,25 @@ class OverlappingArbDetector:
         if price_a == 0 or price_b == 0:
             return None
         
+        # TUNING: Skip correlated markets entirely (too risky)
+        if relationship == "correlated" and not self.ENABLE_CORRELATED:
+            return None
+        
         opportunity = None
         
         if relationship == "implies":
             # If A implies B, then P(A) should be <= P(B)
             # If P(A) > P(B), buy B and sell A
-            if price_a > price_b + 0.02:  # 2% buffer
+            # TUNING: Increased buffer from 2% to 5%
+            if price_a > price_b + 0.05:
                 deviation = (price_a - price_b) * 100
                 profit = price_a - price_b
+                
+                # TUNING: Higher confidence requirement (use higher liquidity divisor)
+                confidence = min(0.9, min(
+                    market_a.liquidity / 100000,  # Was 50000
+                    market_b.liquidity / 100000
+                ))
                 
                 opportunity = OverlapOpportunity(
                     id=f"impl_{market_a.condition_id[:8]}_{market_b.condition_id[:8]}",
@@ -286,16 +307,21 @@ class OverlappingArbDetector:
                     expected_probability=1.0,
                     deviation=deviation,
                     profit_potential=profit,
-                    confidence=min(0.9, market_a.liquidity / 50000),
+                    confidence=confidence,
                 )
         
         elif relationship == "mutually_exclusive":
             # If A and B are mutually exclusive, P(A) + P(B) should be <= 1
             # If sum > 1, sell both
             combined = price_a + price_b
-            if combined > 1.05:  # 5% buffer
+            # TUNING: Increased buffer from 5% to 8%
+            if combined > 1.08:
                 deviation = (combined - 1.0) * 100
                 profit = combined - 1.0
+                
+                # TUNING: Both markets must have good liquidity
+                min_liq = min(market_a.liquidity, market_b.liquidity)
+                confidence = min(0.85, min_liq / 100000)  # Was 50000
                 
                 opportunity = OverlapOpportunity(
                     id=f"excl_{market_a.condition_id[:8]}_{market_b.condition_id[:8]}",
@@ -306,14 +332,14 @@ class OverlappingArbDetector:
                     expected_probability=1.0,
                     deviation=deviation,
                     profit_potential=profit,
-                    confidence=min(0.8, min(market_a.liquidity, market_b.liquidity) / 50000),
+                    confidence=confidence,
                 )
         
-        elif relationship == "correlated":
+        elif relationship == "correlated" and self.ENABLE_CORRELATED:
             # For correlated markets, flag if prices diverge significantly
-            # This requires more context but we can flag anomalies
+            # TUNING: Increased from 15% to 25% divergence requirement
             diff = abs(price_a - price_b)
-            if diff > 0.15:  # 15% divergence
+            if diff > 0.25:
                 opportunity = OverlapOpportunity(
                     id=f"corr_{market_a.condition_id[:8]}_{market_b.condition_id[:8]}",
                     market_a=market_a,
@@ -322,11 +348,19 @@ class OverlappingArbDetector:
                     combined_probability=price_a + price_b,
                     expected_probability=1.0,
                     deviation=diff * 100,
-                    profit_potential=diff * 0.3,  # Conservative estimate
-                    confidence=0.5,  # Lower confidence for correlation
+                    profit_potential=diff * 0.2,  # Only 20% (was 30%)
+                    confidence=0.4,  # Lower confidence (was 0.5)
                 )
         
-        if opportunity and opportunity.deviation >= self.min_deviation:
+        # TUNING: Apply both deviation AND confidence filters
+        if opportunity:
+            if opportunity.deviation < self.min_deviation:
+                return None
+            if opportunity.confidence < self.MIN_CONFIDENCE:
+                logger.debug(
+                    f"Skipping low-confidence opportunity: {opportunity.confidence:.2f}"
+                )
+                return None
             return opportunity
         
         return None
