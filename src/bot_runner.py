@@ -792,7 +792,7 @@ class PolybotRunner:
         if btc_bracket_enabled:
             self.btc_bracket_arb = BTCBracketArbStrategy(
                 db_client=self.db,
-                min_combined_discount_pct=getattr(
+                min_profit_pct=getattr(
                     self.config.trading, 'btc_bracket_min_discount_pct', 0.5
                 ),
                 max_position_usd=getattr(
@@ -814,14 +814,14 @@ class PolybotRunner:
         if bracket_compression_enabled:
             self.bracket_compression = BracketCompressionStrategy(
                 db_client=self.db,
-                max_imbalance_threshold=getattr(
-                    self.config.trading, 'bracket_max_imbalance_threshold', 0.30
+                entry_z_score=getattr(
+                    self.config.trading, 'bracket_entry_z_score', 2.0
                 ),
-                take_profit_pct=getattr(
-                    self.config.trading, 'bracket_take_profit_pct', 3.0
+                min_profit_pct=getattr(
+                    self.config.trading, 'bracket_take_profit_pct', 2.0
                 ),
                 stop_loss_pct=getattr(
-                    self.config.trading, 'bracket_stop_loss_pct', 10.0
+                    self.config.trading, 'bracket_stop_loss_pct', 5.0
                 ),
                 max_position_usd=getattr(
                     self.config.trading, 'bracket_max_position_usd', 100
@@ -838,16 +838,15 @@ class PolybotRunner:
         )
         if kalshi_snipe_enabled and self.kalshi_api_key:
             self.kalshi_mention_sniper = KalshiMentionSnipeStrategy(
-                kalshi_client=self.kalshi_client,
                 db_client=self.db,
-                min_profit_cents=getattr(
-                    self.config.trading, 'kalshi_snipe_min_profit_cents', 2
+                min_profit_pct=getattr(
+                    self.config.trading, 'kalshi_snipe_min_profit_pct', 0.5
                 ),
                 max_position_usd=getattr(
                     self.config.trading, 'kalshi_snipe_max_position_usd', 100
                 ),
-                max_latency_ms=getattr(
-                    self.config.trading, 'kalshi_snipe_max_latency_ms', 1000
+                scan_interval_seconds=getattr(
+                    self.config.trading, 'kalshi_snipe_scan_interval_sec', 5
                 ),
             )
             logger.info("✓ Kalshi Mention Sniper initialized (80% CONFIDENCE)")
@@ -865,16 +864,13 @@ class PolybotRunner:
             self.whale_copy_trading = WhaleCopyTradingStrategy(
                 db_client=self.db,
                 min_win_rate=getattr(
-                    self.config.trading, 'whale_copy_min_win_rate', 80
+                    self.config.trading, 'whale_copy_min_win_rate', 70.0
                 ),
                 copy_delay_seconds=getattr(
                     self.config.trading, 'whale_copy_delay_seconds', 30
                 ),
                 max_copy_size_usd=getattr(
-                    self.config.trading, 'whale_copy_max_size_usd', 50
-                ),
-                max_concurrent_copies=getattr(
-                    self.config.trading, 'whale_copy_max_concurrent', 5
+                    self.config.trading, 'whale_copy_max_size_usd', 100.0
                 ),
             )
             logger.info("✓ Whale Copy Trading initialized (75% CONFIDENCE)")
@@ -890,13 +886,13 @@ class PolybotRunner:
             self.macro_board = MacroBoardStrategy(
                 db_client=self.db,
                 max_total_exposure_usd=getattr(
-                    self.config.trading, 'macro_max_exposure_usd', 5000
+                    self.config.trading, 'macro_max_exposure_usd', 50000.0
                 ),
-                min_conviction_score=getattr(
-                    self.config.trading, 'macro_min_conviction_score', 70
+                min_edge_pct=getattr(
+                    self.config.trading, 'macro_min_edge_pct', 5.0
                 ),
-                rebalance_interval_hours=getattr(
-                    self.config.trading, 'macro_rebalance_interval_hours', 24
+                scan_interval_seconds=getattr(
+                    self.config.trading, 'macro_scan_interval_sec', 300
                 ),
             )
             logger.info("✓ Macro Board initialized (65% CONFIDENCE)")
