@@ -814,9 +814,10 @@ class PolybotRunner:
         if bracket_compression_enabled:
             self.bracket_compression = BracketCompressionStrategy(
                 db_client=self.db,
+                # Config has 'bracket_max_imbalance_threshold', map to strategy's 'entry_z_score'
                 entry_z_score=getattr(
-                    self.config.trading, 'bracket_entry_z_score', 2.0
-                ),
+                    self.config.trading, 'bracket_max_imbalance_threshold', 0.30
+                ) * 6.67,  # Convert 0.30 imbalance threshold to ~2.0 z-score
                 min_profit_pct=getattr(
                     self.config.trading, 'bracket_take_profit_pct', 2.0
                 ),
@@ -839,9 +840,10 @@ class PolybotRunner:
         if kalshi_snipe_enabled and self.kalshi_api_key:
             self.kalshi_mention_sniper = KalshiMentionSnipeStrategy(
                 db_client=self.db,
+                # Config has 'kalshi_snipe_min_profit_cents', convert to pct
                 min_profit_pct=getattr(
-                    self.config.trading, 'kalshi_snipe_min_profit_pct', 0.5
-                ),
+                    self.config.trading, 'kalshi_snipe_min_profit_cents', 2
+                ) / 100.0,  # Convert cents to percentage
                 max_position_usd=getattr(
                     self.config.trading, 'kalshi_snipe_max_position_usd', 100
                 ),
@@ -888,12 +890,14 @@ class PolybotRunner:
                 max_total_exposure_usd=getattr(
                     self.config.trading, 'macro_max_exposure_usd', 50000.0
                 ),
+                # Config has 'macro_min_conviction_score', map to strategy's 'min_edge_pct'
                 min_edge_pct=getattr(
-                    self.config.trading, 'macro_min_edge_pct', 5.0
-                ),
+                    self.config.trading, 'macro_min_conviction_score', 70
+                ) / 10.0,  # Convert 55-70 score to 5.5-7.0% edge
+                # Config has 'macro_rebalance_interval_hours', convert to seconds
                 scan_interval_seconds=getattr(
-                    self.config.trading, 'macro_scan_interval_sec', 300
-                ),
+                    self.config.trading, 'macro_rebalance_interval_hours', 24
+                ) * 3600,  # Convert hours to seconds
             )
             logger.info("✓ Macro Board initialized (65% CONFIDENCE)")
             logger.info("  🌍 Weighted macro event exposure")
