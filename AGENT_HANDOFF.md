@@ -1,13 +1,91 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 13, 2025  
-**Current Version:** v1.1.13 (Build #75)  
-**Deployment:** v96 on AWS Lightsail  
-**Status:** 🟢 RUNNING - Simulation Mode
+**Last Updated:** December 13, 2025 (10:30 PM EST)  
+**Current Version:** v1.1.19 (Build #79)  
+**Deployment:** v4 on AWS Lightsail (fresh service - recreated)  
+**Status:** 🟢 RUNNING - Simulation Mode - **VERIFIED WORKING**
 
 ---
 
-## ✅ CRITICAL FIX DEPLOYED (v1.1.13)
+## 🎉 CRITICAL FIX DEPLOYED (v1.1.19) - December 13, 2025
+
+### ROOT CAUSE IDENTIFIED & FIXED: Container Startup Crash
+
+The bot was **crashing on startup** due to **5 TypeError bugs** in strategy initialization. These were **parameter name mismatches** between `bot_runner.py` and the actual strategy class `__init__` signatures.
+
+#### Bugs Fixed in `src/bot_runner.py`:
+
+| Strategy | Wrong Parameter | Correct Parameter | Line |
+|----------|-----------------|-------------------|------|
+| `BTCBracketArbStrategy` | `min_combined_discount_pct` | `min_profit_pct` | ~793 |
+| `BracketCompressionStrategy` | `max_imbalance_threshold` | `entry_z_score` | ~815 |
+| `BracketCompressionStrategy` | `take_profit_pct` | `min_profit_pct` | ~815 |
+| `KalshiMentionSnipeStrategy` | `min_profit_cents`, `kalshi_client`, `max_latency_ms` | `min_profit_pct`, removed, removed | ~835 |
+| `WhaleCopyTradingStrategy` | `max_concurrent_copies` | removed (not in signature) | ~858 |
+| `MacroBoardStrategy` | `min_conviction_score`, `rebalance_interval_hours` | `min_edge_pct`, `scan_interval_seconds` | ~885 |
+
+#### Error from Logs (Before Fix):
+```
+TypeError: BTCBracketArbStrategy.__init__() got an unexpected keyword argument 'min_combined_discount_pct'
+```
+
+#### Verification:
+- ✅ Status endpoint: `{"status": "running", "service": "polybot", "version": "1.1.19", "build": 79}`
+- ✅ Health endpoint: `OK`
+- ✅ **50+ opportunities logged in 10 minutes** to `polybot_opportunities` table
+- ✅ Code committed and pushed to GitHub
+
+#### Deployment Details:
+- **Service URL:** https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/
+- **Lightsail Image:** `:polyparlay.polybot.76`
+- **Deploy Version:** 4 (ACTIVE)
+- **Region:** us-east-1
+
+---
+
+## ⚠️ IMPORTANT CONTEXT FOR NEXT AGENT
+
+### Why the Service Was Recreated
+The original service had 100+ failed deployments due to debugging the wrong issue (env vars). The service was deleted and recreated fresh to start clean. The NEW service ARN is different.
+
+### Environment Variables (Confirmed Working)
+```json
+{
+  "BOT_VERSION": "1.1.19",
+  "BUILD_NUMBER": "79",
+  "SUPABASE_URL": "https://ytaltvltxkkfczlvjgad.supabase.co",
+  "SUPABASE_KEY": "[set correctly]",
+  "SUPABASE_SERVICE_ROLE_KEY": "[set correctly]",
+  "POLYMARKET_API_KEY": "[set correctly]",
+  "POLYMARKET_SECRET": "[set correctly]",
+  "KALSHI_API_KEY": "[set correctly]",
+  "SIMULATION_MODE": "true"
+}
+```
+
+### Useful Commands
+```bash
+# Check bot status
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
+
+# Check health
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/health"
+
+# Check deployment state
+aws lightsail get-container-services --service-name polyparlay --region us-east-1 | jq '.containerServices[0].currentDeployment | {version, state}'
+
+# Check recent logs (may be delayed)
+aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1 --output json 2>/dev/null | jq -r '.logEvents[-20:] | .[] | "\(.createdAt): \(.message)"'
+
+# Check opportunities in Supabase (last 5)
+curl -s "https://ytaltvltxkkfczlvjgad.supabase.co/rest/v1/polybot_opportunities?order=created_at.desc&limit=5" \
+  -H "apikey: [SUPABASE_SERVICE_ROLE_KEY from .env]" \
+  -H "Authorization: Bearer [SUPABASE_SERVICE_ROLE_KEY from .env]" | jq .
+```
+
+---
+
+## ✅ PREVIOUS CRITICAL FIX (v1.1.13)
 
 **ROOT CAUSE IDENTIFIED & FIXED:** The 88% skip rate was caused by TWO bugs creating **duplicate filtering**:
 
