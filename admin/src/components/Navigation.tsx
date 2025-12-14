@@ -52,45 +52,50 @@ interface NavItem {
 
 const navSections: NavSection[] = [
   {
-    title: 'Trading',
+    title: 'Overview',
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/bets', label: 'My Bets', icon: Wallet },
+      { href: '/analytics', label: 'Analytics', icon: TrendingUp },
+      { href: '/notifications', label: 'Notifications', icon: Bell },
+    ],
+  },
+  {
+    title: 'Trading',
+    items: [
       { href: '/markets', label: 'Markets', icon: Store },
+      { href: '/bets', label: 'My Bets', icon: Wallet },
+      { href: '/positions', label: 'Positions', icon: BarChart3 },
       { href: '/watchlist', label: 'Watchlist', icon: Star },
+    ],
+  },
+  {
+    title: 'Research',
+    items: [
+      { href: '/news', label: 'News Feed', icon: Newspaper },
+      { href: '/insights', label: 'AI Insights', icon: Brain },
+      { href: '/whales', label: 'Whale Tracker', icon: Fish, adminOnly: true },
+      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, adminOnly: true },
+      { href: '/congress', label: 'Congress Tracker', icon: Landmark, adminOnly: true },
     ],
   },
   {
     title: 'Portfolio',
     items: [
       { href: '/balances', label: 'Balances', icon: Coins },
-      { href: '/positions', label: 'Positions', icon: BarChart3 },
-      { href: '/analytics', label: 'Analytics', icon: TrendingUp },
-      { href: '/history', label: 'History', icon: History },
+      { href: '/history', label: 'Trade History', icon: History },
+      { href: '/business', label: 'P&L Dashboard', icon: Briefcase, adminOnly: true },
+      { href: '/taxes', label: 'Tax Center', icon: Receipt, adminOnly: true },
     ],
   },
   {
-    title: 'Business',
+    title: 'Automation',
     items: [
-      { href: '/business', label: 'P&L Dashboard', icon: Briefcase, adminOnly: true },
-      { href: '/taxes', label: 'Tax Center', icon: Receipt, adminOnly: true },
+      { href: '/workflows', label: 'Workflows', icon: GitBranch },
       { href: '/strategy-history', label: 'Strategy History', icon: History, adminOnly: true },
     ],
   },
   {
-    title: 'Tools',
-    items: [
-      { href: '/news', label: 'News Feed', icon: Newspaper },
-      { href: '/whales', label: 'Whale Tracker', icon: Fish, adminOnly: true },
-      { href: '/leaderboard', label: 'Leaderboard Analysis', icon: Trophy, adminOnly: true },
-      { href: '/congress', label: 'Congress Tracker', icon: Landmark, adminOnly: true },
-      { href: '/insights', label: 'AI Insights', icon: Brain },
-      { href: '/workflows', label: 'Workflows', icon: GitBranch },
-      { href: '/notifications', label: 'Notifications', icon: Bell },
-    ],
-  },
-  {
-    title: 'Settings',
+    title: 'Admin',
     items: [
       { href: '/docs', label: 'Documentation', icon: BookOpen },
       { href: '/settings', label: 'Settings', icon: Settings },
