@@ -113,8 +113,15 @@ polybot/
 | Kalshi Single-Platform Arb | ✅ Running | 86% win rate |
 | Polymarket Single-Platform Arb | ✅ Running | 0% fees |
 | Cross-Platform Arb | ✅ Running | Asymmetric thresholds |
+| BTC Bracket Arbitrage | ✅ Running | 85% confidence |
+| Kalshi Mention Sniping | ✅ Running | 80% confidence |
+| Whale Copy Trading | ✅ Running | 75% confidence |
+| Macro Board Strategy | ✅ Running | Directional macro bets |
+| Fear Premium Contrarian | ✅ Running | 70% confidence |
+| Bracket Compression | ✅ Running | Mean reversion |
 | Realistic Paper Trader | ✅ Running | Fees, slippage, partial fills |
 | Admin Dashboard | ✅ Deployed | Vercel (free tier) |
+| **Whale Tracker UI** | ✅ NEW | Track & manage whale wallets |
 | Bot Infrastructure | ✅ Running | Lightsail v33 |
 | Database | ✅ Connected | Supabase (17 secrets loaded) |
 

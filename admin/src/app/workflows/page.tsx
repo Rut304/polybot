@@ -1027,7 +1027,7 @@ export default function WorkflowsPage() {
       </div>
 
       {/* Quick Links */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 flex-wrap">
         <Link 
           href="/secrets" 
           className="card p-4 flex items-center gap-3 hover:border-purple-500/50 transition-all group"
@@ -1046,6 +1046,16 @@ export default function WorkflowsPage() {
           <div>
             <div className="font-medium">Strategy Settings</div>
             <div className="text-xs text-gray-400">Enable/disable and tune parameters</div>
+          </div>
+        </Link>
+        <Link 
+          href="/whales" 
+          className="card p-4 flex items-center gap-3 hover:border-cyan-500/50 transition-all group"
+        >
+          <Users className="text-cyan-400 group-hover:scale-110 transition-transform" />
+          <div>
+            <div className="font-medium">Whale Tracker</div>
+            <div className="text-xs text-gray-400">Track & copy high win-rate wallets</div>
           </div>
         </Link>
         <Link 

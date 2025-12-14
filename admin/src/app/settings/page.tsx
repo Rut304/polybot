@@ -4442,6 +4442,9 @@ export default function SettingsPage() {
                       <h3 className="font-bold text-white flex items-center gap-2">
                         Whale Copy Trading
                         <span className="text-xs bg-cyan-500/30 text-cyan-400 px-2 py-0.5 rounded-full">SOCIAL ALPHA</span>
+                        <a href="/whales" className="text-xs bg-blue-500/30 text-blue-400 px-2 py-0.5 rounded-full hover:bg-blue-500/50 transition-colors">
+                          Manage Whales →
+                        </a>
                       </h3>
                       <p className="text-xs text-cyan-400">Track and copy high win-rate wallets (25-50% APY)</p>
                     </div>

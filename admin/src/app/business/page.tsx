@@ -18,6 +18,8 @@ import {
   Calculator,
   Wallet,
   RefreshCw,
+  PlayCircle,
+  Banknote,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -140,10 +142,12 @@ const FIXED_COSTS: CostItem[] = [
 ];
 
 type TimeFrame = 'day' | 'week' | 'month' | 'year' | 'all';
+type DataMode = 'simulated' | 'live';
 
 export default function BusinessPage() {
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('month');
   const [showCostBreakdown, setShowCostBreakdown] = useState(true);
+  const [dataMode, setDataMode] = useState<DataMode>('simulated');
 
   // Calculate date range based on timeframe
   const { startDate, endDate } = useMemo(() => {
@@ -177,10 +181,14 @@ export default function BusinessPage() {
 
   // Fetch trading data
   const { data: tradingData, isLoading } = useQuery({
-    queryKey: ['businessPnL', startDate.toISOString(), endDate.toISOString()],
+    queryKey: ['businessPnL', startDate.toISOString(), endDate.toISOString(), dataMode],
     queryFn: async () => {
+      // For live mode, fetch from polybot_trades (real trades)
+      // For simulated mode, fetch from polybot_simulated_trades
+      const tableName = dataMode === 'live' ? 'polybot_trades' : 'polybot_simulated_trades';
+      
       const { data, error } = await supabase
-        .from('polybot_simulated_trades')
+        .from(tableName)
         .select('created_at, actual_profit_usd, position_size_usd, fees_paid, outcome')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
@@ -294,27 +302,79 @@ export default function BusinessPage() {
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Building2 className="text-blue-400" />
             RutRoh LLC
+            {dataMode === 'simulated' && (
+              <span className="text-sm font-normal bg-blue-500/20 text-blue-400 px-2 py-1 rounded-md">
+                📊 Simulated P&L
+              </span>
+            )}
+            {dataMode === 'live' && (
+              <span className="text-sm font-normal bg-green-500/20 text-green-400 px-2 py-1 rounded-md">
+                💵 Live Trading
+              </span>
+            )}
           </h1>
           <p className="text-gray-400 mt-1">
             Business P&L • Infrastructure Costs • Performance Metrics
           </p>
         </div>
-        <div className="flex gap-2">
-          {(['day', 'week', 'month', 'year', 'all'] as TimeFrame[]).map((tf) => (
+        <div className="flex items-center gap-4">
+          {/* Data Mode Toggle */}
+          <div className="flex items-center gap-2 bg-gray-800 rounded-lg p-1">
             <button
-              key={tf}
-              onClick={() => setTimeFrame(tf)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                timeFrame === tf
+              onClick={() => setDataMode('simulated')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                dataMode === 'simulated'
                   ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'text-gray-400 hover:text-white'
               }`}
             >
-              {tf.charAt(0).toUpperCase() + tf.slice(1)}
+              <PlayCircle className="w-4 h-4" />
+              Simulated
             </button>
-          ))}
+            <button
+              onClick={() => setDataMode('live')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                dataMode === 'live'
+                  ? 'bg-green-600 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Banknote className="w-4 h-4" />
+              Live
+            </button>
+          </div>
+          
+          <div className="h-6 w-px bg-gray-700" />
+          
+          <div className="flex gap-2">
+            {(['day', 'week', 'month', 'year', 'all'] as TimeFrame[]).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeFrame(tf)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  timeFrame === tf
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {tf.charAt(0).toUpperCase() + tf.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Info Banner for Live Mode with No Trades */}
+      {dataMode === 'live' && tradingData?.length === 0 && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-start gap-3">
+          <Banknote className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-blue-200">
+            <strong>Live Trading Mode:</strong> No live trades have been executed yet. 
+            Infrastructure costs are still being tracked. Switch to Simulated mode to see 
+            paper trading performance.
+          </div>
+        </div>
+      )}
 
       {/* Main P&L Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

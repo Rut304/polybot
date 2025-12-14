@@ -29,6 +29,7 @@ import {
   Users,
   Receipt,
   Building2,
+  Fish,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -77,6 +78,7 @@ const navSections: NavSection[] = [
     title: 'Tools',
     items: [
       { href: '/news', label: 'News Feed', icon: Newspaper },
+      { href: '/whales', label: 'Whale Tracker', icon: Fish, adminOnly: true },
       { href: '/insights', label: 'AI Insights', icon: Brain },
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
       { href: '/notifications', label: 'Notifications', icon: Bell },

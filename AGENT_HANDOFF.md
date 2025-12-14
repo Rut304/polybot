@@ -1,9 +1,50 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 13, 2025 (11:45 PM EST)  
+**Last Updated:** December 14, 2025  
 **Current Version:** v1.1.19 (Build #80)  
 **Deployment:** v5 on AWS Lightsail  
 **Status:** 🟢 RUNNING - Simulation Mode with ULTRA AGGRESSIVE settings - **VERIFIED WORKING**
+
+---
+
+## 🆕 LATEST UPDATES (December 14, 2025)
+
+### New Features Added
+
+1. **Business Page Toggle** - `/business` now has Simulated/Live toggle to view P&L by trading mode
+2. **Whale Tracker Page** - `/whales` page for tracking high win-rate Polymarket traders
+3. **All Twitter Strategies Enabled** - BTC Bracket, Kalshi Snipe, Whale Copy, Macro Board, Fear Premium, Bracket Compression
+
+### Database Schema to Execute
+
+The whale tracking system requires new tables. Run this SQL in Supabase SQL Editor:
+```bash
+# Copy SQL to clipboard, then paste in Supabase dashboard
+cat /Users/rut/polybot/scripts/create_whale_tracking_tables.sql | pbcopy
+```
+
+**Tables Created:**
+- `polybot_tracked_whales` - Whale profiles with win rate, volume, tier
+- `polybot_whale_performance_history` - Historical snapshots for trending analysis
+- `polybot_whale_trades` - Individual trades detected from whales
+- `polybot_copy_trades` - Our copy trades and their outcomes
+
+### Strategy Enable Flags (All Verified TRUE)
+
+```json
+{
+  "enable_btc_bracket_arb": true,
+  "enable_bracket_compression": true,
+  "enable_kalshi_mention_snipe": true,
+  "enable_whale_copy_trading": true,
+  "enable_macro_board": true,
+  "enable_fear_premium_contrarian": true
+}
+```
+
+### UI Navigation Update
+
+Added "Whale Tracker" link to the Tools section in sidebar (`/whales`)
 
 ---
 
