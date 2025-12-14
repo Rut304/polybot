@@ -345,6 +345,37 @@ class TradingConfig:
     congress_copy_delay_hours: int = 24         # Delay after disclosure
     congress_data_source: str = "house_watcher"  # Data source
 
+    # Political Event Strategy (80% CONFIDENCE - 30-60% APY)
+    # Trade high-conviction political events (elections, legislation, etc.)
+    enable_political_event_strategy: bool = False  # OFF by default
+    political_min_conviction_score: float = 0.75   # Min conviction (0-1)
+    political_max_position_usd: float = 500.0      # Max position per event
+    political_max_concurrent_events: int = 5       # Max simultaneous events
+    political_event_categories: str = "election,legislation,hearing"  # CSV
+    political_lead_time_hours: int = 48            # Min hours before event
+    political_exit_buffer_hours: int = 2           # Exit before event ends
+
+    # High Conviction Strategy (85% CONFIDENCE - 40-80% APY)
+    # Focus on fewer, higher-confidence trades with multi-signal confirmation
+    enable_high_conviction_strategy: bool = False  # OFF by default
+    high_conviction_min_score: float = 0.75        # Min conviction (0-1)
+    high_conviction_max_positions: int = 3         # Max concurrent positions
+    high_conviction_min_signals: int = 3           # Min confirming signals
+    high_conviction_position_pct: float = 15.0     # % of bankroll per trade
+    high_conviction_use_kelly: bool = True         # Use Kelly criterion sizing
+    high_conviction_kelly_fraction: float = 0.25   # Fractional Kelly (25%)
+
+    # Selective Whale Copy Strategy (80% CONFIDENCE - 35-65% APY)
+    # Performance-based whale selection (only copy winning whales)
+    enable_selective_whale_copy: bool = False      # OFF by default
+    selective_whale_min_win_rate: float = 0.65     # Min 65% win rate
+    selective_whale_min_roi: float = 0.20          # Min 20% ROI
+    selective_whale_min_trades: int = 10           # Min trades for stats
+    selective_whale_max_tracked: int = 10          # Max whales to track
+    selective_whale_auto_select: bool = True       # Auto-select top whales
+    selective_whale_copy_scale_pct: float = 5.0    # % of whale position
+    selective_whale_max_position_usd: float = 200.0  # Max position size
+
 
 @dataclass
 class PolymarketConfig:
@@ -1034,6 +1065,75 @@ class Config:
             ),
             congress_data_source=self._get_str(
                 "congress_data_source", "CONGRESS_DATA_SOURCE", "house_watcher"
+            ),
+            # Political Event Strategy config
+            enable_political_event_strategy=self._get_bool(
+                "enable_political_event_strategy", "ENABLE_POLITICAL_EVENT", False
+            ),
+            political_min_conviction_score=self._get_float(
+                "political_min_conviction_score", "POLITICAL_MIN_CONVICTION", 0.75
+            ),
+            political_max_position_usd=self._get_float(
+                "political_max_position_usd", "POLITICAL_MAX_POS", 500.0
+            ),
+            political_max_concurrent_events=self._get_int(
+                "political_max_concurrent_events", "POLITICAL_MAX_EVENTS", 5
+            ),
+            political_event_categories=self._get_str(
+                "political_event_categories", "POLITICAL_CATEGORIES", "election,legislation,hearing"
+            ),
+            political_lead_time_hours=self._get_int(
+                "political_lead_time_hours", "POLITICAL_LEAD_TIME", 48
+            ),
+            political_exit_buffer_hours=self._get_int(
+                "political_exit_buffer_hours", "POLITICAL_EXIT_BUFFER", 2
+            ),
+            # High Conviction Strategy config
+            enable_high_conviction_strategy=self._get_bool(
+                "enable_high_conviction_strategy", "ENABLE_HIGH_CONVICTION", False
+            ),
+            high_conviction_min_score=self._get_float(
+                "high_conviction_min_score", "HIGH_CONVICTION_MIN", 0.75
+            ),
+            high_conviction_max_positions=self._get_int(
+                "high_conviction_max_positions", "HIGH_CONVICTION_MAX_POS", 3
+            ),
+            high_conviction_min_signals=self._get_int(
+                "high_conviction_min_signals", "HIGH_CONVICTION_MIN_SIGNALS", 3
+            ),
+            high_conviction_position_pct=self._get_float(
+                "high_conviction_position_pct", "HIGH_CONVICTION_POS_PCT", 15.0
+            ),
+            high_conviction_use_kelly=self._get_bool(
+                "high_conviction_use_kelly", "HIGH_CONVICTION_KELLY", True
+            ),
+            high_conviction_kelly_fraction=self._get_float(
+                "high_conviction_kelly_fraction", "HIGH_CONVICTION_KELLY_FRAC", 0.25
+            ),
+            # Selective Whale Copy Strategy config
+            enable_selective_whale_copy=self._get_bool(
+                "enable_selective_whale_copy", "ENABLE_SELECTIVE_WHALE", False
+            ),
+            selective_whale_min_win_rate=self._get_float(
+                "selective_whale_min_win_rate", "SELECTIVE_WHALE_WIN_RATE", 0.65
+            ),
+            selective_whale_min_roi=self._get_float(
+                "selective_whale_min_roi", "SELECTIVE_WHALE_MIN_ROI", 0.20
+            ),
+            selective_whale_min_trades=self._get_int(
+                "selective_whale_min_trades", "SELECTIVE_WHALE_MIN_TRADES", 10
+            ),
+            selective_whale_max_tracked=self._get_int(
+                "selective_whale_max_tracked", "SELECTIVE_WHALE_MAX_TRACKED", 10
+            ),
+            selective_whale_auto_select=self._get_bool(
+                "selective_whale_auto_select", "SELECTIVE_WHALE_AUTO", True
+            ),
+            selective_whale_copy_scale_pct=self._get_float(
+                "selective_whale_copy_scale_pct", "SELECTIVE_WHALE_SCALE", 5.0
+            ),
+            selective_whale_max_position_usd=self._get_float(
+                "selective_whale_max_position_usd", "SELECTIVE_WHALE_MAX_POS", 200.0
             ),
         )
         self.polymarket = PolymarketConfig()

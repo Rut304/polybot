@@ -106,6 +106,9 @@ from src.strategies import (
     FearPremiumContrarianStrategy,
 )
 from src.strategies.congressional_tracker import CongressionalTrackerStrategy
+from src.strategies.political_event import PoliticalEventStrategy
+from src.strategies.high_conviction import HighConvictionStrategy
+from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.notifications import Notifier, NotificationConfig
@@ -224,6 +227,19 @@ class PolybotRunner:
         
         # Fear Premium Contrarian - trade against extreme sentiment
         self.fear_premium_contrarian: Optional[FearPremiumContrarianStrategy] = None
+        
+        # ==============================================
+        # NEW STRATEGIES (2025)
+        # ==============================================
+        
+        # Political Event Strategy - high-conviction political events
+        self.political_event_strategy: Optional[PoliticalEventStrategy] = None
+        
+        # High Conviction Strategy - fewer, higher-confidence trades
+        self.high_conviction_strategy: Optional[HighConvictionStrategy] = None
+        
+        # Selective Whale Copy - performance-based whale selection
+        self.selective_whale_copy: Optional[SelectiveWhaleCopyStrategy] = None
         
         # ==============================================
         # ADVANCED FRAMEWORK MODULES (Phase 1)
@@ -980,6 +996,111 @@ class PolybotRunner:
         else:
             logger.info("⏸️ Congressional Tracker DISABLED")
         
+        # =================================================================
+        # NEW STRATEGIES (2025)
+        # =================================================================
+        
+        # Initialize Political Event Strategy (80% CONFIDENCE)
+        political_event_enabled = getattr(
+            self.config.trading, 'enable_political_event_strategy', False
+        )
+        if political_event_enabled:
+            event_categories_str = getattr(
+                self.config.trading, 'political_event_categories',
+                'election,legislation,hearing'
+            )
+            event_categories = [
+                c.strip() for c in event_categories_str.split(',') if c.strip()
+            ]
+            self.political_event_strategy = PoliticalEventStrategy(
+                db_client=self.db,
+                min_conviction_score=getattr(
+                    self.config.trading, 'political_min_conviction_score', 0.75
+                ),
+                max_position_usd=getattr(
+                    self.config.trading, 'political_max_position_usd', 500.0
+                ),
+                max_concurrent_events=getattr(
+                    self.config.trading, 'political_max_concurrent_events', 5
+                ),
+                event_categories=event_categories,
+                lead_time_hours=getattr(
+                    self.config.trading, 'political_lead_time_hours', 48
+                ),
+                exit_buffer_hours=getattr(
+                    self.config.trading, 'political_exit_buffer_hours', 2
+                ),
+            )
+            logger.info("✓ Political Event Strategy initialized (80% CONF)")
+            logger.info("  🏛️ High-conviction political event trading")
+        else:
+            logger.info("⏸️ Political Event Strategy DISABLED")
+        
+        # Initialize High Conviction Strategy (85% CONFIDENCE)
+        high_conviction_enabled = getattr(
+            self.config.trading, 'enable_high_conviction_strategy', False
+        )
+        if high_conviction_enabled:
+            self.high_conviction_strategy = HighConvictionStrategy(
+                db_client=self.db,
+                min_conviction_score=getattr(
+                    self.config.trading, 'high_conviction_min_score', 0.75
+                ),
+                max_positions=getattr(
+                    self.config.trading, 'high_conviction_max_positions', 3
+                ),
+                min_confirming_signals=getattr(
+                    self.config.trading, 'high_conviction_min_signals', 3
+                ),
+                position_pct_of_bankroll=getattr(
+                    self.config.trading, 'high_conviction_position_pct', 15.0
+                ),
+                use_kelly_sizing=getattr(
+                    self.config.trading, 'high_conviction_use_kelly', True
+                ),
+                kelly_fraction=getattr(
+                    self.config.trading, 'high_conviction_kelly_fraction', 0.25
+                ),
+            )
+            logger.info("✓ High Conviction Strategy initialized (85% CONF)")
+            logger.info("  🎯 Fewer, higher-confidence trades")
+        else:
+            logger.info("⏸️ High Conviction Strategy DISABLED")
+        
+        # Initialize Selective Whale Copy Strategy (80% CONFIDENCE)
+        selective_whale_enabled = getattr(
+            self.config.trading, 'enable_selective_whale_copy', False
+        )
+        if selective_whale_enabled:
+            self.selective_whale_copy = SelectiveWhaleCopyStrategy(
+                db_client=self.db,
+                min_win_rate=getattr(
+                    self.config.trading, 'selective_whale_min_win_rate', 0.65
+                ),
+                min_roi=getattr(
+                    self.config.trading, 'selective_whale_min_roi', 0.20
+                ),
+                min_trades=getattr(
+                    self.config.trading, 'selective_whale_min_trades', 10
+                ),
+                max_whales_tracked=getattr(
+                    self.config.trading, 'selective_whale_max_tracked', 10
+                ),
+                auto_select=getattr(
+                    self.config.trading, 'selective_whale_auto_select', True
+                ),
+                copy_scale_pct=getattr(
+                    self.config.trading, 'selective_whale_copy_scale_pct', 5.0
+                ),
+                max_position_usd=getattr(
+                    self.config.trading, 'selective_whale_max_position_usd', 200.0
+                ),
+            )
+            logger.info("✓ Selective Whale Copy initialized (80% CONF)")
+            logger.info("  🐋 Performance-based whale selection")
+        else:
+            logger.info("⏸️ Selective Whale Copy DISABLED")
+        
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
             self.paper_trader = RealisticPaperTrader(
@@ -1706,6 +1827,42 @@ class PolybotRunner:
             # Use the strategy's own run method
             await self.congressional_tracker.run()
 
+    async def run_political_event_strategy(self):
+        """Run Political Event Strategy (80% CONFIDENCE)."""
+        if not getattr(
+            self.config.trading, 'enable_political_event_strategy', False
+        ):
+            return
+
+        if self.political_event_strategy:
+            logger.info("▶️ Starting Political Event Strategy...")
+            logger.info("  🏛️ High-conviction political event trading")
+            await self.political_event_strategy.run()
+
+    async def run_high_conviction_strategy(self):
+        """Run High Conviction Strategy (85% CONFIDENCE)."""
+        if not getattr(
+            self.config.trading, 'enable_high_conviction_strategy', False
+        ):
+            return
+
+        if self.high_conviction_strategy:
+            logger.info("▶️ Starting High Conviction Strategy...")
+            logger.info("  🎯 Fewer, higher-confidence trades")
+            await self.high_conviction_strategy.run()
+
+    async def run_selective_whale_copy(self):
+        """Run Selective Whale Copy Strategy (80% CONFIDENCE)."""
+        if not getattr(
+            self.config.trading, 'enable_selective_whale_copy', False
+        ):
+            return
+
+        if self.selective_whale_copy:
+            logger.info("▶️ Starting Selective Whale Copy Strategy...")
+            logger.info("  🐋 Performance-based whale selection")
+            await self.selective_whale_copy.run()
+
     async def run_position_manager(self):
         """Run position manager."""
         if self.position_manager:
@@ -1970,6 +2127,27 @@ class PolybotRunner:
         if congress and self.congressional_tracker:
             tasks.append(asyncio.create_task(self.run_congressional_tracker()))
         
+        # Run Political Event Strategy (80% CONFIDENCE)
+        pol_event = getattr(
+            self.config.trading, 'enable_political_event_strategy', False
+        )
+        if pol_event and self.political_event_strategy:
+            tasks.append(asyncio.create_task(self.run_political_event_strategy()))
+        
+        # Run High Conviction Strategy (85% CONFIDENCE)
+        high_conv = getattr(
+            self.config.trading, 'enable_high_conviction_strategy', False
+        )
+        if high_conv and self.high_conviction_strategy:
+            tasks.append(asyncio.create_task(self.run_high_conviction_strategy()))
+        
+        # Run Selective Whale Copy (80% CONFIDENCE)
+        sel_whale = getattr(
+            self.config.trading, 'enable_selective_whale_copy', False
+        )
+        if sel_whale and self.selective_whale_copy:
+            tasks.append(asyncio.create_task(self.run_selective_whale_copy()))
+        
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))
         
@@ -2048,6 +2226,14 @@ class PolybotRunner:
             self.macro_board.stop()
         if self.fear_premium_contrarian:
             self.fear_premium_contrarian.stop()
+        
+        # Stop new strategies (2025)
+        if self.political_event_strategy:
+            self.political_event_strategy.stop()
+        if self.high_conviction_strategy:
+            self.high_conviction_strategy.stop()
+        if self.selective_whale_copy:
+            self.selective_whale_copy.stop()
         
         # Close exchange connections (prevents unclosed session warnings)
         if self.ccxt_client:
