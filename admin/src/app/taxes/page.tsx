@@ -34,6 +34,7 @@ interface TaxTransaction {
   actual_profit_usd: number;
   fees_paid: number;
   trade_type: string;
+  strategy_type: string;
   outcome: string;
   holding_period_hours: number;
 }
@@ -47,6 +48,15 @@ interface TaxSummary {
   shortTermGains: number;
   shortTermLosses: number;
   estimatedTax: number;
+}
+
+interface StrategyTaxBreakdown {
+  strategy: string;
+  trades: number;
+  gains: number;
+  losses: number;
+  netPnL: number;
+  winRate: number;
 }
 
 const TAX_BRACKETS_2025 = [
@@ -141,6 +151,7 @@ export default function TaxesPage() {
         actual_profit_usd: parseFloat(t.actual_profit_usd) || 0,
         fees_paid: parseFloat(t.fees_paid) || 0,
         trade_type: t.trade_type || 'arbitrage',
+        strategy_type: t.strategy_type || t.trade_type || 'unknown',
         outcome: t.outcome || 'pending',
         holding_period_hours: 0, // Prediction markets resolve quickly
       }));
@@ -179,6 +190,41 @@ export default function TaxesPage() {
       shortTermLosses: losses,
       estimatedTax: calculateEstimatedTax(netPnL),
     };
+  }, [filteredTransactions]);
+
+  // Calculate strategy breakdown for tax purposes
+  const strategyBreakdown: StrategyTaxBreakdown[] = useMemo(() => {
+    const strategyMap = new Map<string, { trades: TaxTransaction[] }>();
+    
+    filteredTransactions.forEach(t => {
+      const strategy = t.strategy_type || 'unknown';
+      if (!strategyMap.has(strategy)) {
+        strategyMap.set(strategy, { trades: [] });
+      }
+      strategyMap.get(strategy)!.trades.push(t);
+    });
+    
+    return Array.from(strategyMap.entries())
+      .map(([strategy, data]) => {
+        const gains = data.trades
+          .filter(t => t.actual_profit_usd > 0)
+          .reduce((sum, t) => sum + t.actual_profit_usd, 0);
+        const losses = data.trades
+          .filter(t => t.actual_profit_usd < 0)
+          .reduce((sum, t) => sum + Math.abs(t.actual_profit_usd), 0);
+        const wins = data.trades.filter(t => t.outcome === 'won').length;
+        const completed = data.trades.filter(t => t.outcome === 'won' || t.outcome === 'lost').length;
+        
+        return {
+          strategy,
+          trades: data.trades.length,
+          gains,
+          losses,
+          netPnL: gains - losses,
+          winRate: completed > 0 ? (wins / completed * 100) : 0,
+        };
+      })
+      .sort((a, b) => b.netPnL - a.netPnL);
   }, [filteredTransactions]);
 
   // Get unique platforms for filter
@@ -557,6 +603,88 @@ export default function TaxesPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Strategy Tax Breakdown */}
+      <div className="card">
+        <button
+          onClick={() => setExpandedSection(expandedSection === 'strategy' ? null : 'strategy')}
+          className="w-full p-4 flex items-center justify-between hover:bg-gray-800/50 transition-colors"
+        >
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <TrendingUp className="text-purple-400" />
+            P&L by Strategy
+            <span className="text-sm font-normal text-gray-400">
+              ({strategyBreakdown.length} strategies)
+            </span>
+          </h2>
+          {expandedSection === 'strategy' ? (
+            <ChevronUp className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          )}
+        </button>
+        
+        {expandedSection === 'strategy' && (
+          <div className="p-4 pt-0 border-t border-gray-700">
+            {strategyBreakdown.length === 0 ? (
+              <p className="text-gray-400 text-center py-4">No strategy data available</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-2 px-2">Strategy</th>
+                      <th className="text-right py-2 px-2">Trades</th>
+                      <th className="text-right py-2 px-2">Gains</th>
+                      <th className="text-right py-2 px-2">Losses</th>
+                      <th className="text-right py-2 px-2">Net P&L</th>
+                      <th className="text-right py-2 px-2">Win Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {strategyBreakdown.map((s) => (
+                      <tr key={s.strategy} className="border-b border-gray-700/50 hover:bg-gray-800/50">
+                        <td className="py-2 px-2 font-medium">
+                          {s.strategy.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </td>
+                        <td className="text-right py-2 px-2 text-gray-400">{s.trades}</td>
+                        <td className="text-right py-2 px-2 text-green-400">
+                          +${s.gains.toFixed(2)}
+                        </td>
+                        <td className="text-right py-2 px-2 text-red-400">
+                          -${s.losses.toFixed(2)}
+                        </td>
+                        <td className={`text-right py-2 px-2 font-medium ${s.netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.netPnL >= 0 ? '+' : ''}${s.netPnL.toFixed(2)}
+                        </td>
+                        <td className="text-right py-2 px-2 text-blue-400">
+                          {s.winRate.toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-gray-600 font-semibold">
+                      <td className="py-2 px-2">Total</td>
+                      <td className="text-right py-2 px-2">{taxSummary.totalTransactions}</td>
+                      <td className="text-right py-2 px-2 text-green-400">
+                        +${taxSummary.totalGains.toFixed(2)}
+                      </td>
+                      <td className="text-right py-2 px-2 text-red-400">
+                        -${taxSummary.totalLosses.toFixed(2)}
+                      </td>
+                      <td className={`text-right py-2 px-2 ${taxSummary.netPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {taxSummary.netPnL >= 0 ? '+' : ''}${taxSummary.netPnL.toFixed(2)}
+                      </td>
+                      <td className="text-right py-2 px-2">-</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
