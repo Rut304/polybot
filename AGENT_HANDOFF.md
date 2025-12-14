@@ -18,12 +18,14 @@
 ### Database Schema to Execute
 
 The whale tracking system requires new tables. Run this SQL in Supabase SQL Editor:
+
 ```bash
 # Copy SQL to clipboard, then paste in Supabase dashboard
 cat /Users/rut/polybot/scripts/create_whale_tracking_tables.sql | pbcopy
 ```
 
 **Tables Created:**
+
 - `polybot_tracked_whales` - Whale profiles with win rate, volume, tier
 - `polybot_whale_performance_history` - Historical snapshots for trending analysis
 - `polybot_whale_trades` - Individual trades detected from whales
