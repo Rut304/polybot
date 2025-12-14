@@ -138,36 +138,50 @@ export default function WhalesPage() {
     enabled: !!selectedWhale,
   });
 
-  // Mock leaderboard data (in production, this would call Polymarket API)
+  // Fetch leaderboard from Polymarket via our API
   const { data: leaderboardWhales = [], isLoading: loadingLeaderboard, refetch: refetchLeaderboard } = useQuery({
     queryKey: ['polymarketLeaderboard', timeFilter],
     queryFn: async (): Promise<LeaderboardWhale[]> => {
-      // In production, this would call the Polymarket CLOB API
-      // For now, return mock data representing top traders
-      // The bot will actually fetch real data via the strategy
-      
-      // Try to get from our tracked whales first
-      const tracked = trackedWhales.map(w => ({
-        address: w.address,
-        username: w.alias || undefined,
-        volume: w.total_volume_usd,
-        win_rate: w.win_rate,
-        predictions: w.total_predictions,
-        pnl: w.copy_pnl,
-      }));
-
-      if (tracked.length > 0) {
+      try {
+        // Call our Next.js API route that fetches from Polymarket
+        const response = await fetch('/api/whales/leaderboard?limit=100&minWinRate=65&minVolume=5000');
+        
+        if (!response.ok) {
+          throw new Error(`Leaderboard API returned ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          return result.data;
+        }
+        
+        // Fallback: use tracked whales if API fails
+        const tracked = trackedWhales.map(w => ({
+          address: w.address,
+          username: w.alias || undefined,
+          volume: w.total_volume_usd,
+          win_rate: w.win_rate,
+          predictions: w.total_predictions,
+          pnl: w.copy_pnl,
+        }));
+        
+        return tracked.length > 0 ? tracked : [];
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+        
+        // Fallback to tracked whales
+        const tracked = trackedWhales.map(w => ({
+          address: w.address,
+          username: w.alias || undefined,
+          volume: w.total_volume_usd,
+          win_rate: w.win_rate,
+          predictions: w.total_predictions,
+          pnl: w.copy_pnl,
+        }));
+        
         return tracked;
       }
-
-      // Demo data for visualization
-      return [
-        { address: '0x1234...abcd', username: 'TopTrader1', volume: 250000, win_rate: 85.5, predictions: 450, pnl: 45000 },
-        { address: '0x2345...bcde', username: 'WhaleHunter', volume: 180000, win_rate: 82.3, predictions: 320, pnl: 32000 },
-        { address: '0x3456...cdef', username: 'PredictorPro', volume: 150000, win_rate: 79.8, predictions: 280, pnl: 28000 },
-        { address: '0x4567...def0', username: 'SmartMoney99', volume: 120000, win_rate: 77.2, predictions: 250, pnl: 22000 },
-        { address: '0x5678...ef01', username: 'CryptoOracle', volume: 95000, win_rate: 75.5, predictions: 200, pnl: 18000 },
-      ];
     },
   });
 

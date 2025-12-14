@@ -1573,6 +1573,77 @@ class PolybotRunner:
                     logger.error(f"Stock momentum error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
     
+    # =========================================================================
+    # TWITTER-DERIVED STRATEGIES (2024)
+    # High-conviction strategies from analyzing top traders on X/Twitter
+    # =========================================================================
+    
+    async def run_btc_bracket_arb(self):
+        """Run BTC Bracket Arbitrage (85% CONFIDENCE - $20K-200K/month)."""
+        if not getattr(self.config.trading, 'enable_btc_bracket_arb', False):
+            return
+        
+        if self.btc_bracket_arb:
+            logger.info("▶️ Starting BTC Bracket Arb Strategy...")
+            logger.info("  💰 YES + NO < $1.00 = guaranteed profit")
+            # Use the strategy's own run method
+            await self.btc_bracket_arb.run()
+    
+    async def run_bracket_compression(self):
+        """Run Bracket Compression (70% CONFIDENCE - 15-30% APY)."""
+        if not getattr(self.config.trading, 'enable_bracket_compression', False):
+            return
+        
+        if self.bracket_compression:
+            logger.info("▶️ Starting Bracket Compression Strategy...")
+            logger.info("  📊 Mean reversion on stretched bracket prices")
+            # Use the strategy's own run method
+            await self.bracket_compression.run()
+    
+    async def run_kalshi_mention_sniper(self):
+        """Run Kalshi Mention Sniper (80% CONFIDENCE - $120+/event)."""
+        if not getattr(self.config.trading, 'enable_kalshi_mention_snipe', False):
+            return
+        
+        if self.kalshi_mention_sniper:
+            logger.info("▶️ Starting Kalshi Mention Sniper...")
+            logger.info("  ⚡ Fast execution on resolved mention markets")
+            # Use the strategy's own run method
+            await self.kalshi_mention_sniper.run()
+    
+    async def run_whale_copy_trading(self):
+        """Run Whale Copy Trading (75% CONFIDENCE - 25-50% APY)."""
+        if not getattr(self.config.trading, 'enable_whale_copy_trading', False):
+            return
+        
+        if self.whale_copy_trading:
+            logger.info("▶️ Starting Whale Copy Trading Strategy...")
+            logger.info("  🐋 Track and copy 80%+ win rate wallets")
+            # Use the strategy's own run method which handles DB integration
+            await self.whale_copy_trading.run()
+    
+    async def run_macro_board(self):
+        """Run Macro Board Strategy (65% CONFIDENCE - $62K/month)."""
+        if not getattr(self.config.trading, 'enable_macro_board', False):
+            return
+        
+        if self.macro_board:
+            logger.info("▶️ Starting Macro Board Strategy...")
+            logger.info("  🌍 Weighted macro event exposure")
+            # Use the strategy's own run method
+            await self.macro_board.run()
+    
+    async def run_fear_premium_contrarian(self):
+        """Run Fear Premium Contrarian (70% CONFIDENCE - 25-60% APY)."""
+        if not getattr(self.config.trading, 'enable_fear_premium_contrarian', False):
+            return
+        
+        if self.fear_premium_contrarian:
+            logger.info("▶️ Starting Fear Premium Contrarian Strategy...")
+            logger.info("  😱 Trade against extreme sentiment | 91.4% win approach")
+            # Use the strategy's own run method
+            await self.fear_premium_contrarian.run()
+
     async def run_position_manager(self):
         """Run position manager."""
         if self.position_manager:
@@ -1708,6 +1779,20 @@ class PolybotRunner:
         logger.info(
             f"  - Stock Momentum (70%): {'ON' if sm else 'OFF'}"
         )
+        logger.info("-" * 60)
+        logger.info("TWITTER-DERIVED STRATEGIES (2024):")
+        btc_br = getattr(self.config.trading, 'enable_btc_bracket_arb', False)
+        br_comp = getattr(self.config.trading, 'enable_bracket_compression', False)
+        kal_snipe = getattr(self.config.trading, 'enable_kalshi_mention_snipe', False)
+        wh_copy = getattr(self.config.trading, 'enable_whale_copy_trading', False)
+        mac_board = getattr(self.config.trading, 'enable_macro_board', False)
+        fear_pr = getattr(self.config.trading, 'enable_fear_premium_contrarian', False)
+        logger.info(f"  - BTC Bracket Arb (85%): {'ON' if btc_br else 'OFF'}")
+        logger.info(f"  - Bracket Compression (70%): {'ON' if br_comp else 'OFF'}")
+        logger.info(f"  - Kalshi Mention Snipe (80%): {'ON' if kal_snipe else 'OFF'}")
+        logger.info(f"  - Whale Copy Trading (75%): {'ON' if wh_copy else 'OFF'}")
+        logger.info(f"  - Macro Board (65%): {'ON' if mac_board else 'OFF'}")
+        logger.info(f"  - Fear Premium Contrarian (70%): {'ON' if fear_pr else 'OFF'}")
         logger.info("=" * 60)
         
         # Send startup notification
@@ -1768,6 +1853,51 @@ class PolybotRunner:
         # Run Stock Momentum (70% CONFIDENCE - 20-40% APY)
         if sm and self.stock_momentum:
             tasks.append(asyncio.create_task(self.run_stock_momentum()))
+        
+        # =====================================================================
+        # TWITTER-DERIVED STRATEGIES (2024)
+        # High-conviction strategies from analyzing top traders on X/Twitter
+        # =====================================================================
+        
+        # Run BTC Bracket Arb (85% CONFIDENCE)
+        btc_bracket = getattr(
+            self.config.trading, 'enable_btc_bracket_arb', False
+        )
+        if btc_bracket and self.btc_bracket_arb:
+            tasks.append(asyncio.create_task(self.run_btc_bracket_arb()))
+        
+        # Run Bracket Compression (70% CONFIDENCE)
+        bracket_comp = getattr(
+            self.config.trading, 'enable_bracket_compression', False
+        )
+        if bracket_comp and self.bracket_compression:
+            tasks.append(asyncio.create_task(self.run_bracket_compression()))
+        
+        # Run Kalshi Mention Sniper (80% CONFIDENCE)
+        kalshi_snipe = getattr(
+            self.config.trading, 'enable_kalshi_mention_snipe', False
+        )
+        if kalshi_snipe and self.kalshi_mention_sniper:
+            tasks.append(asyncio.create_task(self.run_kalshi_mention_sniper()))
+        
+        # Run Whale Copy Trading (75% CONFIDENCE)
+        whale_copy = getattr(
+            self.config.trading, 'enable_whale_copy_trading', False
+        )
+        if whale_copy and self.whale_copy_trading:
+            tasks.append(asyncio.create_task(self.run_whale_copy_trading()))
+        
+        # Run Macro Board (65% CONFIDENCE)
+        macro = getattr(self.config.trading, 'enable_macro_board', False)
+        if macro and self.macro_board:
+            tasks.append(asyncio.create_task(self.run_macro_board()))
+        
+        # Run Fear Premium Contrarian (70% CONFIDENCE)
+        fear_prem = getattr(
+            self.config.trading, 'enable_fear_premium_contrarian', False
+        )
+        if fear_prem and self.fear_premium_contrarian:
+            tasks.append(asyncio.create_task(self.run_fear_premium_contrarian()))
         
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))
@@ -1833,6 +1963,20 @@ class PolybotRunner:
             await self.grid_trading.stop()
         if self.pairs_trading:
             await self.pairs_trading.stop()
+        
+        # Stop Twitter-derived strategies
+        if self.btc_bracket_arb:
+            self.btc_bracket_arb.stop()
+        if self.bracket_compression:
+            self.bracket_compression.stop()
+        if self.kalshi_mention_sniper:
+            self.kalshi_mention_sniper.stop()
+        if self.whale_copy_trading:
+            self.whale_copy_trading.stop()
+        if self.macro_board:
+            self.macro_board.stop()
+        if self.fear_premium_contrarian:
+            self.fear_premium_contrarian.stop()
         
         # Close exchange connections (prevents unclosed session warnings)
         if self.ccxt_client:

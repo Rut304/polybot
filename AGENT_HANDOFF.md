@@ -9,6 +9,33 @@
 
 ## 🆕 LATEST UPDATES (December 14, 2025)
 
+### Whale Tracking Backend Integration (NEW!)
+
+The whale tracking system now has **full backend integration** with the Supabase database:
+
+1. **Strategy DB Integration** (`src/strategies/whale_copy_trading.py`):
+   - Loads tracked whales from `polybot_tracked_whales` on startup
+   - Syncs whale profiles back to DB after API updates
+   - Saves detected whale trades to `polybot_whale_trades`
+   - Saves copy trade signals to `polybot_copy_trades`
+   - Creates daily performance snapshots in `polybot_whale_performance_history`
+   - Refreshes Admin UI settings every 10 scan cycles
+
+2. **Run Task Integration** (`src/bot_runner.py`):
+   - Added `run_whale_copy_trading()` and 5 other Twitter strategy runners
+   - All 6 Twitter strategies now launch as async tasks when enabled
+   - Added shutdown handlers for clean strategy termination
+   - Added startup logging for Twitter strategy status
+
+3. **Admin API Route** (`admin/src/app/api/whales/leaderboard/route.ts`):
+   - Fetches real leaderboard data from Polymarket CLOB API
+   - Filters by win rate, volume, and predictions
+   - Calculates whale tier (mega_whale, whale, smart_money, retail)
+
+4. **Admin UI Update** (`admin/src/app/whales/page.tsx`):
+   - Now fetches real leaderboard data via `/api/whales/leaderboard`
+   - Falls back to tracked whales if API fails
+
 ### Vercel GitHub Integration FIX (Critical)
 
 **Root Cause Found & Fixed:** Vercel's GitHub-triggered deployments were failing instantly (0ms builds) because the project's `rootDirectory` was `null`. The Next.js admin UI lives in the `admin/` subfolder, not the repo root.
