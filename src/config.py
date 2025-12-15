@@ -438,26 +438,18 @@ class DatabaseConfig:
     """
     Supabase configuration.
     
-    Uses bootstrap_config for hardcoded credentials that are baked into
-    the Docker image. This eliminates the need to pass SUPABASE_URL and
-    SUPABASE_KEY as environment variables on every deployment.
+    IMPORTANT: Only uses SUPABASE_SERVICE_ROLE_KEY (not SUPABASE_KEY/anon key)
+    to ensure full database access with RLS bypass.
     """
     
     url: Optional[str] = None
     key: Optional[str] = None
     
     def __post_init__(self):
-        # Import bootstrap config for hardcoded Supabase credentials
-        # This allows the bot to run on Lightsail without env vars
-        try:
-            from src.bootstrap_config import get_bootstrap_config
-            bootstrap = get_bootstrap_config()
-            self.url = bootstrap['url']
-            self.key = bootstrap['key']
-        except ImportError:
-            # Fallback to environment variables (local dev)
-            self.url = os.getenv("SUPABASE_URL")
-            self.key = os.getenv("SUPABASE_KEY")
+        # Get Supabase credentials from environment
+        # ONLY use SERVICE_ROLE_KEY - anon key causes permission issues
+        self.url = os.getenv("SUPABASE_URL")
+        self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     
     @property
     def is_configured(self) -> bool:

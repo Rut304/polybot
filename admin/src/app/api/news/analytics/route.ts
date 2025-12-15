@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-// Use service role key for server-side operations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error('Supabase config missing');
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
 
 interface NewsItem {
   id: string;
@@ -265,7 +272,7 @@ function generateSummary(analysis: Partial<TrendAnalysis>, news: NewsItem[]): st
 export async function GET(request: NextRequest) {
   try {
     // Fetch recent news from database
-    const { data: news, error } = await supabase
+    const { data: news, error } = await getSupabase()
       .from('polybot_news_items')
       .select('id, source, title, content, sentiment, sentiment_score, keywords, published_at')
       .order('published_at', { ascending: false })

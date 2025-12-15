@@ -90,7 +90,7 @@ export default function PositionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'prediction' | 'crypto' | 'stock'>('all');
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
-  const [selectedPosition, setSelectedPosition] = useState<TradeDetails | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
   
   // Use ONLY database positions - no sample data fallback (that creates confusion)
@@ -145,7 +145,7 @@ export default function PositionsPage() {
   // Convert position to TradeDetails for the modal
   const getTradeDetails = (position: Position): TradeDetails => {
     // Determine trade type based on strategy
-    let tradeType: TradeDetails['tradeType'] = 'arbitrage';
+    let tradeType: TradeDetails['type'] = 'arbitrage';
     if (position.strategy.includes('whale')) tradeType = 'whale_copy';
     else if (position.strategy.includes('congress')) tradeType = 'congress_copy';
     else if (position.strategy.includes('political')) tradeType = 'political_event';
@@ -155,24 +155,25 @@ export default function PositionsPage() {
 
     return {
       id: position.id,
-      market: position.market,
-      marketSlug: position.market_slug,
-      platform: position.platform,
-      side: position.side,
+      marketTitle: position.market,
+      marketId: position.market_slug,
+      platform: position.platform as TradeDetails['platform'],
+      side: position.side.toUpperCase() as TradeDetails['side'],
       entryPrice: position.entry_price,
       currentPrice: position.current_price,
       size: position.size,
+      sizeUsd: position.size * position.entry_price,
       unrealizedPnl: position.unrealized_pnl,
-      unrealizedPnlPct: position.unrealized_pnl_pct,
-      timestamp: position.opened_at,
-      strategy: position.strategy,
-      tradeType,
+      pnlPercent: position.unrealized_pnl_pct,
+      detectedAt: position.opened_at,
+      type: tradeType,
+      status: 'executed',
     };
   };
 
   const handleViewDetails = (position: Position) => {
     setSelectedPosition(position);
-    setShowTradeDetails(true);
+    setShowTradeModal(true);
   };
 
   if (isLoading) {
@@ -528,9 +529,9 @@ export default function PositionsPage() {
       {selectedPosition && (
         <TradeDetailsModal
           trade={getTradeDetails(selectedPosition)}
-          isOpen={showTradeDetails}
+          isOpen={showTradeModal}
           onClose={() => {
-            setShowTradeDetails(false);
+            setShowTradeModal(false);
             setSelectedPosition(null);
           }}
         />

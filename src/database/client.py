@@ -23,10 +23,13 @@ def _get_supabase_credentials():
     """
     Get Supabase credentials from environment variables.
     Works in both Docker (Lightsail) and local development.
+    
+    NOTE: Only uses SUPABASE_SERVICE_ROLE_KEY (not SUPABASE_KEY/anon key)
+    to ensure full database access with RLS bypass.
     """
-    # Use os.environ.get for direct access (proven to work in logging_handler)
     url = os.environ.get("SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_KEY", "")
+    # ONLY use SERVICE_ROLE_KEY - anon key causes permission issues
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     return url, key
 
 
@@ -41,15 +44,19 @@ class Database:
     """
     
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
-        # Auto-fetch from bootstrap config (baked into Docker) or environment
-        # Use SERVICE_ROLE key to access secrets (bypasses RLS)
-        if url and key:
-            self.url = url
-            self.key = key
-        else:
-            bootstrap_url, bootstrap_key = _get_supabase_credentials()
-            self.url = bootstrap_url
-            self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or bootstrap_key
+        """
+        Initialize Supabase database client.
+        
+        Args:
+            url: Supabase URL (falls back to env var SUPABASE_URL)
+            key: Supabase key (falls back to env var SUPABASE_SERVICE_ROLE_KEY)
+        
+        NOTE: Always uses SERVICE_ROLE_KEY for full database access.
+        The anon key (SUPABASE_KEY) is NOT supported as it causes RLS issues.
+        """
+        # Get credentials - prefer params, fallback to env vars
+        self.url = url or os.getenv("SUPABASE_URL", "")
+        self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         
         self._client: Optional[Client] = None
         
@@ -60,9 +67,13 @@ class Database:
             except Exception as e:
                 logger.error(f"Failed to initialize Supabase client: {e}")
         elif not SUPABASE_AVAILABLE:
-            logger.warning("Supabase package not available - database features disabled")
+            logger.warning("Supabase package not available")
         else:
-            logger.warning(f"Supabase credentials missing (URL: {'set' if self.url else 'missing'}, KEY: {'set' if self.key else 'missing'}) - database features disabled")
+            url_status = 'set' if self.url else 'MISSING'
+            key_status = 'set' if self.key else 'MISSING'
+            logger.warning(
+                f"Supabase credentials: URL={url_status}, KEY={key_status}"
+            )
         
         # Secrets cache (loaded once, refreshed on demand)
         self._secrets_cache: Dict[str, str] = {}

@@ -2,10 +2,19 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization to avoid build-time errors
+let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSupabaseAdmin(): any {
+  if (!supabaseAdminInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+    supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
+  }
+  return supabaseAdminInstance;
+}
 
 // POST - Generate AI analysis for a simulation session
 export async function POST(request: NextRequest) {
@@ -35,12 +44,12 @@ export async function POST(request: NextRequest) {
     
     // Get session and trades
     const [sessionResult, tradesResult] = await Promise.all([
-      supabaseAdmin
+      getSupabaseAdmin()
         .from('polybot_simulation_sessions')
         .select('*')
         .eq('session_id', session_id)
         .single(),
-      supabaseAdmin
+      getSupabaseAdmin()
         .from('polybot_session_trades')
         .select('*')
         .eq('session_id', session_id)
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
     const recommendations = generateRecommendations(session, metrics);
     
     // Update session with analysis
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await getSupabaseAdmin()
       .from('polybot_simulation_sessions')
       .update({
         ai_analysis: analysis,

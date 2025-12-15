@@ -102,13 +102,16 @@ cd polybot
 cat > .env << 'EOF'
 # Supabase (required)
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key
+# IMPORTANT: Use the SERVICE ROLE key, NOT the anon key!
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # Optional: Override defaults
 DRY_RUN=true
 LOG_LEVEL=INFO
 EOF
 ```
+
+> ⚠️ **CRITICAL**: Use `SUPABASE_SERVICE_ROLE_KEY` (not `SUPABASE_KEY`). The anon key has RLS restrictions that will cause database writes to fail silently!
 
 ---
 
@@ -281,6 +284,67 @@ curl ifconfig.me
 | **Total** | **$5.00** |
 
 Compare to ECS: ~$50-75/month
+
+---
+
+## ⚠️ CRITICAL: Deployment Rules
+
+### ALWAYS use the deploy script
+
+```bash
+# THE ONLY WAY TO DEPLOY:
+./scripts/deploy.sh
+```
+
+### NEVER run manual AWS CLI deployments
+
+```bash
+# ❌ NEVER DO THIS - it has caused production outages!
+aws lightsail create-container-service-deployment --cli-input-json file://some-file.json
+```
+
+### Why?
+
+Manual deployments have caused production outages by:
+1. **Empty environment variables** - Forgetting to include secrets in the JSON
+2. **Wrong Supabase key** - Using `SUPABASE_KEY` (anon) instead of `SUPABASE_SERVICE_ROLE_KEY`
+3. **Missing required secrets** - Bot runs but can't write to database
+
+### Validate a deployment
+
+```bash
+# Check current deployment health
+./scripts/validate-deployment.sh
+
+# Validate a deployment JSON before using it
+./scripts/validate-deployment.sh /path/to/deployment.json
+```
+
+---
+
+## Troubleshooting
+
+### "DB not available for stats: db=True, is_connected=False"
+
+**Cause**: The bot has Supabase URL but can't connect. Usually means:
+1. Missing `SUPABASE_SERVICE_ROLE_KEY` environment variable
+2. Using wrong key (anon key instead of service role key)
+
+**Fix**:
+```bash
+# Check current deployment has the right key
+aws lightsail get-container-services --service-name polyparlay --region us-east-1 \
+    --query 'containerServices[0].currentDeployment.containers.polybot.environment' | grep SUPABASE
+
+# If SUPABASE_SERVICE_ROLE_KEY is missing, redeploy:
+./scripts/deploy.sh
+```
+
+### Bot running but no trades recorded
+
+**Cause**: Same as above - database writes fail silently when using anon key
+
+**Fix**: Ensure `.env` has `SUPABASE_SERVICE_ROLE_KEY` (from Supabase Dashboard > Settings > API > service_role key)
 
 ---
 

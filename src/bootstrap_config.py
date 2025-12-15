@@ -57,10 +57,14 @@ def get_bootstrap_config():
     
     Returns:
         dict: Contains 'url' and 'key' for Supabase
+    
+    NOTE: Only uses SUPABASE_SERVICE_ROLE_KEY (not SUPABASE_KEY/anon key)
+    to ensure full database access with RLS bypass.
     """
     # First try environment variables (set by deploy script or .env)
+    # ONLY use SERVICE_ROLE_KEY - anon key causes permission issues
     url = os.getenv('SUPABASE_URL')
-    key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
     
     if url and key:
         return {'url': url, 'key': key}

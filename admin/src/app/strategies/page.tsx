@@ -185,7 +185,9 @@ function SettingRow({
       <div className="flex items-center gap-2">
         <span className="text-sm text-gray-300">{label}</span>
         {tooltip && (
-          <HelpCircle className="w-4 h-4 text-dark-muted cursor-help" title={tooltip} />
+          <span title={tooltip}>
+            <HelpCircle className="w-4 h-4 text-dark-muted cursor-help" />
+          </span>
         )}
       </div>
       {children}

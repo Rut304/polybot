@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Use service role key for server-side operations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error('Supabase config missing');
+    _supabase = createClient(url, key);
+  }
+  return _supabase;
+}
 
 // Helper to get API key from Supabase secrets
 async function getSecret(keyName: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('polybot_secrets')
       .select('key_value')
       .eq('key_name', keyName)
@@ -373,13 +383,13 @@ export async function POST(request: NextRequest) {
     if (allNews.length > 0) {
       // Delete old news (older than 48 hours)
       const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-      await supabase
+      await getSupabase()
         .from('polybot_news_items')
         .delete()
         .lt('published_at', cutoff);
       
       // Insert new news
-      const { error: insertError } = await supabase
+      const { error: insertError } = await getSupabase()
         .from('polybot_news_items')
         .upsert(allNews, { 
           onConflict: 'id',

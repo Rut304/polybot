@@ -264,7 +264,7 @@ export async function POST(request: Request) {
     const action = body.action;
 
     if (action === 'getTracked') {
-      const { data, error } = await supabase
+      const { data, error } = await getSupabaseClient()
         .from('polybot_tracked_politicians')
         .select('*')
         .order('total_pnl_usd', { ascending: false });
@@ -282,7 +282,7 @@ export async function POST(request: Request) {
       
       if (enabled) {
         // Add or update tracking
-        const { error } = await supabase
+        const { error } = await getSupabaseClient()
           .from('polybot_tracked_politicians')
           .upsert({
             name: politician.name,
@@ -297,7 +297,7 @@ export async function POST(request: Request) {
         if (error) throw error;
       } else {
         // Remove tracking
-        const { error } = await supabase
+        const { error } = await getSupabaseClient()
           .from('polybot_tracked_politicians')
           .delete()
           .eq('name', politician.name);

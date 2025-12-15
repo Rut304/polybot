@@ -1,6 +1,26 @@
 #!/bin/bash
-# PolyBot Deployment Script
-# This script ensures consistent, validated deployments to AWS Lightsail
+# =============================================================================
+# PolyBot Deployment Script - THE ONLY WAY TO DEPLOY
+# =============================================================================
+#
+# ⚠️  CRITICAL: ALWAYS USE THIS SCRIPT FOR DEPLOYMENTS!
+#
+# NEVER run manual AWS CLI deployments like:
+#   aws lightsail create-container-service-deployment --cli-input-json ...
+#
+# Manual deployments have caused production outages by:
+#   1. Deploying with EMPTY environment variables
+#   2. Using wrong Supabase keys (anon vs service_role)
+#   3. Missing required secrets
+#
+# This script:
+#   ✓ Reads secrets from .env (source of truth)
+#   ✓ Validates all required variables exist
+#   ✓ Only uses SUPABASE_SERVICE_ROLE_KEY (never anon key)
+#   ✓ Creates backups before deployment
+#   ✓ Tracks version numbers automatically
+#
+# =============================================================================
 
 set -e
 
@@ -139,7 +159,6 @@ REQUIRED_SECRETS=(
 
 # Optional secrets to include if present
 OPTIONAL_SECRETS=(
-    "SUPABASE_KEY"
     "KALSHI_PRIVATE_KEY_PATH"
     "DISCORD_WEBHOOK"
 )

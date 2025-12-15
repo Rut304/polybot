@@ -2,14 +2,23 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization to avoid build-time errors
+let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSupabaseAdmin(): any {
+  if (!supabaseAdminInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+    supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
+  }
+  return supabaseAdminInstance;
+}
 
 // Helper to get total starting balance from config
 async function getTotalStartingBalance(): Promise<number> {
-  const { data: config } = await supabaseAdmin
+  const { data: config } = await getSupabaseAdmin()
     .from('polybot_config')
     .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance')
     .eq('id', 1)
@@ -30,7 +39,7 @@ async function getTotalStartingBalance(): Promise<number> {
 async function archiveCurrentSession(): Promise<{ sessionId: string | null; tradesArchived: number }> {
   try {
     // Get current simulation stats
-    const { data: currentStats } = await supabaseAdmin
+    const { data: currentStats } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .select('*')
       .order('snapshot_at', { ascending: false })
@@ -38,7 +47,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
       .single();
 
     // Get trade counts
-    const { count: tradesCount } = await supabaseAdmin
+    const { count: tradesCount } = await getSupabaseAdmin()
       .from('polybot_simulated_trades')
       .select('*', { count: 'exact', head: true });
 
@@ -53,7 +62,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
       parseFloat(currentStats?.stats_json?.total_pnl || '0');
 
     // Try to use the database function first
-    const { data: archiveResult, error: archiveError } = await supabaseAdmin
+    const { data: archiveResult, error: archiveError } = await getSupabaseAdmin()
       .rpc('archive_simulation_session', {
         p_ending_balance: endingBalance,
         p_total_pnl: totalPnl,
@@ -71,7 +80,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
     const sessionId = crypto.randomUUID();
     
     // Get trade stats
-    const { data: trades } = await supabaseAdmin
+    const { data: trades } = await getSupabaseAdmin()
       .from('polybot_simulated_trades')
       .select('*');
 
@@ -84,7 +93,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
       : 0;
 
     // Get starting balance from first stat record or config
-    const { data: firstStat } = await supabaseAdmin
+    const { data: firstStat } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .select('simulated_balance, stats_json')
       .order('snapshot_at', { ascending: true })
@@ -95,7 +104,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
       parseFloat(firstStat?.stats_json?.simulated_starting_balance || '100000');
 
     // Insert session
-    const { error: sessionError } = await supabaseAdmin
+    const { error: sessionError } = await getSupabaseAdmin()
       .from('polybot_simulation_sessions')
       .insert({
         session_id: sessionId,
@@ -146,7 +155,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
         raw_data: trade,
       }));
 
-      const { error: tradesError } = await supabaseAdmin
+      const { error: tradesError } = await getSupabaseAdmin()
         .from('polybot_session_trades')
         .insert(sessionTrades);
 
@@ -200,10 +209,10 @@ export async function POST(request: NextRequest) {
 
     // Get counts before deletion
     const [tradesCount, statsCount, oppsCount, positionsCount] = await Promise.all([
-      supabaseAdmin.from('polybot_simulated_trades').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('polybot_simulation_stats').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('polybot_opportunities').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('polybot_positions').select('*', { count: 'exact', head: true }),
+      getSupabaseAdmin().from('polybot_simulated_trades').select('*', { count: 'exact', head: true }),
+      getSupabaseAdmin().from('polybot_simulation_stats').select('*', { count: 'exact', head: true }),
+      getSupabaseAdmin().from('polybot_opportunities').select('*', { count: 'exact', head: true }),
+      getSupabaseAdmin().from('polybot_positions').select('*', { count: 'exact', head: true }),
     ]);
 
     counts.trades = tradesCount.count || 0;
@@ -212,7 +221,7 @@ export async function POST(request: NextRequest) {
     counts.positions = positionsCount.count || 0;
 
     // Delete all simulated trades (use neq to match all rows)
-    const { error: tradesError } = await supabaseAdmin
+    const { error: tradesError } = await getSupabaseAdmin()
       .from('polybot_simulated_trades')
       .delete()
       .not('id', 'is', null); // Matches all rows
@@ -233,7 +242,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Delete all simulation history
-    const { error: historyError } = await supabaseAdmin
+    const { error: historyError } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .delete()
       .not('id', 'is', null); // Matches all rows
@@ -241,7 +250,7 @@ export async function POST(request: NextRequest) {
     if (historyError) throw historyError;
 
     // Delete all opportunities
-    const { error: oppsError } = await supabaseAdmin
+    const { error: oppsError } = await getSupabaseAdmin()
       .from('polybot_opportunities')
       .delete()
       .not('id', 'is', null); // Matches all rows
@@ -249,7 +258,7 @@ export async function POST(request: NextRequest) {
     if (oppsError) throw oppsError;
 
     // Delete all positions (simulation positions)
-    const { error: positionsError } = await supabaseAdmin
+    const { error: positionsError } = await getSupabaseAdmin()
       .from('polybot_positions')
       .delete()
       .not('id', 'is', null); // Matches all rows
@@ -259,7 +268,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Reset bot status session counters and live tracking
-    const { error: statusError } = await supabaseAdmin
+    const { error: statusError } = await getSupabaseAdmin()
       .from('polybot_status')
       .update({
         opportunities_this_session: 0,
@@ -277,7 +286,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Reset live stats table if it exists
-    const { error: liveStatsError } = await supabaseAdmin
+    const { error: liveStatsError } = await getSupabaseAdmin()
       .from('polybot_live_stats')
       .delete()
       .not('id', 'is', null);
@@ -290,7 +299,7 @@ export async function POST(request: NextRequest) {
     const startingBalance = await getTotalStartingBalance();
 
     // Insert fresh starting stats with configured starting balance
-    const { error: statsError } = await supabaseAdmin
+    const { error: statsError } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .insert({
         snapshot_at: new Date().toISOString(),

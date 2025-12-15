@@ -24,9 +24,7 @@ def get_supabase_client():
             from supabase import create_client
             
             url = os.environ.get("SUPABASE_URL", "")
-            # Support both key names for compatibility
-            key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or
-                   os.environ.get("SUPABASE_KEY") or "")
+            key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
             
             if url and key:
                 _supabase_client = create_client(url, key)
@@ -160,9 +158,7 @@ def setup_database_logging(session_id: Optional[str] = None):
     """
     # Only add if SUPABASE is configured
     url = os.environ.get("SUPABASE_URL", "")
-    # Support both key names for compatibility
-    key = (os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or 
-           os.environ.get("SUPABASE_KEY") or "")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     
     if not url or not key:
         print("Skipping database logging - SUPABASE not configured")

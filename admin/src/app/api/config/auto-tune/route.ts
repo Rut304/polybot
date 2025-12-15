@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+export const dynamic = 'force-dynamic';
+
+// Lazy initialization to avoid build-time errors
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSupabase(): any {
+  if (!supabaseInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    supabaseInstance = createClient(supabaseUrl, supabaseServiceKey);
+  }
+  return supabaseInstance;
+}
 
 // Types for tuning recommendations
 interface TuningRecommendation {
@@ -85,7 +95,7 @@ export async function POST(request: Request) {
     }
 
     // Get current config
-    const { data: configData, error: configError } = await supabase
+    const { data: configData, error: configError } = await getSupabase()
       .from('polybot_config')
       .select('*')
       .eq('id', 1)
@@ -98,8 +108,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const maxAdjustmentPct = configData.rsi_max_adjustment_pct || 15.0;
-    const rsiEnabled = configData.rsi_auto_tuning_enabled !== false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const config = configData as any;
+    const maxAdjustmentPct = config.rsi_max_adjustment_pct || 15.0;
+    const rsiEnabled = config.rsi_auto_tuning_enabled !== false;
 
     if (!rsiEnabled && !forceApply) {
       return NextResponse.json(
@@ -117,12 +129,12 @@ export async function POST(request: Request) {
       const columnName = PARAM_TO_COLUMN[rec.parameter] || rec.parameter;
       
       // Check if column exists in config
-      if (!(columnName in configData)) {
+      if (!(columnName in config)) {
         skipped.push({ recommendation: rec, reason: `Column '${columnName}' not found` });
         continue;
       }
 
-      const currentDbValue = configData[columnName];
+      const currentDbValue = config[columnName];
       const recommendedValue = parseNumericValue(rec.recommendedValue);
 
       // Skip if no change
@@ -153,7 +165,7 @@ export async function POST(request: Request) {
     // Apply updates if any
     let updateResult = null;
     if (Object.keys(updates).length > 0) {
-      const { data, error } = await supabase
+      const { data, error } = await getSupabase()
         .from('polybot_config')
         .update({
           ...updates,
@@ -173,7 +185,7 @@ export async function POST(request: Request) {
     }
 
     // Log the auto-tune action
-    const { error: logError } = await supabase.from('audit_log').insert({
+    const { error: logError } = await getSupabase().from('audit_log').insert({
       action: 'RSI_AUTO_TUNE',
       details: {
         applied: applied.map(r => ({
@@ -212,7 +224,7 @@ export async function POST(request: Request) {
 // GET endpoint to check RSI status
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('polybot_config')
       .select(`
         rsi_auto_tuning_enabled,

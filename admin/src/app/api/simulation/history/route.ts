@@ -2,14 +2,23 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization to avoid build-time errors
+let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSupabaseAdmin(): any {
+  if (!supabaseAdminInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+    supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
+  }
+  return supabaseAdminInstance;
+}
 
 // Helper to get total starting balance from config
 async function getTotalStartingBalance(): Promise<number> {
-  const { data: config } = await supabaseAdmin
+  const { data: config } = await getSupabaseAdmin()
     .from('polybot_config')
     .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance')
     .eq('id', 1)
@@ -37,12 +46,12 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       // Get specific session with its trades
       const [sessionResult, tradesResult] = await Promise.all([
-        supabaseAdmin
+        getSupabaseAdmin()
           .from('polybot_simulation_sessions')
           .select('*')
           .eq('session_id', sessionId)
           .single(),
-        supabaseAdmin
+        getSupabaseAdmin()
           .from('polybot_session_trades')
           .select('*')
           .eq('session_id', sessionId)
@@ -92,7 +101,7 @@ export async function GET(request: NextRequest) {
     }
     
     // List all sessions
-    let query = supabaseAdmin
+    let query = getSupabaseAdmin()
       .from('polybot_simulation_sessions')
       .select('*')
       .order('ended_at', { ascending: false, nullsFirst: false })
@@ -150,7 +159,7 @@ export async function POST(request: NextRequest) {
     const startingBalance = await getTotalStartingBalance();
     
     // Get current simulation stats
-    const { data: statsData } = await supabaseAdmin
+    const { data: statsData } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .select('*')
       .order('snapshot_at', { ascending: false })
@@ -161,7 +170,7 @@ export async function POST(request: NextRequest) {
     const totalPnl = statsData?.total_pnl || 0;
     
     // Check if there are any trades to archive
-    const { count: tradesCount } = await supabaseAdmin
+    const { count: tradesCount } = await getSupabaseAdmin()
       .from('polybot_simulated_trades')
       .select('*', { count: 'exact', head: true });
     
@@ -173,7 +182,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get current config for snapshot
-    const { data: configData } = await supabaseAdmin
+    const { data: configData } = await getSupabaseAdmin()
       .from('polybot_config')
       .select('*')
       .limit(1)
@@ -183,7 +192,7 @@ export async function POST(request: NextRequest) {
     const sessionId = crypto.randomUUID();
     
     // Get trade statistics
-    const { data: tradesData } = await supabaseAdmin
+    const { data: tradesData } = await getSupabaseAdmin()
       .from('polybot_simulated_trades')
       .select('*');
     
@@ -216,7 +225,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Create session record
-    const { error: sessionError } = await supabaseAdmin
+    const { error: sessionError } = await getSupabaseAdmin()
       .from('polybot_simulation_sessions')
       .insert({
         session_id: sessionId,
@@ -271,7 +280,7 @@ export async function POST(request: NextRequest) {
     }));
     
     if (sessionTrades.length > 0) {
-      const { error: tradesError } = await supabaseAdmin
+      const { error: tradesError } = await getSupabaseAdmin()
         .from('polybot_session_trades')
         .insert(sessionTrades);
       
@@ -281,7 +290,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Clear current trades after archiving (this is what makes "Save Session" finalize a session)
-    const { error: deleteTradesError } = await supabaseAdmin
+    const { error: deleteTradesError } = await getSupabaseAdmin()
       .from('polybot_simulated_trades')
       .delete()
       .not('id', 'is', null);
@@ -291,7 +300,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Reset stats to starting balance
-    const { error: deleteStatsError } = await supabaseAdmin
+    const { error: deleteStatsError } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .delete()
       .not('id', 'is', null);
@@ -301,7 +310,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Insert fresh starting stats
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from('polybot_simulation_stats')
       .insert({
         snapshot_at: new Date().toISOString(),
@@ -312,19 +321,19 @@ export async function POST(request: NextRequest) {
       });
     
     // Clear opportunities table
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from('polybot_opportunities')
       .delete()
       .not('id', 'is', null);
     
     // Clear positions table
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from('polybot_positions')
       .delete()
       .not('id', 'is', null);
     
     // Reset bot status session counters
-    await supabaseAdmin
+    await getSupabaseAdmin()
       .from('polybot_status')
       .update({
         opportunities_this_session: 0,

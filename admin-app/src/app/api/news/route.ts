@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Force dynamic rendering - route uses request.url
+// Force dynamic rendering - this route uses request.url
 export const dynamic = 'force-dynamic';
 
-// Lazy initialization to avoid build-time errors
+// Lazy initialization - only create client when needed (not at module load time)
 let _supabase: SupabaseClient | null = null;
 function getSupabase(): SupabaseClient {
   if (!_supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) throw new Error('Supabase config missing');
+    if (!url || !key) throw new Error('Supabase configuration missing');
     _supabase = createClient(url, key);
   }
   return _supabase;
