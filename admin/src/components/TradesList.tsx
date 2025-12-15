@@ -2,13 +2,14 @@
 
 import { SimulatedTrade } from '@/lib/supabase';
 import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
-import { TrendingUp, TrendingDown, Clock, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, CheckCircle2, Eye } from 'lucide-react';
 
 interface TradesListProps {
   trades: SimulatedTrade[];
+  onTradeClick?: (trade: SimulatedTrade) => void;
 }
 
-export function TradesList({ trades }: TradesListProps) {
+export function TradesList({ trades, onTradeClick }: TradesListProps) {
   if (trades.length === 0) {
     return (
       <div className="text-center py-12 text-gray-500">
@@ -22,17 +23,29 @@ export function TradesList({ trades }: TradesListProps) {
   return (
     <div className="space-y-3 max-h-[400px] overflow-y-auto">
       {trades.map((trade) => (
-        <TradeRow key={trade.id} trade={trade} />
+        <TradeRow 
+          key={trade.id} 
+          trade={trade} 
+          onClick={onTradeClick ? () => onTradeClick(trade) : undefined}
+        />
       ))}
     </div>
   );
 }
 
-function TradeRow({ trade }: { trade: SimulatedTrade }) {
+function TradeRow({ trade, onClick }: { trade: SimulatedTrade; onClick?: () => void }) {
   const isProfit = (trade.expected_profit_usd || 0) > 0;
   
   return (
-    <div className="p-4 rounded-lg bg-dark-border/30 hover:bg-dark-border/50 transition-colors">
+    <div 
+      className={cn(
+        "p-4 rounded-lg bg-dark-border/30 hover:bg-dark-border/50 transition-colors",
+        onClick && "cursor-pointer group"
+      )}
+      onClick={onClick}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -45,6 +58,9 @@ function TradeRow({ trade }: { trade: SimulatedTrade }) {
               {trade.outcome?.toUpperCase() || 'PENDING'}
             </span>
             <span className="text-xs text-gray-500">{trade.position_id}</span>
+            {onClick && (
+              <Eye className="w-3.5 h-3.5 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
           </div>
           
           <p className="text-sm text-gray-300 mt-2 truncate">

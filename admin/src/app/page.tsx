@@ -35,6 +35,8 @@ import { StatusIndicator } from '@/components/StatusIndicator';
 import { StatDetailModal } from '@/components/StatDetailModal';
 import { StrategyBreakdown } from '@/components/StrategyBreakdown';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
+import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
+import { Opportunity, SimulatedTrade } from '@/lib/supabase';
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -75,6 +77,67 @@ export default function Dashboard() {
   
   // Modal state
   const [modalType, setModalType] = useState<'balance' | 'pnl' | 'winrate' | 'opportunities' | null>(null);
+  
+  // Trade details modal state
+  const [selectedTrade, setSelectedTrade] = useState<TradeDetails | null>(null);
+
+  // Helper to convert Opportunity to TradeDetails
+  const opportunityToTradeDetails = (opp: Opportunity): TradeDetails => ({
+    id: opp.id.toString(),
+    type: opp.strategy?.includes('whale') ? 'whale_copy' : 
+          opp.strategy?.includes('congress') ? 'congress_copy' : 
+          opp.strategy?.includes('bracket') ? 'arbitrage' : 'arbitrage',
+    status: opp.status === 'executed' ? 'executed' : 'pending',
+    marketTitle: opp.buy_market_name || opp.sell_market_name || 'Unknown Market',
+    marketId: opp.buy_market_id || opp.sell_market_id,
+    platform: opp.buy_platform === opp.sell_platform 
+      ? (opp.buy_platform as 'polymarket' | 'kalshi' | 'alpaca') || 'polymarket'
+      : 'cross_platform',
+    side: 'YES',
+    entryPrice: opp.buy_price,
+    currentPrice: opp.sell_price,
+    size: 0,
+    sizeUsd: opp.max_size || 0,
+    detectedAt: opp.detected_at,
+    arbitrageInfo: {
+      type: opp.buy_platform === opp.sell_platform ? 'single_platform' : 'cross_platform',
+      yesPrice: opp.buy_price * 100,
+      noPrice: (1 - opp.sell_price) * 100,
+      spread: opp.profit_percent,
+      netProfit: opp.total_profit || opp.profit_percent,
+    },
+    convictionScore: opp.confidence,
+    strategySignals: opp.strategy ? [{
+      source: opp.strategy,
+      signal: opp.profit_percent > 0 ? 'bullish' : 'neutral',
+      confidence: opp.confidence || 70,
+      reason: `${opp.profit_percent.toFixed(2)}% spread detected`,
+    }] : undefined,
+  });
+
+  // Helper to convert SimulatedTrade to TradeDetails
+  const tradeToTradeDetails = (trade: SimulatedTrade): TradeDetails => ({
+    id: trade.id.toString(),
+    type: trade.strategy?.includes('whale') ? 'whale_copy' : 
+          trade.strategy?.includes('congress') ? 'congress_copy' : 'arbitrage',
+    status: trade.outcome === 'won' ? 'executed' : 
+            trade.outcome === 'lost' ? 'failed' : 'pending',
+    marketTitle: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown Market',
+    marketId: trade.polymarket_token_id || trade.kalshi_ticker,
+    platform: trade.polymarket_token_id ? 'polymarket' : 
+              trade.kalshi_ticker ? 'kalshi' : 'polymarket',
+    side: 'YES',
+    entryPrice: trade.polymarket_yes_price || trade.kalshi_yes_price || 0,
+    exitPrice: undefined,
+    size: 0,
+    sizeUsd: trade.position_size_usd || 0,
+    realizedPnl: trade.expected_profit_usd,
+    pnlPercent: trade.expected_profit_pct,
+    detectedAt: trade.created_at,
+    executedAt: trade.created_at,
+    exitedAt: trade.resolved_at || undefined,
+    convictionScore: undefined,
+  });
 
   const isOnline = !!(botStatus?.is_running && 
     botStatus?.last_heartbeat_at && 
@@ -82,7 +145,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
-      {/* Modal */}
+      {/* Stat Detail Modal */}
       <StatDetailModal
         isOpen={modalType !== null}
         onClose={() => setModalType(null)}
@@ -92,6 +155,13 @@ export default function Dashboard() {
         trades={allTrades || trades || []}
         opportunities={opportunities || []}
         totalOpportunitiesSeen={totalOpportunities}
+      />
+      
+      {/* Trade Details Modal */}
+      <TradeDetailsModal
+        isOpen={selectedTrade !== null}
+        onClose={() => setSelectedTrade(null)}
+        trade={selectedTrade}
       />
       
       {/* Page Header */}
@@ -228,7 +298,10 @@ export default function Dashboard() {
                 Real-time
               </span>
             </div>
-            <OpportunitiesFeed opportunities={opportunities || []} />
+            <OpportunitiesFeed 
+              opportunities={opportunities || []} 
+              onOpportunityClick={(opp) => setSelectedTrade(opportunityToTradeDetails(opp))}
+            />
           </motion.div>
 
           <motion.div 
@@ -243,7 +316,10 @@ export default function Dashboard() {
                 Recent Paper Trades
               </h2>
             </div>
-            <TradesList trades={trades || []} />
+            <TradesList 
+              trades={trades || []} 
+              onTradeClick={(trade) => setSelectedTrade(tradeToTradeDetails(trade))}
+            />
           </motion.div>
         </div>
       </div>

@@ -2,13 +2,14 @@
 
 import { Opportunity } from '@/lib/supabase';
 import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
-import { ArrowRight, TrendingUp, Zap, Activity } from 'lucide-react';
+import { ArrowRight, TrendingUp, Zap, Activity, Eye } from 'lucide-react';
 
 interface OpportunitiesFeedProps {
   opportunities: Opportunity[];
+  onOpportunityClick?: (opportunity: Opportunity) => void;
 }
 
-export function OpportunitiesFeed({ opportunities }: OpportunitiesFeedProps) {
+export function OpportunitiesFeed({ opportunities, onOpportunityClick }: OpportunitiesFeedProps) {
   // Filter to only show real arbitrage opportunities with actual profit potential
   // Exclude "High activity" entries which are just market signals, not opportunities
   const realOpportunities = opportunities.filter(opp => {
@@ -33,13 +34,17 @@ export function OpportunitiesFeed({ opportunities }: OpportunitiesFeedProps) {
   return (
     <div className="space-y-2 max-h-[400px] overflow-y-auto">
       {realOpportunities.map((opp) => (
-        <OpportunityRow key={opp.id} opportunity={opp} />
+        <OpportunityRow 
+          key={opp.id} 
+          opportunity={opp} 
+          onClick={onOpportunityClick ? () => onOpportunityClick(opp) : undefined}
+        />
       ))}
     </div>
   );
 }
 
-function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
+function OpportunityRow({ opportunity, onClick }: { opportunity: Opportunity; onClick?: () => void }) {
   // Determine if this is a cross-platform or single-platform opportunity
   const isCrossPlatform = opportunity.buy_platform !== opportunity.sell_platform;
   const isOverlappingArb = opportunity.strategy?.includes('overlapping');
@@ -58,10 +63,16 @@ function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
     : 'Analyzing...';
 
   return (
-    <div className={cn(
-      "p-3 rounded-lg bg-dark-border/30 hover:bg-dark-border/50 transition-colors border-l-2",
-      isCrossPlatform ? "border-neon-purple/50" : "border-neon-green/50"
-    )}>
+    <div 
+      className={cn(
+        "p-3 rounded-lg bg-dark-border/30 hover:bg-dark-border/50 transition-colors border-l-2",
+        isCrossPlatform ? "border-neon-purple/50" : "border-neon-green/50",
+        onClick && "cursor-pointer group"
+      )}
+      onClick={onClick}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
           <span className="px-2 py-0.5 rounded bg-neon-blue/20 text-neon-blue text-xs font-medium">
@@ -78,8 +89,13 @@ function OpportunityRow({ opportunity }: { opportunity: Opportunity }) {
           </span>
         </div>
         
-        <div className={cn("font-bold", profitColor)}>
-          {displayProfit}
+        <div className="flex items-center gap-2">
+          {onClick && (
+            <Eye className="w-4 h-4 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+          <div className={cn("font-bold", profitColor)}>
+            {displayProfit}
+          </div>
         </div>
       </div>
       
