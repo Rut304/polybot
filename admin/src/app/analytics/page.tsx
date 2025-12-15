@@ -154,7 +154,7 @@ export default function AnalyticsPage() {
   }, [timeRange, customStartDate, customEndDate]);
   
   const { data: history = [] } = useSimulationHistory(hours);
-  const { data: trades = [] } = useSimulatedTrades(500);
+  const { data: trades = [] } = useSimulatedTrades(2000); // Increased to show all trades
   const { data: opportunities = [] } = useOpportunities(1000);
   const { data: stats } = useSimulationStats();
   const { data: advancedMetrics } = useAdvancedAnalytics(totalStartingBalance);

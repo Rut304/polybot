@@ -308,7 +308,7 @@ export default function BetsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { data: trades = [] } = useSimulatedTrades(100);
+  const { data: trades = [] } = useSimulatedTrades(2000); // Increased from 100 to show all trades
   const { data: manualTrades = [] } = useManualTrades(50);
   const { data: disabledMarkets = [] } = useDisabledMarkets();
   

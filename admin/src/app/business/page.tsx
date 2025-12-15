@@ -189,7 +189,7 @@ export default function BusinessPage() {
       
       const { data, error } = await supabase
         .from(tableName)
-        .select('created_at, actual_profit_usd, position_size_usd, fees_paid, outcome')
+        .select('created_at, actual_profit_usd, position_size_usd, outcome')
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: true });
@@ -225,8 +225,8 @@ export default function BusinessPage() {
       sum + (parseFloat(t.actual_profit_usd) || 0), 0);
     const totalLosses = losses.reduce((sum: number, t: any) => 
       sum + Math.abs(parseFloat(t.actual_profit_usd) || 0), 0);
-    const totalFees = tradingData.reduce((sum: number, t: any) => 
-      sum + (parseFloat(t.fees_paid) || 0), 0);
+    // Estimate fees: 7% of revenue for Kalshi, minimal for Polymarket
+    const totalFees = totalRevenue * 0.07;
     const totalVolume = tradingData.reduce((sum: number, t: any) => 
       sum + (parseFloat(t.position_size_usd) || 0), 0);
 

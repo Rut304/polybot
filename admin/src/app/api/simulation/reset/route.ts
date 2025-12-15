@@ -84,9 +84,9 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
       .from('polybot_simulated_trades')
       .select('*');
 
-    const winningTrades = trades?.filter(t => t.outcome === 'won').length || 0;
-    const losingTrades = trades?.filter(t => t.outcome === 'lost').length || 0;
-    const failedTrades = trades?.filter(t => t.outcome === 'failed_execution').length || 0;
+    const winningTrades = trades?.filter((t: any) => t.outcome === 'won').length || 0;
+    const losingTrades = trades?.filter((t: any) => t.outcome === 'lost').length || 0;
+    const failedTrades = trades?.filter((t: any) => t.outcome === 'failed_execution').length || 0;
     const totalTrades = trades?.length || 0;
     const winRate = (winningTrades + losingTrades) > 0 
       ? (winningTrades / (winningTrades + losingTrades)) * 100 
@@ -131,7 +131,7 @@ async function archiveCurrentSession(): Promise<{ sessionId: string | null; trad
 
     // Copy trades to session_trades
     if (trades && trades.length > 0) {
-      const sessionTrades = trades.map(trade => ({
+      const sessionTrades = trades.map((trade: any) => ({
         session_id: sessionId,
         original_trade_id: trade.id,
         position_id: trade.position_id,

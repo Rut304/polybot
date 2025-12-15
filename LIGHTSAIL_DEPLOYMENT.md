@@ -306,6 +306,7 @@ aws lightsail create-container-service-deployment --cli-input-json file://some-f
 ### Why?
 
 Manual deployments have caused production outages by:
+
 1. **Empty environment variables** - Forgetting to include secrets in the JSON
 2. **Wrong Supabase key** - Using `SUPABASE_KEY` (anon) instead of `SUPABASE_SERVICE_ROLE_KEY`
 3. **Missing required secrets** - Bot runs but can't write to database
@@ -327,10 +328,12 @@ Manual deployments have caused production outages by:
 ### "DB not available for stats: db=True, is_connected=False"
 
 **Cause**: The bot has Supabase URL but can't connect. Usually means:
+
 1. Missing `SUPABASE_SERVICE_ROLE_KEY` environment variable
 2. Using wrong key (anon key instead of service role key)
 
 **Fix**:
+
 ```bash
 # Check current deployment has the right key
 aws lightsail get-container-services --service-name polyparlay --region us-east-1 \

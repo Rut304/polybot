@@ -197,14 +197,14 @@ export async function POST(request: NextRequest) {
       .select('*');
     
     const trades = tradesData || [];
-    const winning = trades.filter(t => t.outcome === 'won').length;
-    const losing = trades.filter(t => t.outcome === 'lost').length;
-    const failed = trades.filter(t => t.outcome === 'failed_execution').length;
+    const winning = trades.filter((t: any) => t.outcome === 'won').length;
+    const losing = trades.filter((t: any) => t.outcome === 'lost').length;
+    const failed = trades.filter((t: any) => t.outcome === 'failed_execution').length;
     const winRate = (winning + losing) > 0 ? (winning / (winning + losing)) * 100 : 0;
     
     // Get earliest trade date
     const startedAt = trades.length > 0 
-      ? trades.reduce((min, t) => t.created_at < min ? t.created_at : min, trades[0].created_at)
+      ? trades.reduce((min: string, t: any) => t.created_at < min ? t.created_at : min, trades[0].created_at)
       : new Date().toISOString();
     
     // Calculate strategy performance
@@ -256,7 +256,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Copy trades to session_trades
-    const sessionTrades = trades.map(trade => ({
+    const sessionTrades = trades.map((trade: any) => ({
       session_id: sessionId,
       original_trade_id: trade.id,
       position_id: trade.position_id,
