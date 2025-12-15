@@ -362,31 +362,40 @@ export default function SettingsPage() {
   
   // High Conviction Strategy (85% confidence - 40-80% APY)
   const [enableHighConvictionStrategy, setEnableHighConvictionStrategy] = useState(config?.enable_high_conviction_strategy ?? false);
-  const [highConvictionMinScore, setHighConvictionMinScore] = useState(config?.high_conviction_min_score ?? 0.75);
+  const [highConvictionMinScore, setHighConvictionMinScore] = useState(config?.high_conviction_min_score ?? 80);
   const [highConvictionMaxPositions, setHighConvictionMaxPositions] = useState(config?.high_conviction_max_positions ?? 3);
   const [highConvictionMinSignals, setHighConvictionMinSignals] = useState(config?.high_conviction_min_signals ?? 3);
   const [highConvictionPositionPct, setHighConvictionPositionPct] = useState(config?.high_conviction_position_pct ?? 15.0);
   const [highConvictionUseKelly, setHighConvictionUseKelly] = useState(config?.high_conviction_use_kelly ?? true);
   const [highConvictionKellyFraction, setHighConvictionKellyFraction] = useState(config?.high_conviction_kelly_fraction ?? 0.25);
+  const [highConvictionMinVolume, setHighConvictionMinVolume] = useState(config?.high_conviction_min_volume ?? 50000);
+  const [highConvictionMaxPosition, setHighConvictionMaxPosition] = useState(config?.high_conviction_max_position_usd ?? 250);
+  const [highConvictionScanInterval, setHighConvictionScanInterval] = useState(config?.high_conviction_scan_interval_sec ?? 120);
   
   // Political Event Strategy (80% confidence - 30-60% APY)
   const [enablePoliticalEventStrategy, setEnablePoliticalEventStrategy] = useState(config?.enable_political_event_strategy ?? false);
   const [politicalMinConvictionScore, setPoliticalMinConvictionScore] = useState(config?.political_min_conviction_score ?? 0.75);
   const [politicalMaxPositionUsd, setPoliticalMaxPositionUsd] = useState(config?.political_max_position_usd ?? 500);
   const [politicalMaxConcurrentEvents, setPoliticalMaxConcurrentEvents] = useState(config?.political_max_concurrent_events ?? 5);
-  const [politicalEventCategories, setPoliticalEventCategories] = useState<string>(config?.political_event_categories ?? 'election,legislation,hearing');
+  const [politicalEventCategories, setPoliticalEventCategories] = useState<string>(config?.political_event_categories ?? 'elections,legislation,policy,appointments');
   const [politicalLeadTimeHours, setPoliticalLeadTimeHours] = useState(config?.political_lead_time_hours ?? 48);
   const [politicalExitBufferHours, setPoliticalExitBufferHours] = useState(config?.political_exit_buffer_hours ?? 2);
+  const [politicalEventMinEdge, setPoliticalEventMinEdge] = useState(config?.political_event_min_edge_pct ?? 5);
+  const [politicalEventMaxPosition, setPoliticalEventMaxPosition] = useState(config?.political_event_max_position_usd ?? 200);
+  const [politicalEventMonitorInterval, setPoliticalEventMonitorInterval] = useState(config?.political_event_monitor_interval_sec ?? 300);
   
   // Selective Whale Copy Strategy (80% confidence - 35-70% APY)
   const [enableSelectiveWhaleCopy, setEnableSelectiveWhaleCopy] = useState(config?.enable_selective_whale_copy ?? false);
-  const [selectiveWhaleMinWinRate, setSelectiveWhaleMinWinRate] = useState(config?.selective_whale_min_win_rate ?? 0.65);
+  const [selectiveWhaleMinWinRate, setSelectiveWhaleMinWinRate] = useState(config?.selective_whale_min_win_rate ?? 65);
   const [selectiveWhaleMinRoi, setSelectiveWhaleMinRoi] = useState(config?.selective_whale_min_roi ?? 0.20);
   const [selectiveWhaleMinTrades, setSelectiveWhaleMinTrades] = useState(config?.selective_whale_min_trades ?? 10);
   const [selectiveWhaleMaxTracked, setSelectiveWhaleMaxTracked] = useState(config?.selective_whale_max_tracked ?? 10);
   const [selectiveWhaleAutoSelect, setSelectiveWhaleAutoSelect] = useState(config?.selective_whale_auto_select ?? true);
   const [selectiveWhaleCopyScalePct, setSelectiveWhaleCopyScalePct] = useState(config?.selective_whale_copy_scale_pct ?? 5.0);
   const [selectiveWhaleMaxPositionUsd, setSelectiveWhaleMaxPositionUsd] = useState(config?.selective_whale_max_position_usd ?? 200);
+  const [selectiveWhaleMinPnl, setSelectiveWhaleMinPnl] = useState(config?.selective_whale_min_pnl ?? 5000);
+  const [selectiveWhaleMaxCopySize, setSelectiveWhaleMaxCopySize] = useState(config?.selective_whale_max_copy_size_usd ?? 100);
+  const [selectiveWhaleDelaySeconds, setSelectiveWhaleDelaySeconds] = useState(config?.selective_whale_delay_seconds ?? 30);
   
   // UI state for new strategy sections
   const [showNewHighConfidenceStrategies, setShowNewHighConfidenceStrategies] = useState(false);
