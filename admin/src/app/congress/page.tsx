@@ -428,6 +428,25 @@ export default function CongressPage() {
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Sample Data Notice */}
+        {tradesData?.usingSampleData && (
+          <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-yellow-400">Using Sample Data</h3>
+                <p className="text-sm text-gray-300 mt-1">
+                  The free congressional trading APIs (House Stock Watcher, Senate Stock Watcher) have been restricted.
+                  Showing sample data based on typical congressional trading patterns.
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  For live data, consider: <a href="https://unusualwhales.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Unusual Whales</a> or <a href="https://www.quiverquant.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">Quiver Quant</a> (paid APIs).
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

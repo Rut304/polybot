@@ -748,7 +748,8 @@ export default function LeaderboardPage() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.01 }}
-                      className="hover:bg-gray-700/50 transition-colors"
+                      className="hover:bg-gray-700/50 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/trader/${trader.address}`)}
                     >
                       <td className="px-4 py-3">
                         {trader.rank <= 3 ? (
@@ -765,21 +766,22 @@ export default function LeaderboardPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{trader.username}</span>
+                          <span className="font-medium hover:text-blue-400 transition-colors">{trader.username}</span>
                           {trader.verified && (
                             <span title="Verified">
                               <BadgeCheck className="w-4 h-4 text-blue-400" />
                             </span>
                           )}
                           {trader.xUsername && (
-                            <a
-                              href={`https://x.com/${trader.xUsername}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-gray-400 hover:text-blue-400"
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`https://x.com/${trader.xUsername}`, '_blank');
+                              }}
+                              className="text-xs text-gray-400 hover:text-blue-400 cursor-pointer"
                             >
                               @{trader.xUsername}
-                            </a>
+                            </span>
                           )}
                         </div>
                       </td>
@@ -808,15 +810,16 @@ export default function LeaderboardPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <a
-                          href={`https://polymarket.com/profile/${trader.address}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 hover:bg-gray-600 rounded inline-flex"
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(`https://polymarket.com/profile/${trader.address}`, '_blank');
+                          }}
+                          className="p-1 hover:bg-gray-600 rounded inline-flex cursor-pointer"
                           title="View on Polymarket"
                         >
                           <ExternalLink className="w-4 h-4 text-gray-400 hover:text-blue-400" />
-                        </a>
+                        </span>
                       </td>
                     </motion.tr>
                   );
