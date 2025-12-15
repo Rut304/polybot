@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { usePositions } from '@/lib/hooks';
 import { Tooltip } from '@/components/Tooltip';
+import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 
 interface Position {
   id: string;
@@ -89,6 +90,8 @@ export default function PositionsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'prediction' | 'crypto' | 'stock'>('all');
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<TradeDetails | null>(null);
+  const [showTradeModal, setShowTradeModal] = useState(false);
   
   // Use ONLY database positions - no sample data fallback (that creates confusion)
   const positions: Position[] = (dbPositions && dbPositions.length > 0) 
@@ -138,6 +141,39 @@ export default function PositionsPage() {
 
   // Get unique strategies for filter
   const strategies = [...new Set(positions.map(p => p.strategy))];
+
+  // Convert position to TradeDetails for the modal
+  const getTradeDetails = (position: Position): TradeDetails => {
+    // Determine trade type based on strategy
+    let tradeType: TradeDetails['tradeType'] = 'arbitrage';
+    if (position.strategy.includes('whale')) tradeType = 'whale_copy';
+    else if (position.strategy.includes('congress')) tradeType = 'congress_copy';
+    else if (position.strategy.includes('political')) tradeType = 'political_event';
+    else if (position.strategy.includes('conviction')) tradeType = 'high_conviction';
+    else if (position.strategy.includes('fear')) tradeType = 'fear_premium';
+    else if (position.strategy.includes('macro')) tradeType = 'macro';
+
+    return {
+      id: position.id,
+      market: position.market,
+      marketSlug: position.market_slug,
+      platform: position.platform,
+      side: position.side,
+      entryPrice: position.entry_price,
+      currentPrice: position.current_price,
+      size: position.size,
+      unrealizedPnl: position.unrealized_pnl,
+      unrealizedPnlPct: position.unrealized_pnl_pct,
+      timestamp: position.opened_at,
+      strategy: position.strategy,
+      tradeType,
+    };
+  };
+
+  const handleViewDetails = (position: Position) => {
+    setSelectedPosition(position);
+    setShowTradeDetails(true);
+  };
 
   if (isLoading) {
     return (
@@ -358,6 +394,7 @@ export default function PositionsPage() {
                   </div>
                 </th>
                 <th className="px-4 py-3">Opened</th>
+                <th className="px-4 py-3 text-center">Details</th>
               </tr>
             </thead>
             <tbody>
@@ -370,7 +407,8 @@ export default function PositionsPage() {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
                       transition={{ delay: index * 0.05 }}
-                      className="border-b border-gray-800 hover:bg-gray-800/50"
+                      className="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer"
+                      onClick={() => handleViewDetails(position)}
                     >
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
@@ -443,11 +481,23 @@ export default function PositionsPage() {
                           {new Date(position.opened_at).toLocaleTimeString()}
                         </p>
                       </td>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(position);
+                          }}
+                          className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                          title="View details"
+                        >
+                          <Eye className="w-4 h-4 text-gray-400 hover:text-white" />
+                        </button>
+                      </td>
                     </motion.tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center">
+                    <td colSpan={10} className="px-4 py-12 text-center">
                       <Target className="w-12 h-12 text-gray-600 mx-auto mb-3" />
                       <p className="text-gray-400">No open positions</p>
                       <p className="text-sm text-gray-500 mt-1">
@@ -473,6 +523,18 @@ export default function PositionsPage() {
           ))}
         </div>
       </div>
+
+      {/* Trade Details Modal */}
+      {selectedPosition && (
+        <TradeDetailsModal
+          trade={getTradeDetails(selectedPosition)}
+          isOpen={showTradeDetails}
+          onClose={() => {
+            setShowTradeDetails(false);
+            setSelectedPosition(null);
+          }}
+        />
+      )}
     </div>
   );
 }
