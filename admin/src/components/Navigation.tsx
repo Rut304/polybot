@@ -33,6 +33,7 @@ import {
   Landmark,
   Briefcase,
   Trophy,
+  Target,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,7 @@ const navSections: NavSection[] = [
     title: 'Admin',
     items: [
       { href: '/docs', label: 'Documentation', icon: BookOpen },
+      { href: '/strategies', label: 'Strategies', icon: Target, adminOnly: true },
       { href: '/settings', label: 'Settings', icon: Settings },
       { href: '/secrets', label: 'API Keys', icon: Key, adminOnly: true },
       { href: '/logs', label: 'Audit Logs', icon: FileText, adminOnly: true },
