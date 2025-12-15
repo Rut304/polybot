@@ -34,6 +34,7 @@ import {
   Briefcase,
   Trophy,
   Target,
+  Activity,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,7 @@ const navSections: NavSection[] = [
   {
     title: 'Admin',
     items: [
+      { href: '/diagnostics', label: 'Diagnostics', icon: Activity, adminOnly: true },
       { href: '/docs', label: 'Documentation', icon: BookOpen },
       { href: '/strategies', label: 'Strategies', icon: Target, adminOnly: true },
       { href: '/settings', label: 'Settings', icon: Settings },
