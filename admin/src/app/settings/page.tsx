@@ -142,6 +142,8 @@ export default function SettingsPage() {
   const [enablePolySingleArb, setEnablePolySingleArb] = useState(config?.enable_polymarket_single_arb ?? true);
   const [enableKalshiSingleArb, setEnableKalshiSingleArb] = useState(config?.enable_kalshi_single_arb ?? true);
   const [enableCrossPlatArb, setEnableCrossPlatArb] = useState(config?.enable_cross_platform_arb ?? true);
+  // Overlapping Arb: same-platform correlated markets (inverted skip toggle)
+  const [enableOverlappingArb, setEnableOverlappingArb] = useState(!(config?.skip_same_platform_overlap ?? true));
   
   // Polymarket Single settings (PhD Research Optimized - Saguillo 2025)
   // Research: $40M extracted at 0.3-2% margins, 0% fees = aggressive thresholds
@@ -523,6 +525,8 @@ export default function SettingsPage() {
       if (config.enable_polymarket_single_arb !== undefined) setEnablePolySingleArb(config.enable_polymarket_single_arb);
       if (config.enable_kalshi_single_arb !== undefined) setEnableKalshiSingleArb(config.enable_kalshi_single_arb);
       if (config.enable_cross_platform_arb !== undefined) setEnableCrossPlatArb(config.enable_cross_platform_arb);
+      // Overlapping Arb (inverted skip toggle)
+      if (config.skip_same_platform_overlap !== undefined) setEnableOverlappingArb(!config.skip_same_platform_overlap);
       // Polymarket Single
       if (config.poly_single_min_profit_pct !== undefined) setPolySingleMinProfit(config.poly_single_min_profit_pct);
       if (config.poly_single_max_spread_pct !== undefined) setPolySingleMaxSpread(config.poly_single_max_spread_pct);
@@ -855,6 +859,8 @@ export default function SettingsPage() {
         enable_polymarket_single_arb: enablePolySingleArb,
         enable_kalshi_single_arb: enableKalshiSingleArb,
         enable_cross_platform_arb: enableCrossPlatArb,
+        // Overlapping Arb (inverted to store as skip)
+        skip_same_platform_overlap: !enableOverlappingArb,
         // Polymarket Single
         poly_single_min_profit_pct: polySingleMinProfit,
         poly_single_max_spread_pct: polySingleMaxSpread,
@@ -1914,6 +1920,52 @@ export default function SettingsPage() {
                   className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-kalshi text-sm disabled:opacity-50"
                 />
                 <p className="text-[10px] text-gray-500 mt-1">Less frequent is fine</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            OVERLAPPING ARBITRAGE (Same Platform, Related Markets)
+            ══════════════════════════════════════════════════════════════════════ */}
+        <div className="rounded-xl border-2 border-amber-500 overflow-hidden">
+          {/* Header with toggle */}
+          <div className="bg-amber-500/20 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-amber-600 to-orange-500 flex items-center justify-center">
+                <span className="text-lg font-bold text-white">⊂⊃</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  Overlapping Arbitrage
+                  <span className="text-xs bg-amber-500/30 text-amber-400 px-2 py-0.5 rounded-full">SAME PLATFORM</span>
+                </h3>
+                <p className="text-xs text-amber-400">Related/correlated markets on same platform • e.g., &quot;Trump wins&quot; vs &quot;GOP nominee&quot;</p>
+              </div>
+            </div>
+            <ToggleSwitch enabled={enableOverlappingArb} onToggle={() => setEnableOverlappingArb(!enableOverlappingArb)} disabled={!isAdmin} size="md" />
+          </div>
+          
+          {/* Strategy explanation */}
+          <div className="px-4 py-3 bg-dark-bg/50">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                <p className="text-gray-300">Finds logically related markets on the same platform with price inconsistencies. If &quot;Trump wins&quot; is 60¢ but &quot;Trump GOP nominee&quot; is 80¢, there&apos;s an arb.</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Risk Profile</p>
+                <p className="text-gray-300">
+                  <span className="text-amber-400 font-semibold">Medium-High Risk</span> - Correlation may not hold.<br/>
+                  Markets may be related but not perfectly correlated.
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Current Performance</p>
+                <p className="text-gray-300">
+                  <span className="text-amber-400 font-semibold">32 trades</span> executed so far.<br/>
+                  Uses existing single-platform settings.
+                </p>
               </div>
             </div>
           </div>

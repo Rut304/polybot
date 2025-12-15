@@ -1,4 +1,5 @@
 # PolyBot UI Issues Report
+
 **Generated: December 15, 2025**
 
 ## Critical Issues Found
@@ -15,7 +16,8 @@
 
 ### 2. ❌ Missing Database Columns
 
-#### `polybot_config` table missing notification columns:
+#### `polybot_config` table missing notification columns
+
 - `discord_webhook` - Notifications page can't save Discord webhook
 - `telegram_bot_token` - Telegram settings won't work  
 - `telegram_chat_id` - Telegram settings won't work
@@ -25,7 +27,8 @@
 - `notify_on_error` - Setting won't persist
 - `notify_daily_summary` - Setting won't persist
 
-#### `polybot_simulated_trades` table missing:
+#### `polybot_simulated_trades` table missing
+
 - `fees_paid` - Referenced by `/taxes` and previously `/business` pages
 
 ### 3. ⚠️ Empty Tables (Features Won't Work)
@@ -42,22 +45,27 @@
 ### 4. ⚠️ Code Issues
 
 #### `/leaderboard/page.tsx` - Uses ANON_KEY directly
+
 ```tsx
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 ```
+
 This creates a new client instance instead of using the shared one. May fail if anon key is removed.
 
 #### `/strategy-history/page.tsx` - Same issue
+
 ```tsx
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 ```
 
 #### `/taxes/page.tsx` - References non-existent `fees_paid` column
+
 Lines 35, 152, 178, 256, 257, 292, 760 all reference `t.fees_paid` which doesn't exist.
 
 #### `/notifications/page.tsx` - Wrong query pattern
+
 The page tries to query `polybot_config` as a key-value store with `.select('key, value')` but our config table is a single-row table with columns, not a key-value store.
 
 ### 5. ⚠️ Strategy Implementation Status
@@ -79,6 +87,7 @@ The page tries to query `polybot_config` as a key-value store with `.select('key
 ### 6. 🔧 BTC Bracket Arbitrage - Market Availability
 
 **Checked Dec 15, 2025:**
+
 - Polymarket: 0 BTC bracket markets found
 - Kalshi: 0 BTC markets found
 
@@ -89,21 +98,25 @@ This strategy requires specific "BTC will be between X and Y in 15 minutes" mark
 ## Fix Priority
 
 ### P0 - Critical (Breaking)
+
 1. Fix `/taxes/page.tsx` - remove `fees_paid` references
 2. Fix `/notifications/page.tsx` - use correct config table structure
 3. Fix `/leaderboard/page.tsx` and `/strategy-history/page.tsx` - use shared supabase client
 
 ### P1 - High (Features Broken)
+
 1. Create missing tables: `polybot_config_changes`, `polybot_markets_cache`
 2. Add notification columns to `polybot_config`
 3. Populate `polybot_balance_history` from bot
 
 ### P2 - Medium (Empty States)
+
 1. Add UI handling for empty whale/position data
 2. Show "No markets available" for BTC bracket strategy
 3. Add proper loading states and empty state messages
 
 ### P3 - Low (Enhancements)
+
 1. Add `fees_paid` column to simulated_trades (or calculate)
 2. Create news events tracking table
 3. Implement tax events tracking
