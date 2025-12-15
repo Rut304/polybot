@@ -357,6 +357,41 @@ export default function SettingsPage() {
   const [congressTrackedPoliticians, setCongressTrackedPoliticians] = useState<string>(config?.congress_tracked_politicians ?? 'Nancy Pelosi,Tommy Tuberville,Dan Crenshaw');
   
   // =========================================================================
+  // NEW HIGH-CONFIDENCE STRATEGIES (85% and 80%)
+  // =========================================================================
+  
+  // High Conviction Strategy (85% confidence - 40-80% APY)
+  const [enableHighConvictionStrategy, setEnableHighConvictionStrategy] = useState(config?.enable_high_conviction_strategy ?? false);
+  const [highConvictionMinScore, setHighConvictionMinScore] = useState(config?.high_conviction_min_score ?? 0.75);
+  const [highConvictionMaxPositions, setHighConvictionMaxPositions] = useState(config?.high_conviction_max_positions ?? 3);
+  const [highConvictionMinSignals, setHighConvictionMinSignals] = useState(config?.high_conviction_min_signals ?? 3);
+  const [highConvictionPositionPct, setHighConvictionPositionPct] = useState(config?.high_conviction_position_pct ?? 15.0);
+  const [highConvictionUseKelly, setHighConvictionUseKelly] = useState(config?.high_conviction_use_kelly ?? true);
+  const [highConvictionKellyFraction, setHighConvictionKellyFraction] = useState(config?.high_conviction_kelly_fraction ?? 0.25);
+  
+  // Political Event Strategy (80% confidence - 30-60% APY)
+  const [enablePoliticalEventStrategy, setEnablePoliticalEventStrategy] = useState(config?.enable_political_event_strategy ?? false);
+  const [politicalMinConvictionScore, setPoliticalMinConvictionScore] = useState(config?.political_min_conviction_score ?? 0.75);
+  const [politicalMaxPositionUsd, setPoliticalMaxPositionUsd] = useState(config?.political_max_position_usd ?? 500);
+  const [politicalMaxConcurrentEvents, setPoliticalMaxConcurrentEvents] = useState(config?.political_max_concurrent_events ?? 5);
+  const [politicalEventCategories, setPoliticalEventCategories] = useState<string>(config?.political_event_categories ?? 'election,legislation,hearing');
+  const [politicalLeadTimeHours, setPoliticalLeadTimeHours] = useState(config?.political_lead_time_hours ?? 48);
+  const [politicalExitBufferHours, setPoliticalExitBufferHours] = useState(config?.political_exit_buffer_hours ?? 2);
+  
+  // Selective Whale Copy Strategy (80% confidence - 35-70% APY)
+  const [enableSelectiveWhaleCopy, setEnableSelectiveWhaleCopy] = useState(config?.enable_selective_whale_copy ?? false);
+  const [selectiveWhaleMinWinRate, setSelectiveWhaleMinWinRate] = useState(config?.selective_whale_min_win_rate ?? 0.65);
+  const [selectiveWhaleMinRoi, setSelectiveWhaleMinRoi] = useState(config?.selective_whale_min_roi ?? 0.20);
+  const [selectiveWhaleMinTrades, setSelectiveWhaleMinTrades] = useState(config?.selective_whale_min_trades ?? 10);
+  const [selectiveWhaleMaxTracked, setSelectiveWhaleMaxTracked] = useState(config?.selective_whale_max_tracked ?? 10);
+  const [selectiveWhaleAutoSelect, setSelectiveWhaleAutoSelect] = useState(config?.selective_whale_auto_select ?? true);
+  const [selectiveWhaleCopyScalePct, setSelectiveWhaleCopyScalePct] = useState(config?.selective_whale_copy_scale_pct ?? 5.0);
+  const [selectiveWhaleMaxPositionUsd, setSelectiveWhaleMaxPositionUsd] = useState(config?.selective_whale_max_position_usd ?? 200);
+  
+  // UI state for new strategy sections
+  const [showNewHighConfidenceStrategies, setShowNewHighConfidenceStrategies] = useState(false);
+  
+  // =========================================================================
   // ADVANCED RISK FRAMEWORK (Kelly, Regime, Circuit Breaker, etc.)
   // These modules enhance ALL strategies with better risk management
   // =========================================================================
@@ -639,6 +674,27 @@ export default function SettingsPage() {
       if (config.congress_delay_hours !== undefined) setCongressDelayHours(config.congress_delay_hours);
       if (config.congress_scan_interval_hours !== undefined) setCongressScanIntervalHours(config.congress_scan_interval_hours);
       if (config.congress_tracked_politicians !== undefined) setCongressTrackedPoliticians(config.congress_tracked_politicians);
+      
+      // High Conviction Strategy (85% confidence)
+      if (config.enable_high_conviction_strategy !== undefined) setEnableHighConvictionStrategy(config.enable_high_conviction_strategy);
+      if (config.high_conviction_min_score !== undefined) setHighConvictionMinScore(config.high_conviction_min_score);
+      if (config.high_conviction_min_volume !== undefined) setHighConvictionMinVolume(config.high_conviction_min_volume);
+      if (config.high_conviction_max_position_usd !== undefined) setHighConvictionMaxPosition(config.high_conviction_max_position_usd);
+      if (config.high_conviction_scan_interval_sec !== undefined) setHighConvictionScanInterval(config.high_conviction_scan_interval_sec);
+      
+      // Political Event Strategy (80% confidence)
+      if (config.enable_political_event_strategy !== undefined) setEnablePoliticalEventStrategy(config.enable_political_event_strategy);
+      if (config.political_event_categories !== undefined) setPoliticalEventCategories(config.political_event_categories);
+      if (config.political_event_min_edge_pct !== undefined) setPoliticalEventMinEdge(config.political_event_min_edge_pct);
+      if (config.political_event_max_position_usd !== undefined) setPoliticalEventMaxPosition(config.political_event_max_position_usd);
+      if (config.political_event_monitor_interval_sec !== undefined) setPoliticalEventMonitorInterval(config.political_event_monitor_interval_sec);
+      
+      // Selective Whale Copy (80% confidence)
+      if (config.enable_selective_whale_copy !== undefined) setEnableSelectiveWhaleCopy(config.enable_selective_whale_copy);
+      if (config.selective_whale_min_win_rate !== undefined) setSelectiveWhaleMinWinRate(config.selective_whale_min_win_rate);
+      if (config.selective_whale_min_pnl !== undefined) setSelectiveWhaleMinPnl(config.selective_whale_min_pnl);
+      if (config.selective_whale_max_copy_size_usd !== undefined) setSelectiveWhaleMaxCopySize(config.selective_whale_max_copy_size_usd);
+      if (config.selective_whale_delay_seconds !== undefined) setSelectiveWhaleDelaySeconds(config.selective_whale_delay_seconds);
       
       // Exchange Enablement (NEW)
       if (config.enable_binance !== undefined) setEnableBinance(config.enable_binance);
@@ -929,6 +985,24 @@ export default function SettingsPage() {
         congress_delay_hours: congressDelayHours,
         congress_scan_interval_hours: congressScanIntervalHours,
         congress_tracked_politicians: congressTrackedPoliticians,
+        // High Conviction Strategy (85% confidence)
+        enable_high_conviction_strategy: enableHighConvictionStrategy,
+        high_conviction_min_score: highConvictionMinScore,
+        high_conviction_min_volume: highConvictionMinVolume,
+        high_conviction_max_position_usd: highConvictionMaxPosition,
+        high_conviction_scan_interval_sec: highConvictionScanInterval,
+        // Political Event Strategy (80% confidence)
+        enable_political_event_strategy: enablePoliticalEventStrategy,
+        political_event_categories: politicalEventCategories,
+        political_event_min_edge_pct: politicalEventMinEdge,
+        political_event_max_position_usd: politicalEventMaxPosition,
+        political_event_monitor_interval_sec: politicalEventMonitorInterval,
+        // Selective Whale Copy (80% confidence)
+        enable_selective_whale_copy: enableSelectiveWhaleCopy,
+        selective_whale_min_win_rate: selectiveWhaleMinWinRate,
+        selective_whale_min_pnl: selectiveWhaleMinPnl,
+        selective_whale_max_copy_size_usd: selectiveWhaleMaxCopySize,
+        selective_whale_delay_seconds: selectiveWhaleDelaySeconds,
         // Exchange Enablement
         enable_binance: enableBinance,
         enable_bybit: enableBybit,
@@ -4837,6 +4911,255 @@ export default function SettingsPage() {
                     <p className="text-[10px] text-gray-500 mt-1">
                       Leave blank to track all (auto-discovery). Known top performers: Nancy Pelosi, Tommy Tuberville, Dan Crenshaw, Josh Gottheimer, Michael McCaul
                     </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ══════════════════════════════════════════════════════════════════════
+                  HIGH CONVICTION STRATEGY - Full Card (85% Confidence)
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-green-500 overflow-hidden">
+                <div className="bg-green-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center">
+                      <span className="text-lg">⚡</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        High Conviction Strategy
+                        <span className="text-xs bg-green-500/30 text-green-400 px-2 py-0.5 rounded-full">85% CONFIDENCE</span>
+                        <span className="text-xs bg-blue-500/30 text-blue-400 px-2 py-0.5 rounded-full">MULTI-SIGNAL</span>
+                      </h3>
+                      <p className="text-xs text-green-400">Multi-signal convergence for highest-probability trades</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch enabled={enableHighConvictionStrategy} onToggle={() => setEnableHighConvictionStrategy(!enableHighConvictionStrategy)} disabled={!isAdmin} size="md" />
+                </div>
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-green-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Requires 3+ confirming signals: high volume, favorable odds movement, social sentiment, whale activity, and edge score all aligning.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Why It&apos;s Profitable</p>
+                      <p className="text-gray-300"><span className="text-green-400 font-semibold">Multi-factor confirmation</span> filters out noise. Only trades when fundamentals, technicals, and sentiment all agree.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Scoring System</p>
+                      <p className="text-gray-300">Proprietary 0-100 conviction score combining liquidity, edge, timing, and signal strength.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-green-500/5">
+                  <p className="text-xs font-medium text-green-400 mb-3 uppercase tracking-wider">Strategy Parameters</p>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Target className="w-3 h-3" />
+                        Min Score (0-100)
+                      </label>
+                      <input type="number" value={highConvictionMinScore} onChange={(e) => setHighConvictionMinScore(parseInt(e.target.value))} step="5" min="50" max="100" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" placeholder="80" />
+                      <p className="text-[10px] text-gray-500 mt-1">Minimum conviction score</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Min Volume ($)
+                      </label>
+                      <input type="number" value={highConvictionMinVolume} onChange={(e) => setHighConvictionMinVolume(parseInt(e.target.value))} step="10000" min="1000" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" placeholder="50000" />
+                      <p className="text-[10px] text-gray-500 mt-1">Min market volume</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Position ($)
+                      </label>
+                      <input type="number" value={highConvictionMaxPosition} onChange={(e) => setHighConvictionMaxPosition(parseInt(e.target.value))} step="50" min="10" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" placeholder="250" />
+                      <p className="text-[10px] text-gray-500 mt-1">Max per trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <RefreshCw className="w-3 h-3" />
+                        Scan Interval (sec)
+                      </label>
+                      <input type="number" value={highConvictionScanInterval} onChange={(e) => setHighConvictionScanInterval(parseInt(e.target.value))} step="30" min="30" max="600" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 text-sm disabled:opacity-50" placeholder="120" />
+                      <p className="text-[10px] text-gray-500 mt-1">How often to scan</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ══════════════════════════════════════════════════════════════════════
+                  POLITICAL EVENT STRATEGY - Full Card (80% Confidence)
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-purple-500 overflow-hidden">
+                <div className="bg-purple-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500 flex items-center justify-center">
+                      <span className="text-lg">🏛️</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Political Event Strategy
+                        <span className="text-xs bg-purple-500/30 text-purple-400 px-2 py-0.5 rounded-full">80% CONFIDENCE</span>
+                        <span className="text-xs bg-orange-500/30 text-orange-400 px-2 py-0.5 rounded-full">NEWS-DRIVEN</span>
+                      </h3>
+                      <p className="text-xs text-purple-400">Real-time political event trading with edge calculation</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch enabled={enablePoliticalEventStrategy} onToggle={() => setEnablePoliticalEventStrategy(!enablePoliticalEventStrategy)} disabled={!isAdmin} size="md" />
+                </div>
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-purple-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Monitors political events, legislation votes, and policy announcements. Calculates probability edges from historical patterns.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Event Categories</p>
+                      <p className="text-gray-300"><span className="text-purple-400 font-semibold">Elections, legislation, policy, appointments</span> - each with calibrated models.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Edge Calculation</p>
+                      <p className="text-gray-300">Compares market odds to our model predictions. Trades when edge exceeds minimum threshold.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-purple-500/5">
+                  <p className="text-xs font-medium text-purple-400 mb-3 uppercase tracking-wider">Strategy Parameters</p>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        🏛️ Event Categories
+                      </label>
+                      <select 
+                        value={politicalEventCategories} 
+                        onChange={(e) => setPoliticalEventCategories(e.target.value)} 
+                        disabled={!isAdmin} 
+                        className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50"
+                      >
+                        <option value="all">All Categories</option>
+                        <option value="elections">Elections Only</option>
+                        <option value="legislation">Legislation Only</option>
+                        <option value="policy">Policy Only</option>
+                        <option value="appointments">Appointments Only</option>
+                      </select>
+                      <p className="text-[10px] text-gray-500 mt-1">Which events to trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Edge (%)
+                      </label>
+                      <input type="number" value={politicalEventMinEdge} onChange={(e) => setPoliticalEventMinEdge(parseFloat(e.target.value))} step="1" min="1" max="20" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" placeholder="5" />
+                      <p className="text-[10px] text-gray-500 mt-1">Min edge to trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Position ($)
+                      </label>
+                      <input type="number" value={politicalEventMaxPosition} onChange={(e) => setPoliticalEventMaxPosition(parseInt(e.target.value))} step="50" min="10" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" placeholder="200" />
+                      <p className="text-[10px] text-gray-500 mt-1">Max per trade</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <RefreshCw className="w-3 h-3" />
+                        Monitor Interval (sec)
+                      </label>
+                      <input type="number" value={politicalEventMonitorInterval} onChange={(e) => setPoliticalEventMonitorInterval(parseInt(e.target.value))} step="60" min="60" max="900" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 text-sm disabled:opacity-50" placeholder="300" />
+                      <p className="text-[10px] text-gray-500 mt-1">How often to check</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ══════════════════════════════════════════════════════════════════════
+                  SELECTIVE WHALE COPY - Full Card (80% Confidence)
+                  ══════════════════════════════════════════════════════════════════════ */}
+              <div className="mt-4 rounded-xl border-2 border-cyan-500 overflow-hidden">
+                <div className="bg-cyan-500/20 px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-cyan-500 flex items-center justify-center">
+                      <span className="text-lg">🐋</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white flex items-center gap-2">
+                        Selective Whale Copy
+                        <span className="text-xs bg-cyan-500/30 text-cyan-400 px-2 py-0.5 rounded-full">80% CONFIDENCE</span>
+                        <span className="text-xs bg-yellow-500/30 text-yellow-400 px-2 py-0.5 rounded-full">COPY TRADING</span>
+                      </h3>
+                      <p className="text-xs text-cyan-400">Copy only high win-rate whales with proven track records</p>
+                    </div>
+                  </div>
+                  <ToggleSwitch enabled={enableSelectiveWhaleCopy} onToggle={() => setEnableSelectiveWhaleCopy(!enableSelectiveWhaleCopy)} disabled={!isAdmin} size="md" />
+                </div>
+                
+                <div className="px-4 py-3 bg-dark-bg/50 border-b border-cyan-500/30">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">How It Works</p>
+                      <p className="text-gray-300">Tracks profitable wallets and only copies trades from whales with exceptional historical performance.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Selection Criteria</p>
+                      <p className="text-gray-300"><span className="text-cyan-400 font-semibold">65%+ win rate, positive P&L</span> over last 30+ trades. Filters out lucky streaks.</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Execution</p>
+                      <p className="text-gray-300">Small delay to avoid front-running detection. Scaled position sizing based on confidence.</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-cyan-500/5">
+                  <p className="text-xs font-medium text-cyan-400 mb-3 uppercase tracking-wider">Copy Parameters</p>
+                  <div className="grid grid-cols-5 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Percent className="w-3 h-3" />
+                        Min Win Rate (%)
+                      </label>
+                      <input type="number" value={selectiveWhaleMinWinRate} onChange={(e) => setSelectiveWhaleMinWinRate(parseFloat(e.target.value))} step="5" min="50" max="95" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" placeholder="65" />
+                      <p className="text-[10px] text-gray-500 mt-1">Whale min win rate</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Min P&L ($)
+                      </label>
+                      <input type="number" value={selectiveWhaleMinPnl} onChange={(e) => setSelectiveWhaleMinPnl(parseInt(e.target.value))} step="1000" min="0" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" placeholder="5000" />
+                      <p className="text-[10px] text-gray-500 mt-1">Min whale profit</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <DollarSign className="w-3 h-3" />
+                        Max Copy Size ($)
+                      </label>
+                      <input type="number" value={selectiveWhaleMaxCopySize} onChange={(e) => setSelectiveWhaleMaxCopySize(parseInt(e.target.value))} step="25" min="10" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" placeholder="100" />
+                      <p className="text-[10px] text-gray-500 mt-1">Max copy amount</p>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-400 mb-1.5">
+                        <Clock className="w-3 h-3" />
+                        Delay (sec)
+                      </label>
+                      <input type="number" value={selectiveWhaleDelaySeconds} onChange={(e) => setSelectiveWhaleDelaySeconds(parseInt(e.target.value))} step="5" min="0" max="120" disabled={!isAdmin} className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-cyan-500 text-sm disabled:opacity-50" placeholder="30" />
+                      <p className="text-[10px] text-gray-500 mt-1">Copy delay</p>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="text-xs text-gray-500 mb-1">Status</p>
+                        <span className={`text-sm font-medium ${enableSelectiveWhaleCopy ? 'text-green-400' : 'text-gray-500'}`}>
+                          {enableSelectiveWhaleCopy ? '● Active' : '○ Disabled'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
