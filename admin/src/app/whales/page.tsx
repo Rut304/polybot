@@ -146,14 +146,25 @@ export default function WhalesPage() {
     queryKey: ['polymarketLeaderboard', timeFilter],
     queryFn: async (): Promise<LeaderboardWhale[]> => {
       try {
-        // Call our Next.js API route that fetches from Polymarket
-        const response = await fetch('/api/whales/leaderboard?limit=100&minWinRate=65&minVolume=5000');
+        // Map timeFilter to API format
+        const timeMap: Record<TimeFilter, string> = {
+          week: 'WEEK',
+          month: 'MONTH',
+          year: 'ALL', // Polymarket doesn't have a year option, use ALL
+          all: 'ALL',
+        };
+        
+        // Call our Next.js API route that fetches from Polymarket Data-API
+        const response = await fetch(
+          `/api/whales/leaderboard?limit=100&minVolume=5000&timePeriod=${timeMap[timeFilter]}&orderBy=PNL`
+        );
         
         if (!response.ok) {
           throw new Error(`Leaderboard API returned ${response.status}`);
         }
         
         const result = await response.json();
+        console.log('Leaderboard API response:', result);
         
         if (result.success && result.data) {
           return result.data;
