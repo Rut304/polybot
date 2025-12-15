@@ -14,10 +14,15 @@ Example:
 - Guaranteed $1.00 payout = 4% risk-free profit
 
 This is the "new meta" on Polymarket according to multiple sources.
+
+Rate Limiting:
+- Kalshi API: 30 req/min, 2s between requests
+- Polymarket API: More lenient, 0.5s between requests
 """
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -27,6 +32,10 @@ import aiohttp
 import re
 
 logger = logging.getLogger(__name__)
+
+# Rate limiting constants for Kalshi
+KALSHI_MIN_INTERVAL = 2.0  # Minimum seconds between requests
+KALSHI_MAX_PER_MINUTE = 30
 
 
 class BracketType(Enum):
@@ -175,7 +184,7 @@ class BTCBracketArbStrategy:
         "BTCH",  # BTC hourly
         "BTCD",  # BTC daily
     ]
-    
+
     def __init__(
         self,
         min_profit_pct: float = 0.5,
@@ -185,7 +194,7 @@ class BTCBracketArbStrategy:
         max_position_usd: float = 100.0,
         scan_interval_seconds: int = 15,  # Fast scanning for 15-min markets
         on_opportunity: Optional[Callable] = None,
-        db_client = None,
+        db_client=None,
     ):
         self.min_profit_pct = Decimal(str(min_profit_pct))
         self.max_profit_pct = Decimal(str(max_profit_pct))
@@ -195,20 +204,26 @@ class BTCBracketArbStrategy:
         self.scan_interval = scan_interval_seconds
         self.on_opportunity = on_opportunity
         self.db = db_client
-        
+
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
         self.stats = BracketArbStats()
-        
+
         # Cache for bracket markets
         self._bracket_markets: Dict[str, Dict] = {}
         self._last_cache_update = datetime.min
         self._cache_ttl_seconds = 60
-        
+
         # Cooldown tracking
         self._recently_traded: Dict[str, datetime] = {}
         self._cooldown_seconds = 300  # 5 min cooldown per market
-        
+
+        # Rate limiting for Kalshi
+        self._kalshi_last_request: float = 0.0
+        self._kalshi_requests_minute: int = 0
+        self._kalshi_minute_start: float = 0.0
+        self._kalshi_backoff_until: float = 0.0
+
         # Compile patterns
         self._btc_regex = re.compile(
             '|'.join(self.BTC_PATTERNS), re.IGNORECASE
@@ -224,34 +239,87 @@ class BTCBracketArbStrategy:
                 timeout=aiohttp.ClientTimeout(total=30)
             )
         return self._session
-    
+
     async def close(self):
         """Close the session"""
         if self._session and not self._session.closed:
             await self._session.close()
-    
+
+    async def _kalshi_rate_limit(self):
+        """
+        Apply rate limiting for Kalshi API calls.
+        Prevents 429 errors with adaptive backoff.
+        """
+        now = time.time()
+
+        # Check backoff period (after 429)
+        if now < self._kalshi_backoff_until:
+            wait_time = self._kalshi_backoff_until - now
+            logger.info(f"[BTC-Arb] Kalshi rate limited, waiting {wait_time:.1f}s")
+            await asyncio.sleep(wait_time)
+            now = time.time()
+
+        # Reset minute window if needed
+        if now - self._kalshi_minute_start >= 60:
+            self._kalshi_minute_start = now
+            self._kalshi_requests_minute = 0
+
+        # Check per-minute limit
+        if self._kalshi_requests_minute >= KALSHI_MAX_PER_MINUTE:
+            wait_until = self._kalshi_minute_start + 60
+            extra_wait = wait_until - now + 0.1
+            if extra_wait > 0:
+                logger.info(
+                    f"[BTC-Arb] Kalshi rate limit reached, "
+                    f"waiting {extra_wait:.1f}s"
+                )
+                await asyncio.sleep(extra_wait)
+                now = time.time()
+                self._kalshi_minute_start = now
+                self._kalshi_requests_minute = 0
+
+        # Enforce minimum interval
+        time_since_last = now - self._kalshi_last_request
+        if time_since_last < KALSHI_MIN_INTERVAL:
+            await asyncio.sleep(KALSHI_MIN_INTERVAL - time_since_last)
+
+        # Update state
+        self._kalshi_last_request = time.time()
+        self._kalshi_requests_minute += 1
+
+    def _handle_kalshi_response(self, status: int):
+        """Handle Kalshi response, applying backoff on 429."""
+        if status == 429:
+            # Exponential backoff: 5, 10, 20, 40, 60 (max)
+            current_backoff = self._kalshi_backoff_until - time.time()
+            new_backoff = min(max(current_backoff * 2, 5), 60)
+            self._kalshi_backoff_until = time.time() + new_backoff
+            logger.warning(f"[BTC-Arb] Kalshi 429, backing off {new_backoff}s")
+
     def _identify_bracket_type(self, title: str, ticker: str = "") -> BracketType:
         """Identify the type of bracket market"""
         title_lower = title.lower()
         ticker_lower = ticker.lower()
-        
+
         # Check for BTC 15-minute
-        if "15" in title_lower and ("min" in title_lower or "minute" in title_lower):
+        btc_15_check = "15" in title_lower
+        min_check = "min" in title_lower or "minute" in title_lower
+        if btc_15_check and min_check:
             if self._btc_regex.search(title):
                 return BracketType.BTC_15MIN
             if self._eth_regex.search(title):
                 return BracketType.ETH_15MIN
-        
+
         # Check for BTC hourly
         if "hour" in title_lower or "1h" in title_lower:
             if self._btc_regex.search(title):
                 return BracketType.BTC_1HOUR
-        
+
         # Check for BTC daily
         if "daily" in title_lower or "day" in title_lower:
             if self._btc_regex.search(title):
                 return BracketType.BTC_DAILY
-        
+
         # Check ticker patterns (Kalshi)
         for prefix in self.KALSHI_BTC_PREFIXES:
             if ticker_lower.startswith(prefix.lower()):
@@ -261,26 +329,27 @@ class BTCBracketArbStrategy:
                     return BracketType.BTC_1HOUR
                 if "D" in ticker:
                     return BracketType.BTC_DAILY
-        
+
         return BracketType.OTHER
-    
+
     def _is_bracket_market(self, title: str, ticker: str = "") -> bool:
         """Check if a market is a BTC/ETH bracket market"""
         bracket_type = self._identify_bracket_type(title, ticker)
         return bracket_type != BracketType.OTHER
-    
+
     def _is_on_cooldown(self, market_id: str) -> bool:
         """Check if market is on cooldown"""
         if market_id not in self._recently_traded:
             return False
-        
-        elapsed = (datetime.now() - self._recently_traded[market_id]).total_seconds()
+
+        traded_time = self._recently_traded[market_id]
+        elapsed = (datetime.now() - traded_time).total_seconds()
         return elapsed < self._cooldown_seconds
-    
+
     def mark_traded(self, market_id: str):
         """Mark market as traded (start cooldown)"""
         self._recently_traded[market_id] = datetime.now()
-    
+
     async def fetch_polymarket_btc_markets(self) -> List[Dict]:
         """Fetch BTC bracket markets from Polymarket"""
         session = await self._get_session()
@@ -308,46 +377,58 @@ class BTCBracketArbStrategy:
                     logger.info(f"Found {len(btc_markets)} BTC bracket markets on Polymarket")
                 else:
                     logger.warning(f"Polymarket API returned {resp.status}")
-        
+
         except Exception as e:
             logger.error(f"Error fetching Polymarket markets: {e}")
-        
+
         return btc_markets
-    
+
     async def fetch_kalshi_btc_markets(self) -> List[Dict]:
-        """Fetch BTC bracket markets from Kalshi"""
+        """Fetch BTC bracket markets from Kalshi with rate limiting"""
         session = await self._get_session()
         btc_markets = []
-        
+
         try:
-            # Search for BTC markets
+            # Search for BTC markets with rate limiting
             for prefix in self.KALSHI_BTC_PREFIXES:
+                # Apply rate limiting before each request
+                await self._kalshi_rate_limit()
+
                 url = f"{self.KALSHI_API}/markets"
                 params = {
                     "ticker": prefix,
                     "status": "active",
                     "limit": 50,
                 }
-                
+
                 async with session.get(url, params=params) as resp:
+                    self._handle_kalshi_response(resp.status)
                     if resp.status == 200:
                         data = await resp.json()
                         markets = data.get("markets", [])
                         btc_markets.extend(markets)
-                    
-            logger.info(f"Found {len(btc_markets)} BTC bracket markets on Kalshi")
-        
+                    elif resp.status == 429:
+                        logger.warning(
+                            f"[BTC-Arb] Kalshi 429 on prefix {prefix}"
+                        )
+                        # Don't continue hitting rate limits
+                        break
+
+            logger.info(
+                f"[BTC-Arb] Found {len(btc_markets)} BTC bracket markets"
+            )
+
         except Exception as e:
             logger.error(f"Error fetching Kalshi markets: {e}")
-        
+
         return btc_markets
-    
+
     async def analyze_polymarket_bracket(
         self,
         market: Dict,
     ) -> Optional[BracketOpportunity]:
         """Analyze a Polymarket bracket market for arbitrage"""
-        
+
         market_id = market.get("conditionId") or market.get("id", "unknown")
         title = market.get("question", "Unknown")
         

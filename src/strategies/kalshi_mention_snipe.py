@@ -17,10 +17,15 @@ Strategy:
 The key insight: After a word is said, the market IS resolved,
 but hasn't officially settled. Impatient holders sell at 99¢
 to get cash immediately instead of waiting.
+
+Rate Limiting:
+- Kalshi API: 30 req/min, 2s between requests
+- Adaptive backoff on 429 responses
 """
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -30,6 +35,10 @@ import aiohttp
 import re
 
 logger = logging.getLogger(__name__)
+
+# Rate limiting constants for Kalshi
+KALSHI_MIN_INTERVAL = 2.0  # Minimum seconds between requests
+KALSHI_MAX_PER_MINUTE = 30
 
 
 class MentionStatus(Enum):
@@ -188,7 +197,7 @@ class KalshiMentionSnipeStrategy:
         twitter_bearer_token: Optional[str] = None,
         newsapi_key: Optional[str] = None,
         on_opportunity: Optional[Callable] = None,
-        db_client = None,
+        db_client=None,
     ):
         self.bid_price = Decimal(str(bid_price))
         self.min_profit_pct = Decimal(str(min_profit_pct))
@@ -199,20 +208,26 @@ class KalshiMentionSnipeStrategy:
         self.newsapi_key = newsapi_key
         self.on_opportunity = on_opportunity
         self.db = db_client
-        
+
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
         self.stats = SnipeStats()
-        
+
         # Track mention markets
         self._mention_markets: Dict[str, MentionMarket] = {}
         self._triggered_words: Set[str] = set()
-        
+
+        # Rate limiting for Kalshi
+        self._kalshi_last_request: float = 0.0
+        self._kalshi_requests_minute: int = 0
+        self._kalshi_minute_start: float = 0.0
+        self._kalshi_backoff_until: float = 0.0
+
         # Compile patterns
         self._mention_regex = re.compile(
             '|'.join(self.MENTION_PATTERNS), re.IGNORECASE
         )
-    
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
         if self._session is None or self._session.closed:
@@ -220,80 +235,147 @@ class KalshiMentionSnipeStrategy:
                 timeout=aiohttp.ClientTimeout(total=30)
             )
         return self._session
-    
+
     async def close(self):
         """Close the session"""
         if self._session and not self._session.closed:
             await self._session.close()
-    
+
+    async def _kalshi_rate_limit(self):
+        """Apply rate limiting for Kalshi API calls."""
+        now = time.time()
+
+        # Check backoff period (after 429)
+        if now < self._kalshi_backoff_until:
+            wait_time = self._kalshi_backoff_until - now
+            logger.info(f"[Snipe] Kalshi rate limited, waiting {wait_time:.1f}s")
+            await asyncio.sleep(wait_time)
+            now = time.time()
+
+        # Reset minute window if needed
+        if now - self._kalshi_minute_start >= 60:
+            self._kalshi_minute_start = now
+            self._kalshi_requests_minute = 0
+
+        # Check per-minute limit
+        if self._kalshi_requests_minute >= KALSHI_MAX_PER_MINUTE:
+            wait_until = self._kalshi_minute_start + 60
+            extra_wait = wait_until - now + 0.1
+            if extra_wait > 0:
+                logger.info(f"[Snipe] Kalshi limit reached, waiting {extra_wait:.1f}s")
+                await asyncio.sleep(extra_wait)
+                self._kalshi_minute_start = time.time()
+                self._kalshi_requests_minute = 0
+
+        # Enforce minimum interval
+        time_since_last = now - self._kalshi_last_request
+        if time_since_last < KALSHI_MIN_INTERVAL:
+            await asyncio.sleep(KALSHI_MIN_INTERVAL - time_since_last)
+
+        # Update state
+        self._kalshi_last_request = time.time()
+        self._kalshi_requests_minute += 1
+
+    def _handle_kalshi_response(self, status: int):
+        """Handle Kalshi response, applying backoff on 429."""
+        if status == 429:
+            current_backoff = self._kalshi_backoff_until - time.time()
+            new_backoff = min(max(current_backoff * 2, 5), 60)
+            self._kalshi_backoff_until = time.time() + new_backoff
+            logger.warning(f"[Snipe] Kalshi 429, backing off {new_backoff}s")
+
     def _is_mention_market(self, title: str) -> bool:
         """Check if a market is a mention market"""
         return bool(self._mention_regex.search(title))
-    
+
     def _extract_keyword(self, title: str) -> Optional[str]:
         """Extract the keyword being tracked from market title"""
         title_lower = title.lower()
-        
+
         # Try to find tracked keywords
         for keyword in self.TRACKED_KEYWORDS:
             if keyword in title_lower:
                 return keyword
-        
+
         # Try to extract from patterns like "say 'word'"
         match = re.search(r"say\s+['\"]?(\w+)['\"]?", title_lower)
         if match:
             return match.group(1)
-        
+
         return None
-    
+
     async def fetch_mention_markets(self) -> List[Dict]:
-        """Fetch mention markets from Kalshi"""
+        """Fetch mention markets from Kalshi with rate limiting"""
         session = await self._get_session()
         mention_markets = []
-        
+
         try:
+            # Apply rate limiting before request
+            await self._kalshi_rate_limit()
+
             # Search for mention-related events
             url = f"{self.KALSHI_API}/events"
             params = {
                 "status": "active",
                 "limit": 100,
             }
-            
+
             async with session.get(url, params=params) as resp:
+                self._handle_kalshi_response(resp.status)
+
+                if resp.status == 429:
+                    logger.warning("[Snipe] Kalshi 429 on events fetch")
+                    return []
+
                 if resp.status == 200:
                     data = await resp.json()
                     events = data.get("events", [])
-                    
+
                     for event in events:
                         # Look for speech/mention events
                         event_title = event.get("title", "")
-                        if any(kw in event_title.lower() for kw in ["speech", "address", "remarks", "press conference"]):
+                        speech_kws = [
+                            "speech", "address", "remarks", "press conference"
+                        ]
+                        if any(kw in event_title.lower() for kw in speech_kws):
                             # Fetch markets for this event
                             event_ticker = event.get("event_ticker")
                             if event_ticker:
-                                markets = await self._fetch_event_markets(event_ticker, event_title)
+                                markets = await self._fetch_event_markets(
+                                    event_ticker, event_title
+                                )
                                 mention_markets.extend(markets)
-            
-            logger.info(f"Found {len(mention_markets)} mention markets")
-            
+
+            logger.info(f"[Snipe] Found {len(mention_markets)} mention markets")
+
         except Exception as e:
             logger.error(f"Error fetching mention markets: {e}")
-        
+
         return mention_markets
-    
-    async def _fetch_event_markets(self, event_ticker: str, event_title: str) -> List[Dict]:
-        """Fetch markets for a specific event"""
+
+    async def _fetch_event_markets(
+        self, event_ticker: str, event_title: str
+    ) -> List[Dict]:
+        """Fetch markets for a specific event with rate limiting"""
         session = await self._get_session()
         markets = []
-        
+
         try:
+            # Apply rate limiting before request
+            await self._kalshi_rate_limit()
+
             url = f"{self.KALSHI_API}/markets"
             params = {
                 "event_ticker": event_ticker,
                 "status": "active",
             }
-            
+
             async with session.get(url, params=params) as resp:
+                self._handle_kalshi_response(resp.status)
+
+                if resp.status == 429:
+                    return []
+
                 if resp.status == 200:
                     data = await resp.json()
                     for market in data.get("markets", []):
@@ -301,21 +383,21 @@ class KalshiMentionSnipeStrategy:
                         if self._is_mention_market(title):
                             market["event_title"] = event_title
                             markets.append(market)
-        
+
         except Exception as e:
             logger.debug(f"Error fetching event markets: {e}")
-        
+
         return markets
-    
+
     async def check_news_for_keywords(self) -> Set[str]:
         """Check news feeds for triggered keywords"""
         triggered = set()
-        
+
         # Check Twitter if available
         if self.twitter_token:
             twitter_words = await self._check_twitter()
             triggered.update(twitter_words)
-        
+
         # Check NewsAPI if available
         if self.newsapi_key:
             news_words = await self._check_news_api()
