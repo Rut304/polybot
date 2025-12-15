@@ -32,7 +32,7 @@ interface TaxTransaction {
   market_title: string;
   position_size_usd: number;
   actual_profit_usd: number;
-  fees_paid: number;
+  fees_paid: number; // Estimated: 7% for Kalshi, 0% for Polymarket
   trade_type: string;
   strategy_type: string;
   outcome: string;
@@ -142,19 +142,27 @@ export default function TaxesPage() {
         return [];
       }
 
-      return (data || []).map((t: any) => ({
-        id: t.id,
-        created_at: t.created_at,
-        platform: t.platform || 'unknown',
-        market_title: t.kalshi_market_title || t.polymarket_market_title || 'Unknown Market',
-        position_size_usd: parseFloat(t.position_size_usd) || 0,
-        actual_profit_usd: parseFloat(t.actual_profit_usd) || 0,
-        fees_paid: parseFloat(t.fees_paid) || 0,
-        trade_type: t.trade_type || 'arbitrage',
-        strategy_type: t.strategy_type || t.trade_type || 'unknown',
-        outcome: t.outcome || 'pending',
-        holding_period_hours: 0, // Prediction markets resolve quickly
-      }));
+      return (data || []).map((t: any) => {
+        // Determine platform from trade data
+        const platform = t.kalshi_ticker ? 'kalshi' : (t.polymarket_token_id ? 'polymarket' : 'unknown');
+        // Estimate fees: Kalshi charges ~7% on profits, Polymarket is 0%
+        const profit = parseFloat(t.actual_profit_usd) || 0;
+        const estimatedFees = platform === 'kalshi' && profit > 0 ? profit * 0.07 : 0;
+        
+        return {
+          id: t.id,
+          created_at: t.created_at,
+          platform,
+          market_title: t.kalshi_market_title || t.polymarket_market_title || 'Unknown Market',
+          position_size_usd: parseFloat(t.position_size_usd) || 0,
+          actual_profit_usd: profit,
+          fees_paid: estimatedFees, // Estimated based on platform
+          trade_type: t.trade_type || 'arbitrage',
+          strategy_type: t.strategy_type || t.trade_type || 'unknown',
+          outcome: t.outcome || 'pending',
+          holding_period_hours: 0, // Prediction markets resolve quickly
+        };
+      });
     },
   });
 

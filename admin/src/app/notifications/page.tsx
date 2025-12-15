@@ -50,34 +50,27 @@ export default function NotificationsPage() {
 
   const fetchSettings = async () => {
     try {
-      // Fetch notification settings from config
+      // Fetch notification settings from config (single-row table with columns)
       const { data, error } = await supabase
         .from('polybot_config')
-        .select('key, value')
-        .in('key', [
-          'discord_webhook',
-          'telegram_bot_token', 
-          'telegram_chat_id',
-          'notifications_enabled',
-          'notify_on_opportunity',
-          'notify_on_trade',
-          'notify_on_error',
-          'notify_daily_summary',
-        ]);
+        .select('discord_webhook, telegram_bot_token, telegram_chat_id, notifications_enabled, notify_on_opportunity, notify_on_trade, notify_on_error, notify_daily_summary')
+        .limit(1)
+        .single();
 
       if (!error && data) {
-        const newSettings = { ...settings };
-        data.forEach((item: any) => {
-          if (item.key in newSettings) {
-            // Handle boolean fields
-            if (item.key.startsWith('notify_') || item.key === 'notifications_enabled') {
-              (newSettings as any)[item.key] = item.value === 'true' || item.value === true;
-            } else {
-              (newSettings as any)[item.key] = item.value;
-            }
-          }
+        setSettings({
+          discord_webhook: data.discord_webhook || '',
+          telegram_bot_token: data.telegram_bot_token || '',
+          telegram_chat_id: data.telegram_chat_id || '',
+          notifications_enabled: data.notifications_enabled ?? false,
+          notify_on_opportunity: data.notify_on_opportunity ?? true,
+          notify_on_trade: data.notify_on_trade ?? true,
+          notify_on_error: data.notify_on_error ?? true,
+          notify_daily_summary: data.notify_daily_summary ?? true,
         });
-        setSettings(newSettings);
+      } else if (error) {
+        // Columns may not exist yet - use defaults
+        console.log('Notification columns may not exist yet, using defaults');
       }
     } catch (err) {
       console.error('Error fetching notification settings:', err);
@@ -89,22 +82,26 @@ export default function NotificationsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save each setting to config table
-      const updates = Object.entries(settings).map(([key, value]) => ({
-        key,
-        value: typeof value === 'boolean' ? value.toString() : value,
-      }));
+      // Save settings to config table (single-row table with columns)
+      const { error } = await supabase
+        .from('polybot_config')
+        .update({
+          discord_webhook: settings.discord_webhook,
+          telegram_bot_token: settings.telegram_bot_token,
+          telegram_chat_id: settings.telegram_chat_id,
+          notifications_enabled: settings.notifications_enabled,
+          notify_on_opportunity: settings.notify_on_opportunity,
+          notify_on_trade: settings.notify_on_trade,
+          notify_on_error: settings.notify_on_error,
+          notify_daily_summary: settings.notify_daily_summary,
+        })
+        .eq('id', 1);
 
-      for (const update of updates) {
-        await supabase
-          .from('polybot_config')
-          .upsert(update, { onConflict: 'key' });
-      }
-
+      if (error) throw error;
       setTestResult({ channel: 'save', success: true, message: 'Settings saved successfully!' });
     } catch (err) {
       console.error('Error saving settings:', err);
-      setTestResult({ channel: 'save', success: false, message: 'Failed to save settings' });
+      setTestResult({ channel: 'save', success: false, message: 'Failed to save settings. Notification columns may need to be added to database.' });
     } finally {
       setSaving(false);
       setTimeout(() => setTestResult(null), 3000);
