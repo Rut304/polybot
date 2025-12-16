@@ -155,12 +155,17 @@ REQUIRED_SECRETS=(
     "POLYMARKET_API_KEY"
     "POLYMARKET_SECRET"
     "KALSHI_API_KEY"
+    "IBKR_USERNAME"
+    "IBKR_PASSWORD"
+
 )
 
 # Optional secrets to include if present
 OPTIONAL_SECRETS=(
     "KALSHI_PRIVATE_KEY_PATH"
     "DISCORD_WEBHOOK"
+    "IBKR_TRADING_MODE"
+
 )
 
 # Build JSON environment from .env file
@@ -232,6 +237,15 @@ fi
 
 echo "  ✓ All required secrets validated"
 
+# Helper to read secret for sidecar container
+read_secret() {
+    grep "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2-
+}
+
+IBKR_USER=$(read_secret "IBKR_USERNAME")
+IBKR_PASS=$(read_secret "IBKR_PASSWORD")
+IBKR_MODE=$(read_secret "IBKR_TRADING_MODE")
+
 # Create deployment config
 DEPLOY_CONFIG=$(cat <<EOF
 {
@@ -243,6 +257,20 @@ DEPLOY_CONFIG=$(cat <<EOF
             "environment": $CURRENT_ENV,
             "ports": {
                 "8080": "HTTP"
+            }
+        },
+        "ib-gateway": {
+            "image": "ghcr.io/extralabs/ib-gateway:latest",
+            "environment": {
+                "TWS_USERID": "$IBKR_USER",
+                "TWS_PASSWORD": "$IBKR_PASS",
+                "TRADING_MODE": "${IBKR_MODE:-paper}",
+                "VNC_SERVER_PASSWORD": "password",
+                "TWOFA_TIMEOUT_ACTION": "exit"
+            },
+            "ports": {
+                "4001": "TCP",
+                "4002": "TCP"
             }
         }
     },

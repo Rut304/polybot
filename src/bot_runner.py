@@ -112,7 +112,9 @@ from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
 from src.strategies.crypto_15min_scalping import Crypto15MinScalpingStrategy
 from src.strategies.ai_superforecasting import AISuperforecastingStrategy
 from src.exchanges.ccxt_client import CCXTClient
+from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
+from src.exchanges.ibkr_client import IBKRClient
 from src.notifications import Notifier, NotificationConfig
 from src.logging_handler import setup_database_logging
 from src.services.balance_aggregator import BalanceAggregator
@@ -203,6 +205,8 @@ class PolybotRunner:
         self.stock_mean_reversion: Optional[StockMeanReversionStrategy] = None
         self.stock_momentum: Optional[StockMomentumStrategy] = None
         self.alpaca_client: Optional[AlpacaClient] = None
+        self.ibkr_client: Optional[IBKRClient] = None
+
         
         # ==============================================
         # TWITTER-DERIVED STRATEGIES (2024)
@@ -763,6 +767,28 @@ class PolybotRunner:
                     f"stock strategies will not work"
                 )
                 self.alpaca_client = None
+        
+        # Initialize IBKR Client (Interactive Brokers)
+        # Uses sidecar container on AWS Lightsail locally reachable via localhost
+        if self.config.trading.enable_ibkr:
+            # Logic: Simulation = Paper Port (4002), Live = Live Port (4001)
+            ibkr_port = 4002 if self.simulation_mode else 4001
+            
+            logger.info(f"Connecting to IBKR ({'PAPER' if self.simulation_mode else 'LIVE'})...")
+            self.ibkr_client = IBKRClient(
+                host='localhost', 
+                port=ibkr_port, 
+                sandbox=self.simulation_mode
+            )
+            
+            ibkr_initialized = await self.ibkr_client.initialize()
+            if ibkr_initialized:
+                logger.info(f"✓ IBKR Client initialized on port {ibkr_port}")
+            else:
+                logger.error("❌ IBKR Client failed to connect - check Gateway container")
+                self.ibkr_client = None
+        elif self.config.trading.enable_ibkr:
+             logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
         
         # Initialize Stock Mean Reversion Strategy (70% CONFIDENCE - 15-30% APY)
         if self.config.trading.enable_stock_mean_reversion and self.alpaca_client:

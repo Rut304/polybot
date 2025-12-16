@@ -1238,6 +1238,7 @@ export default function StrategiesPage() {
   const [localConfig, setLocalConfig] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   
@@ -1259,7 +1260,13 @@ export default function StrategiesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['botConfig'] });
       setSaveSuccess(true);
+      setSaveError(null);
       setTimeout(() => setSaveSuccess(false), 3000);
+    },
+    onError: (error: Error) => {
+      console.error('Save failed:', error);
+      setSaveError(error.message || 'Failed to save settings');
+      setTimeout(() => setSaveError(null), 5000);
     },
   });
   
@@ -1372,13 +1379,13 @@ export default function StrategiesPage() {
               {/* Save button */}
               <button
                 onClick={handleSave}
-                disabled={saving || !isAdmin}
+                disabled={saving}
                 className={cn(
                   "hidden md:flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
                   saving ? "bg-dark-border text-dark-muted" :
                   saveSuccess ? "bg-green-500 text-white" :
                   "bg-neon-green text-black hover:bg-neon-green/90",
-                  !isAdmin && "opacity-50 cursor-not-allowed"
+                  saveError && "bg-red-500"
                 )}
               >
                 {saving ? (
@@ -1599,7 +1606,7 @@ export default function StrategiesPage() {
       <div className="fixed bottom-0 left-0 right-0 bg-dark-card border-t border-dark-border p-4 md:hidden z-20">
         <button
           onClick={handleSave}
-          disabled={saving || !isAdmin}
+          disabled={saving}
           className={cn(
             "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all",
             saving ? "bg-dark-border text-dark-muted" :

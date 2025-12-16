@@ -19,6 +19,9 @@ ccxt>=4.0.0
 # Cryptography (for Kalshi auth)
 cryptography>=41.0.0
 
+# Interactive Brokers
+ib_insync>=0.9.86
+
 # Database
 supabase>=2.0.0
 
