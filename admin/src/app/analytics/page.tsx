@@ -17,6 +17,16 @@ import {
   Filter,
   Layers,
   CalendarRange,
+  Brain,
+  Sparkles,
+  Timer,
+  Gauge,
+  Trophy,
+  AlertTriangle,
+  Shield,
+  Flame,
+  Rocket,
+  CircleDollarSign,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -178,6 +188,9 @@ export default function AnalyticsPage() {
     'congressional_tracker',
     'macro_board',
     'fear_premium_contrarian',
+    // NEW: High-Performance Strategies (2024)
+    'crypto_15min_scalping',
+    'ai_superforecasting',
     // Crypto Strategies
     'funding_rate_arb',
     'grid_trading',
@@ -343,6 +356,138 @@ export default function AnalyticsPage() {
     });
     return counts;
   }, [trades]);
+
+  // NEW: Strategy-specific performance metrics
+  const strategyMetrics = useMemo(() => {
+    const metrics: Record<string, {
+      trades: number;
+      wins: number;
+      losses: number;
+      totalPnL: number;
+      avgPnL: number;
+      winRate: number;
+      avgWin: number;
+      avgLoss: number;
+      maxWin: number;
+      maxLoss: number;
+      profitFactor: number;
+      lastTradeTime: Date | null;
+      streak: number;
+      streakType: 'win' | 'loss' | 'none';
+    }> = {};
+
+    // Initialize for new strategies
+    ['crypto_15min_scalping', 'ai_superforecasting'].forEach(strategy => {
+      metrics[strategy] = {
+        trades: 0, wins: 0, losses: 0, totalPnL: 0, avgPnL: 0, winRate: 0,
+        avgWin: 0, avgLoss: 0, maxWin: 0, maxLoss: -Infinity, profitFactor: 0,
+        lastTradeTime: null, streak: 0, streakType: 'none'
+      };
+    });
+
+    trades.forEach(t => {
+      const strategy = t.strategy_type || t.arbitrage_type || t.trade_type;
+      if (!strategy || !metrics[strategy]) return;
+
+      const m = metrics[strategy];
+      m.trades++;
+      const profit = t.actual_profit_usd || t.expected_profit_usd || 0;
+      m.totalPnL += profit;
+
+      if (t.outcome === 'won') {
+        m.wins++;
+        m.avgWin = (m.avgWin * (m.wins - 1) + profit) / m.wins;
+        m.maxWin = Math.max(m.maxWin, profit);
+      } else if (t.outcome === 'lost') {
+        m.losses++;
+        m.avgLoss = (m.avgLoss * (m.losses - 1) + Math.abs(profit)) / m.losses;
+        m.maxLoss = Math.max(m.maxLoss, Math.abs(profit));
+      }
+
+      const tradeTime = new Date(t.created_at);
+      if (!m.lastTradeTime || tradeTime > m.lastTradeTime) {
+        m.lastTradeTime = tradeTime;
+      }
+    });
+
+    // Calculate derived metrics
+    Object.values(metrics).forEach(m => {
+      m.avgPnL = m.trades > 0 ? m.totalPnL / m.trades : 0;
+      m.winRate = m.trades > 0 ? (m.wins / m.trades) * 100 : 0;
+      const grossWins = m.avgWin * m.wins;
+      const grossLosses = m.avgLoss * m.losses;
+      m.profitFactor = grossLosses > 0 ? grossWins / grossLosses : grossWins > 0 ? Infinity : 0;
+      if (m.maxLoss === -Infinity) m.maxLoss = 0;
+    });
+
+    return metrics;
+  }, [trades]);
+
+  // NEW: Performance leaderboard data
+  const performanceLeaderboard = useMemo(() => {
+    return strategies
+      .filter(s => s.total_trades > 0)
+      .map(s => ({
+        strategy: s.strategy,
+        trades: s.total_trades,
+        winRate: s.win_rate || 0,
+        netPnL: s.net_pnl || 0,
+        roi: totalStartingBalance > 0 ? ((s.net_pnl || 0) / totalStartingBalance) * 100 : 0,
+        avgTrade: s.total_trades > 0 ? (s.net_pnl || 0) / s.total_trades : 0,
+        score: (s.win_rate || 0) * 0.4 + ((s.net_pnl || 0) > 0 ? 30 : 0) + Math.min((s.total_trades || 0), 30),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+  }, [strategies, totalStartingBalance]);
+
+  // NEW: Recent trades for live feed (last 10)
+  const recentTrades = useMemo(() => {
+    return [...trades]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 10);
+  }, [trades]);
+
+  // NEW: Risk metrics
+  const riskMetrics = useMemo(() => {
+    if (!advancedMetrics) return null;
+    
+    // Value at Risk (95% confidence) - simplified calculation
+    const sortedDailyReturns = trades
+      .filter(t => t.actual_profit_usd != null)
+      .map(t => t.actual_profit_usd || 0)
+      .sort((a, b) => a - b);
+    
+    const var95Index = Math.floor(sortedDailyReturns.length * 0.05);
+    const var95 = sortedDailyReturns.length > 0 ? Math.abs(sortedDailyReturns[var95Index] || 0) : 0;
+    
+    // Calmar Ratio (annualized return / max drawdown)
+    const annualizedReturn = advancedMetrics.avgDailyReturn * 252;
+    const calmarRatio = advancedMetrics.maxDrawdown > 0 
+      ? annualizedReturn / advancedMetrics.maxDrawdown 
+      : annualizedReturn > 0 ? Infinity : 0;
+
+    // Recovery Factor (net profit / max drawdown)
+    const totalProfit = trades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+    const recoveryFactor = advancedMetrics.maxDrawdown > 0 
+      ? totalProfit / advancedMetrics.maxDrawdown 
+      : totalProfit > 0 ? Infinity : 0;
+
+    // Kelly Criterion estimate
+    const avgWin = advancedMetrics.avgWin || 1;
+    const avgLoss = advancedMetrics.avgLoss || 1;
+    const winProb = (advancedMetrics.profitFactor || 0) > 1 
+      ? (trades.filter(t => t.outcome === 'won').length / trades.filter(t => t.outcome !== 'pending').length) || 0.5
+      : 0.5;
+    const kelly = winProb - ((1 - winProb) / (avgWin / avgLoss));
+
+    return {
+      var95,
+      calmarRatio: isFinite(calmarRatio) ? calmarRatio : 0,
+      recoveryFactor: isFinite(recoveryFactor) ? recoveryFactor : 0,
+      kellyFraction: Math.max(0, Math.min(1, kelly)),
+      riskAdjustedReturn: advancedMetrics.sharpeRatio * Math.sqrt(252),
+    };
+  }, [advancedMetrics, trades]);
 
   return (
     <div className="p-8">
@@ -590,6 +735,367 @@ export default function AnalyticsPage() {
           </div>
           <StrategyBreakdown tradingMode="paper" showTitle={false} />
         </motion.div>
+
+        {/* NEW: High-Performance Strategies Dashboard */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Rocket className="w-6 h-6 text-neon-pink" />
+            <h2 className="text-xl font-semibold">High-Performance Strategies</h2>
+            <span className="text-xs bg-neon-pink/20 text-neon-pink px-2 py-0.5 rounded-full">NEW</span>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 15-Min Crypto Scalping Card */}
+            <div className="card bg-gradient-to-br from-yellow-500/10 via-orange-500/5 to-transparent border-yellow-500/30">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-yellow-500/20">
+                    <Timer className="w-6 h-6 text-yellow-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">15-Min Crypto Scalping</h3>
+                    <p className="text-xs text-gray-400">High-frequency BTC/ETH binary options</p>
+                  </div>
+                </div>
+                <div className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium",
+                  strategyMetrics['crypto_15min_scalping']?.trades > 0 
+                    ? "bg-green-500/20 text-green-400" 
+                    : "bg-gray-500/20 text-gray-400"
+                )}>
+                  {strategyMetrics['crypto_15min_scalping']?.trades > 0 ? '● Active' : '○ Inactive'}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">Trades</div>
+                  <div className="text-xl font-bold text-white">
+                    {strategyMetrics['crypto_15min_scalping']?.trades || 0}
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">Win Rate</div>
+                  <div className={cn(
+                    "text-xl font-bold",
+                    (strategyMetrics['crypto_15min_scalping']?.winRate || 0) >= 60 ? "text-green-400" : 
+                    (strategyMetrics['crypto_15min_scalping']?.winRate || 0) >= 40 ? "text-yellow-400" : "text-red-400"
+                  )}>
+                    {(strategyMetrics['crypto_15min_scalping']?.winRate || 0).toFixed(1)}%
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">P&L</div>
+                  <div className={cn(
+                    "text-xl font-bold",
+                    (strategyMetrics['crypto_15min_scalping']?.totalPnL || 0) >= 0 ? "text-green-400" : "text-red-400"
+                  )}>
+                    {formatCurrency(strategyMetrics['crypto_15min_scalping']?.totalPnL || 0)}
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">Avg Trade</div>
+                  <div className={cn(
+                    "text-xl font-bold",
+                    (strategyMetrics['crypto_15min_scalping']?.avgPnL || 0) >= 0 ? "text-green-400" : "text-red-400"
+                  )}>
+                    {formatCurrency(strategyMetrics['crypto_15min_scalping']?.avgPnL || 0)}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-700/50 pt-3">
+                <span>🎯 Target: 90%+ confidence threshold</span>
+                <span>
+                  {strategyMetrics['crypto_15min_scalping']?.lastTradeTime 
+                    ? `Last: ${format(strategyMetrics['crypto_15min_scalping'].lastTradeTime, 'MMM dd HH:mm')}`
+                    : 'No trades yet'}
+                </span>
+              </div>
+            </div>
+
+            {/* AI Superforecasting Card */}
+            <div className="card bg-gradient-to-br from-purple-500/10 via-blue-500/5 to-transparent border-purple-500/30">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/20">
+                    <Brain className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-lg">AI Superforecasting</h3>
+                    <p className="text-xs text-gray-400">Gemini-powered market predictions</p>
+                  </div>
+                </div>
+                <div className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium",
+                  strategyMetrics['ai_superforecasting']?.trades > 0 
+                    ? "bg-green-500/20 text-green-400" 
+                    : "bg-gray-500/20 text-gray-400"
+                )}>
+                  {strategyMetrics['ai_superforecasting']?.trades > 0 ? '● Active' : '○ Inactive'}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">Forecasts</div>
+                  <div className="text-xl font-bold text-white">
+                    {strategyMetrics['ai_superforecasting']?.trades || 0}
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">Accuracy</div>
+                  <div className={cn(
+                    "text-xl font-bold",
+                    (strategyMetrics['ai_superforecasting']?.winRate || 0) >= 70 ? "text-green-400" : 
+                    (strategyMetrics['ai_superforecasting']?.winRate || 0) >= 50 ? "text-yellow-400" : "text-red-400"
+                  )}>
+                    {(strategyMetrics['ai_superforecasting']?.winRate || 0).toFixed(1)}%
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">P&L</div>
+                  <div className={cn(
+                    "text-xl font-bold",
+                    (strategyMetrics['ai_superforecasting']?.totalPnL || 0) >= 0 ? "text-green-400" : "text-red-400"
+                  )}>
+                    {formatCurrency(strategyMetrics['ai_superforecasting']?.totalPnL || 0)}
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-black/20 rounded-lg">
+                  <div className="text-xs text-gray-400 mb-1">Profit Factor</div>
+                  <div className={cn(
+                    "text-xl font-bold",
+                    (strategyMetrics['ai_superforecasting']?.profitFactor || 0) >= 1.5 ? "text-green-400" : 
+                    (strategyMetrics['ai_superforecasting']?.profitFactor || 0) >= 1 ? "text-yellow-400" : "text-red-400"
+                  )}>
+                    {(strategyMetrics['ai_superforecasting']?.profitFactor || 0).toFixed(2)}x
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-700/50 pt-3">
+                <span>🤖 Model: Gemini 1.5 Flash</span>
+                <span>
+                  {strategyMetrics['ai_superforecasting']?.lastTradeTime 
+                    ? `Last: ${format(strategyMetrics['ai_superforecasting'].lastTradeTime, 'MMM dd HH:mm')}`
+                    : 'No forecasts yet'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* NEW: Strategy Leaderboard & Live Feed */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Performance Leaderboard */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="card lg:col-span-2"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="w-5 h-5 text-yellow-400" />
+              <h3 className="text-lg font-semibold">Strategy Leaderboard</h3>
+            </div>
+            
+            {performanceLeaderboard.length > 0 ? (
+              <div className="space-y-2">
+                {performanceLeaderboard.map((item, index) => (
+                  <div 
+                    key={item.strategy}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg transition-colors",
+                      index === 0 ? "bg-yellow-500/10 border border-yellow-500/30" :
+                      index === 1 ? "bg-gray-400/10 border border-gray-400/30" :
+                      index === 2 ? "bg-orange-500/10 border border-orange-500/30" :
+                      "bg-dark-border/30"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm",
+                        index === 0 ? "bg-yellow-500/20 text-yellow-400" :
+                        index === 1 ? "bg-gray-400/20 text-gray-300" :
+                        index === 2 ? "bg-orange-500/20 text-orange-400" :
+                        "bg-gray-600/20 text-gray-400"
+                      )}>
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{item.strategy?.replace(/_/g, ' ')}</p>
+                        <p className="text-xs text-gray-500">{item.trades} trades</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-right">
+                      <div>
+                        <p className={cn(
+                          "font-semibold",
+                          item.netPnL >= 0 ? "text-green-400" : "text-red-400"
+                        )}>
+                          {formatCurrency(item.netPnL)}
+                        </p>
+                        <p className="text-xs text-gray-500">{item.winRate.toFixed(1)}% win</p>
+                      </div>
+                      <div className={cn(
+                        "px-2 py-1 rounded text-xs font-medium",
+                        item.roi >= 0 ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+                      )}>
+                        {item.roi >= 0 ? '+' : ''}{item.roi.toFixed(2)}%
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Trophy className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p>No strategy data yet</p>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Live Trade Feed */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="card"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Activity className="w-5 h-5 text-neon-green animate-pulse" />
+              <h3 className="text-lg font-semibold">Live Trade Feed</h3>
+            </div>
+            
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {recentTrades.length > 0 ? (
+                recentTrades.map((trade) => (
+                  <div 
+                    key={trade.id}
+                    className="p-2 bg-dark-border/30 rounded-lg border-l-2 transition-all hover:bg-dark-border/50"
+                    style={{ 
+                      borderLeftColor: trade.outcome === 'won' ? COLORS.green : 
+                                       trade.outcome === 'lost' ? COLORS.red : COLORS.yellow 
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-gray-300 truncate max-w-[150px]">
+                        {(trade.strategy_type || trade.arbitrage_type || 'manual').replace(/_/g, ' ')}
+                      </span>
+                      <span className={cn(
+                        "text-xs font-bold",
+                        trade.outcome === 'won' ? "text-green-400" :
+                        trade.outcome === 'lost' ? "text-red-400" : "text-yellow-400"
+                      )}>
+                        {trade.outcome === 'won' ? '+' : trade.outcome === 'lost' ? '' : '~'}
+                        {formatCurrency(trade.actual_profit_usd || trade.expected_profit_usd || 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>{formatCurrency(trade.position_size_usd || 0)} position</span>
+                      <span>{format(new Date(trade.created_at), 'HH:mm')}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Waiting for trades...</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* NEW: Advanced Risk Metrics */}
+        {riskMetrics && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Shield className="w-5 h-5 text-neon-blue" />
+              <h2 className="text-xl font-semibold">Advanced Risk Metrics</h2>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {/* VaR 95% */}
+              <div className="card bg-gradient-to-br from-red-500/10 to-transparent">
+                <div className="flex items-center gap-1 mb-1">
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                  <span className="text-xs text-gray-400">VaR (95%)</span>
+                </div>
+                <div className="text-2xl font-bold text-red-400">
+                  {formatCurrency(riskMetrics.var95)}
+                </div>
+                <div className="text-xs text-gray-500">Max loss at 95% conf.</div>
+              </div>
+
+              {/* Calmar Ratio */}
+              <div className="card bg-gradient-to-br from-blue-500/10 to-transparent">
+                <div className="flex items-center gap-1 mb-1">
+                  <Gauge className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs text-gray-400">Calmar Ratio</span>
+                </div>
+                <div className={cn(
+                  "text-2xl font-bold",
+                  riskMetrics.calmarRatio >= 1 ? "text-green-400" : "text-yellow-400"
+                )}>
+                  {riskMetrics.calmarRatio.toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-500">Return / Drawdown</div>
+              </div>
+
+              {/* Recovery Factor */}
+              <div className="card bg-gradient-to-br from-green-500/10 to-transparent">
+                <div className="flex items-center gap-1 mb-1">
+                  <TrendingUp className="w-4 h-4 text-green-400" />
+                  <span className="text-xs text-gray-400">Recovery Factor</span>
+                </div>
+                <div className={cn(
+                  "text-2xl font-bold",
+                  riskMetrics.recoveryFactor >= 1 ? "text-green-400" : "text-yellow-400"
+                )}>
+                  {riskMetrics.recoveryFactor.toFixed(2)}x
+                </div>
+                <div className="text-xs text-gray-500">Profit / Max Drawdown</div>
+              </div>
+
+              {/* Kelly Fraction */}
+              <div className="card bg-gradient-to-br from-purple-500/10 to-transparent">
+                <div className="flex items-center gap-1 mb-1">
+                  <CircleDollarSign className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs text-gray-400">Kelly Fraction</span>
+                </div>
+                <div className="text-2xl font-bold text-purple-400">
+                  {(riskMetrics.kellyFraction * 100).toFixed(1)}%
+                </div>
+                <div className="text-xs text-gray-500">Optimal position size</div>
+              </div>
+
+              {/* Risk-Adjusted Return */}
+              <div className="card bg-gradient-to-br from-yellow-500/10 to-transparent">
+                <div className="flex items-center gap-1 mb-1">
+                  <Sparkles className="w-4 h-4 text-yellow-400" />
+                  <span className="text-xs text-gray-400">Ann. Risk-Adj Return</span>
+                </div>
+                <div className={cn(
+                  "text-2xl font-bold",
+                  riskMetrics.riskAdjustedReturn >= 0 ? "text-green-400" : "text-red-400"
+                )}>
+                  {riskMetrics.riskAdjustedReturn.toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-500">Sharpe × √252</div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Advanced Risk & Performance Metrics */}
         {advancedMetrics && (

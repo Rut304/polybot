@@ -5,7 +5,8 @@ import {
   Zap, DollarSign, Clock, Save, ChevronDown, ChevronRight, CheckCircle2, 
   AlertTriangle, TrendingUp, Target, Landmark, Brain, Crown, Activity, 
   Shield, BarChart3, Newspaper, Users, Grid3X3, Repeat, LineChart,
-  Wallet, Globe, Flame, BookOpen, ArrowLeftRight, Bitcoin
+  Wallet, Globe, Flame, BookOpen, ArrowLeftRight, Bitcoin, X, ExternalLink,
+  Sparkles, GitBranch, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import { useBotConfig } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import Link from 'next/link';
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -31,6 +33,9 @@ interface Strategy {
   color: string;
   requirements?: string[];
   settings?: StrategySetting[];
+  keyPoints?: string[];
+  platforms?: string[];
+  workflow?: string[];
 }
 
 interface StrategySetting {
@@ -146,6 +151,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_polymarket_single_arb',
         icon: Target,
         color: 'bg-polymarket/20 text-polymarket',
+        platforms: ['Polymarket'],
+        keyPoints: [
+          'Zero directional risk - profit regardless of outcome',
+          'Works when YES + NO < 100% (rare but happens)',
+          'Polymarket has 0% fees - pure profit',
+          'Academic research shows $40M extracted in 1 year',
+          'Best for high-volume liquid markets',
+        ],
+        workflow: [
+          'Scan all active markets every 30 seconds',
+          'Calculate YES + NO total for each market',
+          'If total < threshold (e.g., 99.5%), flag opportunity',
+          'Execute buy orders for both outcomes',
+          'Wait for market resolution',
+          'Collect guaranteed profit',
+        ],
+        requirements: ['Polymarket wallet address', 'Private key', 'USDC on Polygon'],
         settings: [
           { key: 'poly_single_min_profit_pct', label: 'Min Profit %', type: 'number', defaultValue: 0.3, min: 0.1, max: 5, step: 0.1 },
           { key: 'poly_single_max_spread_pct', label: 'Max Spread %', type: 'number', defaultValue: 30, min: 1, max: 50, step: 1 },
@@ -164,6 +186,22 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_kalshi_single_arb',
         icon: Target,
         color: 'bg-kalshi/20 text-kalshi',
+        platforms: ['Kalshi'],
+        keyPoints: [
+          'Same concept as Polymarket arb',
+          'Kalshi has 7% fees - need larger spreads',
+          'CFTC-regulated, US-legal exchange',
+          'Fewer markets but higher liquidity per market',
+          'Requires 8%+ spread to be profitable',
+        ],
+        workflow: [
+          'Scan Kalshi markets every 60 seconds',
+          'Calculate YES + NO accounting for 7% fees',
+          'If profit > 8%, flag opportunity',
+          'Execute trades via Kalshi API',
+          'Monitor position until resolution',
+        ],
+        requirements: ['Kalshi API key', 'Kalshi private key', 'USD balance on Kalshi'],
         settings: [
           { key: 'kalshi_single_min_profit_pct', label: 'Min Profit %', type: 'number', defaultValue: 8, min: 1, max: 20, step: 0.5 },
           { key: 'kalshi_single_max_spread_pct', label: 'Max Spread %', type: 'number', defaultValue: 30, min: 1, max: 50, step: 1 },
@@ -182,6 +220,22 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_cross_platform_arb',
         icon: ArrowLeftRight,
         color: 'bg-neon-purple/20 text-neon-purple',
+        platforms: ['Polymarket', 'Kalshi'],
+        keyPoints: [
+          'Exploits price differences between platforms',
+          'Historical data shows ~$95K profit potential',
+          'Uses fuzzy matching for market title matching',
+          'Buy low on one platform, hedge on other',
+          'Requires accounts on both platforms',
+        ],
+        workflow: [
+          'Fetch active markets from both platforms',
+          'Match markets using title similarity (>35%)',
+          'Calculate cross-platform spread',
+          'If profitable after fees, execute on both sides',
+          'Monitor until resolution on both platforms',
+        ],
+        requirements: ['Polymarket wallet', 'Kalshi API credentials', 'Capital on both platforms'],
         settings: [
           { key: 'cross_plat_min_profit_buy_poly_pct', label: 'Min Profit (Buy Poly) %', type: 'number', defaultValue: 2.5, min: 0.5, max: 10, step: 0.5 },
           { key: 'cross_plat_min_profit_buy_kalshi_pct', label: 'Min Profit (Buy Kalshi) %', type: 'number', defaultValue: 9, min: 5, max: 20, step: 0.5 },
@@ -200,6 +254,20 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'skip_same_platform_overlap',
         icon: Repeat,
         color: 'bg-amber-500/20 text-amber-400',
+        platforms: ['Polymarket', 'Kalshi'],
+        keyPoints: [
+          'Finds logically correlated markets',
+          'Example: If A implies B, B should cost >= A',
+          'No cross-platform execution risk',
+          'Requires careful correlation analysis',
+          'Variable returns based on market conditions',
+        ],
+        workflow: [
+          'Analyze market titles for logical relationships',
+          'Calculate implied probabilities',
+          'Identify mispriced correlations',
+          'Execute when inconsistency detected',
+        ],
         settings: [],
       },
     ],
@@ -222,6 +290,22 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_news_arbitrage',
         icon: Newspaper,
         color: 'bg-blue-500/20 text-blue-400',
+        platforms: ['Polymarket', 'Kalshi'],
+        keyPoints: [
+          'Speed is critical - first movers win',
+          'Uses NewsAPI, Finnhub, or Twitter feeds',
+          'Matches news keywords to market topics',
+          'Higher risk but higher reward per event',
+          'Best for breaking political/economic news',
+        ],
+        workflow: [
+          'Monitor news feeds for keywords',
+          'Match news to relevant prediction markets',
+          'Analyze sentiment and likely impact',
+          'Execute trades within minutes of news',
+          'Set stop-loss for risk management',
+        ],
+        requirements: ['NewsAPI key or Twitter API', 'Low-latency execution'],
         settings: [
           { key: 'news_min_spread_pct', label: 'Min Spread %', type: 'number', defaultValue: 3, min: 1, max: 20, step: 0.5 },
           { key: 'news_max_lag_minutes', label: 'Max Lag (min)', type: 'number', defaultValue: 30, min: 5, max: 120, step: 5 },
@@ -239,6 +323,22 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_market_making',
         icon: BarChart3,
         color: 'bg-indigo-500/20 text-indigo-400',
+        platforms: ['Polymarket'],
+        keyPoints: [
+          'Earns spread by providing liquidity',
+          'Delta-neutral when balanced',
+          'Works best in stable, liquid markets',
+          'Requires active inventory management',
+          'Target 200 bps spread for profitability',
+        ],
+        workflow: [
+          'Select markets with good volume',
+          'Place bid orders below mid-price',
+          'Place ask orders above mid-price',
+          'When one side fills, rebalance',
+          'Track inventory and PnL continuously',
+        ],
+        requirements: ['Polymarket wallet', 'Capital for inventory'],
         settings: [
           { key: 'mm_target_spread_bps', label: 'Target Spread (bps)', type: 'number', defaultValue: 200, min: 50, max: 500, step: 10 },
           { key: 'mm_order_size_usd', label: 'Order Size $', type: 'number', defaultValue: 50, min: 10, max: 500, step: 10 },
@@ -265,10 +365,29 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_whale_copy_trading',
         icon: Users,
         color: 'bg-purple-500/20 text-purple-400',
+        platforms: ['Polymarket'],
+        keyPoints: [
+          'Track wallets with 80%+ win rates',
+          '100% win rate wallets exist (small sample)',
+          'Copy with configurable delay (30s default)',
+          'Scale position based on your risk tolerance',
+          'On-chain transparency enables tracking',
+          'NEW: Slippage protection built-in',
+        ],
+        workflow: [
+          'Build list of top-performing wallets',
+          'Monitor their new position entries',
+          'Wait for configured delay (avoid front-running)',
+          'Check slippage before executing',
+          'Execute copy trade with scaled size',
+          'Track performance vs original wallet',
+        ],
+        requirements: ['Polymarket wallet', 'List of whale addresses', 'On-chain monitoring'],
         settings: [
           { key: 'whale_copy_min_win_rate', label: 'Min Win Rate %', type: 'number', defaultValue: 80, min: 50, max: 100, step: 5 },
           { key: 'whale_copy_delay_seconds', label: 'Copy Delay (sec)', type: 'number', defaultValue: 30, min: 5, max: 300, step: 5 },
           { key: 'whale_copy_max_size_usd', label: 'Max Size $', type: 'number', defaultValue: 50, min: 10, max: 500, step: 10 },
+          { key: 'whale_max_slippage_pct', label: 'Max Slippage %', type: 'number', defaultValue: 2.0, min: 0.5, max: 10, step: 0.5 },
         ],
       },
       {
@@ -299,6 +418,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_congressional_tracker',
         icon: Landmark,
         color: 'bg-slate-500/20 text-slate-400',
+        platforms: ['US Stock Markets'],
+        keyPoints: [
+          'STOCK Act requires disclosure within 45 days',
+          'Tracks members with best historical performance',
+          'Focuses on committee-relevant trades',
+          'Avoids members with poor timing records',
+          'Scales position based on member confidence',
+        ],
+        workflow: [
+          'Scrape STOCK Act filings from House/Senate',
+          'Parse disclosure for ticker, amount, date',
+          'Cross-reference member with performance history',
+          'Filter: only high-performers, committee relevance',
+          'Calculate position size based on confidence',
+          'Execute trade via broker API',
+          'Track performance for member ranking',
+        ],
         settings: [
           { key: 'congress_copy_scale_pct', label: 'Copy Scale %', type: 'number', defaultValue: 10, min: 1, max: 50, step: 1 },
           { key: 'congress_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 500, min: 100, max: 5000, step: 100 },
@@ -324,6 +460,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_macro_board',
         icon: Globe,
         color: 'bg-orange-500/20 text-orange-400',
+        platforms: ['Polymarket', 'Kalshi', 'Crypto Exchanges'],
+        keyPoints: [
+          'Monitors Fed rate decisions, CPI, employment',
+          'Identifies economic regime (expansion/contraction)',
+          'Adjusts risk appetite based on volatility',
+          'Reduces exposure before major announcements',
+          'Historical pattern matching for Fed days',
+        ],
+        workflow: [
+          'Fetch economic calendar from data providers',
+          'Calculate regime score (0-100)',
+          'Identify upcoming high-impact events',
+          'Adjust max position sizes based on regime',
+          'Pre-position for expected outcomes',
+          'Monitor live during announcements',
+          'Quick exit if surprise outcome',
+        ],
         settings: [
           { key: 'macro_max_exposure_usd', label: 'Max Exposure $', type: 'number', defaultValue: 5000, min: 1000, max: 50000, step: 500 },
           { key: 'macro_min_conviction_score', label: 'Min Conviction', type: 'number', defaultValue: 70, min: 50, max: 100, step: 5 },
@@ -340,6 +493,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_fear_premium_contrarian',
         icon: Activity,
         color: 'bg-red-500/20 text-red-400',
+        platforms: ['Polymarket', 'Kalshi'],
+        keyPoints: [
+          'Behavioral finance: crowds overshoot',
+          'Fear threshold: market < 15% = oversold',
+          'Greed threshold: market > 85% = overbought',
+          'Best on binary markets with clear resolution',
+          'Requires patience for mean reversion',
+        ],
+        workflow: [
+          'Scan all active markets for extreme prices',
+          'Filter: only binary markets, sufficient volume',
+          'Check historical resolution rates at extremes',
+          'If fear (<15%), buy YES contracts',
+          'If greed (>85%), buy NO contracts',
+          'Size position inversely to extremity',
+          'Exit on mean reversion or expiry',
+        ],
         settings: [
           { key: 'fear_extreme_low_threshold', label: 'Fear Threshold', type: 'number', defaultValue: 0.15, min: 0.05, max: 0.3, step: 0.01 },
           { key: 'fear_extreme_high_threshold', label: 'Greed Threshold', type: 'number', defaultValue: 0.85, min: 0.7, max: 0.95, step: 0.01 },
@@ -357,6 +527,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_high_conviction_strategy',
         icon: Brain,
         color: 'bg-cyan-500/20 text-cyan-400',
+        platforms: ['Polymarket', 'Kalshi'],
+        keyPoints: [
+          'Kelly criterion for optimal bet sizing',
+          'Requires 3+ signals to align',
+          'Concentrated portfolio: max 3 positions',
+          'Higher per-trade profit, fewer trades',
+          'Best for experienced traders',
+        ],
+        workflow: [
+          'Scan all strategies for opportunities',
+          'Score each opportunity (0-100)',
+          'Filter: only score ≥ 75 considered',
+          'Rank by expected value',
+          'Take top 3 opportunities only',
+          'Apply Kelly sizing to each',
+          'Monitor and exit on target/stop',
+        ],
         settings: [
           { key: 'high_conviction_min_score', label: 'Min Score', type: 'number', defaultValue: 0.75, min: 0.5, max: 0.95, step: 0.05 },
           { key: 'high_conviction_max_positions', label: 'Max Positions', type: 'number', defaultValue: 3, min: 1, max: 10, step: 1 },
@@ -374,6 +561,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_political_event_strategy',
         icon: Landmark,
         color: 'bg-blue-600/20 text-blue-400',
+        platforms: ['Polymarket', 'Kalshi', 'PredictIt'],
+        keyPoints: [
+          'Calendar-driven: elections, hearings, votes',
+          'Historical patterns inform positioning',
+          'Volatility spike before events = opportunity',
+          'Exit before resolution to lock in gains',
+          'Combine with polling data for edge',
+        ],
+        workflow: [
+          'Maintain calendar of political events',
+          'Identify markets related to upcoming events',
+          'Analyze historical price patterns',
+          'Position 24-48 hours before event',
+          'Monitor live during event',
+          'Exit on volatility spike or before resolution',
+          'Log outcome for pattern refinement',
+        ],
         settings: [
           { key: 'political_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 500, min: 100, max: 2000, step: 100 },
           { key: 'political_lead_time_hours', label: 'Lead Time (hrs)', type: 'number', defaultValue: 48, min: 12, max: 168, step: 12 },
@@ -399,6 +603,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_kalshi_mention_snipe',
         icon: Zap,
         color: 'bg-sky-500/20 text-sky-400',
+        platforms: ['Kalshi', 'Twitter/X API'],
+        keyPoints: [
+          'Front-runs retail flow from viral tweets',
+          'Monitors high-follower finance accounts',
+          'Speed is critical: acts within seconds',
+          'Exits before retail crowd arrives',
+          'Works best on illiquid markets',
+        ],
+        workflow: [
+          'Stream Twitter API for Kalshi mentions',
+          'Filter by account follower count (>10K)',
+          'Parse tweet for specific market ticker',
+          'Check current market liquidity/price',
+          'If liquid enough, enter position immediately',
+          'Exit within 5-15 minutes (before crowd)',
+          'Track viral tweet → price impact correlation',
+        ],
         settings: [
           { key: 'kalshi_snipe_min_mentions', label: 'Min Mentions', type: 'number', defaultValue: 10, min: 5, max: 100, step: 5 },
           { key: 'kalshi_snipe_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 100, min: 25, max: 500, step: 25 },
@@ -415,6 +636,23 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_btc_bracket_arb',
         icon: Bitcoin,
         color: 'bg-orange-500/20 text-orange-400',
+        platforms: ['Kalshi'],
+        keyPoints: [
+          'Mathematical arbitrage: brackets must sum to 100%',
+          'Low risk: guaranteed profit if mispriced',
+          'Requires fast execution before correction',
+          'Works on any bracket-style market',
+          'Capital efficient: no directional risk',
+        ],
+        workflow: [
+          'Fetch all BTC bracket markets from Kalshi',
+          'Sum YES prices across all brackets',
+          'If sum < 100%, calculate arbitrage profit',
+          'If profit > fees + threshold, execute',
+          'Buy all bracket YES contracts proportionally',
+          'Hold until expiry for guaranteed payout',
+          'Log opportunity and execution slippage',
+        ],
         settings: [
           { key: 'btc_bracket_min_discount_pct', label: 'Min Discount %', type: 'number', defaultValue: 0.5, min: 0.1, max: 5, step: 0.1 },
           { key: 'btc_bracket_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 50, min: 10, max: 500, step: 10 },
@@ -431,9 +669,103 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_bracket_compression',
         icon: TrendingUp,
         color: 'bg-emerald-500/20 text-emerald-400',
+        platforms: ['Kalshi'],
+        keyPoints: [
+          'Spread compression signals directional move',
+          'Identifies which bracket is absorbing flow',
+          'Combines with volatility analysis',
+          'Lower risk than pure directional bets',
+          'Works best near expiration',
+        ],
+        workflow: [
+          'Monitor all active bracket markets',
+          'Calculate spread between adjacent brackets',
+          'Detect when spreads narrow significantly',
+          'Identify direction of compression',
+          'Enter position on compressed bracket',
+          'Take profit at 5% gain or roll',
+          'Track compression patterns for optimization',
+        ],
         settings: [
           { key: 'bracket_max_imbalance_threshold', label: 'Max Imbalance', type: 'number', defaultValue: 0.3, min: 0.1, max: 0.5, step: 0.05 },
           { key: 'bracket_take_profit_pct', label: 'Take Profit %', type: 'number', defaultValue: 5, min: 1, max: 20, step: 1 },
+        ],
+      },
+      {
+        id: 'crypto_15min_scalping',
+        name: '⚡ 15-Min Crypto Scalping',
+        description: 'High-frequency BTC/ETH binary options scalping',
+        howItWorks: 'Targets 15-minute crypto binary markets. Buys when YES < 45¢, uses Kelly Criterion sizing. Based on Twitter success ($956→$208K).',
+        confidence: 90,
+        expectedReturn: '50-200% APY',
+        riskLevel: 'high',
+        configKey: 'enable_15min_crypto_scalping',
+        icon: Zap,
+        color: 'bg-yellow-500/20 text-yellow-400',
+        platforms: ['Kalshi', 'Polymarket'],
+        keyPoints: [
+          'Twitter-proven: @0xReflection made $208K from $956',
+          '15-minute expiration windows for quick profits',
+          '45%+ entry threshold with Kelly fraction sizing',
+          'Multi-indicator confluence: RSI, Bollinger, VWAP',
+          'Conservative: 90%+ confidence required',
+          'Slippage protection built-in',
+        ],
+        workflow: [
+          'Scan BTC/ETH 15-min markets every 2 seconds',
+          'Calculate RSI, Bollinger Bands, VWAP deviation',
+          'Score opportunity (0-100) based on confluence',
+          'If score ≥ 45 AND confidence ≥ 90%, enter trade',
+          'Apply Kelly criterion for position sizing',
+          'Track win/loss streaks for adjustment',
+          'Auto-exit at expiration',
+        ],
+        requirements: ['Kalshi API (preferred)', 'Real-time BTC/ETH feeds', '$50+ starting balance'],
+        settings: [
+          { key: 'crypto_scalp_entry_threshold', label: 'Entry Threshold', type: 'number', defaultValue: 0.45, min: 0.30, max: 0.50, step: 0.01 },
+          { key: 'crypto_scalp_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 100, min: 10, max: 1000, step: 10 },
+          { key: 'crypto_scalp_scan_interval_sec', label: 'Scan Interval (sec)', type: 'number', defaultValue: 2, min: 1, max: 10, step: 1 },
+          { key: 'crypto_scalp_kelly_fraction', label: 'Kelly Fraction', type: 'number', defaultValue: 0.25, min: 0.1, max: 0.5, step: 0.05 },
+          { key: 'crypto_scalp_max_concurrent', label: 'Max Concurrent', type: 'number', defaultValue: 3, min: 1, max: 10, step: 1 },
+        ],
+      },
+      {
+        id: 'ai_superforecasting',
+        name: '🧠 AI Superforecasting',
+        description: 'Gemini-powered market probability estimation',
+        howItWorks: 'Uses Google Gemini to analyze market questions. Trades when AI estimate diverges >10% from market consensus. Based on BlackSky bot architecture.',
+        confidence: 85,
+        expectedReturn: '30-60% APY',
+        riskLevel: 'medium',
+        configKey: 'enable_ai_superforecasting',
+        icon: Brain,
+        color: 'bg-purple-500/20 text-purple-400',
+        platforms: ['Polymarket', 'Kalshi'],
+        keyPoints: [
+          'Uses Gemini 1.5 Flash for fast inference',
+          'Inspired by Metaculus superforecaster research',
+          'Trades on 10%+ probability divergence',
+          '65%+ confidence threshold for entries',
+          'Multi-factor analysis: fundamentals + sentiment',
+          'Human-like reasoning chains for transparency',
+        ],
+        workflow: [
+          'Fetch active prediction markets',
+          'Build context: market title, current price, volume',
+          'Send prompt to Gemini for probability estimation',
+          'Parse AI response for probability + confidence',
+          'If divergence ≥ 10% AND confidence ≥ 65%, trade',
+          'Position sizing based on divergence magnitude',
+          'Log forecasts for accuracy tracking',
+          'Weekly recalibration of model prompts',
+        ],
+        requirements: ['Gemini API Key (GEMINI_API_KEY)', 'Polymarket or Kalshi credentials'],
+        settings: [
+          { key: 'ai_min_divergence_pct', label: 'Min Divergence %', type: 'number', defaultValue: 10, min: 5, max: 30, step: 1 },
+          { key: 'ai_min_confidence', label: 'Min Confidence', type: 'number', defaultValue: 0.65, min: 0.5, max: 0.9, step: 0.05 },
+          { key: 'ai_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 100, min: 10, max: 1000, step: 10 },
+          { key: 'ai_scan_interval_sec', label: 'Scan Interval (sec)', type: 'number', defaultValue: 300, min: 60, max: 900, step: 60 },
+          { key: 'ai_max_concurrent', label: 'Max Concurrent', type: 'number', defaultValue: 5, min: 1, max: 10, step: 1 },
         ],
       },
     ],
@@ -456,6 +788,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_funding_rate_arb',
         icon: Zap,
         color: 'bg-yellow-500/20 text-yellow-400',
+        platforms: ['Binance', 'Bybit', 'OKX'],
+        keyPoints: [
+          'Delta-neutral: no directional exposure',
+          'Funding paid every 8 hours on perps',
+          'High funding = shorts pay longs',
+          'Capture 0.01-0.1% every 8 hours',
+          'Annualized: 15-50% with low risk',
+          'Requires both spot and futures access',
+        ],
+        workflow: [
+          'Monitor funding rates across exchanges',
+          'Identify coins with funding > threshold',
+          'Calculate expected profit after fees',
+          'Open spot long + perp short simultaneously',
+          'Hold through funding payment',
+          'Close both positions atomically',
+          'Track realized vs expected funding',
+        ],
         requirements: ['Crypto exchange API (Binance/Bybit)', 'Futures trading enabled'],
         settings: [
           { key: 'funding_min_rate_pct', label: 'Min Rate %', type: 'number', defaultValue: 0.03, min: 0.01, max: 0.1, step: 0.01 },
@@ -474,6 +824,25 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_grid_trading',
         icon: Grid3X3,
         color: 'bg-green-500/20 text-green-400',
+        platforms: ['Binance', 'Bybit', 'KuCoin'],
+        keyPoints: [
+          'Best for range-bound, volatile markets',
+          'Places buy orders below current price',
+          'Places sell orders above current price',
+          'Profits from each oscillation',
+          'Risk: breakout beyond grid range',
+          'Can be combined with trend following',
+        ],
+        workflow: [
+          'Identify range-bound asset (BTC, ETH)',
+          'Define grid range (e.g., ±10%)',
+          'Calculate grid levels (e.g., 10 levels)',
+          'Place buy limit orders below price',
+          'Place sell limit orders above price',
+          'When buy fills, place new sell above',
+          'When sell fills, place new buy below',
+          'Continuously compound profits',
+        ],
         requirements: ['Crypto exchange API'],
         settings: [
           { key: 'grid_default_range_pct', label: 'Grid Range %', type: 'number', defaultValue: 10, min: 2, max: 30, step: 1 },
@@ -492,6 +861,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_pairs_trading',
         icon: Repeat,
         color: 'bg-purple-500/20 text-purple-400',
+        platforms: ['Binance', 'Bybit', 'Any margin exchange'],
+        keyPoints: [
+          'Market-neutral: profits in any direction',
+          'Requires high correlation between pairs',
+          'Z-score entry: spread > 2 std deviations',
+          'Exit when spread reverts to mean',
+          'Lower risk than directional trading',
+          'Works best in consolidating markets',
+        ],
+        workflow: [
+          'Calculate rolling correlation (BTC/ETH)',
+          'Compute spread z-score',
+          'If z-score > 2: long underperformer, short outperformer',
+          'If z-score < -2: opposite position',
+          'Exit when z-score returns to ±0.5',
+          'Stop loss at z-score ±3',
+          'Track correlation stability over time',
+        ],
         requirements: ['Crypto exchange API', 'Margin trading enabled'],
         settings: [
           { key: 'pairs_z_score_entry', label: 'Z-Score Entry', type: 'number', defaultValue: 2, min: 1.5, max: 3, step: 0.1 },
@@ -519,6 +906,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_stock_mean_reversion',
         icon: Activity,
         color: 'bg-blue-500/20 text-blue-400',
+        platforms: ['Alpaca', 'Interactive Brokers', 'TD Ameritrade'],
+        keyPoints: [
+          'RSI < 30 = oversold = buy signal',
+          'RSI > 70 = overbought = sell signal',
+          'Bollinger Band touch confirms entry',
+          'Works best on liquid, large-cap stocks',
+          'Avoid during strong trends',
+          'Combine with volume confirmation',
+        ],
+        workflow: [
+          'Scan stock universe for RSI extremes',
+          'Filter: only stocks at Bollinger Band edge',
+          'Confirm with volume (lower = better for reversal)',
+          'Enter position with stop loss at recent extreme',
+          'Exit when RSI crosses back to neutral (50)',
+          'Or exit at opposite Bollinger Band',
+          'Track mean reversion win rate by sector',
+        ],
         requirements: ['Stock broker API (Alpaca/IBKR)'],
         settings: [
           { key: 'stock_mr_rsi_oversold', label: 'RSI Oversold', type: 'number', defaultValue: 30, min: 20, max: 40, step: 5 },
@@ -537,6 +942,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_stock_momentum',
         icon: TrendingUp,
         color: 'bg-green-500/20 text-green-400',
+        platforms: ['Alpaca', 'Interactive Brokers'],
+        keyPoints: [
+          'Academic research backs momentum factor',
+          '12-month lookback, skip most recent month',
+          'Top decile outperforms by 5-10% annually',
+          'Monthly rebalancing captures trends',
+          'Works across all market caps',
+          'Combine with quality filters',
+        ],
+        workflow: [
+          'Calculate 12-month returns for universe',
+          'Rank all stocks by momentum',
+          'Select top N stocks (e.g., 10)',
+          'Equal weight or momentum weight',
+          'Rebalance monthly',
+          'Track factor exposure and attribution',
+          'Adjust during momentum crashes',
+        ],
         requirements: ['Stock broker API'],
         settings: [
           { key: 'stock_momentum_lookback_days', label: 'Lookback (days)', type: 'number', defaultValue: 252, min: 60, max: 365, step: 30 },
@@ -554,6 +977,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_sector_rotation',
         icon: Repeat,
         color: 'bg-indigo-500/20 text-indigo-400',
+        platforms: ['Alpaca', 'Interactive Brokers'],
+        keyPoints: [
+          'Economic cycle: expansion → peak → contraction → trough',
+          'Each phase favors different sectors',
+          'Expansion: Technology, Consumer Discretionary',
+          'Contraction: Utilities, Healthcare, Consumer Staples',
+          'Uses yield curve, PMI, leading indicators',
+          'Monthly regime assessment',
+        ],
+        workflow: [
+          'Assess current economic regime',
+          'Map regime to historical sector performance',
+          'Select top 3 sectors for current regime',
+          'Allocate to sector ETFs (XLK, XLV, etc.)',
+          'Monthly regime reassessment',
+          'Rotate if regime changes',
+          'Track regime accuracy and sector performance',
+        ],
         requirements: ['Stock broker API'],
         settings: [
           { key: 'sector_rotation_top_n', label: 'Top N Sectors', type: 'number', defaultValue: 3, min: 1, max: 5, step: 1 },
@@ -570,6 +1011,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_dividend_growth',
         icon: DollarSign,
         color: 'bg-emerald-500/20 text-emerald-400',
+        platforms: ['Alpaca', 'Interactive Brokers', 'Fidelity'],
+        keyPoints: [
+          'Dividend Aristocrats: 25+ years of increases',
+          'Dividend Champions: 10+ years of increases',
+          'Focus on payout ratio < 60%',
+          'Yield + growth = total return',
+          'Lower volatility than market',
+          'Compound dividends for growth',
+        ],
+        workflow: [
+          'Screen for dividend growth streak (10+ years)',
+          'Filter by payout ratio (<60%)',
+          'Filter by minimum yield (>2%)',
+          'Rank by dividend growth rate',
+          'Build diversified portfolio (20+ stocks)',
+          'Reinvest dividends automatically',
+          'Annual rebalancing and screening',
+        ],
         requirements: ['Stock broker API'],
         settings: [
           { key: 'dividend_min_yield_pct', label: 'Min Yield %', type: 'number', defaultValue: 2, min: 1, max: 5, step: 0.5 },
@@ -587,6 +1046,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_earnings_momentum',
         icon: BarChart3,
         color: 'bg-yellow-500/20 text-yellow-400',
+        platforms: ['Alpaca', 'Interactive Brokers'],
+        keyPoints: [
+          'Post-Earnings Announcement Drift (PEAD)',
+          'Stocks drift in direction of surprise',
+          'Bigger surprise = bigger drift',
+          'Effect lasts 60-90 days',
+          'Combine with options for leverage',
+          'Avoid before earnings (binary event)',
+        ],
+        workflow: [
+          'Monitor earnings calendar',
+          'Wait for earnings release',
+          'Calculate surprise % (actual vs estimate)',
+          'If surprise > 5%, enter long',
+          'If surprise < -5%, enter short',
+          'Hold for 30-60 days (PEAD window)',
+          'Track drift by surprise magnitude',
+        ],
         requirements: ['Stock broker API'],
         settings: [
           { key: 'earnings_min_surprise_pct', label: 'Min Surprise %', type: 'number', defaultValue: 5, min: 1, max: 20, step: 1 },
@@ -612,6 +1089,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_covered_calls',
         icon: Shield,
         color: 'bg-purple-500/20 text-purple-400',
+        platforms: ['TD Ameritrade', 'Interactive Brokers', 'Tastytrade'],
+        keyPoints: [
+          'Own 100 shares per contract sold',
+          'Sell OTM call (30 delta typical)',
+          'Collect premium = immediate income',
+          'Max profit = premium + strike - cost basis',
+          'Best in flat to slightly bullish markets',
+          'Assignment = sell shares at profit',
+        ],
+        workflow: [
+          'Identify stocks you own (100 shares each)',
+          'Select strike 30 delta OTM',
+          'Choose 30-45 DTE expiration',
+          'Sell call option, collect premium',
+          'If assigned, sell shares at strike',
+          'If expires worthless, keep premium',
+          'Repeat monthly for income',
+        ],
         requirements: ['Options-enabled broker'],
         settings: [
           { key: 'covered_call_days_to_expiry', label: 'Days to Expiry', type: 'number', defaultValue: 30, min: 7, max: 60, step: 7 },
@@ -629,6 +1124,25 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_cash_secured_puts',
         icon: Wallet,
         color: 'bg-green-500/20 text-green-400',
+        platforms: ['TD Ameritrade', 'Interactive Brokers', 'Tastytrade'],
+        keyPoints: [
+          'Keep cash = strike × 100 reserved',
+          'Sell OTM put (30 delta typical)',
+          'Premium = income if not assigned',
+          'Assignment = buy shares at discount',
+          'Win-win: either income or cheap shares',
+          'Best on stocks you want to own',
+        ],
+        workflow: [
+          'Identify stocks you want to own',
+          'Reserve cash = strike × 100',
+          'Select strike 30 delta OTM',
+          'Choose 30-45 DTE expiration',
+          'Sell put option, collect premium',
+          'If assigned, buy shares at strike',
+          'If expires worthless, keep premium',
+          'Repeat for continuous income',
+        ],
         requirements: ['Options-enabled broker'],
         settings: [
           { key: 'csp_days_to_expiry', label: 'Days to Expiry', type: 'number', defaultValue: 30, min: 7, max: 60, step: 7 },
@@ -646,6 +1160,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_iron_condor',
         icon: BarChart3,
         color: 'bg-blue-500/20 text-blue-400',
+        platforms: ['TD Ameritrade', 'Interactive Brokers', 'Tastytrade'],
+        keyPoints: [
+          'Sell OTM call spread above current price',
+          'Sell OTM put spread below current price',
+          'Max profit = total premium collected',
+          'Max loss = wing width - premium',
+          'Best in low IV, range-bound markets',
+          'Profit zone = between short strikes',
+        ],
+        workflow: [
+          'Identify range-bound underlying',
+          'Check IV rank (prefer high IV)',
+          'Sell call spread (short call + long call)',
+          'Sell put spread (short put + long put)',
+          'Collect net premium',
+          'Manage at 50% profit or 21 DTE',
+          'Close or roll if tested',
+        ],
         requirements: ['Options-enabled broker', 'Level 3 options'],
         settings: [
           { key: 'iron_condor_days_to_expiry', label: 'Days to Expiry', type: 'number', defaultValue: 45, min: 14, max: 60, step: 7 },
@@ -663,6 +1195,24 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         configKey: 'enable_wheel_strategy',
         icon: Repeat,
         color: 'bg-orange-500/20 text-orange-400',
+        platforms: ['TD Ameritrade', 'Interactive Brokers', 'Tastytrade'],
+        keyPoints: [
+          'The "Wheel": CSP → assignment → CC → called away → repeat',
+          'Continuous premium income machine',
+          'Need capital = 100 × strike reserved',
+          'Works best on stable, dividend stocks',
+          'Combines CSP and covered call benefits',
+          'True passive income strategy',
+        ],
+        workflow: [
+          'Start: Sell cash-secured put on quality stock',
+          'If not assigned: keep premium, sell another',
+          'If assigned: now own 100 shares',
+          'Sell covered call against shares',
+          'If not called away: keep premium, sell another',
+          'If called away: sell shares, collect premium',
+          'Return to step 1, repeat cycle',
+        ],
         requirements: ['Options-enabled broker', '$10K+ capital'],
         settings: [
           { key: 'wheel_position_size_usd', label: 'Position Size $', type: 'number', defaultValue: 5000, min: 1000, max: 50000, step: 1000 },
@@ -689,6 +1239,7 @@ export default function StrategiesPage() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'enabled' | 'disabled'>('all');
+  const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   
   // Sync config when loaded
   useEffect(() => {
@@ -916,7 +1467,12 @@ export default function StrategiesPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="font-medium text-white text-sm">{strategy.name}</h3>
+                                    <button 
+                                      onClick={() => setSelectedStrategy(strategy)}
+                                      className="font-medium text-white text-sm hover:text-neon-green transition-colors text-left"
+                                    >
+                                      {strategy.name}
+                                    </button>
                                     <ConfidenceBadge confidence={strategy.confidence} />
                                     <RiskBadge level={strategy.riskLevel} />
                                   </div>
@@ -928,6 +1484,14 @@ export default function StrategiesPage() {
                                 <span className="text-xs text-dark-muted hidden sm:block">
                                   {strategy.expectedReturn}
                                 </span>
+                                {/* View Details Button */}
+                                <button
+                                  onClick={() => setSelectedStrategy(strategy)}
+                                  className="p-1.5 hover:bg-dark-border rounded transition-colors text-blue-400 hover:text-blue-300"
+                                  title="View full details"
+                                >
+                                  <Info className="w-4 h-4" />
+                                </button>
                                 <ToggleSwitch
                                   enabled={enabled}
                                   onToggle={() => toggleStrategy(strategy)}
@@ -937,6 +1501,7 @@ export default function StrategiesPage() {
                                 <button
                                   onClick={() => toggleStrategyExpand(strategy.id)}
                                   className="p-1 hover:bg-dark-border rounded transition-colors"
+                                  title="Expand settings"
                                 >
                                   {isStratExpanded ? (
                                     <ChevronDown className="w-4 h-4 text-dark-muted" />
@@ -1045,6 +1610,193 @@ export default function StrategiesPage() {
           {saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
         </button>
       </div>
+
+      {/* Strategy Detail Modal (same as workflows page) */}
+      <AnimatePresence>
+        {selectedStrategy && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+            onClick={() => setSelectedStrategy(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-dark-card border border-dark-border rounded-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className={cn('p-3 rounded-xl', selectedStrategy.color)}>
+                    <selectedStrategy.icon className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{selectedStrategy.name}</h2>
+                    <div className="flex items-center gap-3 mt-1">
+                      <RiskBadge level={selectedStrategy.riskLevel} />
+                      <ConfidenceBadge confidence={selectedStrategy.confidence} />
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedStrategy(null)}
+                  className="text-gray-400 hover:text-white p-1"
+                  aria-label="Close modal"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="bg-dark-bg rounded-xl p-4 text-center">
+                  <div className={cn(
+                    "text-3xl font-bold",
+                    selectedStrategy.confidence >= 85 ? "text-green-400" :
+                    selectedStrategy.confidence >= 70 ? "text-yellow-400" : "text-orange-400"
+                  )}>
+                    {selectedStrategy.confidence}%
+                  </div>
+                  <div className="text-sm text-gray-400">Confidence</div>
+                </div>
+                <div className="bg-dark-bg rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-blue-400">{selectedStrategy.expectedReturn}</div>
+                  <div className="text-sm text-gray-400">Expected APY</div>
+                </div>
+                <div className="bg-dark-bg rounded-xl p-4 text-center">
+                  <div className="text-3xl font-bold text-purple-400">{selectedStrategy.platforms?.length || 1}</div>
+                  <div className="text-sm text-gray-400">Platforms</div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="mb-6">
+                <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-white">
+                  <BookOpen className="w-5 h-5 text-blue-400" />
+                  Description
+                </h3>
+                <p className="text-gray-300 leading-relaxed">{selectedStrategy.howItWorks}</p>
+              </div>
+
+              {/* Key Points */}
+              {selectedStrategy.keyPoints && selectedStrategy.keyPoints.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-white">
+                    <Zap className="w-5 h-5 text-yellow-400" />
+                    Key Points
+                  </h3>
+                  <ul className="space-y-2">
+                    {selectedStrategy.keyPoints.map((point, i) => (
+                      <li key={i} className="flex items-start gap-2 text-gray-300">
+                        <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Platforms */}
+              {selectedStrategy.platforms && selectedStrategy.platforms.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-white">
+                    <Activity className="w-5 h-5 text-purple-400" />
+                    Platforms Used
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedStrategy.platforms.map((platform) => (
+                      <span key={platform} className="px-3 py-1 bg-dark-bg rounded-full text-sm text-gray-300">
+                        {platform}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Requirements */}
+              {selectedStrategy.requirements && selectedStrategy.requirements.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-2 flex items-center gap-2 text-white">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                    Requirements
+                  </h3>
+                  <ul className="space-y-2">
+                    {selectedStrategy.requirements.map((req, i) => (
+                      <li key={i} className="flex items-start gap-2 text-gray-300">
+                        <AlertTriangle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                        {req}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Workflow */}
+              {selectedStrategy.workflow && selectedStrategy.workflow.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-bold text-lg mb-3 flex items-center gap-2 text-white">
+                    <GitBranch className="w-5 h-5 text-cyan-400" />
+                    Execution Workflow
+                  </h3>
+                  <div className="relative">
+                    <div className="absolute left-3 top-3 bottom-3 w-0.5 bg-gradient-to-b from-cyan-500/50 via-blue-500/50 to-purple-500/50" />
+                    <div className="space-y-3">
+                      {selectedStrategy.workflow.map((step, i) => (
+                        <div key={i} className="flex items-start gap-4 pl-1">
+                          <div className={cn(
+                            "w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold z-10",
+                            i === 0 ? 'bg-cyan-500' :
+                            i === selectedStrategy.workflow!.length - 1 ? 'bg-purple-500' :
+                            'bg-blue-500'
+                          )}>
+                            {i + 1}
+                          </div>
+                          <div className="text-gray-300 text-sm leading-relaxed">{step}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Config Key */}
+              <div className="p-4 bg-dark-bg rounded-xl mb-6">
+                <div className="text-xs text-gray-400 mb-1">Config Key (polybot_config)</div>
+                <code className="text-sm text-green-400">{selectedStrategy.configKey}</code>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-4 pt-4 border-t border-dark-border">
+                <Link 
+                  href="/secrets"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 transition-colors py-3 rounded-xl text-center font-medium text-white"
+                >
+                  Configure API Keys
+                </Link>
+                <button
+                  onClick={() => {
+                    toggleStrategy(selectedStrategy);
+                    setSelectedStrategy(null);
+                  }}
+                  disabled={!isAdmin}
+                  className={cn(
+                    "flex-1 py-3 rounded-xl text-center font-medium transition-colors",
+                    isStrategyEnabled(selectedStrategy)
+                      ? "bg-red-600 hover:bg-red-700 text-white"
+                      : "bg-neon-green hover:bg-neon-green/90 text-black"
+                  )}
+                >
+                  {isStrategyEnabled(selectedStrategy) ? 'Disable Strategy' : 'Enable Strategy'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

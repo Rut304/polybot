@@ -245,6 +245,11 @@ class WhaleCopyTradingStrategy:
         auto_discover_whales: bool = True,
         on_signal: Optional[Callable] = None,
         db_client = None,
+        # Slippage protection (NEW)
+        slippage_enabled: bool = True,
+        max_slippage_pct: float = 5.0,
+        balance_proportional: bool = True,
+        max_balance_pct: float = 10.0,
     ):
         self.whale_addresses = whale_addresses or self.DEFAULT_WHALES
         self.min_win_rate = min_win_rate
@@ -257,6 +262,12 @@ class WhaleCopyTradingStrategy:
         self.auto_discover = auto_discover_whales
         self.on_signal = on_signal
         self.db = db_client
+        
+        # Slippage protection settings (NEW)
+        self.slippage_enabled = slippage_enabled
+        self.max_slippage_pct = max_slippage_pct
+        self.balance_proportional = balance_proportional
+        self.max_balance_pct = max_balance_pct
         
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
@@ -489,8 +500,61 @@ class WhaleCopyTradingStrategy:
         
         return new_trades
     
-    def create_copy_signal(self, trade: WhaleTrade) -> Optional[CopySignal]:
-        """Create a copy signal from a whale trade"""
+    async def check_slippage(
+        self, 
+        market_id: str, 
+        whale_price: Decimal
+    ) -> tuple[bool, Decimal, float]:
+        """
+        Check if current market price has moved too far from whale's entry.
+        
+        Returns:
+            (ok_to_copy, current_price, slippage_pct)
+        """
+        try:
+            session = await self._get_session()
+            
+            # Fetch current market price from CLOB API
+            url = f"{self.CLOB_API}/markets/{market_id}"
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    logger.warning(f"Failed to fetch market price for slippage check")
+                    return True, whale_price, 0.0  # Allow if can't check
+                
+                data = await resp.json()
+                
+                # Get best bid/ask
+                best_bid = Decimal(str(data.get("bestBid", 0) or 0))
+                best_ask = Decimal(str(data.get("bestAsk", 1) or 1))
+                current_price = (best_bid + best_ask) / 2
+                
+                if current_price == 0:
+                    return True, whale_price, 0.0
+                
+                # Calculate slippage percentage
+                slippage_pct = abs(
+                    float(current_price - whale_price) / float(whale_price)
+                ) * 100
+                
+                # Check if within tolerance
+                ok = slippage_pct <= self.max_slippage_pct
+                
+                if not ok:
+                    logger.warning(
+                        f"⚠️ Slippage too high: {slippage_pct:.1f}% > "
+                        f"{self.max_slippage_pct}% max | "
+                        f"Whale: {float(whale_price):.0%} → "
+                        f"Now: {float(current_price):.0%}"
+                    )
+                
+                return ok, current_price, slippage_pct
+                
+        except Exception as e:
+            logger.error(f"Error checking slippage: {e}")
+            return True, whale_price, 0.0  # Allow if error
+    
+    async def create_copy_signal(self, trade: WhaleTrade) -> Optional[CopySignal]:
+        """Create a copy signal from a whale trade with slippage protection"""
         whale = self._whales.get(trade.whale_address)
         if not whale:
             return None
@@ -499,9 +563,45 @@ class WhaleCopyTradingStrategy:
         if trade.direction not in [TradeDirection.BUY_YES, TradeDirection.BUY_NO]:
             return None
         
+        # SLIPPAGE PROTECTION: Check if price has moved too much
+        if self.slippage_enabled:
+            ok, current_price, slippage = await self.check_slippage(
+                trade.market_id, trade.price
+            )
+            if not ok:
+                logger.info(
+                    f"⏭️ Skipping copy due to slippage ({slippage:.1f}%): "
+                    f"{trade.market_title[:30]}"
+                )
+                return None
+        
         # Calculate recommended size
         base_size = trade.size_usd * Decimal(str(whale.copy_multiplier))
         recommended_size = min(base_size, whale.max_copy_size_usd)
+        
+        # BALANCE PROPORTIONAL SIZING: Cap at % of balance
+        if self.balance_proportional and self.db:
+            try:
+                # Get current balance from DB
+                balance_data = self.db._client.table("polybot_balances").select(
+                    "total_usd"
+                ).order("fetched_at", desc=True).limit(1).execute()
+                
+                if balance_data.data:
+                    total_balance = Decimal(str(balance_data.data[0]["total_usd"]))
+                    max_by_balance = total_balance * Decimal(
+                        str(self.max_balance_pct / 100)
+                    )
+                    if recommended_size > max_by_balance:
+                        logger.info(
+                            f"📊 Size capped by balance: "
+                            f"${float(recommended_size):.0f} → "
+                            f"${float(max_by_balance):.0f} "
+                            f"({self.max_balance_pct}% of ${float(total_balance):.0f})"
+                        )
+                        recommended_size = max_by_balance
+            except Exception as e:
+                logger.debug(f"Could not apply balance proportional sizing: {e}")
         
         # Calculate confidence based on whale tier
         confidence_map = {
@@ -538,9 +638,9 @@ class WhaleCopyTradingStrategy:
         # Detect new whale trades
         trades = await self.detect_whale_trades()
         
-        # Create signals
+        # Create signals (now async with slippage check)
         for trade in trades:
-            signal = self.create_copy_signal(trade)
+            signal = await self.create_copy_signal(trade)
             if signal:
                 signals.append(signal)
         

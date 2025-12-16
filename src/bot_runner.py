@@ -109,6 +109,8 @@ from src.strategies.congressional_tracker import CongressionalTrackerStrategy
 from src.strategies.political_event import PoliticalEventStrategy
 from src.strategies.high_conviction import HighConvictionStrategy
 from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
+from src.strategies.crypto_15min_scalping import Crypto15MinScalpingStrategy
+from src.strategies.ai_superforecasting import AISuperforecastingStrategy
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.notifications import Notifier, NotificationConfig
@@ -240,6 +242,12 @@ class PolybotRunner:
         
         # Selective Whale Copy - performance-based whale selection
         self.selective_whale_copy: Optional[SelectiveWhaleCopyStrategy] = None
+        
+        # 15-Minute Crypto Scalping - Twitter-derived high-frequency scalping
+        self.crypto_15min_scalping: Optional[Crypto15MinScalpingStrategy] = None
+        
+        # AI Superforecasting - Gemini-powered market analysis
+        self.ai_superforecasting: Optional[AISuperforecastingStrategy] = None
         
         # ==============================================
         # ADVANCED FRAMEWORK MODULES (Phase 1)
@@ -1101,6 +1109,76 @@ class PolybotRunner:
         else:
             logger.info("⏸️ Selective Whale Copy DISABLED")
         
+        # Initialize 15-Minute Crypto Scalping Strategy (90% CONFIDENCE)
+        crypto_scalp_enabled = getattr(
+            self.config.trading, 'enable_15min_crypto_scalping', False
+        )
+        if crypto_scalp_enabled:
+            self.crypto_15min_scalping = Crypto15MinScalpingStrategy(
+                entry_threshold=getattr(
+                    self.config.trading, 'crypto_scalp_entry_threshold', 0.45
+                ),
+                max_position_usd=getattr(
+                    self.config.trading, 'crypto_scalp_max_position_usd', 100.0
+                ),
+                scan_interval_seconds=getattr(
+                    self.config.trading, 'crypto_scalp_scan_interval_sec', 2
+                ),
+                use_kelly_sizing=getattr(
+                    self.config.trading, 'crypto_scalp_kelly_enabled', True
+                ),
+                kelly_fraction=getattr(
+                    self.config.trading, 'crypto_scalp_kelly_fraction', 0.25
+                ),
+                symbols=getattr(
+                    self.config.trading, 'crypto_scalp_symbols', 'BTC,ETH'
+                ).split(','),
+                max_concurrent_trades=getattr(
+                    self.config.trading, 'crypto_scalp_max_concurrent', 3
+                ),
+                db_client=self.db,
+            )
+            logger.info("✓ 15-Min Crypto Scalping initialized (90% CONF)")
+            logger.info("  ⚡ High-frequency BTC/ETH binary options scalping")
+        else:
+            logger.info("⏸️ 15-Min Crypto Scalping DISABLED")
+        
+        # Initialize AI Superforecasting Strategy (85% CONFIDENCE)
+        ai_forecast_enabled = getattr(
+            self.config.trading, 'enable_ai_superforecasting', False
+        )
+        if ai_forecast_enabled:
+            gemini_api_key = (
+                self.db.get_secret("GEMINI_API_KEY") or 
+                os.getenv("GEMINI_API_KEY")
+            )
+            if gemini_api_key:
+                self.ai_superforecasting = AISuperforecastingStrategy(
+                    api_key=gemini_api_key,
+                    model=getattr(
+                        self.config.trading, 'ai_model', 'gemini-1.5-flash'
+                    ),
+                    min_divergence_pct=getattr(
+                        self.config.trading, 'ai_min_divergence_pct', 10.0
+                    ),
+                    max_position_usd=getattr(
+                        self.config.trading, 'ai_max_position_usd', 100.0
+                    ),
+                    scan_interval_seconds=getattr(
+                        self.config.trading, 'ai_scan_interval_sec', 300
+                    ),
+                    confidence_threshold=getattr(
+                        self.config.trading, 'ai_min_confidence', 0.65
+                    ),
+                    db_client=self.db,
+                )
+                logger.info("✓ AI Superforecasting initialized (85% CONF)")
+                logger.info("  🧠 Gemini-powered market analysis")
+            else:
+                logger.warning("⚠️ AI Superforecasting DISABLED - No GEMINI_API_KEY")
+        else:
+            logger.info("⏸️ AI Superforecasting DISABLED")
+        
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
             self.paper_trader = RealisticPaperTrader(
@@ -1863,6 +1941,30 @@ class PolybotRunner:
             logger.info("  🐋 Performance-based whale selection")
             await self.selective_whale_copy.run()
 
+    async def run_crypto_15min_scalping(self):
+        """Run 15-Minute Crypto Scalping Strategy (90% CONFIDENCE)."""
+        if not getattr(
+            self.config.trading, 'enable_15min_crypto_scalping', False
+        ):
+            return
+
+        if self.crypto_15min_scalping:
+            logger.info("▶️ Starting 15-Min Crypto Scalping Strategy...")
+            logger.info("  ⚡ High-frequency BTC/ETH binary scalping")
+            await self.crypto_15min_scalping.run()
+
+    async def run_ai_superforecasting(self):
+        """Run AI Superforecasting Strategy (85% CONFIDENCE)."""
+        if not getattr(
+            self.config.trading, 'enable_ai_superforecasting', False
+        ):
+            return
+
+        if self.ai_superforecasting:
+            logger.info("▶️ Starting AI Superforecasting Strategy...")
+            logger.info("  🧠 Gemini-powered market analysis")
+            await self.ai_superforecasting.run()
+
     async def run_position_manager(self):
         """Run position manager."""
         if self.position_manager:
@@ -2148,6 +2250,20 @@ class PolybotRunner:
         if sel_whale and self.selective_whale_copy:
             tasks.append(asyncio.create_task(self.run_selective_whale_copy()))
         
+        # Run 15-Min Crypto Scalping (90% CONFIDENCE)
+        crypto_scalp = getattr(
+            self.config.trading, 'enable_15min_crypto_scalping', False
+        )
+        if crypto_scalp and self.crypto_15min_scalping:
+            tasks.append(asyncio.create_task(self.run_crypto_15min_scalping()))
+        
+        # Run AI Superforecasting (85% CONFIDENCE)
+        ai_forecast = getattr(
+            self.config.trading, 'enable_ai_superforecasting', False
+        )
+        if ai_forecast and self.ai_superforecasting:
+            tasks.append(asyncio.create_task(self.run_ai_superforecasting()))
+        
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))
         
@@ -2234,6 +2350,10 @@ class PolybotRunner:
             self.high_conviction_strategy.stop()
         if self.selective_whale_copy:
             self.selective_whale_copy.stop()
+        if self.crypto_15min_scalping:
+            self.crypto_15min_scalping.stop()
+        if self.ai_superforecasting:
+            self.ai_superforecasting.stop()
         
         # Close exchange connections (prevents unclosed session warnings)
         if self.ccxt_client:

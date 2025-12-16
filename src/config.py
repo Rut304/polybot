@@ -90,7 +90,7 @@ class TradingConfig:
     cross_plat_min_profit_buy_poly_pct: float = 2.5   # Lower (Poly has 0% fees)
     cross_plat_min_profit_buy_kalshi_pct: float = 9.0 # RAISED: must cover 7% Kalshi fee
     cross_plat_max_position_usd: float = 75.0   # Reduced from 100 - execution risk
-    cross_plat_scan_interval_sec: int = 10      # FAST: every 10 seconds (cross-platform matching)
+    cross_plat_scan_interval_sec: int = 3       # ULTRA-FAST: 3 seconds (Twitter-derived)
     cross_plat_min_similarity: float = 0.35     # Stricter matching (fewer false positives)
     
     # =========================================================================
@@ -294,7 +294,7 @@ class TradingConfig:
     enable_btc_bracket_arb: bool = False        # OFF by default
     btc_bracket_min_discount_pct: float = 0.5   # Min combined discount (0.5%)
     btc_bracket_max_position_usd: float = 50.0  # Max position per bracket
-    btc_bracket_scan_interval_sec: int = 15     # Scan every 15 seconds
+    btc_bracket_scan_interval_sec: int = 2      # ULTRA-FAST: 2 seconds
     
     # Bracket Compression (70% CONFIDENCE - 15-30% APY)
     # Mean reversion on stretched bracket prices
@@ -375,6 +375,48 @@ class TradingConfig:
     selective_whale_auto_select: bool = True       # Auto-select top whales
     selective_whale_copy_scale_pct: float = 5.0    # % of whale position
     selective_whale_max_position_usd: float = 200.0  # Max position size
+
+    # =========================================================================
+    # 15-MINUTE CRYPTO SCALPING (90% CONFIDENCE - $50-200K potential)
+    # Based on Twitter analysis: $956 → $208K using 15-min BTC binary options
+    # High-frequency scalping on crypto short-term binary markets
+    # =========================================================================
+    enable_15min_crypto_scalping: bool = False     # OFF by default
+    crypto_scalp_entry_threshold: float = 0.45     # Entry when YES < 45¢
+    crypto_scalp_exit_threshold: float = 0.55      # Exit when YES > 55¢
+    crypto_scalp_stop_loss_cents: float = 0.35     # Stop loss at 35¢
+    crypto_scalp_max_position_usd: float = 100.0   # Max position per trade
+    crypto_scalp_scan_interval_sec: int = 2        # Ultra-fast 2-second scans
+    crypto_scalp_kelly_enabled: bool = True        # Use Kelly Criterion sizing
+    crypto_scalp_kelly_fraction: float = 0.25      # Quarter-Kelly (conservative)
+    crypto_scalp_symbols: str = "BTC,ETH"          # Crypto symbols to scalp
+    crypto_scalp_min_volume_usd: float = 5000.0    # Min 24h volume
+    crypto_scalp_max_concurrent: int = 3           # Max concurrent positions
+
+    # =========================================================================
+    # AI SUPERFORECASTING (85% CONFIDENCE - 30-60% APY)
+    # Gemini-powered AI analysis based on BlackSky bot architecture
+    # Combines base rates, factor analysis, and divergence detection
+    # =========================================================================
+    enable_ai_superforecasting: bool = False       # OFF by default
+    ai_model: str = "gemini-1.5-flash"             # Gemini model to use
+    ai_min_divergence_pct: float = 10.0            # Min market vs AI divergence
+    ai_max_position_usd: float = 100.0             # Max position per trade
+    ai_scan_interval_sec: int = 300                # 5-minute analysis cycles
+    ai_cache_duration_hours: int = 6               # Cache forecasts for 6 hours
+    ai_min_confidence: float = 0.65                # Min AI confidence to trade
+    ai_max_concurrent: int = 5                     # Max concurrent AI positions
+    ai_use_base_rates: bool = True                 # Use historical base rates
+    ai_use_factor_analysis: bool = True            # Use multi-factor analysis
+
+    # =========================================================================
+    # WHALE SLIPPAGE PROTECTION (NEW)
+    # Enhanced whale copy trading with slippage awareness
+    # =========================================================================
+    whale_slippage_enabled: bool = True            # ON by default (safety)
+    whale_max_slippage_pct: float = 5.0            # Skip if price moved > 5%
+    whale_balance_proportional: bool = True        # Size based on balance ratio
+    whale_max_balance_pct: float = 10.0            # Max % of balance per copy
 
 
 @dataclass
@@ -1126,6 +1168,84 @@ class Config:
             ),
             selective_whale_max_position_usd=self._get_float(
                 "selective_whale_max_position_usd", "SELECTIVE_WHALE_MAX_POS", 200.0
+            ),
+            # 15-Minute Crypto Scalping Strategy config
+            enable_15min_crypto_scalping=self._get_bool(
+                "enable_15min_crypto_scalping", "ENABLE_15MIN_SCALP", False
+            ),
+            crypto_scalp_entry_threshold=self._get_float(
+                "crypto_scalp_entry_threshold", "CRYPTO_SCALP_ENTRY", 0.45
+            ),
+            crypto_scalp_exit_threshold=self._get_float(
+                "crypto_scalp_exit_threshold", "CRYPTO_SCALP_EXIT", 0.55
+            ),
+            crypto_scalp_stop_loss_cents=self._get_float(
+                "crypto_scalp_stop_loss_cents", "CRYPTO_SCALP_STOP", 0.35
+            ),
+            crypto_scalp_max_position_usd=self._get_float(
+                "crypto_scalp_max_position_usd", "CRYPTO_SCALP_MAX_POS", 100.0
+            ),
+            crypto_scalp_scan_interval_sec=self._get_int(
+                "crypto_scalp_scan_interval_sec", "CRYPTO_SCALP_INTERVAL", 2
+            ),
+            crypto_scalp_kelly_enabled=self._get_bool(
+                "crypto_scalp_kelly_enabled", "CRYPTO_SCALP_KELLY", True
+            ),
+            crypto_scalp_kelly_fraction=self._get_float(
+                "crypto_scalp_kelly_fraction", "CRYPTO_SCALP_KELLY_FRAC", 0.25
+            ),
+            crypto_scalp_symbols=self._get_str(
+                "crypto_scalp_symbols", "CRYPTO_SCALP_SYMBOLS", "BTC,ETH"
+            ),
+            crypto_scalp_min_volume_usd=self._get_float(
+                "crypto_scalp_min_volume_usd", "CRYPTO_SCALP_MIN_VOL", 5000.0
+            ),
+            crypto_scalp_max_concurrent=self._get_int(
+                "crypto_scalp_max_concurrent", "CRYPTO_SCALP_MAX_CONCURRENT", 3
+            ),
+            # AI Superforecasting Strategy config
+            enable_ai_superforecasting=self._get_bool(
+                "enable_ai_superforecasting", "ENABLE_AI_FORECAST", False
+            ),
+            ai_model=self._get_str(
+                "ai_model", "AI_MODEL", "gemini-1.5-flash"
+            ),
+            ai_min_divergence_pct=self._get_float(
+                "ai_min_divergence_pct", "AI_MIN_DIVERGENCE", 10.0
+            ),
+            ai_max_position_usd=self._get_float(
+                "ai_max_position_usd", "AI_MAX_POS", 100.0
+            ),
+            ai_scan_interval_sec=self._get_int(
+                "ai_scan_interval_sec", "AI_SCAN_INTERVAL", 300
+            ),
+            ai_cache_duration_hours=self._get_int(
+                "ai_cache_duration_hours", "AI_CACHE_HOURS", 6
+            ),
+            ai_min_confidence=self._get_float(
+                "ai_min_confidence", "AI_MIN_CONFIDENCE", 0.65
+            ),
+            ai_max_concurrent=self._get_int(
+                "ai_max_concurrent", "AI_MAX_CONCURRENT", 5
+            ),
+            ai_use_base_rates=self._get_bool(
+                "ai_use_base_rates", "AI_USE_BASE_RATES", True
+            ),
+            ai_use_factor_analysis=self._get_bool(
+                "ai_use_factor_analysis", "AI_USE_FACTORS", True
+            ),
+            # Whale Slippage Protection config
+            whale_slippage_enabled=self._get_bool(
+                "whale_slippage_enabled", "WHALE_SLIPPAGE_ENABLED", True
+            ),
+            whale_max_slippage_pct=self._get_float(
+                "whale_max_slippage_pct", "WHALE_MAX_SLIPPAGE", 5.0
+            ),
+            whale_balance_proportional=self._get_bool(
+                "whale_balance_proportional", "WHALE_BALANCE_PROP", True
+            ),
+            whale_max_balance_pct=self._get_float(
+                "whale_max_balance_pct", "WHALE_MAX_BALANCE_PCT", 10.0
             ),
         )
         self.polymarket = PolymarketConfig()
