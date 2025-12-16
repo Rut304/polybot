@@ -23,7 +23,8 @@ from decimal import Decimal
 from typing import Dict, List, Optional, Callable, Set
 from enum import Enum
 
-from src.exchanges.ccxt_client import CCXTClient, OrderSide, OrderType
+from src.exchanges.ccxt_client import CCXTClient
+from src.exchanges.base import OrderSide, OrderType
 
 logger = logging.getLogger(__name__)
 

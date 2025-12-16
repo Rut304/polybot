@@ -6,7 +6,7 @@ import statistics
 
 from src.strategies.base_strategy import BaseStrategy, StrategySignal, SignalType
 from src.exchanges.ibkr_client import IBKRClient
-from src.db.client import SupabaseClient
+from src.database.client import Database as SupabaseClient
 from src.exchanges.base import OrderSide, OrderType
 
 logger = logging.getLogger(__name__)

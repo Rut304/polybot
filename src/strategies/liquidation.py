@@ -6,8 +6,8 @@ from decimal import Decimal
 from datetime import datetime, timezone
 
 from src.strategies.base_strategy import BaseStrategy
-from src.exchanges.polymarket_client import PolymarketClient
-from src.db.client import SupabaseClient
+from src.clients.polymarket_client import PolymarketClient
+from src.database.client import Database as SupabaseClient
 
 logger = logging.getLogger(__name__)
 

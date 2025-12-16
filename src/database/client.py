@@ -4,6 +4,7 @@ Handles persistence of opportunities, trades, and bot state.
 """
 
 import logging
+import os
 import random
 import time
 from typing import Dict, List, Optional, Any
