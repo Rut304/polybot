@@ -37,6 +37,7 @@ import { StrategyBreakdown } from '@/components/StrategyBreakdown';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 import { Opportunity, SimulatedTrade } from '@/lib/supabase';
+import { MoneyStatsWidget } from '@/components/MoneyStatsWidget';
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -190,6 +191,10 @@ export default function Dashboard() {
           </select>
         </div>
       </div>
+
+      {/* Money Stats Widget (Missed Money & Efficiency) */}
+      <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
+
         {/* Top Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard

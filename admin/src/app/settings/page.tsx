@@ -90,15 +90,17 @@ function ToggleSwitch({ enabled, onToggle, disabled, size = 'md' }: ToggleSwitch
   );
 }
 
+import { CircuitBreakerStatus } from '@/components/CircuitBreakerStatus';
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { data: botStatus } = useBotStatus();
-  const { data: config } = useBotConfig();
+  const { data: status } = useBotStatus();
+  const { data: config, isLoading: configLoading } = useBotConfig();
   
   // Local state for settings
-  const [botEnabled, setBotEnabled] = useState(botStatus?.is_running ?? false);
+  const [botEnabled, setBotEnabled] = useState(status?.is_running ?? false);
   const [polymarketEnabled, setPolymarketEnabled] = useState(config?.polymarket_enabled ?? true);
   const [kalshiEnabled, setKalshiEnabled] = useState(config?.kalshi_enabled ?? true);
   const [dryRunMode, setDryRunMode] = useState(botStatus?.dry_run_mode ?? true);
@@ -479,6 +481,7 @@ export default function SettingsPage() {
   const [binanceStartingBalance, setBinanceStartingBalance] = useState(config?.binance_starting_balance ?? 20000);
   const [coinbaseStartingBalance, setCoinbaseStartingBalance] = useState(config?.coinbase_starting_balance ?? 20000);
   const [alpacaStartingBalance, setAlpacaStartingBalance] = useState(config?.alpaca_starting_balance ?? 20000);
+  const [ibkrStartingBalance, setIbkrStartingBalance] = useState(config?.ibkr_starting_balance ?? 20000);
   const [showStartingBalances, setShowStartingBalances] = useState(false);
   
   // UI state for strategy settings section
@@ -727,6 +730,7 @@ export default function SettingsPage() {
       if (config.binance_starting_balance !== undefined) setBinanceStartingBalance(config.binance_starting_balance);
       if (config.coinbase_starting_balance !== undefined) setCoinbaseStartingBalance(config.coinbase_starting_balance);
       if (config.alpaca_starting_balance !== undefined) setAlpacaStartingBalance(config.alpaca_starting_balance);
+      if (config.ibkr_starting_balance !== undefined) setIbkrStartingBalance(config.ibkr_starting_balance);
       
       // Advanced Risk Framework
       if (config.kelly_sizing_enabled !== undefined) setKellySizingEnabled(config.kelly_sizing_enabled);
@@ -760,13 +764,37 @@ export default function SettingsPage() {
     }
   }, [config, saving]);
   
-  // Sync bot status state when it loads
+  // Update local state when remote state defaults change (initial load)
   useEffect(() => {
-    if (botStatus) {
-      if (botStatus.is_running !== undefined) setBotEnabled(botStatus.is_running);
-      if (botStatus.dry_run_mode !== undefined) setDryRunMode(botStatus.dry_run_mode);
+    if (status?.dry_run_mode !== undefined) {
+      setDryRunMode(status.dry_run_mode);
     }
-  }, [botStatus]);
+    if (status?.is_running !== undefined) {
+      setBotEnabled(status.is_running);
+    }
+  }, [status]);
+
+  const handleToggleBot = () => {
+    // Optimistic update
+    const newState = !botEnabled;
+    setBotEnabled(newState);
+    
+    // Call API
+    updateBotStatus.mutate({
+      is_running: newState
+    });
+  };
+
+  const handleToggleSimulation = () => {
+    // Optimistic update
+    const newState = !dryRunMode;
+    setDryRunMode(newState);
+    
+    // Call API
+    updateBotStatus.mutate({
+      mode: newState ? 'simulation' : 'live'
+    });
+  };
   
   // Use the reset simulation hook
   const resetSimulation = useResetSimulation();
@@ -1035,6 +1063,7 @@ export default function SettingsPage() {
         binance_starting_balance: binanceStartingBalance,
         coinbase_starting_balance: coinbaseStartingBalance,
         alpaca_starting_balance: alpacaStartingBalance,
+        ibkr_starting_balance: ibkrStartingBalance,
         // Advanced Risk Framework
         kelly_sizing_enabled: kellySizingEnabled,
         kelly_fraction_cap: kellyFractionCap,
@@ -1391,7 +1420,7 @@ export default function SettingsPage() {
           {showStartingBalances ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
         <p className="text-sm text-gray-500 mt-1">
-          Set starting balance for each platform to track P&L performance (Total: ${(polymarketStartingBalance + kalshiStartingBalance + binanceStartingBalance + coinbaseStartingBalance + alpacaStartingBalance).toLocaleString()})
+          Set starting balance for each platform to track P&L performance (Total: ${(polymarketStartingBalance + kalshiStartingBalance + binanceStartingBalance + coinbaseStartingBalance + alpacaStartingBalance + ibkrStartingBalance).toLocaleString()})
         </p>
 
         <AnimatePresence>
@@ -1546,6 +1575,33 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
+                  {/* IBKR */}
+                  <div className="p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
+                        <span className="text-sm font-bold text-red-400">I</span>
+                      </div>
+                      <div>
+                        <p className="font-medium">IBKR</p>
+                        <p className="text-xs text-gray-500">Interactive Brokers</p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        value={ibkrStartingBalance}
+                        onChange={(e) => setIbkrStartingBalance(parseFloat(e.target.value) || 0)}
+                        step="1000"
+                        min="0"
+                        disabled={!isAdmin}
+                        title="IBKR starting balance"
+                        placeholder="20000"
+                        className="w-full bg-dark-border border border-dark-border rounded-lg pl-7 pr-4 py-2 focus:outline-none focus:border-red-500 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
                   {/* Quick Presets */}
                   <div className="p-4 bg-dark-border/30 rounded-xl">
                     <p className="font-medium mb-3">Quick Presets</p>
@@ -1558,6 +1614,7 @@ export default function SettingsPage() {
                           setBinanceStartingBalance(20000);
                           setCoinbaseStartingBalance(20000);
                           setAlpacaStartingBalance(20000);
+                          setIbkrStartingBalance(20000);
                         }}
                         disabled={!isAdmin}
                         className="w-full px-3 py-2 text-sm bg-neon-green/20 hover:bg-neon-green/30 text-neon-green rounded-lg transition-colors disabled:opacity-50"
@@ -1572,6 +1629,7 @@ export default function SettingsPage() {
                           setBinanceStartingBalance(10000);
                           setCoinbaseStartingBalance(10000);
                           setAlpacaStartingBalance(10000);
+                          setIbkrStartingBalance(10000);
                         }}
                         disabled={!isAdmin}
                         className="w-full px-3 py-2 text-sm bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-colors disabled:opacity-50"

@@ -512,6 +512,43 @@ export function useAggregateStats() {
   });
 }
 
+// Fetch missed money stats (RPC)
+export interface MissedMoneyStats {
+  missed_money: number;
+  opportunities_count: number;
+  executed_count: number;
+  conversion_rate: number;
+  actual_pnl: number;
+}
+
+export function useMissedMoney(hours: number = 24) {
+  return useQuery({
+    queryKey: ['missedMoney', hours],
+    queryFn: async (): Promise<MissedMoneyStats | null> => {
+      const { data, error } = await supabase.rpc('get_missed_money_stats', {
+        hours_lookback: hours
+      });
+
+      if (error) {
+        console.error('Error fetching missed money stats:', error);
+        return null;
+      }
+      
+      // RPC returns an array
+      const result = Array.isArray(data) ? data[0] : data;
+      
+      return result || {
+        missed_money: 0,
+        opportunities_count: 0,
+        executed_count: 0,
+        conversion_rate: 0,
+        actual_pnl: 0,
+      };
+    },
+    refetchInterval: 5000,
+  });
+}
+
 // Fetch bot configuration
 export function useBotConfig() {
   return useQuery({

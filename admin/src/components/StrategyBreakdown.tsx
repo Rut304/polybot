@@ -242,9 +242,30 @@ interface StrategyBreakdownProps {
 export function StrategyBreakdown({ tradingMode, showTitle = true }: StrategyBreakdownProps) {
   const { data: strategies = [], isLoading } = useStrategyPerformance(tradingMode);
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<'total_pnl' | 'win_rate_pct' | 'total_trades' | 'avg_trade_pnl' | 'best_trade'>('total_pnl');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   
-  // Sort by total P&L (most profitable first)
-  const sortedStrategies = [...strategies].sort((a, b) => b.total_pnl - a.total_pnl);
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+  
+  // Sort strategies
+  const sortedStrategies = [...strategies].sort((a, b) => {
+    let valA = a[sortField];
+    let valB = b[sortField];
+    
+    // Handle string comparisons if needed (though currently all sort fields are numbers)
+    if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+    }
+    
+    return sortDirection === 'asc' ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
+  });
   
   // Calculate totals
   const totals = strategies.reduce((acc, s) => ({
@@ -298,6 +319,16 @@ export function StrategyBreakdown({ tradingMode, showTitle = true }: StrategyBre
         </div>
       )}
       
+      {/* Sort Headers */}
+      <div className="flex items-center justify-between px-4 py-2 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="flex-1">Strategy</div>
+        <div className="flex items-center gap-4 text-right">
+             <SortButton label="Trades" active={sortField === 'total_trades'} direction={sortDirection} onClick={() => handleSort('total_trades')} />
+             <SortButton label="Win Rate" active={sortField === 'win_rate_pct'} direction={sortDirection} onClick={() => handleSort('win_rate_pct')} />
+             <SortButton label="P&L" active={sortField === 'total_pnl'} direction={sortDirection} onClick={() => handleSort('total_pnl')} />
+        </div>
+      </div>
+      
       <div className="space-y-3">
         {sortedStrategies.map((strat) => (
           <StrategyCard
@@ -314,4 +345,33 @@ export function StrategyBreakdown({ tradingMode, showTitle = true }: StrategyBre
       </div>
     </div>
   );
+}
+
+function SortButton({ 
+    label, 
+    active, 
+    direction, 
+    onClick 
+}: { 
+    label: string, 
+    active: boolean, 
+    direction: 'asc' | 'desc', 
+    onClick: () => void 
+}) {
+    return (
+        <button 
+            onClick={onClick}
+            className={cn(
+                "flex items-center gap-1 hover:text-white transition-colors",
+                active ? "text-neon-blue" : "text-gray-500"
+            )}
+        >
+            {label}
+            {active && (
+                direction === 'desc' 
+                    ? <ChevronDown className="w-3 h-3" /> 
+                    : <ChevronRight className="w-3 h-3 -rotate-90" />
+            )}
+        </button>
+    );
 }

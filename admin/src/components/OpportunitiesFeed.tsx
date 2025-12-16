@@ -115,6 +115,14 @@ function OpportunityRow({ opportunity, onClick }: { opportunity: Opportunity; on
         )}
         <span>{timeAgo(opportunity.detected_at)}</span>
       </div>
+      
+      {/* Show Skip Reason if present */}
+      {(opportunity.status === 'skipped' || opportunity.skip_reason) && (
+        <div className="mt-2 px-2 py-1 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-400 font-medium flex items-center gap-1.5 w-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            SKIPPED: {opportunity.skip_reason || 'Filtered by strategy settings'}
+        </div>
+      )}
     </div>
   );
 }

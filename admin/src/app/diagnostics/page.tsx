@@ -490,19 +490,21 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Checking bot status...' });
     const start = Date.now();
     try {
-      const { data: config, error } = await supabase
-        .from('polybot_config')
-        .select('bot_enabled, simulation_mode, updated_at')
+      const { data: statusData, error } = await supabase
+        .from('polybot_status')
+        .select('is_running, dry_run_mode, updated_at')
         .eq('id', 1)
         .single();
       
       if (error) throw error;
       
-      const status = config.bot_enabled ? 'success' : 'warning';
+      const isRunning = statusData.is_running;
+      const mode = statusData.dry_run_mode ? 'Simulation' : 'LIVE TRADING';
+      
       updateTest(catIdx, testIdx, {
-        status,
-        message: config.bot_enabled ? 'Bot is ENABLED' : 'Bot is DISABLED',
-        details: `Mode: ${config.simulation_mode ? 'Simulation' : 'LIVE TRADING'}`,
+        status: isRunning ? 'success' : 'warning',
+        message: isRunning ? 'Bot is ENABLED' : 'Bot is DISABLED',
+        details: `Mode: ${mode}`,
         duration: Date.now() - start,
       });
     } catch (err: unknown) {
@@ -585,11 +587,12 @@ export default function DiagnosticsPage() {
       
       if (error) throw error;
       
-      const hasPolySingle = config.enable_poly_single_platform;
-      const hasKalshiSingle = config.enable_kalshi_single_platform;
-      const hasCross = config.enable_cross_platform;
-      const hasCongress = config.enable_congress_trading;
-      const hasWhale = config.enable_whale_copy_trading || config.enable_selective_whale_copy;
+      // Check strategy enablement flags
+      const hasPolySingle = config.enable_polymarket_single_arb;
+      const hasKalshiSingle = config.enable_kalshi_single_arb;
+      const hasCross = config.enable_cross_platform_arb;
+      const hasCongress = config.enable_congressional_tracker;
+      const hasWhale = config.enable_whale_copy_trading;
       
       const enabledStrategies = [hasPolySingle, hasKalshiSingle, hasCross, hasCongress, hasWhale]
         .filter(Boolean).length;
@@ -597,7 +600,7 @@ export default function DiagnosticsPage() {
       updateTest(catIdx, testIdx, {
         status: enabledStrategies > 0 ? 'success' : 'warning',
         message: `${enabledStrategies} strategies enabled`,
-        details: `Min profit: ${config.min_profit_threshold}%, Max position: $${config.max_position_size}`,
+        details: `Min profit: ${config.min_profit_threshold ?? config.min_profit_percent}%, Max size: $${config.max_position_size ?? 0}`,
         duration: Date.now() - start,
       });
     } catch (err: unknown) {
@@ -617,28 +620,18 @@ export default function DiagnosticsPage() {
     try {
       const { data: config, error } = await supabase
         .from('polybot_config')
-        .select(`
-          enable_poly_single_platform,
-          enable_kalshi_single_platform,
-          enable_cross_platform,
-          enable_congress_trading,
-          enable_whale_copy_trading,
-          enable_selective_whale_copy,
-          enable_political_event_strategy,
-          enable_high_conviction_strategy
-        `)
+        .select('*')
         .eq('id', 1)
         .single();
       
       if (error) throw error;
       
       const strategies = [];
-      if (config.enable_poly_single_platform) strategies.push('Poly Single');
-      if (config.enable_kalshi_single_platform) strategies.push('Kalshi Single');
-      if (config.enable_cross_platform) strategies.push('Cross Platform');
-      if (config.enable_congress_trading) strategies.push('Congress');
+      if (config.enable_polymarket_single_arb) strategies.push('Poly Single');
+      if (config.enable_kalshi_single_arb) strategies.push('Kalshi Single');
+      if (config.enable_cross_platform_arb) strategies.push('Cross Platform');
+      if (config.enable_congressional_tracker) strategies.push('Congress');
       if (config.enable_whale_copy_trading) strategies.push('Whale Copy');
-      if (config.enable_selective_whale_copy) strategies.push('Selective Whale');
       if (config.enable_political_event_strategy) strategies.push('Political Event');
       if (config.enable_high_conviction_strategy) strategies.push('High Conviction');
       
@@ -673,7 +666,7 @@ export default function DiagnosticsPage() {
       let count = 0;
       const keys = Object.keys(config);
       for (const key of keys) {
-        if (key.startsWith('enable_') && config[key] === true) {
+        if (key.startsWith('enable_') && config[key] === true && !key.includes('api') && !key.includes('key')) {
           count++;
         }
       }
@@ -698,14 +691,15 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Checking open positions...' });
     const start = Date.now();
     try {
+      // Use pending simulated trades as open positions
       const { data, error, count } = await supabase
-        .from('polybot_positions')
+        .from('polybot_simulated_trades')
         .select('*', { count: 'exact' })
-        .eq('status', 'open');
+        .eq('outcome', 'pending');
       
       if (error) throw error;
       
-      const totalValue = data?.reduce((sum, p) => sum + (p.size || 0), 0) || 0;
+      const totalValue = data?.reduce((sum, p) => sum + (p.position_size_usd || 0), 0) || 0;
       
       updateTest(catIdx, testIdx, {
         status: 'success',
@@ -717,7 +711,7 @@ export default function DiagnosticsPage() {
       const error = err as Error;
       updateTest(catIdx, testIdx, {
         status: error.message.includes('does not exist') ? 'warning' : 'error',
-        message: error.message.includes('does not exist') ? 'Table not created' : 'Check failed',
+        message: 'Check failed',
         details: error.message,
         duration: Date.now() - start,
       });

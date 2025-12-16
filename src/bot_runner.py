@@ -785,7 +785,13 @@ class PolybotRunner:
             if ibkr_initialized:
                 logger.info(f"✓ IBKR Client initialized on port {ibkr_port}")
             else:
-                logger.error("❌ IBKR Client failed to connect - check Gateway container")
+                logger.error(f"❌ IBKR Client failed to connect to port {ibkr_port}")
+                logger.error("  💡 CHECK: Is the IB Gateway container running?")
+                logger.error(
+                    f"  💡 CHECK: Mode mismatch? You are in {'SIMULATION' if self.simulation_mode else 'LIVE'} "
+                    f"mode (expecting port {ibkr_port})."
+                )
+                logger.error("  If IB Gateway is in a different mode, connection is REFUSED by design (Safety).")
                 self.ibkr_client = None
         elif self.config.trading.enable_ibkr:
              logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
@@ -1390,6 +1396,22 @@ class PolybotRunner:
             f"${opp.profit_potential:.4f} potential profit"
         )
         
+        # Check if market is blacklisted
+        market_a_id = opp.market_a.condition_id or "unknown"
+        market_b_id = opp.market_b.condition_id or "unknown"
+        
+        skip_reason = None
+        status = "detected"
+        
+        if self.is_market_blacklisted(market_a_id, opp.market_a.question):
+            skip_reason = f"Market A blacklisted: {opp.market_a.question[:50]}..."
+            status = "skipped"
+            logger.info(f"⛔ {skip_reason}")
+        elif self.is_market_blacklisted(market_b_id, opp.market_b.question):
+            skip_reason = f"Market B blacklisted: {opp.market_b.question[:50]}..."
+            status = "skipped"
+            logger.info(f"⛔ {skip_reason}")
+        
         # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
@@ -1406,18 +1428,13 @@ class PolybotRunner:
                 "confidence": float(opp.confidence),
                 "strategy": f"overlapping_arb_{opp.relationship}",
                 "detected_at": opp.detected_at.isoformat(),
+                "status": status,
+                "skip_reason": skip_reason,
             })
         except Exception as e:
             logger.error(f"Error logging arb opportunity: {e}")
-        
-        # Check if market is blacklisted
-        market_a_id = opp.market_a.condition_id or "unknown"
-        market_b_id = opp.market_b.condition_id or "unknown"
-        if self.is_market_blacklisted(market_a_id, opp.market_a.question):
-            logger.info(f"⛔ Skipping blacklisted market: {opp.market_a.question[:50]}...")
-            return
-        if self.is_market_blacklisted(market_b_id, opp.market_b.question):
-            logger.info(f"⛔ Skipping blacklisted market: {opp.market_b.question[:50]}...")
+            
+        if status == "skipped":
             return
         
         # Paper trade if in simulation mode

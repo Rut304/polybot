@@ -361,7 +361,8 @@ class Database:
                 "total_profit": opportunity.get("total_profit"),
                 "confidence": opportunity.get("confidence"),
                 "strategy": opportunity.get("strategy"),
-                "status": "detected",
+                "status": opportunity.get("status", "detected"),
+                "skip_reason": opportunity.get("skip_reason"),
             }).execute()
             
             if result.data:

@@ -124,6 +124,7 @@ export interface Opportunity {
   strategy: string;
   status: string;
   executed_at: string | null;
+  skip_reason?: string | null;
 }
 
 export interface BotConfig {

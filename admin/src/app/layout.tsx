@@ -33,9 +33,12 @@ export default function RootLayout({
             <main className="flex-1 ml-56 mt-14 transition-all duration-300">
               {children}
             </main>
+            <CircuitBreakerStatus />
           </div>
         </Providers>
       </body>
     </html>
   );
 }
+
+import { CircuitBreakerStatus } from '@/components/CircuitBreakerStatus';
