@@ -45,6 +45,7 @@ class SignalType(Enum):
     ODDS_MOVEMENT = "odds_movement"
     SMART_MONEY = "smart_money"
     TIMING = "timing"
+    AI_MODEL = "ai_model"
 
 
 @dataclass
@@ -415,6 +416,41 @@ class HighConvictionStrategy:
             strength=strength,
             reason=f"Odds moved {change:+.1f}% on ${volume_usd:,.0f} volume",
             source="market_monitor",
+        )
+
+    def create_signal_from_ai_forecast(
+        self,
+        question: str,
+        probability: float,
+        confidence: float,
+        model: str,
+    ) -> Signal:
+        """Create a signal from AI forecast"""
+        # Direction based on probability > 50%? 
+        # Actually AI strategy usually gives a `direction` (buy_yes/buy_no).
+        # We'll assume the caller passes implied direction or we infer from prob.
+        # But AIForecast has 'direction' field. We should probably pass that or use prob.
+        
+        # If prob > 0.6 => Bullish (YES)
+        # If prob < 0.4 => Bearish (NO)
+        
+        if probability > 0.5:
+            direction = "bullish"
+            strength_val = (probability - 0.5) * 2  # 0.6 -> 0.2 strength? 
+            # Better to use confidence as strength, conditioned on probability.
+        else:
+            direction = "bearish"
+            strength_val = (0.5 - probability) * 2
+            
+        # Combine model confidence with probability conviction
+        final_strength = min(1.0, strength_val * confidence * 1.5)
+        
+        return Signal(
+            signal_type=SignalType.AI_MODEL,
+            direction=direction,
+            strength=final_strength,
+            reason=f"AI ({model}) pred: {probability:.0%} (conf: {confidence:.0%})",
+            source=f"ai_model_{model}",
         )
     
     def clear_stale_signals(self, max_age_hours: int = 24):

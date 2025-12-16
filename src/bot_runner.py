@@ -107,11 +107,14 @@ from src.strategies import (
 )
 from src.strategies.congressional_tracker import CongressionalTrackerStrategy
 from src.strategies.political_event import PoliticalEventStrategy
-from src.strategies.high_conviction import HighConvictionStrategy
-from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
 from src.strategies.crypto_15min_scalping import Crypto15MinScalpingStrategy
-from src.strategies.ai_superforecasting import AISuperforecastingStrategy
-from src.exchanges.ccxt_client import CCXTClient
+from src.strategies.cross_exchange_arb import CrossExchangeArbStrategy
+from src.strategies.liquidation import PolymarketLiquidationStrategy
+from src.strategies.ibkr_futures_momentum import IBKRFuturesMomentumStrategy
+from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
+from src.strategies.ai_superforecasting import AISuperforecastingStrategy, AIForecast
+from src.strategies.news_arbitrage import NewsArbitrageStrategy, NewsArbOpportunity
+from src.strategies.high_conviction import HighConvictionStrategy, Signal
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.exchanges.ibkr_client import IBKRClient
@@ -123,6 +126,8 @@ from decimal import Decimal
 logger = logging.getLogger(__name__)
 
 # Set up database logging (writes to Supabase for admin UI)
+# Note: Actual user_id binding happens inside runner if needed, 
+# but we can setup global handler here for legacy support
 db_log_handler = setup_database_logging()
 
 
@@ -144,8 +149,10 @@ class PolybotRunner:
         enable_position_manager: bool = True,
         enable_news_sentiment: bool = True,
         simulation_mode: bool = True,
+        user_id: Optional[str] = None,
     ):
         self.simulation_mode = simulation_mode
+        self.user_id = user_id
         
         # Feature flags
         self.enable_copy_trading = enable_copy_trading
@@ -154,7 +161,7 @@ class PolybotRunner:
         self.enable_news_sentiment = enable_news_sentiment
         
         # Initialize database FIRST (needed for secrets)
-        self.db = Database()
+        self.db = Database(user_id=self.user_id)
         
         # Load secrets from centralized Supabase store
         # This allows key rotation without code changes
@@ -361,21 +368,100 @@ class PolybotRunner:
         except Exception as e:
             logger.warning(f"Could not fetch blacklist: {e}")
 
-    def is_market_blacklisted(self, market_id: str, title: str = "") -> bool:
-        """Check if a market is blacklisted."""
-        # Check by ID
-        if market_id in self.blacklisted_markets:
+    async def is_market_blacklisted(self, market_id: str, title: str = "") -> bool:
+        """Check if a market is in the blacklist."""
+        # Simple check against cached set
+        if market_id in self._blacklist:
             return True
-        # Check if any blacklisted term appears in title
+            
+        # Check title against keywords
         title_lower = title.lower()
-        for blacklisted in self.blacklisted_markets:
-            if blacklisted.lower() in title_lower:
+        for keyword in self._blacklist:
+            if keyword in title_lower and len(keyword) > 3:  # Avoid short keyword matches
                 return True
+                
         return False
+
+    async def check_subscription(self) -> bool:
+        """
+        Check if the user has an active subscription.
+        Returns True if active, False otherwise.
+        """
+        if not self.user_id:
+            return True # Legacy/Global mode is always active
+            
+        try:
+            # Query polybot_profiles
+            response = self.db._client.table("polybot_profiles").select(
+                "subscription_status"
+            ).eq("user_id", self.user_id).single().execute()
+            
+            if not response.data:
+                logger.warning(f"No profile found for user {self.user_id}")
+                return False
+                
+            status = response.data.get("subscription_status", "inactive")
+            
+            if status in ["active", "trial"]:
+                return True
+            else:
+                logger.warning(f"Subscription status '{status}' is not valid for trading.")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error checking subscription: {e}")
+            return False
+
+
+
+    async def _handle_ai_forecast(self, forecast: AIForecast):
+        """Handle AI forecast by sending to High Conviction strategy"""
+        if not self.high_conviction_strategy or not self.high_conviction_strategy.enabled:
+            return
+
+        # Create signal
+        signal = self.high_conviction_strategy.create_signal_from_ai_forecast(
+            question=forecast.question,
+            probability=forecast.ai_probability,
+            confidence=forecast.ai_confidence,
+            model=forecast.model_used,
+        )
+        
+        # Add to strategy
+        # Use market_id or question hash as key
+        market_id = getattr(forecast, 'market_id', forecast.question)
+        self.high_conviction_strategy.add_signal(market_id, signal)
+
+    async def _handle_news_opportunity(self, opp: NewsArbOpportunity):
+        """Handle news opportunity by sending to High Conviction strategy"""
+        if not self.high_conviction_strategy or not self.high_conviction_strategy.enabled:
+            return
+
+        # Create signal directly? Accessing helper might be cleaner if exposed, 
+        # but we can create Signal directly here or add helper to strategy.
+        # HighConvictionStrategy has `create_signal_from_news`.
+        
+        signal = self.high_conviction_strategy.create_signal_from_news(
+            sentiment=opp.confidence if opp.direction.startswith('buy') else -opp.confidence,
+            headline=opp.event.headline,
+        )
+        
+        # Use topic/market identifier
+        # NewsArbOpportunity usually has 'topic' or we use the headline/keywords
+        market_id = f"news_{opp.event.keywords[0] if opp.event.keywords else 'unknown'}"
+        
+        self.high_conviction_strategy.add_signal(market_id, signal)
 
     async def initialize(self):
         """Initialize all enabled features."""
-        logger.info("Initializing PolyBot features...")
+        logger.info(f"Initializing PolyBot features (User: {self.user_id or 'Global'})...")
+        
+        # Setup per-instance logging context if user_id is present
+        if self.user_id:
+            # We add a specific handler for this user context if needed,
+            # or rely on the fact that existing logging might be global.
+            # ideally, we'd want per-user logs.
+            pass
         
         # Fetch initial balances
         logger.info("Fetching wallet balances...")
@@ -383,6 +469,12 @@ class PolybotRunner:
         
         # Fetch blacklisted markets
         await self.refresh_blacklist()
+        
+        # Check subscription status (Multi-tenant)
+        if self.user_id:
+            if not await self.check_subscription():
+                logger.error(f"❌ Subscription check failed for user {self.user_id}. Stopping initialization.")
+                return
         
         if self.enable_copy_trading:
             self.copy_trading = CopyTradingEngine(
@@ -523,6 +615,7 @@ class PolybotRunner:
                 position_size_usd=self.config.trading.news_position_size_usd,
                 scan_interval_sec=self.config.trading.news_scan_interval_sec,
                 keywords=keywords,
+                on_opportunity=self._handle_news_opportunity,
             )
             logger.info("✓ News Arbitrage initialized (5-30% per event)")
             logger.info(f"  🔑 Keywords: {keywords_str[:50]}...")
@@ -795,6 +888,20 @@ class PolybotRunner:
                 self.ibkr_client = None
         elif self.config.trading.enable_ibkr:
              logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
+
+        # Initialize IBKR Futures Momentum
+        ibkr_futures_enabled = getattr(self.config.trading, 'enable_ibkr_futures_momentum', False)
+        if ibkr_futures_enabled and self.ibkr_client:
+             self.ibkr_futures_momentum = IBKRFuturesMomentumStrategy(
+                 ibkr_client=self.ibkr_client,
+                 db_client=self.db,
+                 symbol=getattr(self.config.trading, 'ibkr_futures_symbol', 'ES')
+             )
+             logger.info(f"✓ IBKR Futures Momentum initialized (Symbol: {self.ibkr_futures_momentum.config.symbol})")
+        elif ibkr_futures_enabled:
+             logger.warning("⚠️ IBKR Futures Momentum DISABLED - No IBKR Client")
+        else:
+             logger.info("⏸️ IBKR Futures Momentum DISABLED")
         
         # Initialize Stock Mean Reversion Strategy (70% CONFIDENCE - 15-30% APY)
         if self.config.trading.enable_stock_mean_reversion and self.alpaca_client:
@@ -1203,6 +1310,7 @@ class PolybotRunner:
                         self.config.trading, 'ai_min_confidence', 0.65
                     ),
                     db_client=self.db,
+                    on_forecast=self._handle_ai_forecast,
                 )
                 logger.info("✓ AI Superforecasting initialized (85% CONF)")
                 logger.info("  🧠 Gemini-powered market analysis")
@@ -1210,6 +1318,39 @@ class PolybotRunner:
                 logger.warning("⚠️ AI Superforecasting DISABLED - No GEMINI_API_KEY")
         else:
             logger.info("⏸️ AI Superforecasting DISABLED")
+
+        # Initialize Cross-Exchange Crypto Arb (CCXT)
+        cross_arb_enabled = getattr(
+            self.config.trading, 'enable_cross_exchange_arb', False
+        )
+        if cross_arb_enabled:
+            self.cross_exchange_arb = CrossExchangeArbStrategy(
+                db_client=self.db
+            )
+            logger.info("✓ Cross-Exchange Arb initialized")
+            logger.info("  💱 Monitoring Binance/Kraken/OKX spreads")
+        else:
+            logger.info("⏸️ Cross-Exchange Arb DISABLED")
+
+        # Initialize Polymarket Liquidation Bot
+        poly_liq_enabled = getattr(
+            self.config.trading, 'enable_polymarket_liquidation', False
+        )
+        if poly_liq_enabled and self.polymarket_client:
+            self.polymarket_liquidation = PolymarketLiquidationStrategy(
+                polymarket_client=self.polymarket_client,
+                db_client=self.db,
+                min_price=getattr(
+                    self.config.trading, 'liquidation_threshold_price', 0.98
+                ),
+                min_days_to_expiry=getattr(
+                    self.config.trading, 'liquidation_min_days', 2
+                )
+            )
+            logger.info("✓ Polymarket Liquidation Bot initialized")
+            logger.info("  ♻️ Recycling capital from locked high-prob positions")
+        else:
+            logger.info("⏸️ Polymarket Liquidation Bot DISABLED")
         
         # Initialize paper trader for simulation mode
         if self.simulation_mode:

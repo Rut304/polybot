@@ -103,7 +103,7 @@ export default function SettingsPage() {
   const [botEnabled, setBotEnabled] = useState(status?.is_running ?? false);
   const [polymarketEnabled, setPolymarketEnabled] = useState(config?.polymarket_enabled ?? true);
   const [kalshiEnabled, setKalshiEnabled] = useState(config?.kalshi_enabled ?? true);
-  const [dryRunMode, setDryRunMode] = useState(botStatus?.dry_run_mode ?? true);
+  const [dryRunMode, setDryRunMode] = useState(status?.dry_run_mode ?? true);
   const [requireApproval, setRequireApproval] = useState(false); // Will be stored in localStorage until DB column is added
   
   // Basic trading parameters
@@ -821,11 +821,11 @@ export default function SettingsPage() {
 
   // Mutation to update bot status
   const updateBotStatus = useMutation({
-    mutationFn: async (updates: Partial<typeof botStatus>) => {
+    mutationFn: async (updates: Partial<typeof status>) => {
       const { error } = await supabase
         .from('polybot_status')
         .update(updates)
-        .eq('id', botStatus?.id);
+        .eq('id', status?.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1022,13 +1022,13 @@ export default function SettingsPage() {
         fear_max_position_usd: fearMaxPositionUsd,
         // Congressional Tracker
         enable_congressional_tracker: enableCongressionalTracker,
-        congress_chambers: congressChambers,
-        congress_parties: congressParties,
+        congress_chamber_filter: congressChambers, // Remapped from congress_chambers
+        // congress_parties: congressParties, // Removed: Not in DB schema
         congress_copy_scale_pct: congressCopyScalePct,
         congress_max_position_usd: congressMaxPositionUsd,
         congress_min_trade_amount_usd: congressMinTradeAmountUsd,
-        congress_delay_hours: congressDelayHours,
-        congress_scan_interval_hours: congressScanIntervalHours,
+        congress_copy_delay_hours: congressDelayHours, // Remapped from congress_delay_hours
+        // congress_scan_interval_hours: congressScanIntervalHours, // Removed: Not in DB schema
         congress_tracked_politicians: congressTrackedPoliticians,
         // High Conviction Strategy (85% confidence)
         enable_high_conviction_strategy: enableHighConvictionStrategy,

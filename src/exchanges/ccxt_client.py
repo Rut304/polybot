@@ -96,7 +96,8 @@ class CCXTClient(BaseExchange):
                  api_key: Optional[str] = None,
                  api_secret: Optional[str] = None,
                  password: Optional[str] = None,
-                 sandbox: bool = False):
+                 sandbox: bool = False,
+                 default_type: Optional[str] = None):
         """
         Initialize CCXT client.
         
@@ -106,6 +107,7 @@ class CCXTClient(BaseExchange):
             api_secret: API secret
             password: API password (for exchanges that require it)
             sandbox: Use testnet/sandbox mode
+            default_type: Default market type ('spot', 'future', 'swap', etc.)
         """
         super().__init__(api_key, api_secret, sandbox)
         
@@ -115,6 +117,7 @@ class CCXTClient(BaseExchange):
         # Map friendly names to CCXT exchange IDs
         self.exchange_id = EXCHANGE_MAPPING.get(exchange_id.lower(), exchange_id)
         self.password = password
+        self.default_type = default_type
         self.exchange: Optional[ccxt.Exchange] = None
         self._session = None  # aiohttp session for IPv4 connections
         
@@ -124,10 +127,16 @@ class CCXTClient(BaseExchange):
             # Get exchange class
             exchange_class = getattr(ccxt, self.exchange_id)
             
-            # Determine if this exchange supports futures
-            # Spot-only exchanges: binanceus, coinbase, kraken (main), etc.
-            spot_only_exchanges = ['binanceus', 'coinbase', 'kraken', 'gemini']
-            default_type = 'spot' if self.exchange_id in spot_only_exchanges else 'future'
+            # Determine market type priority:
+            # 1. Explicitly passed default_type
+            # 2. 'spot' for known spot-only exchanges
+            # 3. 'future' for others (defaulting to perp/futures behavior for potential funding arb)
+            if self.default_type:
+                market_type = self.default_type
+            else:
+                # Spot-only exchanges: binanceus, coinbase, kraken (main), etc.
+                spot_only_exchanges = ['binanceus', 'coinbase', 'kraken', 'gemini']
+                market_type = 'spot' if self.exchange_id in spot_only_exchanges else 'future'
             
             # Force IPv4 connections for exchanges that don't support IPv6
             # Binance US specifically returns error -71012 "IPv6 not supported"
@@ -143,7 +152,7 @@ class CCXTClient(BaseExchange):
                 'enableRateLimit': True,  # Built-in rate limiting
                 'session': session,  # Use IPv4-only session
                 'options': {
-                    'defaultType': default_type,
+                    'defaultType': market_type,
                 }
             }
             
@@ -167,10 +176,10 @@ class CCXTClient(BaseExchange):
             await self.exchange.load_markets()
             
             self._initialized = True
-            market_type = "spot" if default_type == 'spot' else "futures"
+            m_type = "spot" if market_type == 'spot' else "futures"
             logger.info(
                 f"✅ CCXT {self.exchange_id} initialized "
-                f"({len(self.exchange.markets)} {market_type} markets)"
+                f"({len(self.exchange.markets)} {m_type} markets)"
             )
             return True
             

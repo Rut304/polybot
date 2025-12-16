@@ -22,8 +22,10 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Callable, Set
+from typing import Dict, List, Optional, Callable, Set, Tuple
 from enum import Enum
+import asyncio
+import xml.etree.ElementTree as ET
 import aiohttp
 
 logger = logging.getLogger(__name__)
@@ -138,14 +140,115 @@ class NewsArbStats:
     
     def to_dict(self) -> Dict:
         return {
-            "session_start": self.session_start.isoformat(),
             "events_detected": self.events_detected,
             "opportunities_found": self.opportunities_found,
             "opportunities_executed": self.opportunities_executed,
             "total_profit_usd": float(self.total_profit_usd),
-            "total_loss_usd": float(self.total_loss_usd),
-            "net_pnl": float(self.net_pnl),
+            "win_rate": self.win_rate(),
+            "uptime_seconds": (
+                datetime.now(timezone.utc) - self.session_start
+            ).total_seconds(),
         }
+
+
+class RSSMonitor:
+    """
+    Monitors RSS feeds for breaking news.
+    """
+    
+    FEEDS = {
+        "coindesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "politico": "https://rss.politico.com/politics-news.xml",
+    }
+    
+    def __init__(self):
+        self.seen_guids: Set[str] = set()
+        self.last_poll = datetime.min.replace(tzinfo=timezone.utc)
+        
+    async def poll(self) -> List[NewsEvent]:
+        """Poll all feeds for new items."""
+        tasks = []
+        for source, url in self.FEEDS.items():
+            tasks.append(self._fetch_feed(source, url))
+            
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        events = []
+        for res in results:
+            if isinstance(res, list):
+                events.extend(res)
+                
+        self.last_poll = datetime.now(timezone.utc)
+        return events
+    
+    async def _fetch_feed(self, source_name: str, url: str) -> List[NewsEvent]:
+        events = []
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=10) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"Failed to fetch {source_name} RSS: {resp.status}")
+                        return []
+                    
+                    content = await resp.text()
+                    
+                    # Parse XML
+                    root = ET.fromstring(content)
+                    channel = root.find("channel")
+                    if not channel:
+                        return []
+                        
+                    for item in channel.findall("item"):
+                        guid = item.findtext("guid") or item.findtext("link")
+                        if not guid or guid in self.seen_guids:
+                            continue
+                            
+                        title = item.findtext("title", "")
+                        link = item.findtext("link", "")
+                        description = item.findtext("description", "")
+                        
+                        # Mark as seen
+                        self.seen_guids.add(guid)
+                        
+                        # Basic sentiment/keyword check could go here
+                        
+                        events.append(NewsEvent(
+                            source=NewsSource.AP_NEWS if source_name == "politico" else NewsSource.REUTERS, # Mapping to existing enums best effort
+                            headline=title,
+                            keywords=self._extract_keywords(title + " " + description),
+                            detected_at=datetime.now(timezone.utc),
+                            url=link,
+                        ))
+                        
+                        # Limit memory
+                        if len(self.seen_guids) > 1000:
+                            self.seen_guids = set(list(self.seen_guids)[-500:])
+                            
+        except Exception as e:
+            logger.debug(f"Error polling {source_name}: {e}")
+            
+        return events
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract potential trading keywords."""
+        text = text.lower()
+        keywords = []
+        
+        # Politics
+        if "trump" in text: keywords.append("trump")
+        if "biden" in text: keywords.append("biden")
+        if "harris" in text: keywords.append("harris")
+        if "election" in text: keywords.append("election")
+        if "approval" in text: keywords.append("approval")
+        
+        # Crypto
+        if "bitcoin" in text or "btc" in text: keywords.append("bitcoin")
+        if "ethereum" in text or "eth" in text: keywords.append("ethereum")
+        if "etf" in text: keywords.append("etf")
+        if "sec" in text: keywords.append("sec")
+        if "rate" in text: keywords.append("rate")
+        
+        return keywords
 
 
 class NewsArbitrageStrategy:
@@ -235,10 +338,13 @@ class NewsArbitrageStrategy:
         
         # Configuration
         self.min_spread_pct = Decimal(str(min_spread_pct))
-        self.max_lag_minutes = max_lag_minutes
-        self.position_size_usd = Decimal(str(position_size_usd))
-        self.scan_interval_sec = scan_interval_sec
-        self.keywords = keywords or self.DEFAULT_KEYWORDS
+        self.max_lag = timedelta(minutes=max_lag_minutes)
+        self.position_size = Decimal(str(position_size_usd))
+        self.scan_interval = scan_interval_sec
+        self.keywords = keywords or {
+            "trump", "biden", "rate", "fed", "inflation",
+            "bitcoin", "etf", "approval", "election"
+        }
         
         # Callback
         self.on_opportunity = on_opportunity
@@ -249,6 +355,9 @@ class NewsArbitrageStrategy:
         self._opportunities: List[NewsArbOpportunity] = []
         self._watched_markets: Dict[str, Dict] = {}  # topic -> {poly, kalshi}
         self.stats = NewsArbStats()
+        
+        # V2: RSS Monitor
+        self.rss_monitor = RSSMonitor()
         
         # Price cache
         self._price_cache: Dict[str, PriceSnapshot] = {}
@@ -265,29 +374,34 @@ class NewsArbitrageStrategy:
         """
         Scan for news events.
         
-        In production, this would:
-        1. Poll Twitter API for breaking news
-        2. Check AP/Reuters feeds
-        3. Monitor Polymarket for volume spikes
+        V2 Implementation:
+        1. Poll RSS feeds (CoinDesk, Politico)
+        2. Check Polymarket volume spikes
         """
         events = []
         
-        # Check Polymarket for volume spikes (proxy for news)
+        # 1. Poll RSS Feeds (Real News)
+        try:
+            rss_events = await self.rss_monitor.poll()
+            events.extend(rss_events)
+        except Exception as e:
+            logger.debug(f"Error polling RSS: {e}")
+            
+        # 2. Check Polymarket for volume spikes (Market Signal)
         try:
             poly_events = await self._check_polymarket_volume_spikes()
             events.extend(poly_events)
         except Exception as e:
             logger.debug(f"Error checking Polymarket volume: {e}")
         
-        # Check for manual/simulated events (for testing)
-        # In production, add Twitter/news API integration
-        
-        for event in events:
-            self.stats.events_detected += 1
-            logger.info(
-                f"🔔 NEWS EVENT: {event.headline[:60]}... "
-                f"(source: {event.source.value})"
-            )
+        if events:
+            logger.info(f"Found {len(events)} new events")
+            for event in events:
+                self.stats.events_detected += 1
+                logger.info(
+                    f"🔔 NEWS EVENT: {event.headline[:60]}... "
+                    f"(source: {event.source.value})"
+                )
         
         return events
     
@@ -339,17 +453,43 @@ class NewsArbitrageStrategy:
         
         return events
     
+    def _analyze_sentiment(self, text: str) -> float:
+        """
+        Simple keyword-based sentiment analysis.
+        Returns: -1.0 (negative) to 1.0 (positive)
+        """
+        text = text.lower()
+        score = 0.0
+        
+        positive = {"win", "lead", "record", "high", "approve", "accept", "bull", "rally", "growth", "beat"}
+        negative = {"loss", "lose", "trail", "low", "reject", "ban", "bear", "crash", "drop", "miss", "sue"}
+        
+        words = set(re.findall(r'\w+', text))
+        
+        score += sum(1 for w in words if w in positive)
+        score -= sum(1 for w in words if w in negative)
+        
+        # Normalize to range -1 to 1 (soft sigmoid-ish)
+        if score > 0:
+            return min(1.0, score * 0.2)
+        else:
+            return max(-1.0, score * 0.2)
+
     async def check_price_divergence(
         self,
-        topic: str
+        topic: str,
+        sentiment_score: float = 0.0
     ) -> Optional[NewsArbOpportunity]:
         """
         Check for price divergence between platforms for a topic.
+        Uses parallel fetching for minimal latency.
         """
         try:
-            # Get prices from both platforms
-            poly_snapshot = await self._get_polymarket_price(topic)
-            kalshi_snapshot = await self._get_kalshi_price(topic)
+            # Parallel fetch
+            poly_task = self._get_polymarket_price(topic)
+            kalshi_task = self._get_kalshi_price(topic)
+            
+            poly_snapshot, kalshi_snapshot = await asyncio.gather(poly_task, kalshi_task)
             
             if not poly_snapshot or not kalshi_snapshot:
                 return None
@@ -372,13 +512,45 @@ class NewsArbitrageStrategy:
                 )
                 return None
             
-            # Determine direction
+            # Determine direction & Confidence
+            # Strategy: We assume Poly is "fast" and Kalshi is "slow/lagging".
+            # Positive News -> Price Up. Poly High, Kalshi Low. -> Buy Kalshi (Catch up).
+            # Negative News -> Price Down. Poly Low, Kalshi High. -> Sell Kalshi (Catch up).
+            # note: current execution only supports 'buy'.
+            
+            sentiment_bonus = 0.0
+            direction = ""
+            confidence = 0.0
+            
             if kalshi_price < poly_price:
+                # Poly is Higher. Implies Positive movement (if filtered by sentiment).
                 direction = "buy_kalshi"
-                confidence = min(0.9, float(spread_pct) / 10)
+                
+                # If sentiment is positive, this trade makes sense (Market is going up, Kalshi lags low)
+                if sentiment_score > 0:
+                    sentiment_bonus = 0.2
+                elif sentiment_score < 0:
+                    sentiment_bonus = -0.2 # Contradictory signal
+                    
+                confidence = min(0.9, float(spread_pct) / 10 + sentiment_bonus)
+                
             else:
+                # Poly is Lower. Implies Negative movement.
+                # Kalshi is High. We arguably want to SELL Kalshi.
+                # If we can only BUY, we might Buy Poly? (Betting on reversion? No, Poly is the leader).
+                # If Poly dropped, it's correct. Buying Poly means buying the dip? 
+                # Or maybe Kalshi will check down.
+                
                 direction = "buy_poly"
-                confidence = min(0.9, float(spread_pct) / 10)
+                
+                # If sentiment is negative, markets are crashing. 
+                # Buying anything is risky unless we really think Poly oversold.
+                # If sentiment is positive but Poly dropped? Contradiction.
+                
+                if sentiment_score < 0:
+                    sentiment_bonus = -0.1 # Risky to buy into a crash
+                
+                confidence = min(0.9, float(spread_pct) / 10 + sentiment_bonus)
             
             # Create opportunity
             event = NewsEvent(
@@ -566,14 +738,19 @@ class NewsArbitrageStrategy:
                     if event.processed:
                         continue
                     
+                    sentiment = self._analyze_sentiment(event.headline)
+                    
                     for keyword in event.keywords:
-                        opp = await self.check_price_divergence(keyword)
+                        opp = await self.check_price_divergence(
+                            keyword, 
+                            sentiment_score=sentiment
+                        )
                         if opp:
                             logger.info(f"Found opportunity from event: {event.headline[:50]}...")
                     
                     event.processed = True
                 
-                # Also check configured watched topics
+                # Also check configured watched topics (periodic sync)
                 for topic in list(self.keywords)[:5]:  # Check top 5 keywords
                     await self.check_price_divergence(topic)
                 

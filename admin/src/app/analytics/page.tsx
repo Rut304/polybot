@@ -669,54 +669,59 @@ export default function AnalyticsPage() {
                 </thead>
                 <tbody>
                   {strategies
-                    .sort((a, b) => (b.net_pnl || 0) - (a.net_pnl || 0))
-                    .map((strategy) => (
-                      <tr key={strategy.strategy} className="border-b border-gray-800 hover:bg-gray-800/30">
-                        <td className="py-3 px-3 font-medium">
-                          {strategy.strategy?.replace(/_/g, ' ') || 'Unknown'}
-                        </td>
-                        <td className="text-right py-3 px-3">{strategy.total_trades || 0}</td>
-                        <td className="text-right py-3 px-3">
-                          <span className={cn(
-                            (strategy.win_rate || 0) >= 60 ? 'text-green-400' :
-                            (strategy.win_rate || 0) >= 40 ? 'text-yellow-400' : 'text-red-400'
-                          )}>
-                            {(strategy.win_rate || 0).toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="text-right py-3 px-3">
-                          <span className={cn(
-                            (strategy.net_pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
-                          )}>
-                            ${(strategy.net_pnl || 0).toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="text-right py-3 px-3">
-                          ${strategy.total_trades ? ((strategy.net_pnl || 0) / strategy.total_trades).toFixed(2) : '0.00'}
-                        </td>
-                        <td className="text-right py-3 px-3 text-green-400">
-                          +${(strategy.best_trade || 0).toFixed(2)}
-                        </td>
-                        <td className="text-right py-3 px-3 text-red-400">
-                          ${(strategy.worst_trade || 0).toFixed(2)}
-                        </td>
-                        <td className="text-center py-3 px-3">
-                          {(strategy.net_pnl || 0) > 0 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400">
-                              ✓ Profitable
+                    .sort((a, b) => ((b.net_pnl ?? b.total_pnl) || 0) - ((a.net_pnl ?? a.total_pnl) || 0))
+                    .map((strategy) => {
+                      const netPnl = strategy.net_pnl ?? strategy.total_pnl ?? 0;
+                      const winRate = strategy.win_rate ?? strategy.win_rate_pct ?? 0;
+                      
+                      return (
+                        <tr key={strategy.strategy} className="border-b border-gray-800 hover:bg-gray-800/30">
+                          <td className="py-3 px-3 font-medium">
+                            {strategy.strategy?.replace(/_/g, ' ') || 'Unknown'}
+                          </td>
+                          <td className="text-right py-3 px-3">{strategy.total_trades || 0}</td>
+                          <td className="text-right py-3 px-3">
+                            <span className={cn(
+                              winRate >= 60 ? 'text-green-400' :
+                              winRate >= 40 ? 'text-yellow-400' : 'text-red-400'
+                            )}>
+                              {winRate.toFixed(1)}%
                             </span>
-                          ) : (strategy.net_pnl || 0) < 0 ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-400">
-                              ✗ Loss
+                          </td>
+                          <td className="text-right py-3 px-3">
+                            <span className={cn(
+                              netPnl >= 0 ? 'text-green-400' : 'text-red-400'
+                            )}>
+                              ${netPnl.toFixed(2)}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">
-                              — No Data
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="text-right py-3 px-3">
+                            ${strategy.total_trades ? (netPnl / strategy.total_trades).toFixed(2) : '0.00'}
+                          </td>
+                          <td className="text-right py-3 px-3 text-green-400">
+                            +${(strategy.best_trade || 0).toFixed(2)}
+                          </td>
+                          <td className="text-right py-3 px-3 text-red-400">
+                            ${(strategy.worst_trade || 0).toFixed(2)}
+                          </td>
+                          <td className="text-center py-3 px-3">
+                            {netPnl > 0 ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400">
+                                ✓ Profitable
+                              </span>
+                            ) : netPnl < 0 ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-400">
+                                ✗ Loss
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">
+                                — No Data
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

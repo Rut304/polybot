@@ -4,19 +4,17 @@ Handles persistence of opportunities, trades, and bot state.
 """
 
 import logging
-import os
-from datetime import datetime
-from typing import Optional, List, Dict, Any
+import random
+import time
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
+from decimal import Decimal
+
+from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
+from src.utils.vault import Vault
 
 logger = logging.getLogger(__name__)
-
-# Optional Supabase import
-try:
-    from supabase import create_client, Client
-    SUPABASE_AVAILABLE = True
-except ImportError:
-    SUPABASE_AVAILABLE = False
-    logger.warning("supabase package not installed - database features unavailable")
 
 
 def _get_supabase_credentials():
@@ -43,13 +41,14 @@ class Database:
     - polybot_status: Bot status and configuration
     """
     
-    def __init__(self, url: Optional[str] = None, key: Optional[str] = None):
+    def __init__(self, url: Optional[str] = None, key: Optional[str] = None, user_id: Optional[str] = None):
         """
         Initialize Supabase database client.
         
         Args:
             url: Supabase URL (falls back to env var SUPABASE_URL)
             key: Supabase key (falls back to env var SUPABASE_SERVICE_ROLE_KEY)
+            user_id: UUID of the user context (for multi-tenancy)
         
         NOTE: Always uses SERVICE_ROLE_KEY for full database access.
         The anon key (SUPABASE_KEY) is NOT supported as it causes RLS issues.
@@ -57,23 +56,19 @@ class Database:
         # Get credentials - prefer params, fallback to env vars
         self.url = url or os.getenv("SUPABASE_URL", "")
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        self.user_id = user_id
         
-        self._client: Optional[Client] = None
-        
-        if self.url and self.key and SUPABASE_AVAILABLE:
-            try:
-                self._client = create_client(self.url, self.key)
-                logger.info("✓ Supabase client initialized successfully")
-            except Exception as e:
-                logger.error(f"Failed to initialize Supabase client: {e}")
-        elif not SUPABASE_AVAILABLE:
-            logger.warning("Supabase package not available")
-        else:
-            url_status = 'set' if self.url else 'MISSING'
-            key_status = 'set' if self.key else 'MISSING'
-            logger.warning(
-                f"Supabase credentials: URL={url_status}, KEY={key_status}"
-            )
+        if not self.url or not self.key:
+            logger.warning("Supabase credentials not found in environment variables")
+            self._client = None
+            return
+
+        try:
+            self._client = create_client(self.url, self.key)
+            logger.info("✓ Supabase client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Supabase client: {e}")
+            self._client = None
         
         # Secrets cache (loaded once, refreshed on demand)
         self._secrets_cache: Dict[str, str] = {}
@@ -105,17 +100,42 @@ class Database:
             return {}
         
         try:
-            result = self._client.table("polybot_secrets").select(
-                "key_name, key_value"
-            ).eq("is_configured", True).execute()
-            
-            self._secrets_cache = {
-                row["key_name"]: row["key_value"]
-                for row in (result.data or [])
-                if row.get("key_value")
-            }
+            # Table: polybot_key_vault (SaaS) or polybot_secrets (Legacy)
+            # Prefer Vault if user_id is present
+            if self.user_id:
+                query = self._client.table("polybot_key_vault").select(
+                    "key_name, encrypted_value"
+                ).eq("user_id", self.user_id)
+                
+                result = query.execute()
+                
+                # Decrypt values
+                self._secrets_cache = {}
+                for row in (result.data or []):
+                    key_name = row["key_name"]
+                    enc_value = row["encrypted_value"]
+                    try:
+                        decrypted = self.vault.decrypt(enc_value)
+                        self._secrets_cache[key_name] = decrypted
+                    except Exception as e:
+                        logger.error(f"Failed to decrypt secret {key_name}: {e}")
+                        
+            else:
+                # Legacy fallback
+                query = self._client.table("polybot_secrets").select(
+                    "key_name, key_value"
+                ).eq("is_configured", True)
+                
+                result = query.execute()
+                
+                self._secrets_cache = {
+                    row["key_name"]: row["key_value"]
+                    for row in (result.data or [])
+                    if row.get("key_value")
+                }
+                
             self._secrets_loaded = True
-            logger.info(f"✓ Loaded {len(self._secrets_cache)} secrets from Supabase")
+            logger.info(f"✓ Loaded {len(self._secrets_cache)} secrets from Supabase (User: {self.user_id or 'Global'})")
             return self._secrets_cache
             
         except Exception as e:
@@ -292,10 +312,16 @@ class Database:
             return {}
         
         try:
-            # Single row config with id=1
-            result = self._client.table("polybot_config").select(
-                "*"
-            ).eq("id", 1).limit(1).single().execute()
+            # Multi-tenant config: Filter by user_id
+            query = self._client.table("polybot_config").select("*")
+            
+            if self.user_id:
+                query = query.eq("user_id", self.user_id)
+            else:
+                # Legacy: id=1
+                query = query.eq("id", 1)
+                
+            result = query.limit(1).single().execute()
             
             if result.data:
                 self._config_cache = result.data
@@ -318,10 +344,17 @@ class Database:
             return False
         
         try:
-            # Update single-row config with id=1
-            self._client.table("polybot_config").update({
+            # Update config row
+            query = self._client.table("polybot_config").update({
                 key: value,
-            }).eq("id", 1).execute()
+            })
+            
+            if self.user_id:
+                query = query.eq("user_id", self.user_id)
+            else:
+                query = query.eq("id", 1)
+                
+            query.execute()
             self._config_cache[key] = value
             return True
         except Exception as e:
@@ -345,7 +378,7 @@ class Database:
             return None
         
         try:
-            result = self._client.table("polybot_opportunities").insert({
+            insert_data = {
                 "opportunity_id": opportunity.get("id"),
                 "detected_at": opportunity.get("detected_at"),
                 "buy_platform": opportunity.get("buy_platform"),
@@ -363,7 +396,12 @@ class Database:
                 "strategy": opportunity.get("strategy"),
                 "status": opportunity.get("status", "detected"),
                 "skip_reason": opportunity.get("skip_reason"),
-            }).execute()
+            }
+            
+            if self.user_id:
+                insert_data["user_id"] = self.user_id
+                
+            result = self._client.table("polybot_opportunities").insert(insert_data).execute()
             
             if result.data:
                 return result.data[0].get("id")
@@ -404,9 +442,14 @@ class Database:
             return []
         
         try:
-            result = self._client.table("polybot_opportunities").select(
+            query = self._client.table("polybot_opportunities").select(
                 "*"
-            ).order(
+            )
+            
+            if self.user_id:
+                query = query.eq("user_id", self.user_id)
+            
+            result = query.order(
                 "detected_at", desc=True
             ).limit(limit).execute()
             
@@ -433,7 +476,7 @@ class Database:
             return None
         
         try:
-            result = self._client.table("polybot_trades").insert({
+            insert_data = {
                 "trade_id": trade.get("id"),
                 "opportunity_id": trade.get("opportunity_id"),
                 "platform": trade.get("platform"),
@@ -449,7 +492,12 @@ class Database:
                 "order_id": trade.get("order_id"),
                 "error_message": trade.get("error_message"),
                 "fees": trade.get("fees"),
-            }).execute()
+            }
+            
+            if self.user_id:
+                insert_data["user_id"] = self.user_id
+                
+            result = self._client.table("polybot_trades").insert(insert_data).execute()
             
             if result.data:
                 return result.data[0].get("id")
@@ -465,9 +513,14 @@ class Database:
             return []
         
         try:
-            result = self._client.table("polybot_trades").select(
+            query = self._client.table("polybot_trades").select(
                 "*"
-            ).order(
+            )
+            
+            if self.user_id:
+                query = query.eq("user_id", self.user_id)
+                
+            result = query.order(
                 "executed_at", desc=True
             ).limit(limit).execute()
             

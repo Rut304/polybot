@@ -142,6 +142,23 @@ class ArbitrageDetector:
         
         # Opportunity counter for unique IDs
         self._opportunity_counter = 0
+
+    def _calculate_profit_percent(self, entry_price: float, exit_price: float) -> float:
+        """
+        Calculate profit percentage.
+        
+        Args:
+            entry_price: Price we buy at
+            exit_price: Price we sell at
+            
+        Returns:
+            Profit percentage (e.g., 5.0 for 5%)
+        """
+        if entry_price <= 0:
+            return 0.0
+        profit = exit_price - entry_price
+        return (profit / entry_price) * 100
+
     
     def _get_min_profit_for_direction(self, buy_platform: str) -> float:
         """

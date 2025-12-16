@@ -50,9 +50,10 @@ class DatabaseLogHandler(logging.Handler):
     - Non-blocking async writes
     """
     
-    def __init__(self, session_id: Optional[str] = None, min_level: int = logging.INFO):
+    def __init__(self, session_id: Optional[str] = None, user_id: Optional[str] = None, min_level: int = logging.INFO):
         super().__init__(level=min_level)
         self.session_id = session_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.user_id = user_id
         self._buffer = []
         self._buffer_size = 10  # Flush every N logs
         self._flush_interval = 30  # Or every N seconds
@@ -97,6 +98,9 @@ class DatabaseLogHandler(logging.Handler):
                 'details': details if details else None,
                 'session_id': self.session_id,
             }
+            
+            if self.user_id:
+                log_entry['user_id'] = self.user_id
             
             self._buffer.append(log_entry)
             
@@ -150,7 +154,7 @@ class DatabaseLogHandler(logging.Handler):
         super().close()
 
 
-def setup_database_logging(session_id: Optional[str] = None):
+def setup_database_logging(session_id: Optional[str] = None, user_id: Optional[str] = None):
     """
     Set up database logging for the bot.
     
@@ -164,7 +168,7 @@ def setup_database_logging(session_id: Optional[str] = None):
         print("Skipping database logging - SUPABASE not configured")
         return None
     
-    handler = DatabaseLogHandler(session_id=session_id)
+    handler = DatabaseLogHandler(session_id=session_id, user_id=user_id)
     handler.setFormatter(logging.Formatter("%(message)s"))
     
     # Add to root logger

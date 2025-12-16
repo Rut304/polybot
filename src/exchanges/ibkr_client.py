@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from ib_insync import IB, Stock, MarketOrder, LimitOrder, Position as IBPosition, Order as IBOrder
+from ib_insync import IB, Stock, Future, MarketOrder, LimitOrder, Position as IBPosition, Order as IBOrder, Contract
 
 from src.exchanges.base import (
     BaseExchange, Ticker, Balance, Order, Position,
@@ -49,17 +49,36 @@ class IBKRClient(BaseExchange):
             self._connected = False
             logger.info("Disconnected from IBKR")
 
+    def _get_contract(self, symbol: str) -> Contract:
+        """Helper to create appropriate contract type based on symbol."""
+        # Simple heuristic: Common futures symbols
+        futures = ['ES', 'NQ', 'MES', 'MNQ', 'BTC', 'ETH', 'CL', 'GC']
+        
+        if symbol in futures or symbol.startswith('F:'):
+            clean_sym = symbol.replace('F:', '')
+            # For futures, usually need expiration. 
+            # Empty string expiration in ib_insync often defaults to front month if combined with 'ContFut'? 
+            # Or we let qualifyContracts resolve to the nearest expiry
+            # Here we try with empty lastTradeDateOrContractMonth to let IB resolve to front month
+            return Future(clean_sym, '202506', 'GLOBEX') # HARDCODED expiry for now as example until refined
+            # TODO: dynamic expiration logic
+        else:
+            return Stock(symbol, 'SMART', 'USD')
+
     # =========================================================================
     # Market Data
     # =========================================================================
 
     async def get_ticker(self, symbol: str) -> Ticker:
         """
-        Get ticker. Symbol format: 'AAPL' (Stock) or 'EURUSD' (Forex).
-        Simplified for Stocks for now.
+        Get ticker. Symbol format: 'AAPL' (Stock) or 'ES' (Future).
         """
-        contract = Stock(symbol, 'SMART', 'USD')
-        self.ib.qualifyContracts(contract)
+        contract = self._get_contract(symbol)
+        try:
+            self.ib.qualifyContracts(contract)
+        except Exception as e:
+            logger.error(f"Failed to qualify contract {symbol}: {e}")
+            raise
         
         # Request market data
         ticker = self.ib.reqMktData(contract, '', False, False)
@@ -107,7 +126,14 @@ class IBKRClient(BaseExchange):
             duration = '1 D'
             bar_size = '15 mins'
         
-        contract = Stock(symbol, 'SMART', 'USD')
+        contract = self._get_contract(symbol)
+        try:
+            # For futures, we might need to specify expiry logic, but defaulting to front month via qualifyContracts might work
+            # logic is handled in _get_contract
+            self.ib.qualifyContracts(contract)
+        except:
+            pass # Try anyway
+
         bars = await self.ib.reqHistoricalDataAsync(
             contract, endDateTime='', durationStr=duration,
             barSizeSetting=bar_size, whatToShow='TRADES', useRTH=True
@@ -180,7 +206,8 @@ class IBKRClient(BaseExchange):
                           amount: float, price: Optional[float] = None,
                           params: Optional[Dict] = None) -> Order:
         """Create and place a new order."""
-        contract = Stock(symbol, 'SMART', 'USD')
+        contract = self._get_contract(symbol)
+        self.ib.qualifyContracts(contract)
         action = 'BUY' if side == OrderSide.BUY else 'SELL'
         
         ib_order = None

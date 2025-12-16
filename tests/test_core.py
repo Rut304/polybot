@@ -64,7 +64,7 @@ class TestTradeExecutor:
         )
         
         # Simulate 3 consecutive failures
-        executor._risk.consecutive_failures = 3
+        executor.risk_state.consecutive_failures = 3
         
         can_trade, reason = executor.can_trade()
         assert can_trade is False
@@ -80,8 +80,8 @@ class TestTradeExecutor:
             max_daily_loss=50,
         )
         
-        # Simulate exceeding daily loss
-        executor._risk.daily_loss = 51.0
+        # Simulate exceeding daily loss (daily_pnl = -51.0)
+        executor.risk_state.daily_pnl = -51.0
         
         can_trade, reason = executor.can_trade()
         assert can_trade is False

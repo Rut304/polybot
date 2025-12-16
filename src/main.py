@@ -2,7 +2,9 @@
 PolyBot - Prediction Market Arbitrage Bot
 
 Main entry point for the arbitrage bot.
-Orchestrates market data collection, opportunity detection, and trade execution.
+Supports:
+1. Single-user mode (User ID or legacy global)
+2. Multi-tenant Manager mode (orchestrates multiple bots)
 """
 
 import asyncio
@@ -10,17 +12,14 @@ import logging
 import signal
 import sys
 import os
-from datetime import datetime
-from decimal import Decimal
+import argparse
+from typing import Optional
 
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import config
-from src.clients import PolymarketClient, KalshiClient
-from src.arbitrage import ArbitrageDetector, TradeExecutor
-from src.database import Database
-from src.simulation import PaperTrader
+from src.bot_runner import PolybotRunner
+from src.manager import BotManager
 from src.logging_handler import setup_database_logging
 
 # Configure logging
@@ -34,288 +33,73 @@ logging.basicConfig(
 )
 logger = logging.getLogger("polybot")
 
-# Set up database logging (writes to Supabase for admin UI)
-db_log_handler = setup_database_logging()
+
+async def run_single_instance(user_id: Optional[str] = None):
+    """Run a single instance of PolyBot."""
+    # Setup logging with user context
+    setup_database_logging(user_id=user_id)
+    
+    logger.info(f"🚀 Starting PolyBot single instance (User: {user_id or 'Global'})...")
+    
+    runner = PolybotRunner(user_id=user_id)
+    
+    # Handle shutdown
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+    
+    def signal_handler():
+        logger.info("Shutdown signal received")
+        stop_event.set()
+        asyncio.create_task(runner.shutdown())
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
+        
+    try:
+        # runner.run() is an infinite loop that waits for shutdown
+        await runner.run()
+    except asyncio.CancelledError:
+        logger.info("Main loop cancelled")
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        logger.info("Instance stopped")
 
 
-class PolyBot:
-    """
-    Main bot orchestrator.
+async def main():
+    parser = argparse.ArgumentParser(description="PolyBot Entry Point")
+    parser.add_argument("--user-id", type=str, help="Run for specific User ID")
+    parser.add_argument("--manager", action="store_true", help="Run in Multi-Tenant Manager mode")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     
-    Manages the lifecycle of:
-    - Market data clients (Polymarket, Kalshi)
-    - Arbitrage detector
-    - Trade executor
-    - Database persistence
-    - Paper trading simulator
-    """
+    args = parser.parse_args()
     
-    def __init__(self):
-        self.is_running = False
-        self._shutdown_event = asyncio.Event()
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
         
-        # Initialize components
-        self.polymarket = PolymarketClient(
-            ws_url=config.polymarket.ws_url,
-            gamma_url=config.polymarket.gamma_url,
-            api_key=config.polymarket.api_key,
-            api_secret=config.polymarket.api_secret,
-        )
+    if args.manager:
+        logger.info("🔵 Starting Bot Manager Service...")
+        manager = BotManager()
         
-        self.kalshi = KalshiClient(
-            api_key=config.kalshi.api_key,
-            private_key=config.kalshi.private_key,
-            ws_url=config.kalshi.ws_url,
-            api_url=config.kalshi.api_url,
-        )
-        
-        self.detector = ArbitrageDetector(
-            min_profit_percent=config.trading.min_profit_percent,
-        )
-        
-        self.executor = TradeExecutor(
-            dry_run=config.trading.dry_run,
-            max_trade_size=config.trading.max_trade_size,
-            max_daily_loss=config.trading.max_daily_loss,
-            max_consecutive_failures=config.trading.max_consecutive_failures,
-            slippage_tolerance=config.trading.slippage_tolerance / 100,
-            manual_approval_trades=config.trading.manual_approval_trades,
-        )
-        
-        self.database = Database(
-            url=config.database.url,
-            key=config.database.key,
-        )
-        
-        # Paper trader for simulation mode
-        self.paper_trader = PaperTrader(
-            db_client=self.database,
-            starting_balance=Decimal(str(config.trading.simulation_starting_balance)),  # $5000 default
-            min_profit_threshold=config.trading.min_profit_percent,
-        )
-        
-        # Market pairs to monitor (will be populated dynamically)
-        self.market_pairs = []
-        
-        # Stats tracking
-        self._stats_interval = 60  # Print stats every 60 seconds
-        self._last_stats_time = 0
-    
-    async def discover_markets(self):
-        """Discover matching markets across platforms."""
-        logger.info("Discovering markets...")
-        
-        # Discover Polymarket markets
-        poly_markets = self.polymarket.discover_markets(
-            active_only=True,
-            limit=100,
-        )
-        logger.info(f"Found {len(poly_markets)} Polymarket tokens")
-        
-        # Discover Kalshi markets
-        if self.kalshi.is_authenticated:
-            kalshi_markets = self.kalshi.discover_markets(
-                status="open",
-                limit=100,
-            )
-            logger.info(f"Found {len(kalshi_markets)} Kalshi markets")
-        else:
-            logger.warning("Kalshi not authenticated - skipping Kalshi markets")
-            kalshi_markets = []
-        
-        # TODO: Match markets across platforms
-        # For now, we'll set up some known matching pairs manually
-        # In production, this would use market matching algorithms
-        
-        return poly_markets, kalshi_markets
-    
-    async def run_kalshi_websocket(self):
-        """Run Kalshi WebSocket in background."""
-        if not self.kalshi.is_authenticated:
-            logger.warning("Kalshi not authenticated - WebSocket disabled")
-            return
-        
-        while not self._shutdown_event.is_set():
-            try:
-                await self.kalshi.run()
-            except Exception as e:
-                logger.error(f"Kalshi WebSocket error: {e}")
-                await asyncio.sleep(5)  # Wait before reconnecting
-    
-    async def run_arbitrage_loop(self):
-        """Main arbitrage detection and execution loop."""
-        logger.info("Starting arbitrage loop...")
-        import time
-        
-        while not self._shutdown_event.is_set():
-            try:
-                # Get current order books
-                poly_books = self.polymarket.get_all_order_books()
-                kalshi_books = self.kalshi.get_all_order_books()
-                
-                # Find opportunities
-                opportunities = self.detector.find_all_opportunities(
-                    polymarket_books=poly_books,
-                    kalshi_books=kalshi_books,
-                    market_pairs=self.market_pairs,
-                )
-                
-                if opportunities:
-                    logger.info(f"Found {len(opportunities)} opportunities")
-                    
-                    for opp in opportunities:
-                        logger.info(f"  {opp}")
-                        
-                        # Log to database
-                        self.database.log_opportunity(opp.to_dict())
-                        
-                        # PAPER TRADING: Record for simulation
-                        await self.paper_trader.simulate_instant_profit(
-                            polymarket_token_id=opp.buy_market_id,
-                            polymarket_market_title=opp.buy_market_name or "",
-                            kalshi_ticker=opp.sell_market_id,
-                            kalshi_market_title=opp.sell_market_name or "",
-                            poly_yes=Decimal(str(opp.buy_price)),
-                            poly_no=Decimal(str(1 - opp.buy_price)),
-                            kalshi_yes=Decimal(str(opp.sell_price)),
-                            kalshi_no=Decimal(str(1 - opp.sell_price)),
-                            profit_pct=Decimal(str(opp.profit_percent)),
-                            trade_type=f"{opp.buy_platform}_to_{opp.sell_platform}",
-                        )
-                        
-                        # Execute if conditions met (only in non-dry-run mode)
-                        can_trade, reason = self.executor.can_trade()
-                        if can_trade and not config.trading.dry_run:
-                            buy_trade, sell_trade, status = \
-                                await self.executor.execute_opportunity(opp)
-                            
-                            if buy_trade:
-                                self.database.log_trade(buy_trade.to_dict())
-                            if sell_trade:
-                                self.database.log_trade(sell_trade.to_dict())
-                            
-                            if status != "Success":
-                                logger.warning(f"Execution result: {status}")
-                        else:
-                            logger.debug(f"Cannot trade: {reason}")
-                
-                # Update heartbeat
-                self.database.heartbeat()
-                
-                # Print paper trading stats periodically
-                current_time = time.time()
-                if current_time - self._last_stats_time > self._stats_interval:
-                    self._last_stats_time = current_time
-                    stats = self.paper_trader.get_stats_summary()
-                    logger.info(stats)
-                    await self.paper_trader.save_stats_to_db()
-                
-                # Wait before next scan
-                await asyncio.sleep(config.trading.scan_interval)
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Arbitrage loop error: {e}")
-                import traceback
-                traceback.print_exc()
-                await asyncio.sleep(5)
-                await asyncio.sleep(5)
-    
-    async def start(self):
-        """Start the bot."""
-        logger.info("=" * 50)
-        logger.info("POLYBOT STARTING")
-        logger.info("=" * 50)
-        
-        # Validate configuration
-        errors = config.validate()
-        if errors:
-            for error in errors:
-                logger.error(f"Config error: {error}")
-            if not config.trading.dry_run:
-                logger.error("Cannot start in live mode with config errors")
-                return
-        
-        # Print configuration
-        config.print_summary()
-        
-        # Update database status
-        self.database.update_bot_status(
-            is_running=True,
-            dry_run=config.trading.dry_run,
-            max_trade_size=config.trading.max_trade_size,
-            min_profit_threshold=config.trading.min_profit_percent,
-        )
-        
-        # Discover markets
-        await self.discover_markets()
-        
-        # Start Polymarket WebSocket
-        logger.info("Connecting to Polymarket...")
-        if self.polymarket.start():
-            logger.info("Polymarket connected")
-        else:
-            logger.error("Failed to connect to Polymarket")
-        
-        # Subscribe to markets (using discovered tokens)
-        poly_tokens = list(self.polymarket._markets.keys())[:20]  # Limit for testing
-        if poly_tokens:
-            self.polymarket.subscribe(poly_tokens)
-            logger.info(f"Subscribed to {len(poly_tokens)} Polymarket tokens")
-        
-        # Wait for initial data
-        if not self.polymarket.wait_for_data(timeout=15):
-            logger.warning("Timeout waiting for Polymarket data")
-        
-        self.is_running = True
-        
-        # Start background tasks
-        tasks = [
-            asyncio.create_task(self.run_kalshi_websocket()),
-            asyncio.create_task(self.run_arbitrage_loop()),
-        ]
-        
-        logger.info("Bot is running. Press Ctrl+C to stop.")
-        
-        try:
-            await self._shutdown_event.wait()
-        finally:
-            # Print final paper trading stats
-            logger.info("\n" + self.paper_trader.get_stats_summary())
-            await self.paper_trader.save_stats_to_db()
+        # Handle shutdown for manager
+        loop = asyncio.get_running_loop()
+        def signal_handler():
+            logger.info("Manager shutdown signal received")
+            manager.stop()
             
-            # Cleanup
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, signal_handler)
             
-            self.polymarket.stop()
-            self.is_running = False
-            
-            self.database.update_bot_status(is_running=False)
-            logger.info("Bot stopped")
-    
-    def stop(self):
-        """Signal the bot to stop."""
-        logger.info("Shutdown requested...")
-        self._shutdown_event.set()
-
-
-def main():
-    """Main entry point."""
-    bot = PolyBot()
-    
-    # Handle shutdown signals
-    def signal_handler(sig, frame):
-        bot.stop()
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    # Run the bot
-    asyncio.run(bot.start())
+        await manager.run()
+        
+    else:
+        await run_single_instance(user_id=args.user_id)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
