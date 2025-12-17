@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -8,7 +10,7 @@ const TIERS = [
     price: '$0',
     description: 'For hobbyists and testing.',
     features: ['Paper Trading Only', 'Standard Dashboards', 'Manual Execution', 'Community Support'],
-    priceId: 'price_free_tier', 
+    priceId: 'price_free_tier',
     mode: 'free'
   },
   {
@@ -38,11 +40,11 @@ export default function PricingTable() {
   const handleCheckout = async (priceId: string, mode: string) => {
     if (mode === 'free') return; // Handled differently or just default
     if (!user) {
-        alert('Please log in first');
-        return;
+      alert('Please log in first');
+      return;
     }
     setLoading(priceId);
-    
+
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
@@ -55,7 +57,7 @@ export default function PricingTable() {
           cancelUrl: window.location.origin + '/pricing',
         }),
       });
-      
+
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
@@ -73,7 +75,7 @@ export default function PricingTable() {
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
       {TIERS.map((tier) => (
-        <div 
+        <div
           key={tier.name}
           className={`flex flex-col justify-between rounded-3xl bg-white p-8 shadow-xl ring-1 ring-gray-900/10 sm:p-10 ${tier.mode === 'payment' ? 'scale-105 ring-indigo-600' : ''}`}
         >
@@ -96,11 +98,10 @@ export default function PricingTable() {
           <button
             onClick={() => handleCheckout(tier.priceId, tier.mode)}
             disabled={loading !== null}
-            className={`mt-8 block rounded-md px-3.5 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                tier.mode === 'free' 
-                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
+            className={`mt-8 block rounded-md px-3.5 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${tier.mode === 'free'
+                ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 : 'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline-indigo-600'
-            }`}
+              }`}
           >
             {loading === tier.priceId ? 'Redirecting...' : (tier.mode === 'free' ? 'Current Plan' : 'Subscribe')}
           </button>
