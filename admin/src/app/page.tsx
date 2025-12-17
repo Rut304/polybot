@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { 
-  Activity, 
-  TrendingUp, 
-  DollarSign, 
-  Zap, 
+import {
+  Activity,
+  TrendingUp,
+  DollarSign,
+  Zap,
   Target,
   BarChart3,
   Clock,
@@ -18,9 +18,9 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { 
-  useBotStatus, 
-  useSimulationStats, 
+import {
+  useBotStatus,
+  useSimulationStats,
   useSimulatedTrades,
   useOpportunities,
   usePnLHistory,
@@ -52,7 +52,7 @@ const TIMEFRAME_OPTIONS = [
 export default function Dashboard() {
   // Global timeframe state - all components use this
   const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
-  
+
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
   const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours);
@@ -61,10 +61,10 @@ export default function Dashboard() {
   const { data: allTrades } = useSimulatedTrades(5000);
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
-  
+
   // Starting balance constant (5 platforms x $20,000 each)
   const STARTING_BALANCE = 100000;
-  
+
   // Prefer real-time computed stats (more accurate - uses database aggregates)
   const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? STARTING_BALANCE;
   const isSimulation = botStatus?.dry_run_mode ?? true;
@@ -75,73 +75,90 @@ export default function Dashboard() {
   const losingTrades = realTimeStats?.losing_trades ?? simStats?.stats_json?.losing_trades ?? 0;
   const roiPct = realTimeStats?.roi_pct ?? simStats?.stats_json?.roi_pct ?? 0;
   const totalOpportunities = realTimeStats?.total_opportunities_seen ?? simStats?.stats_json?.total_opportunities_seen ?? 0;
-  
+
   // Modal state
   const [modalType, setModalType] = useState<'balance' | 'pnl' | 'winrate' | 'opportunities' | null>(null);
-  
+
   // Trade details modal state
   const [selectedTrade, setSelectedTrade] = useState<TradeDetails | null>(null);
 
   // Helper to convert Opportunity to TradeDetails
-  const opportunityToTradeDetails = (opp: Opportunity): TradeDetails => ({
-    id: opp.id.toString(),
-    type: opp.strategy?.includes('whale') ? 'whale_copy' : 
-          opp.strategy?.includes('congress') ? 'congress_copy' : 
-          opp.strategy?.includes('bracket') ? 'arbitrage' : 'arbitrage',
-    status: opp.status === 'executed' ? 'executed' : 'pending',
-    marketTitle: opp.buy_market_name || opp.sell_market_name || 'Unknown Market',
-    marketId: opp.buy_market_id || opp.sell_market_id,
-    platform: opp.buy_platform === opp.sell_platform 
-      ? (opp.buy_platform as 'polymarket' | 'kalshi' | 'alpaca') || 'polymarket'
-      : 'cross_platform',
-    side: 'YES',
-    entryPrice: opp.buy_price,
-    currentPrice: opp.sell_price,
-    size: 0,
-    sizeUsd: opp.max_size || 0,
-    detectedAt: opp.detected_at,
-    arbitrageInfo: {
-      type: opp.buy_platform === opp.sell_platform ? 'single_platform' : 'cross_platform',
-      yesPrice: opp.buy_price * 100,
-      noPrice: (1 - opp.sell_price) * 100,
-      spread: opp.profit_percent,
-      netProfit: opp.total_profit || opp.profit_percent,
-    },
-    convictionScore: opp.confidence,
-    strategySignals: opp.strategy ? [{
-      source: opp.strategy,
-      signal: opp.profit_percent > 0 ? 'bullish' : 'neutral',
-      confidence: opp.confidence || 70,
-      reason: `${opp.profit_percent.toFixed(2)}% spread detected`,
-    }] : undefined,
-  });
+  const opportunityToTradeDetails = (opp: Opportunity): TradeDetails => {
+    let type: TradeDetails['type'] = 'arbitrage';
+    const s = opp.strategy?.toLowerCase() || '';
+
+    if (s.includes('whale')) type = 'whale_copy';
+    else if (s.includes('congress')) type = 'congress_copy';
+    else if (s.includes('news')) type = 'news_trading';
+    else if (s.includes('single')) type = 'scalping';
+
+    return {
+      id: opp.id.toString(),
+      type,
+      status: opp.status === 'executed' ? 'executed' : 'pending',
+      marketTitle: opp.buy_market_name || opp.sell_market_name || 'Unknown Market',
+      marketId: opp.buy_market_id || opp.sell_market_id,
+      platform: opp.buy_platform === opp.sell_platform
+        ? (opp.buy_platform as 'polymarket' | 'kalshi' | 'alpaca') || 'polymarket'
+        : 'cross_platform',
+      side: 'YES',
+      entryPrice: opp.buy_price,
+      currentPrice: opp.sell_price,
+      size: 0,
+      sizeUsd: opp.max_size || 0,
+      detectedAt: opp.detected_at,
+      arbitrageInfo: {
+        type: opp.buy_platform === opp.sell_platform ? 'single_platform' : 'cross_platform',
+        yesPrice: opp.buy_price * 100,
+        noPrice: (1 - opp.sell_price) * 100,
+        spread: opp.profit_percent,
+        netProfit: opp.total_profit || opp.profit_percent,
+      },
+      convictionScore: opp.confidence,
+      strategySignals: opp.strategy ? [{
+        source: opp.strategy,
+        signal: opp.profit_percent > 0 ? 'bullish' : 'neutral',
+        confidence: opp.confidence || 70,
+        reason: `${opp.profit_percent.toFixed(2)}% spread detected`,
+      }] : undefined,
+    }
+  };
 
   // Helper to convert SimulatedTrade to TradeDetails
-  const tradeToTradeDetails = (trade: SimulatedTrade): TradeDetails => ({
-    id: trade.id.toString(),
-    type: trade.strategy?.includes('whale') ? 'whale_copy' : 
-          trade.strategy?.includes('congress') ? 'congress_copy' : 'arbitrage',
-    status: trade.outcome === 'won' ? 'executed' : 
-            trade.outcome === 'lost' ? 'failed' : 'pending',
-    marketTitle: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown Market',
-    marketId: trade.polymarket_token_id || trade.kalshi_ticker,
-    platform: trade.polymarket_token_id ? 'polymarket' : 
-              trade.kalshi_ticker ? 'kalshi' : 'polymarket',
-    side: 'YES',
-    entryPrice: trade.polymarket_yes_price || trade.kalshi_yes_price || 0,
-    exitPrice: undefined,
-    size: 0,
-    sizeUsd: trade.position_size_usd || 0,
-    realizedPnl: trade.expected_profit_usd,
-    pnlPercent: trade.expected_profit_pct,
-    detectedAt: trade.created_at,
-    executedAt: trade.created_at,
-    exitedAt: trade.resolved_at || undefined,
-    convictionScore: undefined,
-  });
+  const tradeToTradeDetails = (trade: SimulatedTrade): TradeDetails => {
+    let type: TradeDetails['type'] = 'arbitrage';
+    const s = trade.strategy?.toLowerCase() || '';
 
-  const isOnline = !!(botStatus?.is_running && 
-    botStatus?.last_heartbeat_at && 
+    if (s.includes('whale')) type = 'whale_copy';
+    else if (s.includes('congress')) type = 'congress_copy';
+    else if (s.includes('news')) type = 'news_trading';
+    else if (s.includes('single')) type = 'scalping';
+
+    return {
+      id: trade.id.toString(),
+      type,
+      status: trade.outcome === 'won' ? 'executed' :
+        trade.outcome === 'lost' ? 'failed' : 'pending',
+      marketTitle: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown Market',
+      marketId: trade.polymarket_token_id || trade.kalshi_ticker,
+      platform: trade.polymarket_token_id ? 'polymarket' :
+        trade.kalshi_ticker ? 'kalshi' : 'polymarket',
+      side: 'YES',
+      entryPrice: trade.polymarket_yes_price || trade.kalshi_yes_price || 0,
+      exitPrice: undefined,
+      size: 0,
+      sizeUsd: trade.position_size_usd || 0,
+      realizedPnl: trade.expected_profit_usd,
+      pnlPercent: trade.expected_profit_pct,
+      detectedAt: trade.created_at,
+      executedAt: trade.created_at,
+      exitedAt: trade.resolved_at || undefined,
+      convictionScore: undefined,
+    }
+  };
+
+  const isOnline = !!(botStatus?.is_running &&
+    botStatus?.last_heartbeat_at &&
     isRecent(botStatus.last_heartbeat_at, 30000));
 
   return (
@@ -157,14 +174,14 @@ export default function Dashboard() {
         opportunities={opportunities || []}
         totalOpportunitiesSeen={totalOpportunities}
       />
-      
+
       {/* Trade Details Modal */}
       <TradeDetailsModal
         isOpen={selectedTrade !== null}
         onClose={() => setSelectedTrade(null)}
         trade={selectedTrade}
       />
-      
+
       {/* Page Header */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -174,12 +191,12 @@ export default function Dashboard() {
           </h1>
           <p className="text-gray-400 mt-2">Real-time overview of your arbitrage bot</p>
         </div>
-        
+
         {/* Global Timeframe Selector */}
         <div className="flex items-center gap-2 bg-dark-card border border-dark-border rounded-xl px-4 py-2">
           <Clock className="w-4 h-4 text-gray-400" />
           <span className="text-sm text-gray-400">Showing:</span>
-          <select 
+          <select
             value={globalTimeframeHours}
             onChange={(e) => setGlobalTimeframeHours(Number(e.target.value))}
             className="bg-dark-border rounded-lg px-3 py-1.5 text-sm border-none outline-none text-white cursor-pointer hover:bg-dark-border/70 transition-colors"
@@ -195,150 +212,150 @@ export default function Dashboard() {
       {/* Money Stats Widget (Missed Money & Efficiency) */}
       <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
 
-        {/* Top Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title={isSimulation ? "Simulated Balance" : "Real Balance"}
-            tooltip={isSimulation ? METRIC_TOOLTIPS.simulatedBalance : "Your actual exchange balance"}
-            value={formatCurrency(balance)}
-            change={roiPct}
-            icon={DollarSign}
-            color="green"
-            loading={statsLoading && !realTimeStats}
-            onClick={() => setModalType('balance')}
-            badge={isSimulation ? "PAPER" : "LIVE"}
-          />
-          <StatCard
-            title="Total P&L"
-            tooltip={METRIC_TOOLTIPS.totalPnL}
-            value={formatCurrency(totalPnl)}
-            subtitle={`${totalTrades} trades`}
-            icon={TrendingUp}
-            color="blue"
-            loading={statsLoading && !realTimeStats}
-            onClick={() => setModalType('pnl')}
-          />
-          <StatCard
-            title="Win Rate"
-            tooltip={METRIC_TOOLTIPS.winRate}
-            value={`${winRate.toFixed(1)}%`}
-            subtitle={`${winningTrades}W / ${losingTrades}L`}
-            icon={Target}
-            color="purple"
-            loading={statsLoading && !realTimeStats}
-            onClick={() => setModalType('winrate')}
-          />
-          <StatCard
-            title="Opportunities"
-            tooltip={METRIC_TOOLTIPS.opportunities}
-            value={totalOpportunities.toString()}
-            subtitle="Detected"
-            icon={Activity}
-            color="pink"
-            loading={statsLoading && !realTimeStats}
-            onClick={() => setModalType('opportunities')}
-          />
-        </div>
+      {/* Top Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title={isSimulation ? "Simulated Balance" : "Real Balance"}
+          tooltip={isSimulation ? METRIC_TOOLTIPS.simulatedBalance : "Your actual exchange balance"}
+          value={formatCurrency(balance)}
+          change={roiPct}
+          icon={DollarSign}
+          color="green"
+          loading={statsLoading && !realTimeStats}
+          onClick={() => setModalType('balance')}
+          badge={isSimulation ? "PAPER" : "LIVE"}
+        />
+        <StatCard
+          title={globalTimeframeHours === 0 ? "Net P&L (All Time)" : `Net P&L (${globalTimeframeHours}h)`}
+          tooltip={METRIC_TOOLTIPS.totalPnL}
+          value={formatCurrency(totalPnl)}
+          subtitle={`${totalTrades} trades`}
+          icon={TrendingUp}
+          color="blue"
+          loading={statsLoading && !realTimeStats}
+          onClick={() => setModalType('pnl')}
+        />
+        <StatCard
+          title="Win Rate"
+          tooltip={METRIC_TOOLTIPS.winRate}
+          value={`${winRate.toFixed(1)}%`}
+          subtitle={`${winningTrades}W / ${losingTrades}L`}
+          icon={Target}
+          color="purple"
+          loading={statsLoading && !realTimeStats}
+          onClick={() => setModalType('winrate')}
+        />
+        <StatCard
+          title="Opportunities"
+          tooltip={METRIC_TOOLTIPS.opportunities}
+          value={totalOpportunities.toString()}
+          subtitle="Detected"
+          icon={Activity}
+          color="pink"
+          loading={statsLoading && !realTimeStats}
+          onClick={() => setModalType('opportunities')}
+        />
+      </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="card"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-neon-green" />
-                P&L Over Time
-              </h2>
-              <span className="text-xs text-gray-500 bg-dark-border px-2 py-1 rounded">
-                {TIMEFRAME_OPTIONS.find(o => o.value === globalTimeframeHours)?.label || '24 Hours'}
-              </span>
-            </div>
-            <PnLChart data={pnlHistory || []} />
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="card"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Activity className="w-5 h-5 text-neon-blue" />
-                Opportunity Distribution
-              </h2>
-            </div>
-            <OpportunityChart data={opportunities || []} />
-          </motion.div>
-        </div>
-
-        {/* Strategy Breakdown */}
-        <motion.div 
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="card mb-8"
+          className="card"
         >
-          <StrategyBreakdown tradingMode={isSimulation ? 'paper' : 'live'} />
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-neon-green" />
+              P&L Over Time
+            </h2>
+            <span className="text-xs text-gray-500 bg-dark-border px-2 py-1 rounded">
+              {TIMEFRAME_OPTIONS.find(o => o.value === globalTimeframeHours)?.label || '24 Hours'}
+            </span>
+          </div>
+          <PnLChart data={pnlHistory || []} />
         </motion.div>
 
-        {/* Live Feeds */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="card"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Zap className="w-5 h-5 text-neon-yellow" />
-                Live Opportunities
-              </h2>
-              <span className="text-xs text-gray-500 flex items-center gap-1">
-                <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
-                Real-time
-              </span>
-            </div>
-            <OpportunitiesFeed 
-              opportunities={opportunities || []} 
-              onOpportunityClick={(opp) => setSelectedTrade(opportunityToTradeDetails(opp))}
-            />
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="card"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Clock className="w-5 h-5 text-neon-purple" />
-                Recent Paper Trades
-              </h2>
-            </div>
-            <TradesList 
-              trades={trades || []} 
-              onTradeClick={(trade) => setSelectedTrade(tradeToTradeDetails(trade))}
-            />
-          </motion.div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Activity className="w-5 h-5 text-neon-blue" />
+              Opportunity Distribution
+            </h2>
+          </div>
+          <OpportunityChart data={opportunities || []} />
+        </motion.div>
       </div>
+
+      {/* Strategy Breakdown */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="card mb-8"
+      >
+        <StrategyBreakdown tradingMode={isSimulation ? 'paper' : 'live'} />
+      </motion.div>
+
+      {/* Live Feeds */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Zap className="w-5 h-5 text-neon-yellow" />
+              Live Opportunities
+            </h2>
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <span className="w-2 h-2 bg-neon-green rounded-full animate-pulse" />
+              Real-time
+            </span>
+          </div>
+          <OpportunitiesFeed
+            opportunities={opportunities || []}
+            onOpportunityClick={(opp) => setSelectedTrade(opportunityToTradeDetails(opp))}
+          />
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="card"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-neon-purple" />
+              Recent Paper Trades
+            </h2>
+          </div>
+          <TradesList
+            trades={trades || []}
+            onTradeClick={(trade) => setSelectedTrade(tradeToTradeDetails(trade))}
+          />
+        </motion.div>
+      </div>
+    </div>
   );
 }
 
 // Stat Card Component
-function StatCard({ 
-  title, 
+function StatCard({
+  title,
   tooltip,
-  value, 
-  change, 
+  value,
+  change,
   subtitle,
-  icon: Icon, 
+  icon: Icon,
   color,
   loading,
   onClick,
@@ -370,7 +387,7 @@ function StatCard({
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       onClick={onClick}
@@ -384,7 +401,7 @@ function StatCard({
         "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
         bgClasses[color]
       )} />
-      
+
       <div className="relative">
         <div className="flex items-start justify-between">
           <div>
@@ -393,8 +410,8 @@ function StatCard({
               {badge && (
                 <span className={cn(
                   "px-1.5 py-0.5 text-[10px] font-bold rounded uppercase",
-                  badge === "LIVE" 
-                    ? "bg-neon-green/20 text-neon-green" 
+                  badge === "LIVE"
+                    ? "bg-neon-green/20 text-neon-green"
                     : "bg-yellow-500/20 text-yellow-400"
                 )}>
                   {badge}

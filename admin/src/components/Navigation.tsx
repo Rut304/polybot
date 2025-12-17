@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Settings, 
-  TrendingUp, 
+import {
+  LayoutDashboard,
+  Settings,
+  TrendingUp,
   Wallet,
   Brain,
   Zap,
@@ -35,6 +35,7 @@ import {
   Trophy,
   Target,
   Activity,
+  AlertTriangle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/analytics', label: 'Analytics', icon: TrendingUp },
+      { href: '/missed-opportunities', label: 'Missed Money', icon: AlertTriangle },
       { href: '/notifications', label: 'Notifications', icon: Bell },
     ],
   },
@@ -116,7 +118,7 @@ export function Navigation() {
   const { user, isAdmin, signOut } = useAuth();
 
   return (
-    <aside 
+    <aside
       className={cn(
         "fixed left-0 top-0 h-full bg-dark-card/80 backdrop-blur-xl border-r border-dark-border z-40 transition-all duration-300 flex flex-col",
         collapsed ? "w-16" : "w-56"
@@ -137,7 +139,7 @@ export function Navigation() {
             </span>
           )}
         </Link>
-        <button 
+        <button
           onClick={() => setCollapsed(!collapsed)}
           className="p-1 hover:bg-dark-border rounded-md transition-colors"
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -176,15 +178,15 @@ export function Navigation() {
                 {visibleItems.map((item) => {
                   const isActive = pathname === item.href;
                   const Icon = item.icon;
-                  
+
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
                       className={cn(
                         "flex items-center gap-2 px-2 py-1.5 rounded-md transition-all text-sm",
-                        isActive 
-                          ? "bg-neon-green/15 text-neon-green" 
+                        isActive
+                          ? "bg-neon-green/15 text-neon-green"
                           : "hover:bg-dark-border text-gray-400 hover:text-white"
                       )}
                       title={collapsed ? item.label : undefined}
