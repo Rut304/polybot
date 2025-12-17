@@ -12,7 +12,7 @@ interface VersionInfo {
 }
 
 // Current UI version - update this when deploying
-const UI_VERSION = '1.2.0';
+const UI_VERSION = '1.2.5';
 
 export function VersionBadge() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({
@@ -32,7 +32,7 @@ export function VersionBadge() {
           const botVersion = data.version || data.status?.version || null;
           // Bot returns status: "running" not is_running: true
           const isOnline = data.status === 'running' || data.is_running || data.status?.is_running || false;
-          
+
           setVersionInfo({
             uiVersion: UI_VERSION,
             botVersion,
@@ -63,7 +63,7 @@ export function VersionBadge() {
   return (
     <div className="flex items-center gap-2">
       {/* UI Version */}
-      <div 
+      <div
         className={cn(
           "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border",
           getBadgeColor(versionInfo.isLatest, 'online')
@@ -80,11 +80,11 @@ export function VersionBadge() {
       </div>
 
       {/* Bot Version */}
-      <div 
+      <div
         className={cn(
           "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border",
-          loading 
-            ? 'bg-gray-500/20 text-gray-400 border-gray-500/30' 
+          loading
+            ? 'bg-gray-500/20 text-gray-400 border-gray-500/30'
             : getBadgeColor(true, versionInfo.botStatus)
         )}
         title={`Bot Status: ${versionInfo.botStatus}`}
