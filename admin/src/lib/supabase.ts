@@ -1,241 +1,61 @@
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+import { createClient } from '@supabase/supabase-js'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-// Types for our database
-export interface SimulatedTrade {
-  id: number;
-  position_id: string;
-  created_at: string;
-  polymarket_token_id: string;
-  polymarket_market_title: string;
-  kalshi_ticker: string;
-  kalshi_market_title: string;
-  polymarket_yes_price: number;
-  polymarket_no_price: number;
-  kalshi_yes_price: number;
-  kalshi_no_price: number;
-  trade_type: string;
-  position_size_usd: number;
-  expected_profit_usd: number;
-  expected_profit_pct: number;
-  outcome: 'pending' | 'won' | 'lost' | 'expired' | 'failed_execution';
-  actual_profit_usd: number | null;
-  resolved_at: string | null;
-  market_result: string | null;
-  resolution_notes: string | null;
-  is_automated?: boolean;
-  strategy?: 'poly_single' | 'kalshi_single' | 'cross_platform' | 'manual';
-  platform?: string;
-  // Enhanced fields from migration
-  trading_mode?: 'paper' | 'live';
-  strategy_type?: string;
-  session_id?: string;
-  arbitrage_type?: string;
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables')
 }
 
-// Per-strategy performance data from the view
-export interface StrategyPerformance {
-  trading_mode: 'paper' | 'live';
-  strategy: string;
-  total_trades: number;
-  winning_trades: number;
-  losing_trades: number;
-  win_rate_pct: number;
-  total_pnl: number;
-  avg_trade_pnl: number;
-  best_trade: number;
-  worst_trade: number;
-  first_trade_at: string;
-  last_trade_at: string;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export interface BotStatus {
+  id?: number;
+  user_id?: string;
+  is_running: boolean;
+  mode: string;
+  dry_run_mode?: boolean;
+  require_approval?: boolean;
+  polymarket_connected: boolean;
+  kalshi_connected: boolean;
+  updated_at?: string;
+}
+
+export interface SimulatedTrade {
+  id: number;
+  created_at: string;
+  platform: string;
+  market_title: string;
+  outcome: 'won' | 'lost' | 'pending' | 'failed_execution';
+  actual_profit_usd: number;
+  strategy_type?: string;
+  arbitrage_type?: string;
+  trade_type?: string;
+  trading_mode?: 'paper' | 'live';
+  polymarket_yes_price?: number;
+  kalshi_yes_price?: number;
+  position_size_usd?: number;
+  [key: string]: any;
 }
 
 export interface SimulationStats {
-  id: number;
   snapshot_at: string;
-  stats_json: {
-    total_opportunities_seen: number;
-    total_simulated_trades: number;
-    simulated_starting_balance: string;
-    simulated_current_balance: string;
-    total_pnl: string;
-    winning_trades: number;
-    losing_trades: number;
-    pending_trades: number;
-    win_rate_pct: number;
-    roi_pct: number;
-    best_trade_profit: string;
-    worst_trade_loss: string;
-    largest_opportunity_seen_pct: string;
-    first_opportunity_at: string | null;
-    last_opportunity_at: string | null;
-    // Realistic paper trader fields
-    execution_success_rate_pct?: number;
-    total_fees_paid?: string;
-    total_losses?: string;
-    failed_executions?: number;
-    avg_trade_pnl?: string;
-  };
-  simulated_balance: number;
   total_pnl: number;
+  simulated_balance: number;
   total_trades: number;
-  win_rate: number;
-}
-
-export interface BotStatus {
-  id: number | string;
-  is_running: boolean;
-  dry_run_mode?: boolean;
-  mode?: string;
-  require_approval?: boolean;
-  last_heartbeat_at?: string;
-  last_scan_at?: string;
-  current_action?: string;
-  error_message?: string;
-  polymarket_connected?: boolean;
-  kalshi_connected?: boolean;
-  opportunities_this_session?: number;
-  trades_this_session?: number;
-  started_at?: string;
-  updated_at?: string;
-  max_trade_size?: number;
-  min_profit_threshold?: number;
+  winning_trades?: number;
+  losing_trades?: number;
+  best_trade?: number;
+  worst_trade?: number;
+  [key: string]: any;
 }
 
 export interface Opportunity {
   id: number;
-  opportunity_id: string;
   detected_at: string;
-  buy_platform: string;
-  sell_platform: string;
-  buy_market_id: string;
-  sell_market_id: string;
-  buy_market_name: string;
-  sell_market_name: string;
-  buy_price: number;
-  sell_price: number;
   profit_percent: number;
-  max_size: number;
-  total_profit: number;
-  confidence: number;
-  strategy: string;
-  status: string;
-  executed_at: string | null;
-  skip_reason?: string | null;
-}
-
-export interface BotConfig {
-  id: number;
-  polymarket_enabled: boolean;
-  kalshi_enabled: boolean;
-  min_profit_percent: number;
-  max_trade_size: number;
-  max_daily_loss: number;
-  scan_interval: number;
-  updated_at: string;
-  // Per-strategy settings
-  poly_single_min_profit_pct?: number;
-  poly_single_max_spread_pct?: number;
-  poly_single_max_position_usd?: number;
-  kalshi_single_min_profit_pct?: number;
-  kalshi_single_max_spread_pct?: number;
-  kalshi_single_max_position_usd?: number;
-  cross_plat_min_profit_buy_poly_pct?: number;
-  cross_plat_min_profit_buy_kalshi_pct?: number;
-}
-
-export interface DisabledMarket {
-  id: number;
-  market_id: string;
-  platform: string;
-  reason: string | null;
-  disabled_at: string;
-}
-
-export interface Position {
-  id: number;
-  position_id: string;
-  platform: 'polymarket' | 'kalshi';
-  market_id: string;
-  market_title: string;
-  side: 'yes' | 'no';
-  quantity: number;
-  avg_price: number;
-  current_price: number;
-  cost_basis: number;
-  current_value: number;
-  unrealized_pnl: number;
-  is_automated: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ManualTrade {
-  id: number;
-  created_at: string;
-  platform: 'polymarket' | 'kalshi';
-  market_id: string;
-  market_title: string;
-  side: 'yes' | 'no';
-  action: 'buy' | 'sell';
-  quantity: number;
-  price: number;
-  total_cost: number;
-  status: 'pending' | 'filled' | 'failed' | 'cancelled';
-  filled_at?: string;
-  filled_price?: number;
-  filled_quantity?: number;
-  notes?: string;
-}
-
-export interface MarketCache {
-  id: number;
-  platform: 'polymarket' | 'kalshi';
-  market_id: string;
-  title: string;
-  question?: string;
-  description?: string;
-  category?: string;
-  yes_price: number;
-  no_price: number;
-  volume?: number;
-  liquidity?: number;
-  close_time?: string;
-  status: string;
-  last_updated: string;
-}
-
-// Watchlist for tracking markets
-export interface WatchlistItem {
-  id: number;
-  market_id: string;
-  platform: 'polymarket' | 'kalshi';
-  market_title: string;
-  category?: string;
-  added_at: string;
-  notes?: string;
-  alert_above?: number;
-  alert_below?: number;
-  // Joined data from price tracking
-  current_yes_price?: number;
-  current_no_price?: number;
-  price_change_24h?: number;
-}
-
-// Per-market analytics
-export interface MarketPerformance {
-  market_id: string;
-  market_title: string;
-  platform: string;
-  total_trades: number;
-  winning_trades: number;
-  losing_trades: number;
-  total_pnl: number;
-  win_rate: number;
-  avg_trade_size: number;
-  first_trade_at: string;
-  last_trade_at: string;
+  buy_platform?: string;
+  sell_platform?: string;
+  [key: string]: any;
 }

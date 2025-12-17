@@ -383,12 +383,13 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Testing Polymarket Gamma API...' });
     const start = Date.now();
     try {
-      const response = await fetch('https://gamma-api.polymarket.com/markets?limit=5&active=true');
+      // Use local proxy to avoid CORS
+      const response = await fetch('/api/proxy/gamma?limit=5&active=true');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       updateTest(catIdx, testIdx, {
         status: 'success',
-        message: `API responding (${data.length} markets returned)`,
+        message: `API responding (${data.length || 0} markets)`,
         duration: Date.now() - start,
       });
     } catch (err: unknown) {
@@ -433,6 +434,7 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Testing Kalshi API...' });
     const start = Date.now();
     try {
+      // Use simple Event API check - may still be rate limited or blocked from client
       const response = await fetch('https://api.elections.kalshi.com/v1/events?limit=1');
       const status = response.status;
       if (status === 200) {
@@ -466,13 +468,14 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Testing Congress API...' });
     const start = Date.now();
     try {
-      const response = await fetch('/api/congress/trades?limit=5');
+      // Correct endpoint is /api/congress, not /api/congress/trades
+      const response = await fetch('/api/congress?limit=5');
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
+      const result = await response.json();
       updateTest(catIdx, testIdx, {
         status: 'success',
         message: `Congress API working`,
-        details: `${data.trades?.length || 0} recent trades`,
+        details: `${result.data?.length || 0} trades found`,
         duration: Date.now() - start,
       });
     } catch (err: unknown) {
@@ -756,7 +759,7 @@ export default function DiagnosticsPage() {
       const keyNames = {
         polymarket: ['POLYMARKET_API_KEY', 'POLYMARKET_SECRET'],
         kalshi: ['KALSHI_API_KEY', 'KALSHI_PRIVATE_KEY'],
-        alpaca: ['ALPACA_API_KEY', 'ALPACA_SECRET_KEY'],
+        alpaca: ['ALPACA_API_KEY', 'ALPACA_API_SECRET'],
       };
       
       const keysToCheck = keyNames[exchange as keyof typeof keyNames] || [];

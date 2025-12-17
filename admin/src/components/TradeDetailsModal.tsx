@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { 
+import {
   X,
   ExternalLink,
   TrendingUp,
@@ -29,41 +29,41 @@ import { cn } from '@/lib/utils';
 // Trade/Opportunity type
 export interface TradeDetails {
   id: string;
-  type: 'arbitrage' | 'whale_copy' | 'congress_copy' | 'political_event' | 'high_conviction' | 'fear_premium' | 'macro';
+  type: 'arbitrage' | 'whale_copy' | 'congress_copy' | 'political_event' | 'high_conviction' | 'fear_premium' | 'macro' | 'news_trading' | 'scalping';
   status: 'pending' | 'executed' | 'partial' | 'failed' | 'cancelled';
-  
+
   // Market info
   marketTitle: string;
   marketId?: string;
   platform: 'polymarket' | 'kalshi' | 'alpaca' | 'cross_platform';
-  
+
   // Trade details
   side: 'YES' | 'NO' | 'BUY' | 'SELL';
   entryPrice: number;
   currentPrice?: number;
   exitPrice?: number;
-  
+
   // Position sizing
   size: number;
   sizeUsd: number;
-  
+
   // P&L
   unrealizedPnl?: number;
   realizedPnl?: number;
   pnlPercent?: number;
-  
+
   // Timing
   detectedAt: string;
   executedAt?: string;
   exitedAt?: string;
-  
+
   // Strategy-specific data
   strategySignals?: StrategySignal[];
   whaleInfo?: WhaleInfo;
   congressInfo?: CongressInfo;
   arbitrageInfo?: ArbitrageInfo;
   convictionScore?: number;
-  
+
   // Links
   marketUrl?: string;
   txHash?: string;
@@ -132,6 +132,8 @@ const getStrategyIcon = (type: TradeDetails['type']) => {
     case 'fear_premium': return TrendingUp;
     case 'macro': return BarChart3;
     case 'arbitrage': return Zap;
+    case 'news_trading': return Activity; // Using Activity for News
+    case 'scalping': return TrendingDown; // Using TrendingDown for Scalping/Single
     default: return Brain;
   }
 };
@@ -146,6 +148,8 @@ const getStrategyColor = (type: TradeDetails['type']) => {
     case 'fear_premium': return 'text-red-400 bg-red-500/20';
     case 'macro': return 'text-indigo-400 bg-indigo-500/20';
     case 'arbitrage': return 'text-orange-400 bg-orange-500/20';
+    case 'news_trading': return 'text-pink-400 bg-pink-500/20';
+    case 'scalping': return 'text-cyan-400 bg-cyan-500/20';
     default: return 'text-gray-400 bg-gray-500/20';
   }
 };
@@ -159,9 +163,9 @@ const StatusBadge = ({ status }: { status: TradeDetails['status'] }) => {
     failed: { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: XCircle, label: 'Failed' },
     cancelled: { color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: X, label: 'Cancelled' },
   };
-  
+
   const { color, icon: Icon, label } = config[status];
-  
+
   return (
     <span className={cn('inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border', color)}>
       <Icon className="w-3 h-3" />
@@ -180,18 +184,18 @@ const InfoRow = ({ label, value, className }: { label: string; value: React.Reac
 
 export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalProps) {
   const [copiedId, setCopiedId] = useState(false);
-  
+
   if (!trade) return null;
-  
+
   const StrategyIcon = getStrategyIcon(trade.type);
   const strategyColor = getStrategyColor(trade.type);
-  
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2000);
   };
-  
+
   const pnl = trade.realizedPnl ?? trade.unrealizedPnl ?? 0;
   const isProfitable = pnl >= 0;
 
@@ -207,7 +211,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
             onClick={onClose}
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
           />
-          
+
           {/* Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -233,7 +237,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                 <X className="w-5 h-5 text-dark-muted" />
               </button>
             </div>
-            
+
             {/* Content */}
             <div className="p-4 space-y-6">
               {/* Market Info */}
@@ -247,9 +251,9 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   <span className="capitalize">{trade.platform.replace('_', ' ')}</span>
                   <StatusBadge status={trade.status} />
                   {trade.marketUrl && (
-                    <a 
-                      href={trade.marketUrl} 
-                      target="_blank" 
+                    <a
+                      href={trade.marketUrl}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-neon-blue hover:underline"
                     >
@@ -258,7 +262,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   )}
                 </div>
               </div>
-              
+
               {/* Trade Summary */}
               <div className="grid grid-cols-2 gap-4">
                 {/* Entry */}
@@ -279,7 +283,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                     {formatCurrency(trade.sizeUsd)} ({trade.size.toLocaleString()} shares)
                   </p>
                 </div>
-                
+
                 {/* P&L */}
                 <div className="bg-dark-bg/50 rounded-xl p-4">
                   <h4 className="text-xs text-dark-muted mb-2">
@@ -301,7 +305,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   )}
                 </div>
               </div>
-              
+
               {/* Price Details */}
               <div className="bg-dark-bg/50 rounded-xl p-4">
                 <h3 className="font-medium text-white mb-3 flex items-center gap-2">
@@ -316,7 +320,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   <InfoRow label="Exit Price" value={`${(trade.exitPrice * 100).toFixed(2)}¢`} />
                 )}
               </div>
-              
+
               {/* Arbitrage Details */}
               {trade.arbitrageInfo && (
                 <div className="bg-dark-bg/50 rounded-xl p-4">
@@ -331,9 +335,9 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   {trade.arbitrageInfo.fee && (
                     <InfoRow label="Fees" value={formatCurrency(trade.arbitrageInfo.fee)} />
                   )}
-                  <InfoRow 
-                    label="Net Profit" 
-                    value={<span className="text-green-400">{formatCurrency(trade.arbitrageInfo.netProfit)}</span>} 
+                  <InfoRow
+                    label="Net Profit"
+                    value={<span className="text-green-400">{formatCurrency(trade.arbitrageInfo.netProfit)}</span>}
                   />
                   {trade.arbitrageInfo.platform2 && (
                     <>
@@ -349,7 +353,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   )}
                 </div>
               )}
-              
+
               {/* Whale Info */}
               {trade.whaleInfo && (
                 <div className="bg-dark-bg/50 rounded-xl p-4">
@@ -357,17 +361,17 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                     <Fish className="w-4 h-4 text-blue-400" />
                     Whale Info
                   </h3>
-                  <InfoRow 
-                    label="Address" 
+                  <InfoRow
+                    label="Address"
                     value={
-                      <button 
+                      <button
                         onClick={() => copyToClipboard(trade.whaleInfo!.address)}
                         className="flex items-center gap-1 font-mono text-xs hover:text-neon-green transition-colors"
                       >
                         {trade.whaleInfo.address.slice(0, 8)}...{trade.whaleInfo.address.slice(-6)}
                         {copiedId ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       </button>
-                    } 
+                    }
                   />
                   {trade.whaleInfo.alias && (
                     <InfoRow label="Alias" value={trade.whaleInfo.alias} />
@@ -377,7 +381,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   <InfoRow label="Copied Trades" value={trade.whaleInfo.copiedTrades} />
                 </div>
               )}
-              
+
               {/* Congress Info */}
               {trade.congressInfo && (
                 <div className="bg-dark-bg/50 rounded-xl p-4">
@@ -387,23 +391,23 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   </h3>
                   <InfoRow label="Politician" value={trade.congressInfo.politician} />
                   <InfoRow label="Chamber" value={trade.congressInfo.chamber} />
-                  <InfoRow 
-                    label="Party" 
+                  <InfoRow
+                    label="Party"
                     value={
                       <span className={cn(
-                        trade.congressInfo.party === 'D' ? 'text-blue-400' : 
-                        trade.congressInfo.party === 'R' ? 'text-red-400' : 'text-gray-400'
+                        trade.congressInfo.party === 'D' ? 'text-blue-400' :
+                          trade.congressInfo.party === 'R' ? 'text-red-400' : 'text-gray-400'
                       )}>
-                        {trade.congressInfo.party === 'D' ? 'Democrat' : 
-                         trade.congressInfo.party === 'R' ? 'Republican' : 'Independent'}
+                        {trade.congressInfo.party === 'D' ? 'Democrat' :
+                          trade.congressInfo.party === 'R' ? 'Republican' : 'Independent'}
                       </span>
-                    } 
+                    }
                   />
                   <InfoRow label="Original Trade" value={formatCurrency(trade.congressInfo.originalAmount, 0)} />
                   <InfoRow label="Disclosed" value={new Date(trade.congressInfo.disclosureDate).toLocaleDateString()} />
                 </div>
               )}
-              
+
               {/* Conviction Score */}
               {trade.convictionScore !== undefined && (
                 <div className="bg-dark-bg/50 rounded-xl p-4">
@@ -424,19 +428,19 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                           className={cn(
                             "h-full rounded-full",
                             trade.convictionScore >= 0.8 ? 'bg-green-500' :
-                            trade.convictionScore >= 0.6 ? 'bg-yellow-500' : 'bg-orange-500'
+                              trade.convictionScore >= 0.6 ? 'bg-yellow-500' : 'bg-orange-500'
                           )}
                         />
                       </div>
                       <p className="text-xs text-dark-muted mt-1">
                         {trade.convictionScore >= 0.8 ? 'High Conviction' :
-                         trade.convictionScore >= 0.6 ? 'Medium Conviction' : 'Low Conviction'}
+                          trade.convictionScore >= 0.6 ? 'Medium Conviction' : 'Low Conviction'}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
-              
+
               {/* Strategy Signals */}
               {trade.strategySignals && trade.strategySignals.length > 0 && (
                 <div className="bg-dark-bg/50 rounded-xl p-4">
@@ -446,7 +450,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   </h3>
                   <div className="space-y-2">
                     {trade.strategySignals.map((signal, index) => (
-                      <div 
+                      <div
                         key={index}
                         className="flex items-center justify-between p-2 bg-dark-card rounded-lg"
                       >
@@ -454,7 +458,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                           <span className={cn(
                             "w-2 h-2 rounded-full",
                             signal.signal === 'bullish' ? 'bg-green-500' :
-                            signal.signal === 'bearish' ? 'bg-red-500' : 'bg-gray-500'
+                              signal.signal === 'bearish' ? 'bg-red-500' : 'bg-gray-500'
                           )} />
                           <span className="text-sm text-white">{signal.source}</span>
                         </div>
@@ -463,7 +467,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                           <span className={cn(
                             "text-xs font-medium px-2 py-0.5 rounded",
                             signal.signal === 'bullish' ? 'bg-green-500/20 text-green-400' :
-                            signal.signal === 'bearish' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'
+                              signal.signal === 'bearish' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'
                           )}>
                             {(signal.confidence * 100).toFixed(0)}%
                           </span>
@@ -473,7 +477,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   </div>
                 </div>
               )}
-              
+
               {/* Timing */}
               <div className="bg-dark-bg/50 rounded-xl p-4">
                 <h3 className="font-medium text-white mb-3 flex items-center gap-2">
@@ -488,12 +492,12 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                   <InfoRow label="Exited" value={new Date(trade.exitedAt).toLocaleString()} />
                 )}
               </div>
-              
+
               {/* Transaction Hash */}
               {trade.txHash && (
                 <div className="bg-dark-bg/50 rounded-xl p-4">
                   <h3 className="font-medium text-white mb-3">Transaction</h3>
-                  <button 
+                  <button
                     onClick={() => copyToClipboard(trade.txHash!)}
                     className="flex items-center gap-2 font-mono text-xs text-dark-muted hover:text-white transition-colors"
                   >
@@ -503,7 +507,7 @@ export function TradeDetailsModal({ trade, isOpen, onClose }: TradeDetailsModalP
                 </div>
               )}
             </div>
-            
+
             {/* Footer */}
             <div className="sticky bottom-0 bg-dark-card border-t border-dark-border p-4 flex justify-end">
               <button

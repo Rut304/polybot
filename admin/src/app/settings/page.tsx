@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Settings,
@@ -842,260 +842,97 @@ export default function SettingsPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Calculate hasChanges to enable save button
+  const hasChanges = useMemo(() => {
+    if (!config || !status) return false;
+
+    // Check main toggles
+    if (botEnabled !== status.is_running) return true;
+    if (dryRunMode !== status.dry_run_mode) return true;
+    if (requireApproval !== (status.require_approval ?? false)) return true;
+
+    // Check platform toggles
+    if (polymarketEnabled !== (config.polymarket_enabled ?? true)) return true;
+    if (kalshiEnabled !== (config.kalshi_enabled ?? true)) return true;
+    if (enableBinance !== (config.enable_binance ?? false)) return true;
+    if (enableCoinbase !== (config.enable_coinbase ?? false)) return true;
+    if (enableAlpaca !== (config.enable_alpaca ?? false)) return true;
+    if (enableIbkr !== (config.enable_ibkr ?? false)) return true;
+
+    // Check trading params
+    if (minProfitPercent !== (config.min_profit_percent ?? 1.0)) return true;
+    if (maxTradeSize !== (config.max_trade_size ?? 100)) return true;
+    if (maxDailyLoss !== (config.max_daily_loss ?? 50)) return true;
+    if (scanInterval !== (config.scan_interval ?? 2)) return true;
+
+    // Check balances
+    if (polymarketStartingBalance !== (config.polymarket_starting_balance ?? 20000)) return true;
+    if (kalshiStartingBalance !== (config.kalshi_starting_balance ?? 20000)) return true;
+    if (binanceStartingBalance !== (config.binance_starting_balance ?? 20000)) return true;
+    if (coinbaseStartingBalance !== (config.coinbase_starting_balance ?? 20000)) return true;
+    if (alpacaStartingBalance !== (config.alpaca_starting_balance ?? 20000)) return true;
+    if (ibkrStartingBalance !== (config.ibkr_starting_balance ?? 20000)) return true;
+
+    return false;
+  }, [
+    config, status,
+    botEnabled, dryRunMode, requireApproval,
+    polymarketEnabled, kalshiEnabled, enableBinance, enableCoinbase, enableAlpaca, enableIbkr,
+    minProfitPercent, maxTradeSize, maxDailyLoss, scanInterval,
+    polymarketStartingBalance, kalshiStartingBalance, binanceStartingBalance,
+    coinbaseStartingBalance, alpacaStartingBalance, ibkrStartingBalance
+  ]);
+
   const handleSaveSettings = async () => {
+    if (!config) return;
     setSaving(true);
     setSaveError(null);
-    setSaveSuccess(false);
 
     try {
-      // Save bot status first
+      // 1. Update Bot Status (toggles)
       await updateBotStatus.mutateAsync({
         is_running: botEnabled,
         dry_run_mode: dryRunMode,
+        require_approval: requireApproval
       });
 
-      // Save config with all settings
-      const configToSave = {
+      // 2. Update Config (all other fields)
+      await updateConfig.mutateAsync({
         polymarket_enabled: polymarketEnabled,
         kalshi_enabled: kalshiEnabled,
+        enable_binance: enableBinance,
+        enable_coinbase: enableCoinbase,
+        enable_alpaca: enableAlpaca,
+        enable_ibkr: enableIbkr,
+
         min_profit_percent: minProfitPercent,
         max_trade_size: maxTradeSize,
         max_daily_loss: maxDailyLoss,
         scan_interval: scanInterval,
-        // Realistic paper trading parameters
-        max_realistic_spread_pct: maxRealisticSpreadPct,
-        min_profit_threshold_pct: minProfitThresholdPct,
-        slippage_min_pct: slippageMinPct,
-        slippage_max_pct: slippageMaxPct,
-        spread_cost_pct: spreadCostPct,
-        execution_failure_rate: executionFailureRate,
-        partial_fill_chance: partialFillChance,
-        partial_fill_min_pct: partialFillMinPct,
-        resolution_loss_rate: resolutionLossRate,
-        loss_severity_min: lossSeverityMin,
-        loss_severity_max: lossSeverityMax,
-        max_position_pct: maxPositionPct,
-        max_position_usd: maxPositionUsd,
-        min_position_usd: minPositionUsd,
-        // Per-strategy settings
-        enable_polymarket_single_arb: enablePolySingleArb,
-        enable_kalshi_single_arb: enableKalshiSingleArb,
-        enable_cross_platform_arb: enableCrossPlatArb,
-        // Overlapping Arb (inverted to store as skip)
-        skip_same_platform_overlap: !enableOverlappingArb,
-        // Polymarket Single
-        poly_single_min_profit_pct: polySingleMinProfit,
-        poly_single_max_spread_pct: polySingleMaxSpread,
-        poly_single_max_position_usd: polySingleMaxPos,
-        poly_single_scan_interval_sec: polySingleScanInt,
-        // Kalshi Single
-        kalshi_single_min_profit_pct: kalshiSingleMinProfit,
-        kalshi_single_max_spread_pct: kalshiSingleMaxSpread,
-        kalshi_single_max_position_usd: kalshiSingleMaxPos,
-        kalshi_single_scan_interval_sec: kalshiSingleScanInt,
-        // Cross-Platform
-        cross_plat_min_profit_buy_poly_pct: crossPlatMinProfitBuyPoly,
-        cross_plat_min_profit_buy_kalshi_pct: crossPlatMinProfitBuyKalshi,
-        cross_plat_max_position_usd: crossPlatMaxPos,
-        cross_plat_scan_interval_sec: crossPlatScanInt,
-        cross_plat_min_similarity: crossPlatMinSimilarity,
-        // Market Making
-        enable_market_making: enableMarketMaking,
-        mm_target_spread_bps: mmTargetSpreadBps,
-        mm_min_spread_bps: mmMinSpreadBps,
-        mm_max_spread_bps: mmMaxSpreadBps,
-        mm_order_size_usd: mmOrderSizeUsd,
-        mm_max_inventory_usd: mmMaxInventoryUsd,
-        mm_quote_refresh_sec: mmQuoteRefreshSec,
-        mm_min_volume_24h: mmMinVolume24h,
-        mm_max_markets: mmMaxMarkets,
-        // News Arbitrage
-        enable_news_arbitrage: enableNewsArbitrage,
-        news_min_spread_pct: newsMinSpreadPct,
-        news_max_lag_minutes: newsMaxLagMinutes,
-        news_position_size_usd: newsPositionSizeUsd,
-        news_scan_interval_sec: newsScanIntervalSec,
-        news_keywords: newsKeywords,
-        // Funding Rate Arbitrage
-        enable_funding_rate_arb: enableFundingRateArb,
-        funding_min_rate_pct: fundingMinRatePct,
-        funding_min_apy: fundingMinApy,
-        funding_max_position_usd: fundingMaxPositionUsd,
-        funding_max_positions: fundingMaxPositions,
-        funding_max_leverage: fundingMaxLeverage,
-        funding_scan_interval_sec: fundingScanIntervalSec,
-        // Grid Trading
-        enable_grid_trading: enableGridTrading,
-        grid_default_range_pct: gridDefaultRangePct,
-        grid_default_levels: gridDefaultLevels,
-        grid_default_investment_usd: gridDefaultInvestmentUsd,
-        grid_max_grids: gridMaxGrids,
-        grid_stop_loss_pct: gridStopLossPct,
-        grid_take_profit_pct: gridTakeProfitPct,
-        // Pairs Trading
-        enable_pairs_trading: enablePairsTrading,
-        pairs_entry_zscore: pairsEntryZscore,
-        pairs_exit_zscore: pairsExitZscore,
-        pairs_position_size_usd: pairsPositionSizeUsd,
-        pairs_max_positions: pairsMaxPositions,
-        pairs_max_hold_hours: pairsMaxHoldHours,
-        // Stock Strategies
-        enable_stock_mean_reversion: enableStockMeanReversion,
-        mean_rev_rsi_oversold: meanRevRsiOversold,
-        mean_rev_rsi_overbought: meanRevRsiOverbought,
-        mean_rev_position_size_usd: meanRevPositionSizeUsd,
-        mean_rev_max_positions: meanRevMaxPositions,
-        mean_rev_stop_loss_pct: meanRevStopLossPct,
-        mean_rev_take_profit_pct: meanRevTakeProfitPct,
-        enable_stock_momentum: enableStockMomentum,
-        momentum_lookback_days: momentumLookbackDays,
-        momentum_min_score: momentumMinScore,
-        momentum_position_size_usd: momentumPositionSizeUsd,
-        momentum_max_positions: momentumMaxPositions,
-        momentum_trailing_stop_pct: momentumTrailingStopPct,
-        enable_sector_rotation: enableSectorRotation,
-        sector_rotation_period_days: sectorRotationPeriodDays,
-        sector_top_n: sectorTopN,
-        sector_position_size_usd: sectorPositionSizeUsd,
-        sector_rebalance_frequency_days: sectorRebalanceFrequencyDays,
-        enable_dividend_growth: enableDividendGrowth,
-        dividend_min_yield_pct: dividendMinYieldPct,
-        dividend_min_growth_years: dividendMinGrowthYears,
-        dividend_position_size_usd: dividendPositionSizeUsd,
-        dividend_max_positions: dividendMaxPositions,
-        enable_earnings_momentum: enableEarningsMomentum,
-        earnings_min_surprise_pct: earningsMinSurprisePct,
-        earnings_hold_days: earningsHoldDays,
-        earnings_position_size_usd: earningsPositionSizeUsd,
-        earnings_max_positions: earningsMaxPositions,
-        // Options Strategies
-        enable_covered_calls: enableCoveredCalls,
-        covered_call_days_to_expiry: coveredCallDaysToExpiry,
-        covered_call_delta_target: coveredCallDeltaTarget,
-        covered_call_min_premium_pct: coveredCallMinPremiumPct,
-        enable_cash_secured_puts: enableCashSecuredPuts,
-        csp_days_to_expiry: cspDaysToExpiry,
-        csp_delta_target: cspDeltaTarget,
-        csp_min_premium_pct: cspMinPremiumPct,
-        enable_iron_condor: enableIronCondor,
-        iron_condor_days_to_expiry: ironCondorDaysToExpiry,
-        iron_condor_wing_width: ironCondorWingWidth,
-        iron_condor_min_premium_pct: ironCondorMinPremiumPct,
-        enable_wheel_strategy: enableWheelStrategy,
-        wheel_stock_list: wheelStockList,
-        wheel_position_size_usd: wheelPositionSizeUsd,
-        // Twitter-Derived Strategies (2024)
-        enable_btc_bracket_arb: enableBtcBracketArb,
-        btc_bracket_min_discount_pct: btcBracketMinDiscountPct,
-        btc_bracket_max_position_usd: btcBracketMaxPositionUsd,
-        btc_bracket_scan_interval_sec: btcBracketScanIntervalSec,
-        enable_bracket_compression: enableBracketCompression,
-        bracket_max_imbalance_threshold: bracketMaxImbalanceThreshold,
-        bracket_take_profit_pct: bracketTakeProfitPct,
-        bracket_stop_loss_pct: bracketStopLossPct,
-        bracket_max_position_usd: bracketMaxPositionUsd,
-        enable_kalshi_mention_snipe: enableKalshiMentionSnipe,
-        kalshi_snipe_min_profit_cents: kalshiSnipeMinProfitCents,
-        kalshi_snipe_max_position_usd: kalshiSnipeMaxPositionUsd,
-        kalshi_snipe_max_latency_ms: kalshiSnipeMaxLatencyMs,
-        enable_whale_copy_trading: enableWhaleCopyTrading,
-        whale_copy_min_win_rate: whaleCopyMinWinRate,
-        whale_copy_delay_seconds: whaleCopyDelaySeconds,
-        whale_copy_max_size_usd: whaleCopyMaxSizeUsd,
-        whale_copy_max_concurrent: whaleCopyMaxConcurrent,
-        enable_macro_board: enableMacroBoard,
-        macro_max_exposure_usd: macroMaxExposureUsd,
-        macro_min_conviction_score: macroMinConvictionScore,
-        macro_rebalance_interval_hours: macroRebalanceIntervalHours,
-        enable_fear_premium_contrarian: enableFearPremiumContrarian,
-        fear_extreme_low_threshold: fearExtremeLowThreshold,
-        fear_extreme_high_threshold: fearExtremeHighThreshold,
-        fear_min_premium_pct: fearMinPremiumPct,
-        fear_max_position_usd: fearMaxPositionUsd,
-        // Congressional Tracker
-        enable_congressional_tracker: enableCongressionalTracker,
-        congress_chamber_filter: congressChambers, // Remapped from congress_chambers
-        // congress_parties: congressParties, // Removed: Not in DB schema
-        congress_copy_scale_pct: congressCopyScalePct,
-        congress_max_position_usd: congressMaxPositionUsd,
-        congress_min_trade_amount_usd: congressMinTradeAmountUsd,
-        congress_copy_delay_hours: congressDelayHours, // Remapped from congress_delay_hours
-        // congress_scan_interval_hours: congressScanIntervalHours, // Removed: Not in DB schema
-        congress_tracked_politicians: congressTrackedPoliticians,
-        // High Conviction Strategy (85% confidence)
-        enable_high_conviction_strategy: enableHighConvictionStrategy,
-        high_conviction_min_score: highConvictionMinScore,
-        high_conviction_min_volume: highConvictionMinVolume,
-        high_conviction_max_position_usd: highConvictionMaxPosition,
-        high_conviction_scan_interval_sec: highConvictionScanInterval,
-        // Political Event Strategy (80% confidence)
-        enable_political_event_strategy: enablePoliticalEventStrategy,
-        political_event_categories: politicalEventCategories,
-        political_event_min_edge_pct: politicalEventMinEdge,
-        political_event_max_position_usd: politicalEventMaxPosition,
-        political_event_monitor_interval_sec: politicalEventMonitorInterval,
-        // Selective Whale Copy (80% confidence)
-        enable_selective_whale_copy: enableSelectiveWhaleCopy,
-        selective_whale_min_win_rate: selectiveWhaleMinWinRate,
-        selective_whale_min_pnl: selectiveWhaleMinPnl,
-        selective_whale_max_copy_size_usd: selectiveWhaleMaxCopySize,
-        selective_whale_delay_seconds: selectiveWhaleDelaySeconds,
-        // Exchange Enablement
-        enable_binance: enableBinance,
-        enable_bybit: enableBybit,
-        enable_okx: enableOkx,
-        enable_kraken: enableKraken,
-        enable_coinbase: enableCoinbase,
-        enable_kucoin: enableKucoin,
-        enable_alpaca: enableAlpaca,
-        enable_ibkr: enableIbkr,
-        // Starting Balances (for P&L tracking)
+
         polymarket_starting_balance: polymarketStartingBalance,
         kalshi_starting_balance: kalshiStartingBalance,
         binance_starting_balance: binanceStartingBalance,
         coinbase_starting_balance: coinbaseStartingBalance,
         alpaca_starting_balance: alpacaStartingBalance,
         ibkr_starting_balance: ibkrStartingBalance,
-        // Advanced Risk Framework
-        kelly_sizing_enabled: kellySizingEnabled,
-        kelly_fraction_cap: kellyFractionCap,
-        kelly_min_confidence: kellyMinConfidence,
-        kelly_max_position_pct: kellyMaxPositionPct,
-        regime_detection_enabled: regimeDetectionEnabled,
-        regime_vix_low_threshold: regimeVixLowThreshold,
-        regime_vix_high_threshold: regimeVixHighThreshold,
-        regime_vix_crisis_threshold: regimeVixCrisisThreshold,
-        regime_auto_adjust: regimeAutoAdjust,
-        circuit_breaker_enabled: circuitBreakerEnabled,
-        circuit_breaker_level1_pct: circuitBreakerLevel1Pct,
-        circuit_breaker_level2_pct: circuitBreakerLevel2Pct,
-        circuit_breaker_level3_pct: circuitBreakerLevel3Pct,
-        circuit_breaker_reset_hours: circuitBreakerResetHours,
-        time_decay_enabled: timeDecayEnabled,
-        time_decay_critical_days: timeDecayCriticalDays,
-        time_decay_avoid_entry_hours: timeDecayAvoidEntryHours,
-        order_flow_enabled: orderFlowEnabled,
-        order_flow_signal_threshold: orderFlowSignalThreshold,
-        order_flow_strong_threshold: orderFlowStrongThreshold,
-        depeg_detection_enabled: depegDetectionEnabled,
-        depeg_alert_threshold_pct: depegAlertThresholdPct,
-        depeg_arbitrage_threshold_pct: depegArbitrageThresholdPct,
-        depeg_critical_threshold_pct: depegCriticalThresholdPct,
-        correlation_limits_enabled: correlationLimitsEnabled,
-        correlation_max_cluster_pct: correlationMaxClusterPct,
-        correlation_max_correlated_pct: correlationMaxCorrelatedPct,
-        correlation_high_threshold: correlationHighThreshold,
-        // Add updated_at timestamp
-        updated_at: new Date().toISOString(),
-      };
 
-      console.log('Saving config:', configToSave);
-      await updateConfig.mutateAsync(configToSave);
+        // Strategy params
+        poly_single_min_profit_pct: polySingleMinProfit,
+        kalshi_single_min_profit_pct: kalshiSingleMinProfit,
+        enable_polymarket_single_arb: enablePolySingleArb,
+        enable_kalshi_single_arb: enableKalshiSingleArb,
+        enable_cross_platform_arb: enableCrossPlatArb
+      });
 
       setSaveSuccess(true);
-      // Clear success message after 3 seconds
       setTimeout(() => setSaveSuccess(false), 3000);
 
+      // Force refresh of data
+      await Promise.all([
+        updateBotStatus.reset(),
+        updateConfig.reset()
+      ]);
     } catch (error) {
       console.error('Failed to save settings:', error);
       setSaveError(error instanceof Error ? error.message : 'Failed to save settings. Please try again.');

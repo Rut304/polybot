@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  Zap, DollarSign, Clock, Save, ChevronDown, ChevronRight, CheckCircle2, 
-  AlertTriangle, TrendingUp, Target, Landmark, Brain, Crown, Activity, 
+import {
+  Zap, DollarSign, Clock, Save, ChevronDown, ChevronRight, CheckCircle2,
+  AlertTriangle, TrendingUp, Target, Landmark, Brain, Crown, Activity,
   Shield, BarChart3, Newspaper, Users, Grid3X3, Repeat, LineChart,
   Wallet, Globe, Flame, BookOpen, ArrowLeftRight, Bitcoin, X, ExternalLink,
   Sparkles, GitBranch, Info
@@ -63,14 +63,14 @@ interface StrategyCategory {
 // TOGGLE SWITCH COMPONENT
 // =============================================================================
 
-function ToggleSwitch({ 
-  enabled, 
-  onToggle, 
+function ToggleSwitch({
+  enabled,
+  onToggle,
   disabled = false,
-  size = 'md' 
-}: { 
-  enabled: boolean; 
-  onToggle: () => void; 
+  size = 'md'
+}: {
+  enabled: boolean;
+  onToggle: () => void;
   disabled?: boolean;
   size?: 'sm' | 'md';
 }) {
@@ -106,8 +106,8 @@ function ToggleSwitch({
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   const color = confidence >= 85 ? 'bg-green-500/20 text-green-400 border-green-500/30' :
-                confidence >= 70 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
-                'bg-orange-500/20 text-orange-400 border-orange-500/30';
+    confidence >= 70 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+      'bg-orange-500/20 text-orange-400 border-orange-500/30';
   return (
     <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium border', color)}>
       {confidence}%
@@ -1394,7 +1394,7 @@ export default function StrategiesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { data: config, isLoading } = useBotConfig();
-  
+
   // State
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['prediction-core']));
   const [expandedStrategies, setExpandedStrategies] = useState<Set<string>>(new Set());
@@ -1404,20 +1404,27 @@ export default function StrategiesPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
-  
+
   // Sync config when loaded
   useEffect(() => {
     if (config) {
       setLocalConfig(config);
     }
   }, [config]);
-  
+
   // Update config mutation
   const updateConfig = useMutation({
     mutationFn: async (newConfig: Record<string, unknown>) => {
+      if (!config?.id) throw new Error('Implementation Error: Missing config ID');
+
       const { error } = await supabase
         .from('polybot_config')
-        .upsert({ id: 1, ...newConfig });
+        .upsert({
+          ...newConfig,
+          id: config.id, // CRITICAL FIX: Use actual config ID, not hardcoded 1
+          user_id: user?.id, // Ensure user ownership
+          updated_at: new Date().toISOString()
+        });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1432,7 +1439,7 @@ export default function StrategiesPage() {
       setTimeout(() => setSaveError(null), 5000);
     },
   });
-  
+
   // Handlers
   const toggleCategory = (categoryId: string) => {
     setExpandedCategories(prev => {
@@ -1442,7 +1449,7 @@ export default function StrategiesPage() {
       return next;
     });
   };
-  
+
   const toggleStrategyExpand = (strategyId: string) => {
     setExpandedStrategies(prev => {
       const next = new Set(prev);
@@ -1451,7 +1458,7 @@ export default function StrategiesPage() {
       return next;
     });
   };
-  
+
   const isStrategyEnabled = (strategy: Strategy): boolean => {
     const value = localConfig[strategy.configKey];
     // Handle inverted toggle (overlapping_arb uses skip_same_platform_overlap)
@@ -1460,24 +1467,24 @@ export default function StrategiesPage() {
     }
     return value === true;
   };
-  
+
   const toggleStrategy = (strategy: Strategy) => {
     const currentValue = isStrategyEnabled(strategy);
     let newValue: boolean;
-    
+
     if (strategy.configKey === 'skip_same_platform_overlap') {
       newValue = currentValue; // Invert: enable = false, disable = true
     } else {
       newValue = !currentValue;
     }
-    
+
     setLocalConfig(prev => ({ ...prev, [strategy.configKey]: newValue }));
   };
-  
+
   const updateSetting = (key: string, value: number | string) => {
     setLocalConfig(prev => ({ ...prev, [key]: value }));
   };
-  
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -1486,19 +1493,19 @@ export default function StrategiesPage() {
       setSaving(false);
     }
   };
-  
+
   // Count enabled strategies
   const enabledCount = STRATEGY_CATEGORIES.flatMap(c => c.strategies)
     .filter(s => isStrategyEnabled(s)).length;
   const totalCount = STRATEGY_CATEGORIES.flatMap(c => c.strategies).length;
-  
+
   // Filter strategies based on tab
   const filterStrategies = (strategies: Strategy[]) => {
     if (activeTab === 'enabled') return strategies.filter(s => isStrategyEnabled(s));
     if (activeTab === 'disabled') return strategies.filter(s => !isStrategyEnabled(s));
     return strategies;
   };
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-dark-bg flex items-center justify-center">
@@ -1506,7 +1513,7 @@ export default function StrategiesPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-dark-bg pb-20 md:pb-0">
       {/* Header */}
@@ -1519,7 +1526,7 @@ export default function StrategiesPage() {
                 {enabledCount} of {totalCount} strategies enabled
               </p>
             </div>
-            
+
             <div className="flex items-center gap-4">
               {/* Tab filter */}
               <div className="flex bg-dark-bg rounded-lg p-1">
@@ -1538,7 +1545,7 @@ export default function StrategiesPage() {
                   </button>
                 ))}
               </div>
-              
+
               {/* Save button */}
               <button
                 onClick={handleSave}
@@ -1546,8 +1553,8 @@ export default function StrategiesPage() {
                 className={cn(
                   "hidden md:flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all",
                   saving ? "bg-dark-border text-dark-muted" :
-                  saveSuccess ? "bg-green-500 text-white" :
-                  "bg-neon-green text-black hover:bg-neon-green/90",
+                    saveSuccess ? "bg-green-500 text-white" :
+                      "bg-neon-green text-black hover:bg-neon-green/90",
                   saveError && "bg-red-500"
                 )}
               >
@@ -1572,16 +1579,16 @@ export default function StrategiesPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Strategy Categories */}
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         {STRATEGY_CATEGORIES.map(category => {
           const filteredStrategies = filterStrategies(category.strategies);
           if (filteredStrategies.length === 0) return null;
-          
+
           const isExpanded = expandedCategories.has(category.id);
           const enabledInCategory = category.strategies.filter(s => isStrategyEnabled(s)).length;
-          
+
           return (
             <div key={category.id} className="bg-dark-card border border-dark-border rounded-xl overflow-hidden">
               {/* Category Header */}
@@ -1609,7 +1616,7 @@ export default function StrategiesPage() {
                   )}
                 </div>
               </button>
-              
+
               {/* Strategies */}
               <AnimatePresence>
                 {isExpanded && (
@@ -1623,7 +1630,7 @@ export default function StrategiesPage() {
                       {filteredStrategies.map(strategy => {
                         const enabled = isStrategyEnabled(strategy);
                         const isStratExpanded = expandedStrategies.has(strategy.id);
-                        
+
                         return (
                           <div key={strategy.id} className={cn(
                             'transition-colors',
@@ -1637,7 +1644,7 @@ export default function StrategiesPage() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <button 
+                                    <button
                                       onClick={() => setSelectedStrategy(strategy)}
                                       className="font-medium text-white text-sm hover:text-neon-green transition-colors text-left"
                                     >
@@ -1649,7 +1656,7 @@ export default function StrategiesPage() {
                                   <p className="text-xs text-dark-muted truncate">{strategy.description}</p>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-3 ml-4">
                                 <span className="text-xs text-dark-muted hidden sm:block">
                                   {strategy.expectedReturn}
@@ -1681,7 +1688,7 @@ export default function StrategiesPage() {
                                 </button>
                               </div>
                             </div>
-                            
+
                             {/* Expanded Strategy Details */}
                             <AnimatePresence>
                               {isStratExpanded && (
@@ -1699,7 +1706,7 @@ export default function StrategiesPage() {
                                       </h4>
                                       <p className="text-sm text-gray-300">{strategy.howItWorks}</p>
                                     </div>
-                                    
+
                                     {/* Requirements */}
                                     {strategy.requirements && strategy.requirements.length > 0 && (
                                       <div>
@@ -1716,7 +1723,7 @@ export default function StrategiesPage() {
                                         </ul>
                                       </div>
                                     )}
-                                    
+
                                     {/* Settings */}
                                     {strategy.settings && strategy.settings.length > 0 && (
                                       <div>
@@ -1734,8 +1741,8 @@ export default function StrategiesPage() {
                                                 value={(localConfig[setting.key] as number | string) ?? setting.defaultValue}
                                                 onChange={(e) => updateSetting(
                                                   setting.key,
-                                                  setting.type === 'number' 
-                                                    ? parseFloat(e.target.value) 
+                                                  setting.type === 'number'
+                                                    ? parseFloat(e.target.value)
                                                     : e.target.value
                                                 )}
                                                 min={setting.min}
@@ -1764,7 +1771,7 @@ export default function StrategiesPage() {
           );
         })}
       </div>
-      
+
       {/* Bottom Save Bar (Mobile) */}
       <div className="fixed bottom-0 left-0 right-0 bg-dark-card border-t border-dark-border p-4 md:hidden z-20">
         <button
@@ -1773,8 +1780,8 @@ export default function StrategiesPage() {
           className={cn(
             "w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-all",
             saving ? "bg-dark-border text-dark-muted" :
-            saveSuccess ? "bg-green-500 text-white" :
-            "bg-neon-green text-black"
+              saveSuccess ? "bg-green-500 text-white" :
+                "bg-neon-green text-black"
           )}
         >
           {saving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
@@ -1784,14 +1791,14 @@ export default function StrategiesPage() {
       {/* Strategy Detail Modal (same as workflows page) */}
       <AnimatePresence>
         {selectedStrategy && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
             onClick={() => setSelectedStrategy(null)}
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
@@ -1812,7 +1819,7 @@ export default function StrategiesPage() {
                     </div>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedStrategy(null)}
                   className="text-gray-400 hover:text-white p-1"
                   aria-label="Close modal"
@@ -1827,7 +1834,7 @@ export default function StrategiesPage() {
                   <div className={cn(
                     "text-3xl font-bold",
                     selectedStrategy.confidence >= 85 ? "text-green-400" :
-                    selectedStrategy.confidence >= 70 ? "text-yellow-400" : "text-orange-400"
+                      selectedStrategy.confidence >= 70 ? "text-yellow-400" : "text-orange-400"
                   )}>
                     {selectedStrategy.confidence}%
                   </div>
@@ -1920,8 +1927,8 @@ export default function StrategiesPage() {
                           <div className={cn(
                             "w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold z-10",
                             i === 0 ? 'bg-cyan-500' :
-                            i === selectedStrategy.workflow!.length - 1 ? 'bg-purple-500' :
-                            'bg-blue-500'
+                              i === selectedStrategy.workflow!.length - 1 ? 'bg-purple-500' :
+                                'bg-blue-500'
                           )}>
                             {i + 1}
                           </div>
@@ -1941,7 +1948,7 @@ export default function StrategiesPage() {
 
               {/* Actions */}
               <div className="flex gap-4 pt-4 border-t border-dark-border">
-                <Link 
+                <Link
                   href="/secrets"
                   className="flex-1 bg-purple-600 hover:bg-purple-700 transition-colors py-3 rounded-xl text-center font-medium text-white"
                 >

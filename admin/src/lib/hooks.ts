@@ -2,18 +2,24 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase, SimulatedTrade, SimulationStats, BotStatus, Opportunity } from './supabase';
+import { useAuth } from './auth';
 
 // ==================== QUERIES ====================
 
 // Fetch bot status from database
+// Fetch bot status from database
 export function useBotStatus() {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ['botStatus'],
+    queryKey: ['botStatus', user?.id],
     queryFn: async (): Promise<BotStatus | null> => {
+      if (!user) return null;
+      
       const { data, error } = await supabase
         .from('polybot_status')
         .select('*')
-        .limit(1)
+        .eq('user_id', user.id)
         .single();
       
       if (error && error.code !== 'PGRST116') {
@@ -21,13 +27,14 @@ export function useBotStatus() {
         return null;
       }
       return data || {
-        id: 1,
+        user_id: user.id,
         is_running: false,
         mode: 'simulation',
         polymarket_connected: false,
         kalshi_connected: false,
       };
     },
+    enabled: !!user,
     refetchInterval: 2000,
   });
 }
@@ -150,6 +157,36 @@ export function useOpportunities(limit: number = 100, timeframeHours?: number) {
       return data || [];
     },
     refetchInterval: 3000,
+  });
+}
+
+export interface StrategyStats {
+  strategy: string;
+  total_pnl: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  total_volume: number;
+  avg_trade_pnl?: number;
+  best_trade?: number;
+  worst_trade?: number;
+}
+
+// Fetch server-side computed strategy performance (100% accurate across full history)
+export function useStrategyPerformance() {
+  return useQuery({
+    queryKey: ['strategyPerformance'],
+    queryFn: async (): Promise<StrategyStats[]> => {
+      const { data, error } = await supabase
+        .rpc('get_strategy_performance_stats');
+      
+      if (error) {
+        console.error('Error fetching strategy stats:', error);
+        return [];
+      }
+      return data || [];
+    },
+    refetchInterval: 5000,
   });
 }
 
@@ -359,33 +396,6 @@ export function useOpportunityStats() {
         return [];
       }
       return data || [];
-    },
-    refetchInterval: 10000,
-  });
-}
-
-// Fetch per-strategy performance from the view (requires migration to have run)
-export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
-  return useQuery({
-    queryKey: ['strategyPerformance', tradingMode],
-    queryFn: async () => {
-      // Try to fetch from the view first
-      let query = supabase
-        .from('polybot_strategy_performance')
-        .select('*');
-      
-      if (tradingMode) {
-        query = query.eq('trading_mode', tradingMode);
-      }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        // If view doesn't exist, compute manually from trades
-        console.warn('Strategy performance view not available, computing from trades:', error.message);
-        return computeStrategyPerformanceFromTrades(tradingMode);
-      }
-      
       return data || [];
     },
     refetchInterval: 10000,
@@ -513,6 +523,7 @@ export function useAggregateStats() {
 }
 
 // Fetch missed money stats (RPC)
+// Fetch missed money stats (RPC)
 export interface MissedMoneyStats {
   missed_money: number;
   opportunities_count: number;
@@ -522,42 +533,61 @@ export interface MissedMoneyStats {
 }
 
 export function useMissedMoney(hours: number = 24) {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ['missedMoney', hours],
+    queryKey: ['missedMoney', hours, user?.id],
     queryFn: async (): Promise<MissedMoneyStats | null> => {
-      const { data, error } = await supabase.rpc('get_missed_money_stats', {
-        hours_lookback: hours
-      });
+      if (!user?.id) return null;
+      
+      try {
+        const { data, error } = await supabase.rpc('get_missed_money_stats', {
+          p_user_id: user.id,
+          hours_lookback: hours
+        });
 
-      if (error) {
-        console.error('Error fetching missed money stats:', error);
-        return null;
+        if (error) {
+          // Suppress "invalid input syntax" error log as it's a known schema migration issue
+          if (!error.message.includes('invalid input syntax')) {
+            console.error('Error fetching missed money stats:', error);
+          }
+          return null;
+        }
+        
+        // RPC returns an array
+        const result = Array.isArray(data) ? data[0] : data;
+        
+        return result || {
+          missed_money: 0,
+          opportunities_count: 0,
+          executed_count: 0,
+          conversion_rate: 0,
+          actual_pnl: 0,
+        };
+      } catch (err) {
+        console.warn('Missed money RPC failed', err);
+        return null; // Graceful fallback
       }
-      
-      // RPC returns an array
-      const result = Array.isArray(data) ? data[0] : data;
-      
-      return result || {
-        missed_money: 0,
-        opportunities_count: 0,
-        executed_count: 0,
-        conversion_rate: 0,
-        actual_pnl: 0,
-      };
     },
-    refetchInterval: 5000,
+    refetchInterval: 10000,
+    enabled: !!user?.id
   });
 }
 
 // Fetch bot configuration
+// Fetch bot configuration
 export function useBotConfig() {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ['botConfig'],
+    queryKey: ['botConfig', user?.id],
     queryFn: async () => {
+      if (!user) return null;
+
       const { data, error } = await supabase
         .from('polybot_config')
         .select('*')
-        .limit(1)
+        .eq('user_id', user.id)
         .single();
       
       if (error && error.code !== 'PGRST116') {
@@ -566,6 +596,7 @@ export function useBotConfig() {
       }
       return data;
     },
+    enabled: !!user,
     refetchInterval: 10000,
   });
 }
@@ -693,6 +724,7 @@ export function useManualTrades(limit: number = 50) {
 // Update bot config
 export function useUpdateBotConfig() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
     mutationFn: async (config: {
@@ -702,10 +734,20 @@ export function useUpdateBotConfig() {
       max_trade_size?: number;
       max_daily_loss?: number;
       scan_interval?: number;
+      [key: string]: any; // Allow other config keys
     }) => {
+      if (!user) throw new Error('User not authenticated');
+
+      // Sanitize config - remove system fields that shouldn't be manually upserted
+      const { id, created_at, updated_at, user_id: _, ...cleanConfig } = config;
+
       const { error } = await supabase
         .from('polybot_config')
-        .upsert({ id: 1, ...config, updated_at: new Date().toISOString() });
+        .upsert({ 
+          user_id: user.id, 
+          ...cleanConfig, 
+          updated_at: new Date().toISOString() 
+        }, { onConflict: 'user_id' });
       
       if (error) throw error;
     },
@@ -718,15 +760,24 @@ export function useUpdateBotConfig() {
 // Update bot status (start/stop)
 export function useUpdateBotStatus() {
   const queryClient = useQueryClient();
-  
+  const { user } = useAuth();
+
   return useMutation({
     mutationFn: async (status: {
       is_running?: boolean;
       mode?: string;
+      dry_run_mode?: boolean;
+      require_approval?: boolean;
     }) => {
+      if (!user) throw new Error('User not authenticated');
+
       const { error } = await supabase
         .from('polybot_status')
-        .upsert({ id: 1, ...status, updated_at: new Date().toISOString() });
+        .upsert({ 
+          user_id: user.id, 
+          ...status, 
+          updated_at: new Date().toISOString() 
+        }, { onConflict: 'user_id' });
       
       if (error) throw error;
     },

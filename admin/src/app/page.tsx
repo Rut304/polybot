@@ -33,7 +33,28 @@ import { TradesList } from '@/components/TradesList';
 import { OpportunitiesFeed } from '@/components/OpportunitiesFeed';
 import { StatusIndicator } from '@/components/StatusIndicator';
 import { StatDetailModal } from '@/components/StatDetailModal';
-import { StrategyBreakdown } from '@/components/StrategyBreakdown';
+import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
+
+// ... (in component)
+
+{/* Strategy Breakdown */ }
+<motion.div
+  initial={{ opacity: 0, y: 20 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ delay: 0.15 }}
+  className="card mb-8"
+>
+  <div className="flex items-center justify-between mb-6">
+    <h2 className="text-xl font-bold flex items-center gap-2">
+      <BarChart3 className="w-5 h-5 text-neon-purple" />
+      Strategy Performance
+    </h2>
+    <span className="text-xs text-gray-500 bg-dark-border px-2 py-1 rounded">
+      {isSimulation ? "Paper Trading" : "Live Trading"}
+    </span>
+  </div>
+  <StrategyPerformanceTable tradingMode={isSimulation ? 'paper' : 'live'} limit={isSimulation ? undefined : 5} />
+</motion.div>
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 import { Opportunity, SimulatedTrade } from '@/lib/supabase';
