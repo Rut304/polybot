@@ -12,7 +12,7 @@ interface VersionInfo {
 }
 
 // Current UI version - update this when deploying
-export const UI_VERSION = 'v1.2.8';
+export const UI_VERSION = 'v1.2.9';
 
 export function VersionBadge() {
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({
