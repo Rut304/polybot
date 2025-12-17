@@ -7,10 +7,10 @@ import { AlertTriangle, DollarSign } from 'lucide-react';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { data: botStatus } = useBotStatus();
-  const isOnline = !!(botStatus?.is_running && 
-    botStatus?.last_heartbeat_at && 
-    isRecent(botStatus.last_heartbeat_at, 30000));
-  
+  const isOnline = !!(botStatus?.is_running &&
+    botStatus?.updated_at &&
+    isRecent(botStatus.updated_at, 30000));
+
   // Check if we're in live trading mode
   const isLiveTrading = botStatus?.dry_run_mode === false;
 

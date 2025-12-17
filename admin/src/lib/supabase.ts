@@ -31,11 +31,14 @@ export interface SimulatedTrade {
   actual_profit_usd: number;
   strategy_type?: string;
   arbitrage_type?: string;
-  trade_type?: string;
+  trade_type: string;
   trading_mode?: 'paper' | 'live';
   polymarket_yes_price?: number;
   kalshi_yes_price?: number;
-  position_size_usd?: number;
+  position_size_usd: number;
+  position_id: string;
+  expected_profit_usd: number;
+  expected_profit_pct: number;
   [key: string]: any;
 }
 

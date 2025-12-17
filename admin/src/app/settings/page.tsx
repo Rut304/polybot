@@ -1229,15 +1229,15 @@ export default function SettingsPage() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <LabelWithTooltip label="Slippage Min %" />
+                <LabelWithTooltip label="Slippage Min %" tooltip="Minimum simulated slippage percentage." />
                 <input type="number" step="0.1" value={slippageMinPct} onChange={e => setSlippageMinPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
               </div>
               <div>
-                <LabelWithTooltip label="Slippage Max %" />
+                <LabelWithTooltip label="Slippage Max %" tooltip="Maximum simulated slippage percentage." />
                 <input type="number" step="0.1" value={slippageMaxPct} onChange={e => setSlippageMaxPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
               </div>
               <div>
-                <LabelWithTooltip label="Execution Failure Rate (0-1)" />
+                <LabelWithTooltip label="Execution Failure Rate (0-1)" tooltip="Probability (0-1) that an order fails to execute." />
                 <input type="number" step="0.05" value={executionFailureRate} onChange={e => setExecutionFailureRate(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
               </div>
             </div>

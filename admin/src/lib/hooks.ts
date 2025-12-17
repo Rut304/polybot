@@ -170,6 +170,7 @@ export interface StrategyStats {
   avg_trade_pnl?: number;
   best_trade?: number;
   worst_trade?: number;
+  win_rate_pct?: number;
 }
 
 // Fetch server-side computed strategy performance (100% accurate across full history)

@@ -35,26 +35,7 @@ import { StatusIndicator } from '@/components/StatusIndicator';
 import { StatDetailModal } from '@/components/StatDetailModal';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
 
-// ... (in component)
 
-{/* Strategy Breakdown */ }
-<motion.div
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ delay: 0.15 }}
-  className="card mb-8"
->
-  <div className="flex items-center justify-between mb-6">
-    <h2 className="text-xl font-bold flex items-center gap-2">
-      <BarChart3 className="w-5 h-5 text-neon-purple" />
-      Strategy Performance
-    </h2>
-    <span className="text-xs text-gray-500 bg-dark-border px-2 py-1 rounded">
-      {isSimulation ? "Paper Trading" : "Live Trading"}
-    </span>
-  </div>
-  <StrategyPerformanceTable tradingMode={isSimulation ? 'paper' : 'live'} limit={isSimulation ? undefined : 5} />
-</motion.div>
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 import { Opportunity, SimulatedTrade } from '@/lib/supabase';
@@ -75,6 +56,7 @@ export default function Dashboard() {
   const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
 
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
+  const isSimulation = botStatus?.mode !== 'live';
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
   const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours);
   const { data: trades } = useSimulatedTrades(20);
@@ -88,7 +70,7 @@ export default function Dashboard() {
 
   // Prefer real-time computed stats (more accurate - uses database aggregates)
   const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? STARTING_BALANCE;
-  const isSimulation = botStatus?.dry_run_mode ?? true;
+
   const totalPnl = realTimeStats?.total_pnl ?? simStats?.total_pnl ?? 0;
   const totalTrades = realTimeStats?.total_trades ?? simStats?.total_trades ?? 0;
   const winRate = realTimeStats?.win_rate ?? simStats?.win_rate ?? 0;
@@ -179,8 +161,8 @@ export default function Dashboard() {
   };
 
   const isOnline = !!(botStatus?.is_running &&
-    botStatus?.last_heartbeat_at &&
-    isRecent(botStatus.last_heartbeat_at, 30000));
+    botStatus?.updated_at &&
+    isRecent(botStatus.updated_at, 30000));
 
   return (
     <div className="p-8">
@@ -313,14 +295,20 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* Strategy Breakdown */}
+      {/* Strategy Performance */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
         className="card mb-8"
       >
-        <StrategyBreakdown tradingMode={isSimulation ? 'paper' : 'live'} />
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-neon-purple" />
+            Strategy Performance
+          </h2>
+        </div>
+        <StrategyPerformanceTable tradingMode={isSimulation ? 'paper' : 'live'} limit={5} />
       </motion.div>
 
       {/* Live Feeds */}

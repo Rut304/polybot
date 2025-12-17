@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { 
-  Wallet, 
-  TrendingUp, 
+import {
+  Wallet,
+  TrendingUp,
   TrendingDown,
   AlertTriangle,
   Eye,
@@ -57,17 +57,17 @@ interface BetCardProps {
 
 function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
   const [expanded, setExpanded] = useState(false);
-  
+
   const isPoly = !!bet.polymarket_token_id;
   const isKalshi = !!bet.kalshi_ticker;
   const isBoth = isPoly && isKalshi;
-  
-  const platformColor = isBoth 
-    ? 'from-polymarket to-kalshi' 
-    : isPoly 
-      ? 'border-polymarket' 
+
+  const platformColor = isBoth
+    ? 'from-polymarket to-kalshi'
+    : isPoly
+      ? 'border-polymarket'
       : 'border-kalshi';
-  
+
   const outcomeColors = {
     pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     won: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -87,7 +87,7 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
       className={cn(
         "relative rounded-xl overflow-hidden transition-all",
         isDisabled && "opacity-50",
-        isBoth 
+        isBoth
           ? "bg-gradient-to-r from-polymarket/10 to-kalshi/10 border-2 border-transparent bg-clip-padding"
           : `bg-dark-card border-2 ${isPoly ? 'border-polymarket/50' : 'border-kalshi/50'}`
       )}
@@ -99,7 +99,7 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
       {/* Platform indicator strip */}
       <div className={cn(
         "absolute top-0 left-0 right-0 h-1",
-        isBoth 
+        isBoth
           ? "bg-gradient-to-r from-polymarket to-kalshi"
           : isPoly ? "bg-polymarket" : "bg-kalshi"
       )} />
@@ -121,7 +121,7 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
                 </div>
               )}
             </div>
-            
+
             {/* Automated indicator */}
             {bet.is_automated !== false && (
               <div className="px-2 py-0.5 bg-neon-blue/20 rounded-full flex items-center gap-1">
@@ -129,7 +129,7 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
                 <span className="text-xs text-neon-blue font-medium">Auto</span>
               </div>
             )}
-            
+
             {/* Strategy badge */}
             {bet.strategy && (
               <div className={cn(
@@ -140,9 +140,9 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
                 bet.strategy === 'manual' && "bg-gray-500/20 text-gray-400",
               )}>
                 {bet.strategy === 'poly_single' ? 'Poly Single' :
-                 bet.strategy === 'kalshi_single' ? 'Kalshi Single' :
-                 bet.strategy === 'cross_platform' ? 'Cross-Plat' :
-                 bet.strategy === 'manual' ? 'Manual' : bet.strategy}
+                  bet.strategy === 'kalshi_single' ? 'Kalshi Single' :
+                    bet.strategy === 'cross_platform' ? 'Cross-Plat' :
+                      bet.strategy === 'manual' ? 'Manual' : bet.strategy}
               </div>
             )}
           </div>
@@ -174,10 +174,10 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
             <p className="text-xs text-gray-500">Actual</p>
             <p className={cn(
               "font-semibold",
-              bet.outcome === 'pending' ? "text-gray-400" : 
+              bet.outcome === 'pending' ? "text-gray-400" :
                 (bet.actual_profit_usd || 0) >= 0 ? "text-neon-green" : "text-red-400"
             )}>
-              {bet.outcome === 'pending' ? '—' : 
+              {bet.outcome === 'pending' ? '—' :
                 `${(bet.actual_profit_usd || 0) >= 0 ? '+' : ''}${formatCurrency(bet.actual_profit_usd || 0)}`}
             </p>
           </div>
@@ -189,7 +189,7 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
             <Clock className="w-3 h-3 inline mr-1" />
             {timeAgo(bet.created_at)}
           </span>
-          
+
           <div className="flex gap-2">
             <button
               onClick={() => setExpanded(!expanded)}
@@ -198,12 +198,12 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
               {expanded ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
               {expanded ? 'Less' : 'Details'}
             </button>
-            
+
             <button
               onClick={() => onDisable(bet.position_id, hasPosition)}
               className={cn(
                 "px-3 py-1.5 text-xs rounded-lg transition-colors flex items-center gap-1",
-                isDisabled 
+                isDisabled
                   ? "bg-neon-green/20 text-neon-green hover:bg-neon-green/30"
                   : "bg-red-500/20 text-red-400 hover:bg-red-500/30"
               )}
@@ -258,13 +258,13 @@ function BetCard({ bet, onDisable, isDisabled }: BetCardProps) {
 }
 
 // Sell confirmation modal
-function SellConfirmModal({ 
-  bet, 
-  onConfirm, 
-  onCancel 
-}: { 
-  bet: BetCardProps['bet']; 
-  onConfirm: () => void; 
+function SellConfirmModal({
+  bet,
+  onConfirm,
+  onCancel
+}: {
+  bet: BetCardProps['bet'];
+  onConfirm: () => void;
   onCancel: () => void;
 }) {
   return (
@@ -311,7 +311,7 @@ export default function BetsPage() {
   const { data: trades = [] } = useSimulatedTrades(2000); // Increased from 100 to show all trades
   const { data: manualTrades = [] } = useManualTrades(50);
   const { data: disabledMarkets = [] } = useDisabledMarkets();
-  
+
   const [filter, setFilter] = useState<FilterType>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [strategyFilter, setStrategyFilter] = useState<StrategyFilter>('all');
@@ -348,10 +348,10 @@ export default function BetsPage() {
     if (!bet) return;
 
     const isCurrentlyDisabled = disabledIds.has(positionId);
-    
+
     if (!isCurrentlyDisabled && hasPosition) {
       // Show confirmation if they have an open position
-      setConfirmSell(bet);
+      setConfirmSell(bet as any);
     } else {
       toggleDisabled.mutate({ marketId: positionId, disable: !isCurrentlyDisabled });
     }
@@ -386,13 +386,13 @@ export default function BetsPage() {
 
     // Status filter
     if (statusFilter !== 'all' && bet.outcome !== statusFilter) return false;
-    
+
     // Strategy filter
     if (strategyFilter !== 'all') {
       const strategy = bet.strategy || (bet.is_automated === false ? 'manual' : 'unknown');
       if (strategy !== strategyFilter) return false;
     }
-    
+
     // Time filter
     if (timeFilter !== 'all') {
       const createdAt = new Date(bet.created_at).getTime();
@@ -413,7 +413,7 @@ export default function BetsPage() {
   // Stats - separate valid trades from failed executions
   const validTrades = trades.filter(t => t.outcome !== 'failed_execution');
   const failedTrades = trades.filter(t => t.outcome === 'failed_execution');
-  
+
   const stats = {
     totalBets: validTrades.length,
     pending: validTrades.filter(t => t.outcome === 'pending').length,
@@ -499,10 +499,10 @@ export default function BetsPage() {
                 onClick={() => setFilter(f)}
                 className={cn(
                   "px-3 py-1.5 rounded-md text-sm transition-colors",
-                  filter === f 
+                  filter === f
                     ? f === 'polymarket' ? 'bg-polymarket text-white'
                       : f === 'kalshi' ? 'bg-kalshi text-white'
-                      : 'bg-dark-border text-white'
+                        : 'bg-dark-border text-white'
                     : 'text-gray-400 hover:text-white'
                 )}
               >
@@ -535,18 +535,18 @@ export default function BetsPage() {
                 onClick={() => setStrategyFilter(s)}
                 className={cn(
                   "px-2 py-1.5 rounded-md text-xs transition-colors",
-                  strategyFilter === s 
+                  strategyFilter === s
                     ? s === 'poly_single' ? 'bg-polymarket text-white'
                       : s === 'kalshi_single' ? 'bg-kalshi text-white'
-                      : s === 'cross_platform' ? 'bg-purple-500 text-white'
-                      : 'bg-dark-border text-white'
+                        : s === 'cross_platform' ? 'bg-purple-500 text-white'
+                          : 'bg-dark-border text-white'
                     : 'text-gray-400 hover:text-white'
                 )}
               >
-                {s === 'all' ? 'All Strats' : 
-                 s === 'poly_single' ? 'Poly' :
-                 s === 'kalshi_single' ? 'Kalshi' :
-                 s === 'cross_platform' ? 'Cross' : 'Manual'}
+                {s === 'all' ? 'All Strats' :
+                  s === 'poly_single' ? 'Poly' :
+                    s === 'kalshi_single' ? 'Kalshi' :
+                      s === 'cross_platform' ? 'Cross' : 'Manual'}
               </button>
             ))}
           </div>
