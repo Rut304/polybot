@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 // Lazy initialization to avoid build-time errors
 let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line
 function getSupabaseAdmin(): any {
   if (!supabaseAdminInstance) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';

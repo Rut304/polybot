@@ -2,14 +2,14 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { 
-  ArrowLeft, 
-  AlertTriangle, 
+import {
+  ArrowLeft,
+  AlertTriangle,
   Zap,
-  Settings, 
+  Settings,
   CheckCircle2,
   TrendingDown,
-  BrainCircuit, 
+  BrainCircuit,
   LineChart,
   Sliders
 } from 'lucide-react';
@@ -23,16 +23,16 @@ export default function MissedOpportunitiesPage() {
   const { data: opportunities, isLoading } = useOpportunities(1000, timeframeHours);
   const { data: config } = useBotConfig();
   const updateConfig = useUpdateBotConfig();
-  
+
   // Filter for missed opportunities
-  const missedOpps = useMemo(() => 
-    opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled') || [], 
-  [opportunities]);
-  
+  const missedOpps = useMemo(() =>
+    opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled') || [],
+    [opportunities]);
+
   // === ANALYSIS ENGINE ===
   const analysis = useMemo(() => {
     const totalLost = missedOpps.reduce((sum, o) => sum + (o.total_profit || 0), 0);
-    
+
     // Group by Reason
     const reasonCounts: Record<string, { count: number, profit: number }> = {};
     missedOpps.forEach(o => {
@@ -44,7 +44,7 @@ export default function MissedOpportunitiesPage() {
 
     // Generate Recommendations
     const recommendations: Recommendation[] = [];
-    
+
     // 1. Min Profit Threshold Analysis
     const profitskips = Object.entries(reasonCounts).find(([r]) => r.toLowerCase().includes('profit'));
     if (profitskips) {
@@ -92,7 +92,7 @@ export default function MissedOpportunitiesPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link 
+        <Link
           href="/"
           className="p-2 rounded-lg bg-dark-card border border-dark-border text-gray-400 hover:text-white transition-colors"
         >
@@ -104,7 +104,7 @@ export default function MissedOpportunitiesPage() {
             Missed Revenue Analysis
           </h1>
           <p className="text-gray-400 mt-1">
-            <b>{missedOpps.length}</b> opportunities skipped • 
+            <b>{missedOpps.length}</b> opportunities skipped •
             Total Value: <span className="text-red-400 font-mono font-bold">{formatCurrency(analysis.totalLost)}</span>
           </p>
         </div>
@@ -117,14 +117,14 @@ export default function MissedOpportunitiesPage() {
             <BrainCircuit className="w-5 h-5 text-neon-purple" />
             <h2 className="text-xl font-bold text-white">AI Tuning Insights</h2>
           </div>
-          
+
           {analysis.recommendations.length === 0 ? (
             <div className="card border-dashed border-gray-700 p-8 text-center text-gray-500">
               No specific tuning recommendations found. Your settings look optimal for current market conditions.
             </div>
           ) : (
             analysis.recommendations.map(rec => (
-              <motion.div 
+              <motion.div
                 key={rec.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -133,8 +133,8 @@ export default function MissedOpportunitiesPage() {
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                       <rec.icon className="w-5 h-5 text-neon-blue" />
-                       {rec.title}
+                      <rec.icon className="w-5 h-5 text-neon-blue" />
+                      {rec.title}
                     </h3>
                     <p className="text-sm text-gray-400 mt-2 mb-4 leading-relaxed">
                       {rec.description}
@@ -146,22 +146,22 @@ export default function MissedOpportunitiesPage() {
                   </div>
 
                   <div className="shrink-0 flex flex-col items-end gap-2">
-                     {appliedRecs.includes(rec.id) ? (
-                        <div className="flex items-center gap-2 text-green-500 font-bold px-4 py-2 bg-green-500/10 rounded-lg">
-                          <CheckCircle2 className="w-5 h-5" />
-                          Applied
-                        </div>
-                     ) : (
-                        <button
-                          onClick={() => handleApply(rec)}
-                          disabled={updateConfig.isPending}
-                          className="flex items-center gap-2 bg-neon-blue text-black font-bold px-4 py-2 rounded-lg hover:bg-neon-blue/90 transition-transform active:scale-95 disabled:opacity-50 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse"
-                        >
-                          <Zap className="w-4 h-4 fill-current" />
-                          {rec.actionLabel}
-                        </button>
-                     )}
-                     <span className="text-[10px] text-gray-500 mt-1">One-click update</span>
+                    {appliedRecs.includes(rec.id) ? (
+                      <div className="flex items-center gap-2 text-green-500 font-bold px-4 py-2 bg-green-500/10 rounded-lg">
+                        <CheckCircle2 className="w-5 h-5" />
+                        Applied
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleApply(rec)}
+                        disabled={updateConfig.isPending}
+                        className="flex items-center gap-2 bg-neon-blue text-black font-bold px-4 py-2 rounded-lg hover:bg-neon-blue/90 transition-transform active:scale-95 disabled:opacity-50 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse"
+                      >
+                        <Zap className="w-4 h-4 fill-current" />
+                        {rec.actionLabel}
+                      </button>
+                    )}
+                    <span className="text-[10px] text-gray-500 mt-1">One-click update</span>
                   </div>
                 </div>
               </motion.div>
@@ -171,40 +171,40 @@ export default function MissedOpportunitiesPage() {
 
         {/* Technical Indicators / RSI Preview */}
         <div className="space-y-6">
-           <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2">
             <LineChart className="w-5 h-5 text-neon-green" />
             <h2 className="text-xl font-bold text-white">Technical Factors</h2>
           </div>
-          
+
           <div className="card">
-             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">RSI & Momentum</h3>
-             <div className="space-y-4">
-                <div className="p-4 bg-dark-bg/50 rounded-lg flex justify-between items-center">
-                   <div>
-                     <span className="block text-white font-medium">RSI (14) Mean Reversion</span>
-                     <span className="text-xs text-gray-500">Avg RSI of missed trades: 32.5 (Oversold)</span>
-                   </div>
-                   <div className="text-right">
-                     <span className="block text-neon-green font-mono">Bullish Div</span>
-                     <Link href="/settings" className="text-xs text-neon-blue hover:text-white">Adjust RSI Threshold &rarr;</Link>
-                   </div>
+            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">RSI & Momentum</h3>
+            <div className="space-y-4">
+              <div className="p-4 bg-dark-bg/50 rounded-lg flex justify-between items-center">
+                <div>
+                  <span className="block text-white font-medium">RSI (14) Mean Reversion</span>
+                  <span className="text-xs text-gray-500">Avg RSI of missed trades: 32.5 (Oversold)</span>
                 </div>
-                
-                <div className="p-4 bg-dark-bg/50 rounded-lg flex justify-between items-center">
-                   <div>
-                     <span className="block text-white font-medium">Funding Rates</span>
-                     <span className="text-xs text-gray-500">Avg APR missed: 15.2%</span>
-                   </div>
-                   <div className="text-right">
-                     <span className="block text-yellow-400 font-mono">Neutral</span>
-                     <Link href="/settings" className="text-xs text-neon-blue hover:text-white">View Arb Settings &rarr;</Link>
-                   </div>
+                <div className="text-right">
+                  <span className="block text-neon-green font-mono">Bullish Div</span>
+                  <Link href="/settings" className="text-xs text-neon-blue hover:text-white">Adjust RSI Threshold &rarr;</Link>
                 </div>
-             </div>
-             
-             <div className="mt-4 p-3 bg-blue-500/5 border border-blue-500/10 rounded text-xs text-blue-300">
-               ℹ️ <b>Note:</b> Detailed RSI logs are currently disabled. To see per-trade RSI values, enable "Extended Logging" in Diagnostics.
-             </div>
+              </div>
+
+              <div className="p-4 bg-dark-bg/50 rounded-lg flex justify-between items-center">
+                <div>
+                  <span className="block text-white font-medium">Funding Rates</span>
+                  <span className="text-xs text-gray-500">Avg APR missed: 15.2%</span>
+                </div>
+                <div className="text-right">
+                  <span className="block text-yellow-400 font-mono">Neutral</span>
+                  <Link href="/settings" className="text-xs text-neon-blue hover:text-white">View Arb Settings &rarr;</Link>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-blue-500/5 border border-blue-500/10 rounded text-xs text-blue-300">
+              ℹ️ <b>Note:</b> Detailed RSI logs are currently disabled. To see per-trade RSI values, enable &quot;Extended Logging&quot; in Diagnostics.
+            </div>
           </div>
         </div>
       </div>

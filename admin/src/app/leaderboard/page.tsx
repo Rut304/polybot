@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { 
+import {
   Trophy,
   TrendingUp,
   TrendingDown,
@@ -104,15 +104,15 @@ function calculateTier(roi: number): LeaderboardTrader['tier'] {
 async function fetchLeaderboard(limit: number = 200): Promise<LeaderboardTrader[]> {
   const allTraders: LeaderboardTrader[] = [];
   const perPage = 50;
-  
+
   // Fetch in batches due to API limit
   for (let offset = 0; offset < limit; offset += perPage) {
     const response = await fetch(`/api/whales/leaderboard?limit=${perPage}&offset=${offset}&minVolume=0&minPnl=0&timePeriod=ALL&orderBy=PNL`);
     if (!response.ok) break;
-    
+
     const data = await response.json();
     if (!data.data || data.data.length === 0) break;
-    
+
     const traders = data.data.map((t: any) => ({
       rank: t.rank || (offset + allTraders.length + 1),
       address: t.address,
@@ -125,28 +125,28 @@ async function fetchLeaderboard(limit: number = 200): Promise<LeaderboardTrader[
       tier: calculateTier(t.volume > 0 ? (t.pnl / t.volume * 100) : 0),
       profileImage: t.profileImage || undefined,
     }));
-    
+
     allTraders.push(...traders);
   }
-  
+
   return allTraders;
 }
 
 // Generate strategy insights from leaderboard data
 function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
   const insights: StrategyInsight[] = [];
-  
+
   // Calculate stats
   const eliteTraders = traders.filter(t => t.tier === 'elite');
-  const avgEliteVolume = eliteTraders.length > 0 
-    ? eliteTraders.reduce((sum, t) => sum + t.volume, 0) / eliteTraders.length 
+  const avgEliteVolume = eliteTraders.length > 0
+    ? eliteTraders.reduce((sum, t) => sum + t.volume, 0) / eliteTraders.length
     : 0;
-  
+
   const volumeTraders = traders.filter(t => t.tier === 'volume');
   const avgVolumeTraderVol = volumeTraders.length > 0
     ? volumeTraders.reduce((sum, t) => sum + t.volume, 0) / volumeTraders.length
     : 0;
-  
+
   // Insight 1: Elite traders pattern
   if (eliteTraders.length > 0) {
     insights.push({
@@ -162,7 +162,7 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       implementLabel: 'Track Elite Traders',
     });
   }
-  
+
   // Insight 2: Volume vs ROI tradeoff
   if (volumeTraders.length > 0 && avgVolumeTraderVol > avgEliteVolume) {
     insights.push({
@@ -178,13 +178,13 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       implementLabel: 'Enable High Conviction Mode',
     });
   }
-  
+
   // Insight 3: Optimal position sizing
   const proTraders = traders.filter(t => t.tier === 'pro' || t.tier === 'skilled');
   const avgProVolume = proTraders.length > 0
     ? proTraders.reduce((sum, t) => sum + t.volume, 0) / proTraders.length
     : 0;
-  
+
   if (proTraders.length > 0) {
     insights.push({
       id: 'position-sizing',
@@ -199,15 +199,15 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       implementLabel: 'Adjust Position Sizing',
     });
   }
-  
+
   // Insight 4: Username patterns
-  const politicsNames = traders.filter(t => 
-    t.username.toLowerCase().includes('trump') || 
+  const politicsNames = traders.filter(t =>
+    t.username.toLowerCase().includes('trump') ||
     t.username.toLowerCase().includes('biden') ||
     t.username.toLowerCase().includes('rep') ||
     t.username.toLowerCase().includes('dem')
   );
-  
+
   if (politicsNames.length >= 3) {
     insights.push({
       id: 'politics-focus',
@@ -222,11 +222,11 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       implementLabel: 'Enable Political Strategy',
     });
   }
-  
+
   // Insight 5: Consistency pattern
   const top50 = traders.slice(0, 50);
   const top50AvgRoi = top50.reduce((sum, t) => sum + t.roi, 0) / top50.length;
-  
+
   insights.push({
     id: 'consistency',
     title: 'Top 50 Average ROI Pattern',
@@ -239,7 +239,7 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
     implementAction: 'go_to_settings',
     implementLabel: 'Configure Strategy Rules',
   });
-  
+
   // Insight 6: Verified traders
   const verifiedTraders = traders.filter(t => t.verified);
   if (verifiedTraders.length > 0) {
@@ -256,7 +256,7 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
       implementLabel: 'Track Verified Traders',
     });
   }
-  
+
   return insights;
 }
 
@@ -293,12 +293,12 @@ export default function LeaderboardPage() {
         roiDistribution: { elite: 0, pro: 0, skilled: 0, active: 0, volume: 0 },
       };
     }
-    
+
     const totalPnl = traders.reduce((sum, t) => sum + t.pnl, 0);
     const totalVolume = traders.reduce((sum, t) => sum + t.volume, 0);
     const avgRoi = totalVolume > 0 ? (totalPnl / totalVolume * 100) : 0;
     const top10Pnl = traders.slice(0, 10).reduce((sum, t) => sum + t.pnl, 0);
-    
+
     return {
       totalPnl,
       totalVolume,
@@ -322,18 +322,18 @@ export default function LeaderboardPage() {
   // Handle implementing an insight
   const handleImplementInsight = useCallback(async (insight: StrategyInsight) => {
     if (!insight.implementAction) return;
-    
+
     setImplementingInsight(insight.id);
     setImplementResult(null);
-    
+
     try {
       switch (insight.implementAction) {
         case 'add_elite_traders': {
           // Add top 5 elite or verified traders to whale tracking
-          const eliteTraders = insight.id === 'verified-signal' 
+          const eliteTraders = insight.id === 'verified-signal'
             ? traders.filter(t => t.verified).slice(0, 5)
             : traders.filter(t => t.tier === 'elite').slice(0, 5);
-          
+
           for (const trader of eliteTraders) {
             await supabase.from('polybot_tracked_whales').upsert({
               address: trader.address,
@@ -345,7 +345,7 @@ export default function LeaderboardPage() {
               track_enabled: true,
             }, { onConflict: 'address' });
           }
-          
+
           queryClient.invalidateQueries({ queryKey: ['trackedWhales'] });
           setImplementResult({
             id: insight.id,
@@ -354,19 +354,19 @@ export default function LeaderboardPage() {
           });
           break;
         }
-        
+
         case 'enable_high_conviction': {
           // Update config to enable high conviction mode
           const { error } = await supabase
             .from('polybot_config')
-            .update({ 
+            .update({
               min_confidence_threshold: 0.75,
               max_concurrent_positions: 3,
             })
             .eq('id', 1);
-          
+
           if (error) throw error;
-          
+
           setImplementResult({
             id: insight.id,
             success: true,
@@ -374,19 +374,19 @@ export default function LeaderboardPage() {
           });
           break;
         }
-        
+
         case 'enable_politics_focus': {
           // Update config to focus on political markets
           const { error } = await supabase
             .from('polybot_config')
-            .update({ 
+            .update({
               market_focus: 'politics',
               enable_event_trading: true,
             })
             .eq('id', 1);
-          
+
           if (error) throw error;
-          
+
           setImplementResult({
             id: insight.id,
             success: true,
@@ -394,7 +394,7 @@ export default function LeaderboardPage() {
           });
           break;
         }
-        
+
         case 'go_to_settings':
           router.push('/settings');
           return;
@@ -413,22 +413,22 @@ export default function LeaderboardPage() {
   // Filter and sort traders
   const displayedTraders = useMemo(() => {
     let result = [...traders];
-    
+
     // Filter by tier
     if (tierFilter !== 'all') {
       result = result.filter(t => t.tier === tierFilter);
     }
-    
+
     // Filter by search
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(t => 
+      result = result.filter(t =>
         t.username.toLowerCase().includes(query) ||
         t.address.toLowerCase().includes(query) ||
         (t.xUsername && t.xUsername.toLowerCase().includes(query))
       );
     }
-    
+
     // Sort
     result.sort((a, b) => {
       let comparison = 0;
@@ -448,7 +448,7 @@ export default function LeaderboardPage() {
       }
       return sortAsc ? comparison : -comparison;
     });
-    
+
     return result;
   }, [traders, tierFilter, searchQuery, sortField, sortAsc]);
 
@@ -538,9 +538,8 @@ export default function LeaderboardPage() {
               <button
                 key={tier}
                 onClick={() => setTierFilter(tierFilter === tier ? 'all' : tier as TierFilter)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                  isSelected ? 'ring-2 ring-blue-500' : ''
-                } ${info.bg} hover:opacity-80`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isSelected ? 'ring-2 ring-blue-500' : ''
+                  } ${info.bg} hover:opacity-80`}
               >
                 <TierIcon className={`w-4 h-4 ${info.color}`} />
                 <span className={info.color}>{info.label}</span>
@@ -572,7 +571,7 @@ export default function LeaderboardPage() {
           </h3>
           {showInsights ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
-        
+
         {showInsights && (
           <div className="mt-4 space-y-4">
             {insights.map((insight) => (
@@ -580,45 +579,41 @@ export default function LeaderboardPage() {
                 key={insight.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`p-4 rounded-lg border ${
-                  insight.type === 'pattern' ? 'border-blue-500/50 bg-blue-500/10' :
-                  insight.type === 'warning' ? 'border-orange-500/50 bg-orange-500/10' :
-                  'border-green-500/50 bg-green-500/10'
-                }`}
+                className={`p-4 rounded-lg border ${insight.type === 'pattern' ? 'border-blue-500/50 bg-blue-500/10' :
+                    insight.type === 'warning' ? 'border-orange-500/50 bg-orange-500/10' :
+                      'border-green-500/50 bg-green-500/10'
+                  }`}
               >
                 <div className="flex items-start gap-3">
-                  <div className={`p-2 rounded-lg ${
-                    insight.type === 'pattern' ? 'bg-blue-500/20' :
-                    insight.type === 'warning' ? 'bg-orange-500/20' :
-                    'bg-green-500/20'
-                  }`}>
+                  <div className={`p-2 rounded-lg ${insight.type === 'pattern' ? 'bg-blue-500/20' :
+                      insight.type === 'warning' ? 'bg-orange-500/20' :
+                        'bg-green-500/20'
+                    }`}>
                     {insight.type === 'pattern' ? <BarChart3 className="w-5 h-5 text-blue-400" /> :
-                     insight.type === 'warning' ? <AlertCircle className="w-5 h-5 text-orange-400" /> :
-                     <Zap className="w-5 h-5 text-green-400" />}
+                      insight.type === 'warning' ? <AlertCircle className="w-5 h-5 text-orange-400" /> :
+                        <Zap className="w-5 h-5 text-green-400" />}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <h4 className="font-medium">{insight.title}</h4>
-                        <span className={`text-xs px-2 py-0.5 rounded ${
-                          insight.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
-                          insight.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-gray-500/20 text-gray-400'
-                        }`}>
+                        <span className={`text-xs px-2 py-0.5 rounded ${insight.confidence === 'high' ? 'bg-green-500/20 text-green-400' :
+                            insight.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                              'bg-gray-500/20 text-gray-400'
+                          }`}>
                           {insight.confidence} confidence
                         </span>
                       </div>
-                      
+
                       {/* 1-Click Implement Button */}
                       {insight.implementable && (
                         <button
                           onClick={() => handleImplementInsight(insight)}
                           disabled={implementingInsight === insight.id}
-                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                            implementResult?.id === insight.id && implementResult.success
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${implementResult?.id === insight.id && implementResult.success
                               ? 'bg-green-500/20 text-green-400'
                               : 'bg-blue-600 hover:bg-blue-500 text-white'
-                          }`}
+                            }`}
                         >
                           {implementingInsight === insight.id ? (
                             <RefreshCw className="w-4 h-4 animate-spin" />
@@ -631,20 +626,20 @@ export default function LeaderboardPage() {
                           ) : (
                             <Play className="w-4 h-4" />
                           )}
-                          {implementResult?.id === insight.id && implementResult.success 
-                            ? 'Done!' 
+                          {implementResult?.id === insight.id && implementResult.success
+                            ? 'Done!'
                             : insight.implementLabel || 'Implement'}
                         </button>
                       )}
                     </div>
                     <p className="text-gray-400 text-sm mt-1">{insight.description}</p>
-                    <p className="text-gray-500 text-sm mt-1 italic">"{insight.evidence}"</p>
+                    <p className="text-gray-500 text-sm mt-1 italic">&quot;{insight.evidence}&quot;</p>
                     <div className="mt-2 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-500">💡 Recommendation:</span>
                         <span className="text-sm">{insight.recommendation}</span>
                       </div>
-                      
+
                       {/* Show result message */}
                       {implementResult?.id === insight.id && (
                         <span className={`text-xs ${implementResult.success ? 'text-green-400' : 'text-red-400'}`}>
@@ -682,7 +677,7 @@ export default function LeaderboardPage() {
           <table className="w-full">
             <thead className="bg-gray-700">
               <tr>
-                <th 
+                <th
                   className="px-4 py-3 text-left cursor-pointer hover:bg-gray-600 transition-colors"
                   onClick={() => handleSort('rank')}
                 >
@@ -692,7 +687,7 @@ export default function LeaderboardPage() {
                   </div>
                 </th>
                 <th className="px-4 py-3 text-left">Trader</th>
-                <th 
+                <th
                   className="px-4 py-3 text-right cursor-pointer hover:bg-gray-600 transition-colors"
                   onClick={() => handleSort('pnl')}
                 >
@@ -701,7 +696,7 @@ export default function LeaderboardPage() {
                     {sortField === 'pnl' && (sortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                   </div>
                 </th>
-                <th 
+                <th
                   className="px-4 py-3 text-right cursor-pointer hover:bg-gray-600 transition-colors"
                   onClick={() => handleSort('volume')}
                 >
@@ -710,7 +705,7 @@ export default function LeaderboardPage() {
                     {sortField === 'volume' && (sortAsc ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                   </div>
                 </th>
-                <th 
+                <th
                   className="px-4 py-3 text-right cursor-pointer hover:bg-gray-600 transition-colors"
                   onClick={() => handleSort('roi')}
                 >
@@ -741,7 +736,7 @@ export default function LeaderboardPage() {
                 displayedTraders.slice(0, 100).map((trader, index) => {
                   const tierInfo = TIER_INFO[trader.tier];
                   const TierIcon = tierInfo.icon;
-                  
+
                   return (
                     <motion.tr
                       key={trader.address}
@@ -753,11 +748,10 @@ export default function LeaderboardPage() {
                     >
                       <td className="px-4 py-3">
                         {trader.rank <= 3 ? (
-                          <span className={`text-lg ${
-                            trader.rank === 1 ? 'text-yellow-400' :
-                            trader.rank === 2 ? 'text-gray-300' :
-                            'text-orange-400'
-                          }`}>
+                          <span className={`text-lg ${trader.rank === 1 ? 'text-yellow-400' :
+                              trader.rank === 2 ? 'text-gray-300' :
+                                'text-orange-400'
+                            }`}>
                             {trader.rank === 1 ? '🥇' : trader.rank === 2 ? '🥈' : '🥉'}
                           </span>
                         ) : (
@@ -803,9 +797,9 @@ export default function LeaderboardPage() {
                           <TierIcon className={`w-3 h-3 ${tierInfo.color}`} />
                           <span className={`text-xs ${tierInfo.color}`}>
                             {trader.tier === 'elite' ? 'Elite' :
-                             trader.tier === 'pro' ? 'Pro' :
-                             trader.tier === 'skilled' ? 'Skilled' :
-                             trader.tier === 'active' ? 'Active' : 'Volume'}
+                              trader.tier === 'pro' ? 'Pro' :
+                                trader.tier === 'skilled' ? 'Skilled' :
+                                  trader.tier === 'active' ? 'Active' : 'Volume'}
                           </span>
                         </div>
                       </td>
@@ -828,7 +822,7 @@ export default function LeaderboardPage() {
             </tbody>
           </table>
         </div>
-        
+
         {displayedTraders.length > 100 && (
           <div className="p-4 text-center text-gray-400 border-t border-gray-700">
             Showing 100 of {displayedTraders.length} traders. Use filters to narrow results.

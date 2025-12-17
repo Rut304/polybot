@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
+import {
   Bell,
   MessageSquare,
   Send,
@@ -211,9 +211,8 @@ export default function NotificationsPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`p-4 rounded-lg flex items-center gap-3 ${
-            testResult.success ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'
-          }`}
+          className={`p-4 rounded-lg flex items-center gap-3 ${testResult.success ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'
+            }`}
         >
           {testResult.success ? (
             <CheckCircle2 className="w-5 h-5 text-green-400" />
@@ -470,19 +469,19 @@ export default function NotificationsPage() {
           <Webhook className="w-4 h-4" />
           Setup Guide
         </h3>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-400">
           <div>
             <h4 className="text-white font-medium mb-2">Discord Setup</h4>
             <ol className="list-decimal list-inside space-y-1">
               <li>Open your Discord server settings</li>
               <li>Go to Integrations → Webhooks</li>
-              <li>Click "New Webhook"</li>
+              <li>Click &quot;New Webhook&quot;</li>
               <li>Choose a channel and copy the URL</li>
               <li>Paste the URL above</li>
             </ol>
           </div>
-          
+
           <div>
             <h4 className="text-white font-medium mb-2">Telegram Setup</h4>
             <ol className="list-decimal list-inside space-y-1">

@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 // Lazy initialization to avoid build-time errors
 let supabaseInstance: ReturnType<typeof createClient> | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line
 function getSupabase(): any {
   if (!supabaseInstance) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line
     const config = configData as any;
     const maxAdjustmentPct = config.rsi_max_adjustment_pct || 15.0;
     const rsiEnabled = config.rsi_auto_tuning_enabled !== false;
