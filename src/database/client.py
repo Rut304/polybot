@@ -417,6 +417,8 @@ class Database:
         opportunity_id: str,
         status: str,
         executed_at: Optional[datetime] = None,
+        skip_reason: Optional[str] = None,
+        execution_result: Optional[str] = None,
     ) -> bool:
         """Update opportunity status (detected, executed, missed, failed)."""
         if not self._client:
@@ -426,6 +428,10 @@ class Database:
             update_data = {"status": status}
             if executed_at:
                 update_data["executed_at"] = executed_at.isoformat()
+            if skip_reason:
+                update_data["skip_reason"] = skip_reason
+            if execution_result:
+                update_data["execution_result"] = execution_result
             
             self._client.table("polybot_opportunities").update(
                 update_data

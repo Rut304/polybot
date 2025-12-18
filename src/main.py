@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.bot_runner import PolybotRunner
 from src.manager import BotManager
 from src.logging_handler import setup_database_logging
+from src.utils.cleanup import cleanup_stale_data
 
 # Configure logging
 logging.basicConfig(
@@ -44,6 +45,9 @@ async def run_single_instance(user_id: Optional[str] = None):
     setup_database_logging(user_id=user_id)
     
     logger.info(f"🚀 Starting PolyBot single instance (User: {user_id or 'Global'})...")
+
+    # Run Startup Cleanup to remove zombie records
+    await cleanup_stale_data()
     
     runner = PolybotRunner(user_id=user_id)
     

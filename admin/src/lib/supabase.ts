@@ -20,6 +20,7 @@ export interface BotStatus {
   polymarket_connected: boolean;
   kalshi_connected: boolean;
   updated_at?: string;
+  version?: string;
 }
 
 export interface SimulatedTrade {

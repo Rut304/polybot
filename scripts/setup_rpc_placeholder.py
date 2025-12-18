@@ -17,7 +17,7 @@ if not db.is_connected:
 print("✓ Connected to Supabase")
 
 rpc_sql = """
-CREATE OR REPLACE FUNCTION get_missed_money_stats(hours_lookback INT DEFAULT 24)
+CREATE OR REPLACE FUNCTION get_missed_money_stats(p_user_id UUID, hours_lookback INT DEFAULT 24)
 RETURNS TABLE (
     missed_money NUMERIC,
     opportunities_count BIGINT,
@@ -31,8 +31,11 @@ AS $$
 DECLARE
     v_max_trade_size NUMERIC;
 BEGIN
-    -- Get max trade size from config, default to 100 if missing
-    SELECT COALESCE(max_trade_size, 100.0) INTO v_max_trade_size FROM polybot_config WHERE id = 1;
+    -- Get max trade size from config for the specific user
+    SELECT COALESCE(max_trade_size, 100.0) INTO v_max_trade_size 
+    FROM polybot_config 
+    WHERE user_id = p_user_id 
+    LIMIT 1;
 
     RETURN QUERY
     WITH timeframe_ops AS (
@@ -41,21 +44,19 @@ BEGIN
             profit_percent,
             detected_at
         FROM polybot_opportunities
-        WHERE detected_at >= NOW() - (hours_lookback || ' hours')::INTERVAL
+        WHERE user_id = p_user_id
+          AND detected_at >= NOW() - (hours_lookback || ' hours')::INTERVAL
     ),
     executed_ops AS (
         SELECT 
             t.opportunity_id,
-            -- Calculate actual realized PnL from trades if available, else estimate
-            -- Using fill_price * filled_size if captured, or some other metric
-            -- For missed money logic, we mostly care about what was NOT executed
             1 as is_executed
         FROM polybot_trades t
-        WHERE t.executed_at >= NOW() - (hours_lookback || ' hours')::INTERVAL
+        WHERE t.user_id = p_user_id
+          AND t.executed_at >= NOW() - (hours_lookback || ' hours')::INTERVAL
     )
     SELECT
-        -- Missed Money: Sum of potential profit for opportunities NOT in executed_ops
-        -- Potential Profit = (profit_percent / 100) * max_trade_size
+        -- Missed Money calculation
         COALESCE(SUM(
             CASE WHEN e.opportunity_id IS NULL THEN
                 (o.profit_percent / 100.0) * v_max_trade_size
@@ -72,7 +73,6 @@ BEGIN
             ELSE 0 
         END as conversion_rate,
         
-        -- Actual PnL (placeholder for now, can be sophisticated later based on trade fills)
         0.0 as actual_pnl
         
     FROM timeframe_ops o

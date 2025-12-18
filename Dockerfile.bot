@@ -1,0 +1,61 @@
+# PolyBot Docker Image
+# Multi-stage build for smaller image size
+# Using Amazon ECR Public Gallery to avoid Docker Hub rate limits
+
+FROM public.ecr.aws/docker/library/python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Production image
+FROM public.ecr.aws/docker/library/python:3.11-slim
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash polybot
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy application code
+COPY src/ ./src/
+COPY requirements.txt .
+COPY VERSION .
+COPY BUILD .
+
+# Set ownership
+RUN chown -R polybot:polybot /app
+
+# Switch to non-root user
+USER polybot
+
+# Health check (assuming bot exposes a health endpoint or we check process)
+# For now, simplistic process check or explicit health endpoint if bot_runner has it.
+# The previous Dockerfile had a health check on port 8080.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5)" || exit 1
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Version identifier
+ARG BUILD_VERSION=unknown
+ENV POLYBOT_VERSION=$BUILD_VERSION
+
+# Run the unified bot runner
+CMD ["python", "-m", "src.bot_runner"]

@@ -180,11 +180,11 @@ export default function DiagnosticsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profile, error } = await supabase
-          .from('user_profiles')
+          .from('polybot_profiles')
           .select('*')
           .eq('id', user.id)
           .single();
-        
+
         if (profile) {
           updateTest(catIdx, testIdx, {
             status: 'success',
@@ -227,7 +227,7 @@ export default function DiagnosticsPage() {
         const expiresAt = new Date(session.expires_at! * 1000);
         const now = new Date();
         const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
-        
+
         if (hoursUntilExpiry > 1) {
           updateTest(catIdx, testIdx, {
             status: 'success',
@@ -292,12 +292,13 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Reading config...' });
     const start = Date.now();
     try {
+      if (!user) throw new Error('No user logged in');
       const { data, error } = await supabase
         .from('polybot_config')
         .select('*')
-        .eq('id', 1)
+        .eq('user_id', user.id)
         .single();
-      
+
       if (error) throw error;
       if (data) {
         const configKeys = Object.keys(data).length;
@@ -330,12 +331,13 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Testing config write...' });
     const start = Date.now();
     try {
+      if (!user) throw new Error('No user logged in');
       // Just update the updated_at timestamp
       const { error } = await supabase
         .from('polybot_config')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', 1);
-      
+        .eq('user_id', user.id);
+
       if (error) throw error;
       updateTest(catIdx, testIdx, {
         status: 'success',
@@ -361,7 +363,7 @@ export default function DiagnosticsPage() {
         .from(tableName)
         .select('*', { count: 'exact', head: false })
         .limit(1);
-      
+
       if (error) throw error;
       updateTest(catIdx, testIdx, {
         status: 'success',
@@ -493,17 +495,18 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Checking bot status...' });
     const start = Date.now();
     try {
+      if (!user) throw new Error('No user logged in');
       const { data: statusData, error } = await supabase
         .from('polybot_status')
         .select('is_running, dry_run_mode, updated_at')
-        .eq('id', 1)
+        .eq('user_id', user.id)
         .single();
-      
+
       if (error) throw error;
-      
+
       const isRunning = statusData.is_running;
       const mode = statusData.dry_run_mode ? 'Simulation' : 'LIVE TRADING';
-      
+
       updateTest(catIdx, testIdx, {
         status: isRunning ? 'success' : 'warning',
         message: isRunning ? 'Bot is ENABLED' : 'Bot is DISABLED',
@@ -531,13 +534,13 @@ export default function DiagnosticsPage() {
         .select('created_at')
         .order('created_at', { ascending: false })
         .limit(1);
-      
+
       if (error) throw error;
-      
+
       if (trades && trades.length > 0) {
         const lastTrade = new Date(trades[0].created_at);
         const hoursAgo = (Date.now() - lastTrade.getTime()) / (1000 * 60 * 60);
-        
+
         if (hoursAgo < 1) {
           updateTest(catIdx, testIdx, {
             status: 'success',
@@ -582,24 +585,25 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Checking bot config...' });
     const start = Date.now();
     try {
+      if (!user) throw new Error('No user logged in');
       const { data: config, error } = await supabase
         .from('polybot_config')
         .select('*')
-        .eq('id', 1)
+        .eq('user_id', user.id)
         .single();
-      
+
       if (error) throw error;
-      
+
       // Check strategy enablement flags
       const hasPolySingle = config.enable_polymarket_single_arb;
       const hasKalshiSingle = config.enable_kalshi_single_arb;
       const hasCross = config.enable_cross_platform_arb;
       const hasCongress = config.enable_congressional_tracker;
       const hasWhale = config.enable_whale_copy_trading;
-      
+
       const enabledStrategies = [hasPolySingle, hasKalshiSingle, hasCross, hasCongress, hasWhale]
         .filter(Boolean).length;
-      
+
       updateTest(catIdx, testIdx, {
         status: enabledStrategies > 0 ? 'success' : 'warning',
         message: `${enabledStrategies} strategies enabled`,
@@ -621,14 +625,15 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Checking strategy config...' });
     const start = Date.now();
     try {
+      if (!user) throw new Error('No user logged in');
       const { data: config, error } = await supabase
         .from('polybot_config')
         .select('*')
-        .eq('id', 1)
+        .eq('user_id', user.id)
         .single();
-      
+
       if (error) throw error;
-      
+
       const strategies = [];
       if (config.enable_polymarket_single_arb) strategies.push('Poly Single');
       if (config.enable_kalshi_single_arb) strategies.push('Kalshi Single');
@@ -637,7 +642,7 @@ export default function DiagnosticsPage() {
       if (config.enable_whale_copy_trading) strategies.push('Whale Copy');
       if (config.enable_political_event_strategy) strategies.push('Political Event');
       if (config.enable_high_conviction_strategy) strategies.push('High Conviction');
-      
+
       updateTest(catIdx, testIdx, {
         status: strategies.length > 0 ? 'success' : 'warning',
         message: strategies.length > 0 ? `Active: ${strategies.join(', ')}` : 'No strategies enabled',
@@ -658,14 +663,15 @@ export default function DiagnosticsPage() {
     updateTest(catIdx, testIdx, { status: 'running', message: 'Counting active strategies...' });
     const start = Date.now();
     try {
+      if (!user) throw new Error('No user logged in');
       const { data: config, error } = await supabase
         .from('polybot_config')
         .select('*')
-        .eq('id', 1)
+        .eq('user_id', user.id)
         .single();
-      
+
       if (error) throw error;
-      
+
       let count = 0;
       const keys = Object.keys(config);
       for (const key of keys) {
@@ -673,7 +679,7 @@ export default function DiagnosticsPage() {
           count++;
         }
       }
-      
+
       updateTest(catIdx, testIdx, {
         status: count > 0 ? 'success' : 'warning',
         message: `${count} strategies enabled`,
@@ -699,11 +705,11 @@ export default function DiagnosticsPage() {
         .from('polybot_simulated_trades')
         .select('*', { count: 'exact' })
         .eq('outcome', 'pending');
-      
+
       if (error) throw error;
-      
+
       const totalValue = data?.reduce((sum, p) => sum + (p.position_size_usd || 0), 0) || 0;
-      
+
       updateTest(catIdx, testIdx, {
         status: 'success',
         message: `${count || 0} open positions`,
@@ -730,11 +736,11 @@ export default function DiagnosticsPage() {
         .from('polybot_simulated_trades')
         .select('*', { count: 'exact' })
         .gte('created_at', yesterday);
-      
+
       if (error) throw error;
-      
+
       const totalProfit = data?.reduce((sum, t) => sum + (t.expected_profit_usd || 0), 0) || 0;
-      
+
       updateTest(catIdx, testIdx, {
         status: (count || 0) > 0 ? 'success' : 'warning',
         message: `${count || 0} trades in last 24h`,
@@ -761,18 +767,18 @@ export default function DiagnosticsPage() {
         kalshi: ['KALSHI_API_KEY', 'KALSHI_PRIVATE_KEY'],
         alpaca: ['ALPACA_API_KEY', 'ALPACA_API_SECRET'],
       };
-      
+
       const keysToCheck = keyNames[exchange as keyof typeof keyNames] || [];
       const { data, error } = await supabase
         .from('polybot_secrets')
         .select('key_name')
         .in('key_name', keysToCheck);
-      
+
       if (error) throw error;
-      
+
       const foundKeys = data?.map(d => d.key_name) || [];
       const allFound = keysToCheck.every(k => foundKeys.includes(k));
-      
+
       if (allFound) {
         updateTest(catIdx, testIdx, {
           status: 'success',
@@ -802,7 +808,7 @@ export default function DiagnosticsPage() {
   const runAllTests = async () => {
     setIsRunning(true);
     setOverallStatus('running');
-    
+
     // Reset all tests
     setCategories(prev => prev.map(cat => ({
       ...cat,
@@ -849,7 +855,7 @@ export default function DiagnosticsPage() {
     const allTests = categories.flatMap(c => c.tests);
     const hasErrors = allTests.some(t => t.status === 'error');
     const hasWarnings = allTests.some(t => t.status === 'warning');
-    
+
     if (hasErrors) {
       setOverallStatus('error');
     } else if (hasWarnings) {
@@ -922,11 +928,10 @@ export default function DiagnosticsPage() {
           <button
             onClick={runAllTests}
             disabled={isRunning}
-            className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-all ${
-              isRunning
-                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
+            className={`px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-all ${isRunning
+              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+              }`}
           >
             {isRunning ? (
               <>
@@ -1002,13 +1007,12 @@ export default function DiagnosticsPage() {
                     {category.tests.map((test, idx) => (
                       <div
                         key={idx}
-                        className={`w-2 h-2 rounded-full ${
-                          test.status === 'success' ? 'bg-green-400' :
+                        className={`w-2 h-2 rounded-full ${test.status === 'success' ? 'bg-green-400' :
                           test.status === 'warning' ? 'bg-yellow-400' :
-                          test.status === 'error' ? 'bg-red-400' :
-                          test.status === 'running' ? 'bg-blue-400 animate-pulse' :
-                          'bg-gray-600'
-                        }`}
+                            test.status === 'error' ? 'bg-red-400' :
+                              test.status === 'running' ? 'bg-blue-400 animate-pulse' :
+                                'bg-gray-600'
+                          }`}
                       />
                     ))}
                   </div>

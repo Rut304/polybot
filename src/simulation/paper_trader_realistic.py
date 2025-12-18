@@ -13,6 +13,7 @@ Simulates real trading conditions including:
 """
 
 import random
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_DOWN
@@ -317,8 +318,19 @@ class RealisticPaperTrader:
     
     # ========== COOLDOWN / DEDUPLICATION ==========
     # CRITICAL: Prevent unrealistic repeated trades on same market
-    MARKET_COOLDOWN_SECONDS = 86400  # 24 hours between trades on same market
-    MAX_TRADES_PER_MARKET_PER_DAY = 2  # Hard limit per market
+    # Reduced from 24h to 1h to allow more activity during user testing
+    MARKET_COOLDOWN_SECONDS = 3600  # 1 hour between trades on same market
+    MAX_TRADES_PER_MARKET_PER_DAY = 5  # Increased limit per market
+
+    # ========== NETWORK LATENCY & DRIFT ==========
+    # "Do we need to delay the sale by a second to make it more realistic?" - YES.
+    # Simulates time from Detection -> Decision -> API Request -> Matching
+    EXECUTION_DELAY_MIN_SEC = 0.5
+    EXECUTION_DELAY_MAX_SEC = 2.5
+    
+    # Price drift during delay (Volatile markets move fast!)
+    # % movement per second of delay
+    DRIFT_VOLATILITY_PCT_PER_SEC = 0.2
 
     def __init__(
         self,
@@ -460,6 +472,67 @@ class RealisticPaperTrader:
             self._market_trade_times[key] = []
         
         self._market_trade_times[key].append(now)
+
+    async def _simulate_network_latency(self) -> Decimal:
+        """
+        Simulate real-world execution delay and resulting price drift.
+        Returns: drift_impact_pct (how much the spread WORSENED)
+        """
+        # 1. Calculate random delay
+        delay = random.uniform(self.EXECUTION_DELAY_MIN_SEC, self.EXECUTION_DELAY_MAX_SEC)
+        
+        # 2. ASYNC SLEEP (The "Second Delay")
+        await asyncio.sleep(delay)
+        
+        # 3. Calculate Price Drift during delay
+        # Markets usually move against arb opportunities (others taking them)
+        # 70% chance of adverse drift (spread worsens)
+        # 30% chance of neutral/favorable (noise)
+        base_drift = delay * self.DRIFT_VOLATILITY_PCT_PER_SEC
+        
+        if random.random() > 0.3:
+            # Adverse: Spread shrinks by random amount up to base_drift
+            drift_impact = random.uniform(0.05, base_drift)
+        else:
+            # Noise: Spread fluctuates +/- small amount
+            drift_impact = random.uniform(-0.05, 0.05)
+            
+        return Decimal(str(drift_impact))
+
+    def _log_skipped_opportunity(
+        self,
+        market_title: str,
+        spread_pct: Decimal,
+        reason: str,
+        opportunity_info: Dict[str, Any]
+    ):
+        """
+        Log skipped opportunity to database for 'Missed Revenue' analysis.
+        """
+        try:
+            # Construct opportunity record for DB
+            # Use 'skipped' status so it shows up in Missed Revenue queries
+            opp = {
+                "market_name": market_title,
+                "profit_percent": float(spread_pct),
+                "status": "skipped",
+                "skip_reason": reason,
+                "detected_at": datetime.now(timezone.utc).isoformat(),
+                "buy_platform": opportunity_info.get("platform_a"),
+                "sell_platform": opportunity_info.get("platform_b"),
+                "strategy": opportunity_info.get("arbitrage_type", "simulation"),
+                "buy_market_id": opportunity_info.get("market_a_id"),
+                "sell_market_id": opportunity_info.get("market_b_id"),
+                "buy_price": float(opportunity_info.get("price_a", 0)),
+                "sell_price": float(opportunity_info.get("price_b", 0)),
+            }
+            
+            # Use Database client to log
+            # NOTE: log_opportunity handles internal ID generation if needed
+            self.db.log_opportunity(opp)
+            
+        except Exception as e:
+            logger.warning(f"Failed to log skipped opportunity: {e}")
 
     def _calculate_slippage(self, price: Decimal) -> Decimal:
         """
@@ -756,6 +829,21 @@ class RealisticPaperTrader:
             logger.info(
                 f"🚫 SKIPPED (cooldown): {market_a_title[:40]}... - {reason}"
             )
+            # LOG MISSED OPPORTUNITY
+            self._log_skipped_opportunity(
+                market_title=market_a_title, 
+                spread_pct=spread_pct, 
+                reason=f"Cooldown: {reason}",
+                opportunity_info={
+                    "market_a_id": market_a_id,
+                    "market_b_id": market_b_id,
+                    "platform_a": platform_a,
+                    "platform_b": platform_b,
+                    "price_a": float(price_a),
+                    "price_b": float(price_b),
+                    "arbitrage_type": arbitrage_type,
+                }
+            )
             return None
 
         # ========== SAME-PLATFORM FILTER ==========
@@ -773,6 +861,21 @@ class RealisticPaperTrader:
                 f"({spread_pct:.1f}% spread) - NOT true arbitrage! "
                 f"Enable SKIP_SAME_PLATFORM_OVERLAP=False to allow."
             )
+            # LOG MISSED OPPORTUNITY
+            self._log_skipped_opportunity(
+                market_title=market_a_title,
+                spread_pct=spread_pct,
+                reason="Skipped Same-Platform Overlap (Risky)",
+                opportunity_info={
+                    "market_a_id": market_a_id,
+                    "market_b_id": market_b_id,
+                    "platform_a": platform_a,
+                    "platform_b": platform_b,
+                    "price_a": float(price_a),
+                    "price_b": float(price_b),
+                    "arbitrage_type": arbitrage_type,
+                }
+            )
             return None
 
         # ========== FALSE POSITIVE FILTER ==========
@@ -783,6 +886,21 @@ class RealisticPaperTrader:
             logger.info(
                 f"🚫 REJECTED (false positive): {spread_pct:.1f}% spread "
                 f"exceeds {self.MAX_REALISTIC_SPREAD_PCT}% max"
+            )
+            # LOG MISSED OPPORTUNITY
+            self._log_skipped_opportunity(
+                market_title=market_a_title,
+                spread_pct=spread_pct,
+                reason=f"False Positive: Spread > {self.MAX_REALISTIC_SPREAD_PCT}%",
+                opportunity_info={
+                    "market_a_id": market_a_id,
+                    "market_b_id": market_b_id,
+                    "platform_a": platform_a,
+                    "platform_b": platform_b,
+                    "price_a": float(price_a),
+                    "price_b": float(price_b),
+                    "arbitrage_type": arbitrage_type,
+                }
             )
             return None
 
@@ -799,7 +917,41 @@ class RealisticPaperTrader:
             logger.warning(
                 f"Insufficient funds: ${self.stats.current_balance:.2f}"
             )
+            # LOG MISSED OPPORTUNITY
+            self._log_skipped_opportunity(
+                market_title=market_a_title,
+                spread_pct=spread_pct,
+                reason="Insufficient Funds",
+                opportunity_info={
+                    "market_a_id": market_a_id,
+                    "market_b_id": market_b_id,
+                    "platform_a": platform_a,
+                    "platform_b": platform_b,
+                    "price_a": float(price_a),
+                    "price_b": float(price_b),
+                    "arbitrage_type": arbitrage_type,
+                }
+            )
             return None
+
+        # ========== SIMULATE LATENCY & DRIFT ==========
+        # "Do we need to delay the sale?" - YES.
+        drift_impact_pct = await self._simulate_network_latency()
+        
+        # Adjust spread for drift
+        original_spread = spread_pct
+        spread_pct = spread_pct - drift_impact_pct
+        
+        # Log if drift killed the trade
+        if spread_pct <= 0:
+            self.stats.failed_executions += 1
+            logger.info(
+                f"🚫 EXECUTED FAILED (Drift): Spread went from {original_spread:.2f}% "
+                f"to {spread_pct:.2f}% during delay."
+            )
+            return None
+
+        # Calculate position size
 
         # Calculate position size
         position_size = self._calculate_position_size()

@@ -1295,7 +1295,7 @@ class PolybotRunner:
                 self.ai_superforecasting = AISuperforecastingStrategy(
                     api_key=gemini_api_key,
                     model=getattr(
-                        self.config.trading, 'ai_model', 'gemini-1.5-flash'
+                        self.config.trading, 'ai_model', 'gemini-1.5-pro'
                     ),
                     min_divergence_pct=getattr(
                         self.config.trading, 'ai_min_divergence_pct', 10.0
@@ -1553,10 +1553,13 @@ class PolybotRunner:
             status = "skipped"
             logger.info(f"⛔ {skip_reason}")
         
+        # Generate ID
+        opp_id = f"overlap_{opp.market_a.condition_id[:10]}_{opp.detected_at.timestamp():.0f}"
+        
         # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
-                "id": f"overlap_{opp.market_a.condition_id[:10]}_{opp.detected_at.timestamp():.0f}",
+                "id": opp_id,
                 "buy_platform": "polymarket",
                 "sell_platform": "polymarket",
                 "buy_market_id": opp.market_a.condition_id,
@@ -1584,7 +1587,7 @@ class PolybotRunner:
                 # IMPORTANT: Pass arbitrage_type="overlapping_arb" to distinguish from
                 # true single-platform arbitrage (YES+NO=$1). Overlapping arb is
                 # correlation-based between DIFFERENT markets - much riskier!
-                await self.paper_trader.simulate_opportunity(
+                trade = await self.paper_trader.simulate_opportunity(
                     market_a_id=opp.market_a.condition_id or "unknown",
                     market_a_title=opp.market_a.question[:200],
                     market_b_id=opp.market_b.condition_id or "overlapping",
@@ -1597,8 +1600,33 @@ class PolybotRunner:
                     trade_type=f"overlapping_{opp.relationship}",
                     arbitrage_type="overlapping_arb",  # CRITICAL: Not "polymarket_single"!
                 )
+                
+                # Record trade result if executed
+                if trade:
+                    # Determine status and result
+                    status = "executed"
+                    exec_result = "unknown"
+                    
+                    if trade.outcome.value in ("won", "lost"):
+                        is_win = trade.outcome.value == "won"
+                        exec_result = "won" if is_win else "lost"
+                    elif trade.outcome.value == "failed_execution":
+                        status = "failed"
+                        exec_result = "execution_failed"
+                    
+                    self.db.update_opportunity_status(
+                        opportunity_id=opp_id,
+                        status=status,
+                        executed_at=datetime.utcnow(),
+                        execution_result=exec_result
+                    )
             except Exception as e:
                 logger.error(f"Error paper trading arb: {e}")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason=str(e)
+                )
     
     async def on_cross_platform_opportunity(self, opp: Opportunity):
         """Handle cross-platform arbitrage opportunities (Polymarket↔Kalshi)."""
@@ -1618,9 +1646,16 @@ class PolybotRunner:
             trade_size=self.config.trading.max_trade_size,
         )
         
+        # Generate ID (use one provided if possible, else generate)
+        if hasattr(opp, 'id') and opp.id:
+            opp_id = opp.id
+        else:
+            opp_id = f"cross_{opp.buy_platform}_{opp.buy_market_id[:10]}_{opp.detected_at.timestamp():.0f}"
+
         # Log to database
         try:
             self.db.log_opportunity({
+                "id": opp_id,
                 "type": "cross_platform_arb",
                 "buy_platform": opp.buy_platform,
                 "sell_platform": opp.sell_platform,
@@ -1634,6 +1669,7 @@ class PolybotRunner:
                 "confidence": opp.confidence,
                 "strategy": opp.strategy,
                 "detected_at": opp.detected_at.isoformat(),
+                "status": "detected",
             })
         except Exception as e:
             logger.error(f"Error logging cross-platform opportunity: {e}")
@@ -1658,18 +1694,38 @@ class PolybotRunner:
                 self.analytics.record_opportunity(ArbitrageType.CROSS_PLATFORM)
                 
                 # Record trade result if executed
-                if trade and trade.outcome.value in ("won", "lost"):
-                    is_win = trade.outcome.value == "won"
-                    self.analytics.record_trade(
-                        ArbitrageType.CROSS_PLATFORM,
-                        is_win=is_win,
-                        gross_pnl=trade.gross_profit_usd,
-                        fees=trade.total_fees_usd,
+                if trade:
+                    status = "executed"
+                    exec_result = "unknown"
+                    
+                    if trade.outcome.value in ("won", "lost"):
+                        is_win = trade.outcome.value == "won"
+                        exec_result = "won" if is_win else "lost"
+                        self.analytics.record_trade(
+                            ArbitrageType.CROSS_PLATFORM,
+                            is_win=is_win,
+                            gross_pnl=trade.gross_profit_usd,
+                            fees=trade.total_fees_usd,
+                        )
+                    elif trade.outcome.value == "failed_execution":
+                        status = "failed"
+                        exec_result = "execution_failed"
+                        self.analytics.record_failed_execution(ArbitrageType.CROSS_PLATFORM)
+
+                    # Update status
+                    self.db.update_opportunity_status(
+                        opportunity_id=opp_id,
+                        status=status,
+                        executed_at=datetime.utcnow(),
+                        execution_result=exec_result
                     )
-                elif trade and trade.outcome.value == "failed_execution":
-                    self.analytics.record_failed_execution(ArbitrageType.CROSS_PLATFORM)
             except Exception as e:
                 logger.error(f"Error paper trading cross-platform arb: {e}")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason=str(e)
+                )
     
     async def on_single_platform_opportunity(
         self, 
@@ -1686,8 +1742,6 @@ class PolybotRunner:
         )
         
         # Mark as traded IMMEDIATELY to prevent duplicate trades
-        # This happens BEFORE execution so even if execution fails,
-        # we don't spam the same market
         if self.single_platform_scanner:
             self.single_platform_scanner.mark_traded(opp.market_id, opp.platform)
         
@@ -1703,10 +1757,13 @@ class PolybotRunner:
             trade_size=self.config.trading.max_trade_size,
         )
         
+        # Generate predictable ID
+        opp_id = f"single_{opp.platform}_{opp.market_id[:20]}_{opp.detected_at.timestamp():.0f}"
+        
         # Log to database
         try:
             self.db.log_opportunity({
-                "id": f"single_{opp.platform}_{opp.market_id[:20]}_{opp.detected_at.timestamp():.0f}",
+                "id": opp_id,
                 "buy_platform": opp.platform,
                 "sell_platform": opp.platform,
                 "buy_market_id": opp.market_id,
@@ -1718,6 +1775,7 @@ class PolybotRunner:
                 "profit_percent": float(opp.profit_pct),
                 "strategy": f"single_platform_{opp.platform}",
                 "detected_at": opp.detected_at.isoformat(),
+                "status": "detected",
             })
         except Exception as e:
             logger.error(f"Error logging single-platform opportunity: {e}")
@@ -1742,18 +1800,40 @@ class PolybotRunner:
                 )
                 
                 # Record trade result if executed
-                if trade and trade.outcome.value in ("won", "lost"):
-                    is_win = trade.outcome.value == "won"
-                    self.analytics.record_trade(
-                        arb_type,
-                        is_win=is_win,
-                        gross_pnl=trade.gross_profit_usd,
-                        fees=trade.total_fees_usd,
+                if trade:
+                    # Determine status and result
+                    status = "executed"
+                    exec_result = "unknown"
+                    
+                    if trade.outcome.value in ("won", "lost"):
+                        is_win = trade.outcome.value == "won"
+                        exec_result = "won" if is_win else "lost"
+                        self.analytics.record_trade(
+                            arb_type,
+                            is_win=is_win,
+                            gross_pnl=trade.gross_profit_usd,
+                            fees=trade.total_fees_usd,
+                        )
+                    elif trade.outcome.value == "failed_execution":
+                        status = "failed"
+                        exec_result = "execution_failed"
+                        self.analytics.record_failed_execution(arb_type)
+                    
+                    # Update DB with result
+                    self.db.update_opportunity_status(
+                        opportunity_id=opp_id,
+                        status=status,
+                        executed_at=datetime.utcnow(),
+                        execution_result=exec_result
                     )
-                elif trade and trade.outcome.value == "failed_execution":
-                    self.analytics.record_failed_execution(arb_type)
             except Exception as e:
                 logger.error(f"Error paper trading single-platform: {e}")
+                # Log failure to DB
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason=str(e)
+                )
     
     async def on_position_claim(self, result: ClaimResult):
         """Handle position claim results."""

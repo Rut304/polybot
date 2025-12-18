@@ -9,6 +9,8 @@ from src.exchanges.ibkr_client import IBKRClient
 from src.database.client import Database as SupabaseClient
 from src.exchanges.base import OrderSide, OrderType
 
+from datetime import datetime, timezone
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -107,7 +109,12 @@ class IBKRFuturesMomentumStrategy(BaseStrategy):
                 logger.info(f"🚀 FUTURES SIGNAL: {action} {self.config.symbol} ({reason})")
                 
                 # Execution (Mock/Paper for safety unless configured)
-                # await self.ibkr.create_order(self.config.symbol, action, OrderType.MARKET, self.config.position_size)
+                # Uncommented for Simulation
+                try:
+                    await self.ibkr.create_order(self.config.symbol, action, OrderType.MARKET, self.config.position_size)
+                    logger.info("Order sent to IBKR")
+                except Exception as e:
+                    logger.error(f"Failed to send IBKR order: {e}")
                 
                 self.db.log_opportunity({
                     "id": f"futures_{self.config.symbol}_{int(datetime.now().timestamp())}",

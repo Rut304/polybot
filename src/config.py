@@ -98,7 +98,7 @@ class TradingConfig:
     # Post liquidity, earn bid-ask spread + Polymarket rewards
     # Academic evidence: This is how the $40M was ACTUALLY made
     # =========================================================================
-    enable_market_making: bool = False          # OFF by default (requires capital)
+    enable_market_making: bool = True           # ON by default (paper)
     mm_target_spread_bps: int = 200             # 2% spread (200 basis points)
     mm_min_spread_bps: int = 50                 # 0.5% minimum spread
     mm_max_spread_bps: int = 500                # 5% maximum spread
@@ -113,7 +113,7 @@ class TradingConfig:
     # NEWS ARBITRAGE STRATEGY (MEDIUM CONFIDENCE - Event-driven)
     # Exploit Polymarket→Kalshi price lag during news events
     # =========================================================================
-    enable_news_arbitrage: bool = False         # OFF by default (risky timing)
+    enable_news_arbitrage: bool = True          # ON by default (paper)
     news_min_spread_pct: float = 3.0            # Min spread to trigger
     news_max_lag_minutes: int = 30              # Max time since news break
     news_position_size_usd: float = 50.0        # Position size per event
@@ -126,7 +126,7 @@ class TradingConfig:
     # Academic basis: Retail long bias creates persistent positive funding
     # Expected returns: 15-50% APY
     # =========================================================================
-    enable_funding_rate_arb: bool = False       # OFF by default
+    enable_funding_rate_arb: bool = True        # ON by default (paper)
     funding_min_rate_pct: float = 0.03          # 0.03% per 8h = ~33% APY
     funding_min_apy: float = 30.0               # Minimum APY to enter
     funding_exit_threshold: float = 0.01        # Exit if funding drops below
@@ -142,7 +142,7 @@ class TradingConfig:
     # Profit from sideways price oscillation
     # Expected returns: 20-60% APY in ranging markets
     # =========================================================================
-    enable_grid_trading: bool = False           # OFF by default
+    enable_grid_trading: bool = True            # ON by default (paper)
     grid_default_range_pct: float = 10.0        # ±10% from current price
     grid_default_levels: int = 20               # Number of grid levels
     grid_default_investment_usd: float = 500.0  # Default investment per grid
@@ -157,7 +157,7 @@ class TradingConfig:
     # Mean reversion on correlated asset pairs
     # Expected returns: 10-25% APY
     # =========================================================================
-    enable_pairs_trading: bool = False          # OFF by default
+    enable_pairs_trading: bool = True           # ON by default (paper)
     pairs_entry_zscore: float = 2.0             # Enter when |z| > 2
     pairs_exit_zscore: float = 0.5              # Exit when |z| < 0.5
     pairs_stop_loss_zscore: float = 4.0         # Stop if |z| > 4
@@ -173,7 +173,7 @@ class TradingConfig:
     # Expected returns: 15-30% APY
     # Requires Alpaca account
     # =========================================================================
-    enable_stock_mean_reversion: bool = False   # OFF by default
+    enable_stock_mean_reversion: bool = True    # ON by default (paper)
     stock_mr_lookback_period: int = 20          # SMA period (days)
     stock_mr_entry_zscore: float = 2.0          # Buy when z-score < -2
     stock_mr_exit_zscore: float = 0.5           # Sell when z-score > -0.5
@@ -190,7 +190,7 @@ class TradingConfig:
     # Expected returns: 20-40% APY
     # Requires Alpaca account
     # =========================================================================
-    enable_stock_momentum: bool = False         # OFF by default
+    enable_stock_momentum: bool = True          # ON by default (paper)
     momentum_min_score: float = 60.0            # Min momentum score (0-100) to enter
     stock_mom_roc_period: int = 10              # Rate of change period
     stock_mom_entry_threshold: float = 3.0      # Min ROC % to enter
@@ -212,16 +212,16 @@ class TradingConfig:
     enable_kalshi: bool = True                  # Kalshi (7% fees on profit)
     
     # Crypto Exchanges (via CCXT)
-    enable_binance: bool = False                # Binance Spot & Futures
+    enable_binance: bool = False                # Binance Spot & Futures (Georestricted often)
     enable_bybit: bool = False                  # Bybit Unified
-    enable_okx: bool = False                    # OKX
-    enable_kraken: bool = False                 # Kraken
-    enable_coinbase: bool = False               # Coinbase Pro
-    enable_kucoin: bool = False                 # KuCoin
+    enable_okx: bool = True                     # OKX
+    enable_kraken: bool = True                  # Kraken
+    enable_coinbase: bool = True                # Coinbase Pro
+    enable_kucoin: bool = True                  # KuCoin
     
     # Stock Brokers
-    enable_alpaca: bool = False                 # Alpaca (commission-free)
-    enable_ibkr: bool = False                   # Interactive Brokers
+    enable_alpaca: bool = True                 # Alpaca (commission-free)
+    enable_ibkr: bool = True                   # Interactive Brokers
     
     # =========================================================================
     # ADVANCED FRAMEWORK - PHASE 1 (Risk Management)
@@ -381,7 +381,7 @@ class TradingConfig:
     # Based on Twitter analysis: $956 → $208K using 15-min BTC binary options
     # High-frequency scalping on crypto short-term binary markets
     # =========================================================================
-    enable_15min_crypto_scalping: bool = False     # OFF by default
+    enable_15min_crypto_scalping: bool = True      # ON by default per user request
     crypto_scalp_entry_threshold: float = 0.45     # Entry when YES < 45¢
     crypto_scalp_exit_threshold: float = 0.55      # Exit when YES > 55¢
     crypto_scalp_stop_loss_cents: float = 0.35     # Stop loss at 35¢
@@ -399,7 +399,7 @@ class TradingConfig:
     # Combines base rates, factor analysis, and divergence detection
     # =========================================================================
     enable_ai_superforecasting: bool = False       # OFF by default
-    ai_model: str = "gemini-1.5-flash"             # Gemini model to use
+    ai_model: str = "gemini-1.5-pro"             # Gemini model to use
     ai_min_divergence_pct: float = 10.0            # Min market vs AI divergence
     ai_max_position_usd: float = 100.0             # Max position per trade
     ai_scan_interval_sec: int = 300                # 5-minute analysis cycles
@@ -793,10 +793,10 @@ class Config:
                 "enable_bybit", "ENABLE_BYBIT", False
             ),
             enable_okx=self._get_bool(
-                "enable_okx", "ENABLE_OKX", False
+                "enable_okx", "ENABLE_OKX", True
             ),
             enable_kraken=self._get_bool(
-                "enable_kraken", "ENABLE_KRAKEN", False
+                "enable_kraken", "ENABLE_KRAKEN", True
             ),
             enable_coinbase=self._get_bool(
                 "enable_coinbase", "ENABLE_COINBASE", False
@@ -805,10 +805,10 @@ class Config:
                 "enable_kucoin", "ENABLE_KUCOIN", False
             ),
             enable_alpaca=self._get_bool(
-                "enable_alpaca", "ENABLE_ALPACA", False
+                "enable_alpaca", "ENABLE_ALPACA", True
             ),
             enable_ibkr=self._get_bool(
-                "enable_ibkr", "ENABLE_IBKR", False
+                "enable_ibkr", "ENABLE_IBKR", True
             ),
             # ============================================================
             # STOCK MEAN REVERSION SETTINGS (70% confidence)
@@ -1208,7 +1208,7 @@ class Config:
                 "enable_ai_superforecasting", "ENABLE_AI_FORECAST", False
             ),
             ai_model=self._get_str(
-                "ai_model", "AI_MODEL", "gemini-1.5-flash"
+                "ai_model", "AI_MODEL", "gemini-1.5-pro"
             ),
             ai_min_divergence_pct=self._get_float(
                 "ai_min_divergence_pct", "AI_MIN_DIVERGENCE", 10.0

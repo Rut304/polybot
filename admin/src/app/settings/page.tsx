@@ -113,7 +113,6 @@ export default function SettingsPage() {
     { id: 'risk', label: 'Risk & Safety', icon: Shield },
     { id: 'platforms', label: 'Platforms', icon: Database },
     { id: 'simulation', label: 'Simulation', icon: Activity },
-    { id: 'users', label: 'Users', icon: Users },
   ] as const;
 
   // Local state for settings
@@ -1067,7 +1066,7 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">Trading Mode</h3>
+                        <h3 className="font-semibold">Live Trading Mode</h3>
                         <span className={cn(
                           "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
                           dryRunMode ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-500"
@@ -1091,41 +1090,6 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
-
-            {/* Starting Balances */}
-            <div className="card">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-neon-green" />
-                Starting Balances (For P&L Calc)
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Inputs for balances */}
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">Polymarket</label>
-                  <input type="number" value={polymarketStartingBalance} onChange={e => setPolymarketStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">Kalshi</label>
-                  <input type="number" value={kalshiStartingBalance} onChange={e => setKalshiStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">Binance</label>
-                  <input type="number" value={binanceStartingBalance} onChange={e => setBinanceStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">Coinbase</label>
-                  <input type="number" value={coinbaseStartingBalance} onChange={e => setCoinbaseStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">Alpaca</label>
-                  <input type="number" value={alpacaStartingBalance} onChange={e => setAlpacaStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">IBKR</label>
-                  <input type="number" value={ibkrStartingBalance} onChange={e => setIbkrStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
-                </div>
-              </div>
-            </div>
           </motion.div>
         )}
 
@@ -1137,30 +1101,7 @@ export default function SettingsPage() {
             transition={{ duration: 0.2 }}
             className="card"
           >
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <Target className="w-5 h-5 text-neon-green" />
-              Global Strategy Parameters
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <LabelWithTooltip label="Min Profit %" tooltip="Minimum profit required to execute a trade." />
-                <input type="number" step="0.1" value={minProfitPercent} onChange={e => setMinProfitPercent(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
-              </div>
-              <div>
-                <LabelWithTooltip label="Max Trade Size ($)" tooltip="Maximum capital per trade." />
-                <input type="number" value={maxTradeSize} onChange={e => setMaxTradeSize(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
-              </div>
-              <div>
-                <LabelWithTooltip label="Max Daily Loss (%)" tooltip="Stop trading if daily loss exceeds this %." />
-                <input type="number" value={maxDailyLoss} onChange={e => setMaxDailyLoss(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
-              </div>
-              <div>
-                <LabelWithTooltip label="Scan Interval (sec)" tooltip="How often to scan markets." />
-                <input type="number" value={scanInterval} onChange={e => setScanInterval(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
-              </div>
-            </div>
-
-            <div className="mt-8 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl flex justify-between items-center">
+            <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-blue-400">Strategy Specific Configs</h3>
                 <p className="text-sm text-blue-300">Fine-tune individual strategies (Whale Watcher, News Trading, etc.)</p>
@@ -1168,6 +1109,41 @@ export default function SettingsPage() {
               <Link href="/strategies" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold">
                 Configure Strategies &rarr;
               </Link>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ================= RISK TAB ================= */}
+        {activeTab === 'risk' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-6"
+          >
+            <div className="card">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <Target className="w-5 h-5 text-neon-green" />
+                Global Risk Parameters
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <LabelWithTooltip label="Min Profit %" tooltip="Minimum profit required to execute a trade." />
+                  <input type="number" step="0.1" value={minProfitPercent} onChange={e => setMinProfitPercent(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                </div>
+                <div>
+                  <LabelWithTooltip label="Max Trade Size ($)" tooltip="Maximum capital per trade." />
+                  <input type="number" value={maxTradeSize} onChange={e => setMaxTradeSize(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                </div>
+                <div>
+                  <LabelWithTooltip label="Max Daily Loss (%)" tooltip="Stop trading if daily loss exceeds this %." />
+                  <input type="number" value={maxDailyLoss} onChange={e => setMaxDailyLoss(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                </div>
+                <div>
+                  <LabelWithTooltip label="Scan Interval (sec)" tooltip="How often to scan markets." />
+                  <input type="number" value={scanInterval} onChange={e => setScanInterval(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1221,72 +1197,72 @@ export default function SettingsPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="card"
+            className="space-y-6"
           >
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-yellow-500" />
-              Simulation Realism (Paper Trading Only)
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <LabelWithTooltip label="Slippage Min %" tooltip="Minimum simulated slippage percentage." />
-                <input type="number" step="0.1" value={slippageMinPct} onChange={e => setSlippageMinPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
-              </div>
-              <div>
-                <LabelWithTooltip label="Slippage Max %" tooltip="Maximum simulated slippage percentage." />
-                <input type="number" step="0.1" value={slippageMaxPct} onChange={e => setSlippageMaxPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
-              </div>
-              <div>
-                <LabelWithTooltip label="Execution Failure Rate (0-1)" tooltip="Probability (0-1) that an order fails to execute." />
-                <input type="number" step="0.05" value={executionFailureRate} onChange={e => setExecutionFailureRate(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
-              </div>
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-dark-border">
-              <h3 className="text-lg font-bold text-red-400 mb-4">Danger Zone</h3>
-              <button onClick={() => setShowConfirm('reset')} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 rounded-lg transition-colors flex items-center gap-2">
-                <Trash2 className="w-4 h-4" /> Reset Simulation Data
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ================= USERS TAB ================= */}
-        {activeTab === 'users' && isAdmin && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="card"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold flex items-center gap-2">
-                <Users className="w-5 h-5 text-neon-purple" />
-                User Administration
+            <div className="card">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-yellow-500" />
+                Simulation Realism (Paper Trading Only)
               </h2>
-              <button onClick={() => refetchUsers()} className="text-sm text-neon-blue flex items-center gap-1 hover:underline">
-                <RefreshCw className="w-4 h-4" /> Refresh
-              </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <LabelWithTooltip label="Slippage Min %" tooltip="Minimum simulated slippage percentage." />
+                  <input type="number" step="0.1" value={slippageMinPct} onChange={e => setSlippageMinPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
+                </div>
+                <div>
+                  <LabelWithTooltip label="Slippage Max %" tooltip="Maximum simulated slippage percentage." />
+                  <input type="number" step="0.1" value={slippageMaxPct} onChange={e => setSlippageMaxPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
+                </div>
+                <div>
+                  <LabelWithTooltip label="Execution Failure Rate (0-1)" tooltip="Probability (0-1) that an order fails to execute." />
+                  <input type="number" step="0.05" value={executionFailureRate} onChange={e => setExecutionFailureRate(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
+                </div>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-dark-border">
+                <h3 className="text-lg font-bold text-red-400 mb-4">Danger Zone</h3>
+                <button onClick={() => setShowConfirm('reset')} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 rounded-lg transition-colors flex items-center gap-2">
+                  <Trash2 className="w-4 h-4" /> Reset Simulation Data
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              {users.map((u: any) => (
-                <div key={u.id} className="p-4 bg-dark-border/30 rounded-xl flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-neon-purple/20 flex items-center justify-center text-neon-purple font-bold">
-                      {u.email[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-bold">{u.email}</p>
-                      <p className="text-xs text-gray-400">Role: {u.role}</p>
-                    </div>
-                  </div>
+            {/* Starting Balances (Moved to Simulation) */}
+            <div className="card">
+              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-neon-green" />
+                Starting Balances (For P&L Calc)
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Polymarket</label>
+                  <input type="number" value={polymarketStartingBalance} onChange={e => setPolymarketStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
-              ))}
-              {users.length === 0 && <p className="text-gray-500 italic">No other users found.</p>}
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Kalshi</label>
+                  <input type="number" value={kalshiStartingBalance} onChange={e => setKalshiStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Binance</label>
+                  <input type="number" value={binanceStartingBalance} onChange={e => setBinanceStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Coinbase</label>
+                  <input type="number" value={coinbaseStartingBalance} onChange={e => setCoinbaseStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Alpaca</label>
+                  <input type="number" value={alpacaStartingBalance} onChange={e => setAlpacaStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">IBKR</label>
+                  <input type="number" value={ibkrStartingBalance} onChange={e => setIbkrStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
+
       </div>
 
       {/* Modals (Live Trading Confirm, Bot Toggle Confirm, Reset Confirm) */}
@@ -1328,7 +1304,7 @@ export default function SettingsPage() {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 }
 

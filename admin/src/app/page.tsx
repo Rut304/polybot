@@ -212,8 +212,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Money Stats Widget (Missed Money & Efficiency) */}
-      <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
+
 
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -293,6 +292,11 @@ export default function Dashboard() {
           </div>
           <OpportunityChart data={opportunities || []} />
         </motion.div>
+      </div>
+
+      {/* Money Stats Widget (Missed Money & Efficiency) */}
+      <div className="mb-8">
+        <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
       </div>
 
       {/* Strategy Performance */}

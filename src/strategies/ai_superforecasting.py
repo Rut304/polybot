@@ -573,6 +573,6 @@ AI_SUPERFORECASTING_INFO = {
         "Avoids re-analyzing same market within cooldown period",
     ],
     "github_source": "BlackSky-Jose/PolyMarket-trading-AI-model (340 stars)",
-    "model": "gemini-1.5-flash",
+    "model": "gemini-1.5-pro",
     "api_required": "GEMINI_API_KEY",
 }

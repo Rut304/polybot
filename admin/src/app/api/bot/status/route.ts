@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     // Construct response compatible with frontend expectation
     return NextResponse.json({
       status: data?.is_running ? 'online' : 'offline',
-      version: '1.0.0', // TODO: Add version to DB schema
+      version: data?.version || 'unknown',
       mode: data?.mode || 'simulation',
       last_updated: data?.last_updated,
       user_id: data?.user_id
