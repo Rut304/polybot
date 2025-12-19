@@ -2,18 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+import { getSupabaseAdmin } from '../../../lib/supabase-admin';
 
-// Check if we have the required environment variables
-const hasServiceKey = supabaseUrl && supabaseServiceKey;
-
-// Server-side Supabase client with admin privileges (only if key exists)
-const supabaseAdmin = hasServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
+// Removed top-level initialization to prevent build crashes
+// using getSupabaseAdmin() inside handlers instead.
 
 export async function GET(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
+  
   if (!supabaseAdmin) {
     return NextResponse.json(
       { error: 'Server not configured. SUPABASE_SERVICE_KEY is required.' },
@@ -88,6 +84,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
+
   if (!supabaseAdmin) {
     return NextResponse.json(
       { error: 'Server not configured. SUPABASE_SERVICE_KEY is required.' },
@@ -171,6 +169,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
+
   if (!supabaseAdmin) {
     return NextResponse.json(
       { error: 'Server not configured. SUPABASE_SERVICE_KEY is required.' },
