@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  Key, 
-  Shield, 
-  Eye, 
-  EyeOff, 
-  Save, 
+import {
+  Key,
+  Shield,
+  Eye,
+  EyeOff,
+  Save,
   RefreshCw,
   CheckCircle,
   XCircle,
@@ -147,7 +147,7 @@ export default function SecretsPage() {
     notifications: false,
     data_feeds: false,
   });
-  
+
   // Re-authentication state for sensitive operations
   const [isReauthenticated, setIsReauthenticated] = useState(false);
   const [reauthTime, setReauthTime] = useState<number | null>(null);
@@ -155,7 +155,7 @@ export default function SecretsPage() {
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthError, setReauthError] = useState<string | null>(null);
   const [reauthLoading, setReauthLoading] = useState(false);
-  
+
   // Check if reauth session is still valid
   const checkReauthValid = useCallback(() => {
     if (!reauthTime) return false;
@@ -166,10 +166,10 @@ export default function SecretsPage() {
   // Handle re-authentication
   const handleReauth = async () => {
     if (!user?.email) return;
-    
+
     setReauthLoading(true);
     setReauthError(null);
-    
+
     try {
       const result = await signIn(user.email, reauthPassword);
       if (result.error) {
@@ -186,7 +186,7 @@ export default function SecretsPage() {
       setReauthLoading(false);
     }
   };
-  
+
   // Require reauth before sensitive operations
   const requireReauth = (callback: () => void) => {
     if (checkReauthValid()) {
@@ -199,7 +199,7 @@ export default function SecretsPage() {
   useEffect(() => {
     fetchSecrets();
   }, []);
-  
+
   // Auto-expire reauth session
   useEffect(() => {
     if (reauthTime) {
@@ -214,7 +214,7 @@ export default function SecretsPage() {
   const fetchSecrets = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Fetch secrets with masked values
       const { data, error: fetchError } = await supabase
@@ -222,19 +222,19 @@ export default function SecretsPage() {
         .select('*')
         .order('category')
         .order('key_name');
-      
+
       if (fetchError) throw fetchError;
-      
+
       // Transform data with masked values
       const secretsWithMasks = (data || []).map((s: any) => ({
         ...s,
-        masked_value: s.key_value 
-          ? (s.key_value.length <= 8 
-              ? '********' 
-              : s.key_value.substring(0, 4) + '...' + s.key_value.substring(s.key_value.length - 4))
+        masked_value: s.key_value
+          ? (s.key_value.length <= 8
+            ? '********'
+            : s.key_value.substring(0, 4) + '...' + s.key_value.substring(s.key_value.length - 4))
           : '',
       }));
-      
+
       setSecrets(secretsWithMasks);
     } catch (err: any) {
       console.error('Error fetching secrets:', err);
@@ -243,12 +243,12 @@ export default function SecretsPage() {
       setLoading(false);
     }
   };
-  
+
   // Refresh secrets from Supabase (re-fetch)
   const refreshFromSupabase = async () => {
     setSyncing('supabase');
     setError(null);
-    
+
     try {
       await fetchSecrets();
       const count = secrets.filter(s => s.is_configured).length;
@@ -260,52 +260,54 @@ export default function SecretsPage() {
       setSyncing(null);
     }
   };
-  
+
   // Pull secrets from AWS Secrets Manager
   const pullFromAWS = async () => {
-    setSyncing('aws');
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/secrets/pull-aws', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to pull from AWS');
+    requireReauth(async () => {
+      setSyncing('aws');
+      setError(null);
+
+      try {
+        const response = await fetch('/api/secrets/pull-aws', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to pull from AWS');
+        }
+
+        setSuccess(`✓ Imported ${result.imported} secrets from AWS`);
+        fetchSecrets(); // Refresh the list
+        setTimeout(() => setSuccess(null), 5000);
+      } catch (err: any) {
+        setError(err.message || 'Failed to pull from AWS');
+      } finally {
+        setSyncing(null);
       }
-      
-      setSuccess(`✓ Imported ${result.imported} secrets from AWS`);
-      fetchSecrets(); // Refresh the list
-      setTimeout(() => setSuccess(null), 5000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to pull from AWS');
-    } finally {
-      setSyncing(null);
-    }
+    });
   };
-  
+
   // Sync secrets to AWS Secrets Manager
   const syncToAWS = async () => {
     requireReauth(async () => {
       setSyncing('aws');
       setError(null);
-      
+
       try {
         const response = await fetch('/api/secrets/sync-aws', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(result.error || 'Failed to sync to AWS');
         }
-        
+
         setSuccess(`✓ Synced ${result.synced} secrets to AWS Secrets Manager`);
         setTimeout(() => setSuccess(null), 5000);
       } catch (err: any) {
@@ -315,25 +317,25 @@ export default function SecretsPage() {
       }
     });
   };
-  
+
   // Sync secrets to GitHub Secrets
   const syncToGitHub = async () => {
     requireReauth(async () => {
       setSyncing('github');
       setError(null);
-      
+
       try {
         const response = await fetch('/api/secrets/sync-github', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(result.error || 'Failed to sync to GitHub');
         }
-        
+
         setSuccess(`✓ Synced ${result.synced} secrets to GitHub repository`);
         setTimeout(() => setSuccess(null), 5000);
       } catch (err: any) {
@@ -343,26 +345,26 @@ export default function SecretsPage() {
       }
     });
   };
-  
+
   // Restart bot (using new Lightsail-compatible endpoint)
   const restartBot = async (action: 'restart' | 'stop' | 'start' = 'restart') => {
     requireReauth(async () => {
       setSyncing('redeploy');
       setError(null);
-      
+
       try {
         const response = await fetch('/api/bot/restart', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action }),
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok) {
           throw new Error(result.error || `Failed to ${action} bot`);
         }
-        
+
         if (result.method === 'manual') {
           // Show instructions for manual restart
           setSuccess(`✓ ${result.message}\n\nManual steps:\n${result.instructions.join('\n')}`);
@@ -377,7 +379,7 @@ export default function SecretsPage() {
       }
     });
   };
-  
+
   // Legacy redeploy function (for backwards compatibility)
   const redeployBot = () => restartBot('restart');
 
@@ -393,7 +395,7 @@ export default function SecretsPage() {
     setSaving(keyName);
     setError(null);
     setSuccess(null);
-    
+
     try {
       const { error: updateError } = await supabase
         .from('polybot_secrets')
@@ -403,14 +405,14 @@ export default function SecretsPage() {
           last_updated: new Date().toISOString(),
         })
         .eq('key_name', keyName);
-      
+
       if (updateError) throw updateError;
-      
+
       setSuccess(`${keyName} updated successfully`);
       setEditingKey(null);
       setEditValue('');
       fetchSecrets();
-      
+
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       console.error('Error saving secret:', err);
@@ -500,11 +502,11 @@ export default function SecretsPage() {
                   <p className="text-sm text-gray-400">Re-enter your password to continue</p>
                 </div>
               </div>
-              
+
               <p className="text-sm text-gray-400 mb-4">
                 For security, we require password confirmation before accessing or modifying secrets.
               </p>
-              
+
               <div className="mb-4">
                 <label htmlFor="reauth-password" className="sr-only">Password</label>
                 <input
@@ -518,11 +520,11 @@ export default function SecretsPage() {
                   autoFocus
                 />
               </div>
-              
+
               {reauthError && (
                 <p className="text-red-500 text-sm mb-4">{reauthError}</p>
               )}
-              
+
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -542,7 +544,7 @@ export default function SecretsPage() {
                   {reauthLoading ? 'Verifying...' : 'Verify'}
                 </button>
               </div>
-              
+
               <p className="text-xs text-gray-500 mt-4 text-center">
                 Session expires after 5 minutes of inactivity
               </p>
@@ -550,9 +552,9 @@ export default function SecretsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
@@ -567,7 +569,7 @@ export default function SecretsPage() {
               Manage all API credentials for trading platforms, exchanges, and services
             </p>
           </div>
-          
+
           {/* Sync Buttons */}
           <div className="flex gap-3 flex-wrap">
             <button
@@ -634,7 +636,7 @@ export default function SecretsPage() {
             </button>
           </div>
         </div>
-        
+
         {/* Session Status */}
         {isReauthenticated && (
           <div className="mt-4 flex items-center gap-2 text-sm text-green-400">
@@ -646,7 +648,7 @@ export default function SecretsPage() {
 
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -663,7 +665,7 @@ export default function SecretsPage() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
@@ -684,7 +686,7 @@ export default function SecretsPage() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -728,7 +730,7 @@ export default function SecretsPage() {
       </AnimatePresence>
 
       {/* Important Note */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.25 }}
@@ -739,7 +741,7 @@ export default function SecretsPage() {
           <div>
             <p className="text-blue-400 font-medium">Security Note</p>
             <p className="text-sm text-gray-400 mt-1">
-              Secrets are stored in Supabase with Row Level Security. Never share your API keys. 
+              Secrets are stored in Supabase with Row Level Security. Never share your API keys.
               Each exchange/platform requires its own account and API credentials.
             </p>
           </div>
@@ -759,7 +761,7 @@ export default function SecretsPage() {
         const categorySecrets = secretsByCategory[category] || [];
         const configuredCount = categorySecrets.filter(s => s.is_configured).length;
         const isExpanded = expandedCategories[category];
-        
+
         return (
           <motion.div
             key={category}
@@ -780,21 +782,20 @@ export default function SecretsPage() {
                 <div className="text-left">
                   <h2 className="text-lg font-semibold flex items-center gap-2">
                     {info.title}
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      configuredCount === categorySecrets.length 
-                        ? 'bg-neon-green/20 text-neon-green' 
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${configuredCount === categorySecrets.length
+                        ? 'bg-neon-green/20 text-neon-green'
                         : 'bg-yellow-500/20 text-yellow-500'
-                    }`}>
+                      }`}>
                       {configuredCount}/{categorySecrets.length}
                     </span>
                   </h2>
                   <p className="text-sm text-gray-500">{info.description}</p>
                 </div>
               </div>
-              <svg 
+              <svg
                 className={`w-5 h-5 text-gray-500 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                fill="none" 
-                viewBox="0 0 24 24" 
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -830,7 +831,7 @@ export default function SecretsPage() {
                 >
                   <div className="mt-4 space-y-3">
                     {categorySecrets.map(secret => (
-                      <div 
+                      <div
                         key={secret.key_name}
                         className="p-4 bg-dark-border/30 rounded-xl"
                       >
@@ -847,7 +848,7 @@ export default function SecretsPage() {
                               )}
                             </div>
                             <p className="text-xs text-gray-500">{secret.description}</p>
-                            
+
                             {/* Edit Mode */}
                             {editingKey === secret.key_name ? (
                               <div className="mt-3 space-y-2">
@@ -928,7 +929,7 @@ export default function SecretsPage() {
                               </div>
                             )}
                           </div>
-                          
+
                           {/* Edit Button */}
                           {editingKey !== secret.key_name && (
                             <button
@@ -939,7 +940,7 @@ export default function SecretsPage() {
                             </button>
                           )}
                         </div>
-                        
+
                         {/* Last Updated */}
                         {secret.last_updated && secret.is_configured && (
                           <p className="text-xs text-gray-600 mt-2">
@@ -957,7 +958,7 @@ export default function SecretsPage() {
       })}
 
       {/* Help Section */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
@@ -978,8 +979,8 @@ export default function SecretsPage() {
             </a>. Uses RSA private key authentication.
           </p>
           <p>
-            <strong className="text-white">Crypto Exchanges:</strong> CCXT is a library, not a service. 
-            You need to create accounts and generate API keys on each exchange individually 
+            <strong className="text-white">Crypto Exchanges:</strong> CCXT is a library, not a service.
+            You need to create accounts and generate API keys on each exchange individually
             (Binance, Bybit, OKX, etc.). Each will give you an API Key and Secret.
           </p>
           <p>
