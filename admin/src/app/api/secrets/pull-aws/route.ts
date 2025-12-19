@@ -2,25 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { SecretsManagerClient, GetSecretValueCommand, ListSecretsCommand } from '@aws-sdk/client-secrets-manager';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+// Lazy Load Supabase Admin
+const getSupabaseAdmin = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+  return createClient(supabaseUrl, supabaseServiceKey);
+};
 
-const hasServiceKey = supabaseUrl && supabaseServiceKey;
-const supabaseAdmin = hasServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
-
-// AWS Configuration - us-east-1 is where Lightsail is deployed
-const awsRegion = process.env.AWS_REGION || 'us-east-1';
-const hasAwsConfig = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
-
-const secretsClient = hasAwsConfig ? new SecretsManagerClient({ 
-  region: awsRegion,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  }
-}) : null;
+// Lazy Load AWS Secrets Client
+const getSecretsClient = () => {
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  
+  if (!accessKeyId || !secretAccessKey) return null;
+  
+  return new SecretsManagerClient({ 
+    region,
+    credentials: { accessKeyId, secretAccessKey }
+  });
+};
 
 // Map secret keys from AWS JSON to our DB structure
 interface SecretMapping {
@@ -179,6 +181,7 @@ const KEY_MAPPINGS: Record<string, SecretMapping> = {
 
 // Fetch secrets from AWS and sync to Supabase
 async function fetchAwsSecrets(): Promise<Record<string, string>> {
+  const secretsClient = getSecretsClient();
   if (!secretsClient) {
     throw new Error('AWS not configured');
   }
@@ -226,9 +229,12 @@ async function fetchAwsSecrets(): Promise<Record<string, string>> {
 
 // POST - Pull secrets from AWS and sync to Supabase
 export async function POST(request: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const secretsClient = getSecretsClient();
+
   if (!supabaseAdmin) {
     return NextResponse.json(
-      { error: 'Server not configured. SUPABASE_SERVICE_KEY is required.' },
+      { error: 'Server not configured. SUPABASE_SERVICE_ROLE_KEY is required.' },
       { status: 500 }
     );
   }
@@ -297,6 +303,7 @@ export async function POST(request: NextRequest) {
 
 // GET - List expected secrets and their current status
 export async function GET() {
+  const supabaseAdmin = getSupabaseAdmin();
   if (!supabaseAdmin) {
     return NextResponse.json(
       { error: 'Server not configured' },
@@ -311,7 +318,7 @@ export async function GET() {
       .select('key_name, is_configured, last_updated');
 
     const existingMap = new Map(
-      (existingSecrets || []).map(s => [s.key_name, s])
+      (existingSecrets || []).map((s: any) => [s.key_name, s])
     );
 
     // Build status for all expected secrets
@@ -331,7 +338,7 @@ export async function GET() {
       secrets: secretStatus,
       configured: secretStatus.filter(s => s.is_configured).length,
       total: secretStatus.length,
-      aws_configured: hasAwsConfig,
+      aws_configured: !!getSecretsClient(),
     });
   } catch (err: any) {
     return NextResponse.json(
