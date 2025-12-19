@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { 
-  Brain, 
+import {
+  Brain,
   Lightbulb,
   TrendingUp,
   TrendingDown,
@@ -33,8 +33,8 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  useSimulatedTrades, 
+import {
+  useSimulatedTrades,
   useOpportunities,
   useSimulationStats,
   useSimulationHistory,
@@ -86,7 +86,7 @@ const ImpactBadge = ({ impact }: { impact: Insight['impact'] }) => {
     medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     low: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   };
-  
+
   return (
     <span className={cn("px-2 py-0.5 rounded-full border text-xs font-medium", colors[impact])}>
       {impact.charAt(0).toUpperCase() + impact.slice(1)} Impact
@@ -105,7 +105,7 @@ const formatStrategyName = (name?: string): string => {
 
 function InsightCard({ insight, index }: { insight: Insight; index: number }) {
   const [expanded, setExpanded] = useState(false);
-  
+
   const bgColors = {
     success: 'from-neon-green/10 to-transparent border-neon-green/30',
     warning: 'from-yellow-500/10 to-transparent border-yellow-500/30',
@@ -128,22 +128,22 @@ function InsightCard({ insight, index }: { insight: Insight; index: number }) {
         <div className="p-2 bg-dark-bg/50 rounded-lg">
           <InsightIcon type={insight.type} />
         </div>
-        
+
         <div className="flex-1">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold">{insight.title}</h3>
             <ImpactBadge impact={insight.impact} />
           </div>
-          
+
           <p className="text-sm text-gray-400 mb-2">{insight.description}</p>
-          
+
           {insight.metric && (
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-dark-bg/50 rounded-lg text-sm">
               <BarChart3 className="w-4 h-4 text-neon-green" />
               <span className="font-mono">{insight.metric}</span>
             </div>
           )}
-          
+
           <AnimatePresence>
             {expanded && insight.action && (
               <motion.div
@@ -169,40 +169,40 @@ function InsightCard({ insight, index }: { insight: Insight; index: number }) {
 }
 
 // Tuning Recommendation Card Component
-function TuningCard({ recommendation, index, onApply }: { 
-  recommendation: TuningRecommendation; 
+function TuningCard({ recommendation, index, onApply }: {
+  recommendation: TuningRecommendation;
   index: number;
   onApply?: (rec: TuningRecommendation) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  
+
   const impactColors = {
     increase_trades: 'from-neon-blue/20 to-transparent border-neon-blue/40',
     increase_profit: 'from-neon-green/20 to-transparent border-neon-green/40',
     reduce_risk: 'from-yellow-500/20 to-transparent border-yellow-500/40',
     balance: 'from-neon-purple/20 to-transparent border-neon-purple/40',
   };
-  
+
   const impactIcons = {
     increase_trades: <TrendingUp className="w-5 h-5 text-neon-blue" />,
     increase_profit: <DollarSign className="w-5 h-5 text-neon-green" />,
     reduce_risk: <AlertTriangle className="w-5 h-5 text-yellow-500" />,
     balance: <Sliders className="w-5 h-5 text-neon-purple" />,
   };
-  
+
   const impactLabels = {
     increase_trades: 'Find More Opportunities',
     increase_profit: 'Maximize Profit',
     reduce_risk: 'Reduce Risk',
     balance: 'Optimize Balance',
   };
-  
+
   const confidenceColors = {
     high: 'bg-neon-green/20 text-neon-green border-neon-green/30',
     medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
     low: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
   };
-  
+
   const handleCopy = () => {
     navigator.clipboard.writeText(`${recommendation.parameter}: ${recommendation.recommendedValue}`);
     setCopied(true);
@@ -223,7 +223,7 @@ function TuningCard({ recommendation, index, onApply }: {
         <div className="p-2 bg-dark-bg/50 rounded-lg">
           {impactIcons[recommendation.impact]}
         </div>
-        
+
         <div className="flex-1">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -234,9 +234,9 @@ function TuningCard({ recommendation, index, onApply }: {
               {recommendation.confidence} confidence
             </span>
           </div>
-          
+
           <p className="text-sm text-gray-400 mb-3">{recommendation.reason}</p>
-          
+
           {/* Value Change Display */}
           <div className="flex items-center gap-3 p-3 bg-dark-bg/50 rounded-lg">
             <div className="text-center">
@@ -258,7 +258,7 @@ function TuningCard({ recommendation, index, onApply }: {
               </button>
             </div>
           </div>
-          
+
           <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
             <Target className="w-3 h-3" />
             <span>{impactLabels[recommendation.impact]}</span>
@@ -286,7 +286,7 @@ export default function InsightsPage() {
   const { data: history = [] } = useSimulationHistory(168); // Last 7 days
   const { data: strategyPerf = [] } = useStrategyPerformance();
   const { data: config, refetch: refetchConfig } = useBotConfig();
-  
+
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<Insight['category'] | 'all'>('all');
   const [showTuning, setShowTuning] = useState(true);
@@ -314,31 +314,32 @@ export default function InsightsPage() {
       setApplyResult({ success: false, message: 'No recommendations to apply' });
       return;
     }
-    
+
     setApplyingRecommendations(true);
     setApplyResult(null);
-    
+
     try {
       const response = await fetch('/api/config/auto-tune', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           recommendations,
-          forceApply: true // Apply all regardless of RSI setting
+          forceApply: true, // Apply all regardless of RSI setting
+          user_id: config?.user_id
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to apply recommendations');
       }
-      
+
       setApplyResult({
         success: true,
         message: `Applied ${data.applied} recommendations (${data.skipped} skipped)`,
       });
-      
+
       // Save to history
       const historyEntry: SuggestionHistoryEntry = {
         id: Date.now().toString(),
@@ -346,7 +347,7 @@ export default function InsightsPage() {
         recommendations,
         appliedCount: data.applied || 0,
       };
-      
+
       setSuggestionHistory(prev => {
         const newHistory = [historyEntry, ...prev].slice(0, 20); // Keep last 20 entries
         try {
@@ -356,7 +357,7 @@ export default function InsightsPage() {
         }
         return newHistory;
       });
-      
+
       // Refresh config
       refetchConfig?.();
     } catch (error) {
@@ -378,7 +379,7 @@ export default function InsightsPage() {
   // Generate insights from data analysis
   const insights = useMemo<Insight[]>(() => {
     const results: Insight[] = [];
-    
+
     if (!trades.length && !opportunities.length && !strategyPerf.length) {
       return [{
         id: 'no-data',
@@ -394,7 +395,7 @@ export default function InsightsPage() {
     const completedTrades = trades.filter(t => t.outcome !== 'pending');
     const wonTrades = completedTrades.filter(t => t.outcome === 'won');
     const winRate = completedTrades.length > 0 ? (wonTrades.length / completedTrades.length) * 100 : 0;
-    
+
     if (winRate >= 60) {
       results.push({
         id: 'high-win-rate',
@@ -421,18 +422,18 @@ export default function InsightsPage() {
     // Analyze timing
     const hourCounts = Array(24).fill(0);
     const hourProfits = Array(24).fill(0);
-    
+
     trades.forEach(trade => {
       const hour = new Date(trade.created_at).getHours();
       hourCounts[hour]++;
       hourProfits[hour] += trade.actual_profit_usd || trade.expected_profit_usd || 0;
     });
-    
-    const bestHour = hourProfits.reduce((best, profit, hour) => 
+
+    const bestHour = hourProfits.reduce((best, profit, hour) =>
       profit > hourProfits[best] ? hour : best, 0);
-    const worstHour = hourProfits.reduce((worst, profit, hour) => 
+    const worstHour = hourProfits.reduce((worst, profit, hour) =>
       profit < hourProfits[worst] ? hour : worst, 0);
-    
+
     if (hourCounts[bestHour] >= 3) {
       results.push({
         id: 'best-time',
@@ -445,7 +446,7 @@ export default function InsightsPage() {
         impact: 'medium',
       });
     }
-    
+
     if (hourProfits[worstHour] < 0 && hourCounts[worstHour] >= 3) {
       results.push({
         id: 'worst-time',
@@ -463,12 +464,12 @@ export default function InsightsPage() {
     const avgPositionSize = trades.reduce((sum, t) => sum + (t.position_size_usd || 0), 0) / trades.length;
     const smallTrades = trades.filter(t => (t.position_size_usd || 0) < avgPositionSize * 0.5);
     const largeTrades = trades.filter(t => (t.position_size_usd || 0) > avgPositionSize * 1.5);
-    
-    const smallTradeWinRate = smallTrades.filter(t => t.outcome === 'won').length / 
+
+    const smallTradeWinRate = smallTrades.filter(t => t.outcome === 'won').length /
       smallTrades.filter(t => t.outcome !== 'pending').length * 100 || 0;
-    const largeTradeWinRate = largeTrades.filter(t => t.outcome === 'won').length / 
+    const largeTradeWinRate = largeTrades.filter(t => t.outcome === 'won').length /
       largeTrades.filter(t => t.outcome !== 'pending').length * 100 || 0;
-    
+
     if (smallTradeWinRate > largeTradeWinRate + 10 && largeTrades.length >= 5) {
       results.push({
         id: 'size-correlation',
@@ -483,29 +484,29 @@ export default function InsightsPage() {
     }
 
     // ========== PLATFORM ANALYSIS (ALL 5 PLATFORMS) ==========
-    
+
     // Categorize trades by platform
     const polyTrades = trades.filter(t => t.polymarket_token_id && !t.kalshi_ticker);
     const kalshiTrades = trades.filter(t => t.kalshi_ticker && !t.polymarket_token_id);
-    const binanceTrades = trades.filter(t => 
-      t.arbitrage_type?.includes('binance') || 
+    const binanceTrades = trades.filter(t =>
+      t.arbitrage_type?.includes('binance') ||
       t.trade_type?.includes('binance') ||
       t.strategy_type?.includes('binance') ||
       (t as any).exchange?.toLowerCase()?.includes('binance')
     );
-    const coinbaseTrades = trades.filter(t => 
-      t.arbitrage_type?.includes('coinbase') || 
+    const coinbaseTrades = trades.filter(t =>
+      t.arbitrage_type?.includes('coinbase') ||
       t.trade_type?.includes('coinbase') ||
       t.strategy_type?.includes('coinbase') ||
       (t as any).exchange?.toLowerCase()?.includes('coinbase')
     );
-    const alpacaTrades = trades.filter(t => 
-      t.arbitrage_type?.includes('alpaca') || 
+    const alpacaTrades = trades.filter(t =>
+      t.arbitrage_type?.includes('alpaca') ||
       t.trade_type?.includes('stock') ||
       t.strategy_type?.includes('stock') ||
       (t as any).exchange?.toLowerCase()?.includes('alpaca')
     );
-    
+
     // Calculate profit by platform
     const platformProfits: Record<string, { profit: number; trades: number; winRate: number }> = {
       Polymarket: {
@@ -534,14 +535,14 @@ export default function InsightsPage() {
         winRate: alpacaTrades.filter(t => t.outcome === 'won').length / Math.max(1, alpacaTrades.filter(t => t.outcome !== 'pending').length) * 100,
       },
     };
-    
+
     // Find best and worst performing platforms
     const activePlatforms = Object.entries(platformProfits).filter(([_, data]) => data.trades >= 3);
     if (activePlatforms.length >= 2) {
       const sortedPlatforms = activePlatforms.sort((a, b) => b[1].profit - a[1].profit);
       const [bestPlatform, bestData] = sortedPlatforms[0];
       const [worstPlatform, worstData] = sortedPlatforms[sortedPlatforms.length - 1];
-      
+
       if (bestData.profit > 0) {
         results.push({
           id: 'best-platform',
@@ -554,7 +555,7 @@ export default function InsightsPage() {
           impact: 'high',
         });
       }
-      
+
       if (worstData.profit < -10) {
         results.push({
           id: 'worst-platform',
@@ -568,14 +569,14 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     // Crypto-specific insights
     const cryptoTrades = [...binanceTrades, ...coinbaseTrades];
     if (cryptoTrades.length >= 5) {
       const cryptoProfit = cryptoTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
-      const cryptoWinRate = cryptoTrades.filter(t => t.outcome === 'won').length / 
+      const cryptoWinRate = cryptoTrades.filter(t => t.outcome === 'won').length /
         Math.max(1, cryptoTrades.filter(t => t.outcome !== 'pending').length) * 100;
-      
+
       results.push({
         id: 'crypto-performance',
         type: cryptoProfit > 0 ? 'success' : 'warning',
@@ -583,19 +584,19 @@ export default function InsightsPage() {
         title: 'Crypto Trading Performance',
         description: `Crypto strategies have generated ${formatCurrency(cryptoProfit)} across Binance and Coinbase.`,
         metric: `${cryptoTrades.length} trades | ${cryptoWinRate.toFixed(1)}% win rate`,
-        action: cryptoProfit > 0 
-          ? 'Crypto is profitable - consider enabling more crypto strategies.' 
+        action: cryptoProfit > 0
+          ? 'Crypto is profitable - consider enabling more crypto strategies.'
           : 'Review crypto strategy settings or reduce position sizes.',
         impact: 'medium',
       });
     }
-    
+
     // Stock trading insights
     if (alpacaTrades.length >= 3) {
       const stockProfit = alpacaTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
-      const stockWinRate = alpacaTrades.filter(t => t.outcome === 'won').length / 
+      const stockWinRate = alpacaTrades.filter(t => t.outcome === 'won').length /
         Math.max(1, alpacaTrades.filter(t => t.outcome !== 'pending').length) * 100;
-      
+
       results.push({
         id: 'stock-performance',
         type: stockProfit > 0 ? 'success' : 'info',
@@ -603,22 +604,22 @@ export default function InsightsPage() {
         title: 'Stock Trading Performance',
         description: `Alpaca stock trades have generated ${formatCurrency(stockProfit)} P&L.`,
         metric: `${alpacaTrades.length} trades | ${stockWinRate.toFixed(1)}% win rate`,
-        action: stockProfit > 0 
+        action: stockProfit > 0
           ? 'Stock strategies are working well. Consider enabling more stock strategies.'
           : 'Stock trading is in early stages. Continue monitoring performance.',
         impact: 'medium',
       });
     }
-    
+
     // ========== STRATEGY-SPECIFIC ANALYSIS ==========
-    
+
     // Use strategy performance data if available
     if (strategyPerf.length > 0) {
       // Find best performing strategy
       const sortedStrategies = [...strategyPerf].sort((a, b) => b.total_pnl - a.total_pnl);
       const bestStrategy = sortedStrategies[0];
       const worstStrategy = sortedStrategies[sortedStrategies.length - 1];
-      
+
       if (bestStrategy && bestStrategy.total_pnl > 0 && bestStrategy.total_trades >= 3) {
         results.push({
           id: 'best-strategy',
@@ -631,7 +632,7 @@ export default function InsightsPage() {
           impact: 'high',
         });
       }
-      
+
       if (worstStrategy && worstStrategy.total_pnl < -10 && worstStrategy.total_trades >= 3) {
         results.push({
           id: 'worst-strategy',
@@ -644,7 +645,7 @@ export default function InsightsPage() {
           impact: 'high',
         });
       }
-      
+
       // Strategy diversification insight
       const enabledStrategies = strategyPerf.filter(s => s.total_trades > 0).length;
       if (enabledStrategies === 1 && strategyPerf[0]?.total_trades >= 10) {
@@ -658,7 +659,7 @@ export default function InsightsPage() {
           impact: 'medium',
         });
       }
-      
+
       // Analyze specific strategy types
       const fundingRateStrat = strategyPerf.find(s => s.strategy?.includes('funding'));
       if (fundingRateStrat && fundingRateStrat.total_trades >= 3) {
@@ -672,7 +673,7 @@ export default function InsightsPage() {
           impact: 'medium',
         });
       }
-      
+
       const gridStrat = strategyPerf.find(s => s.strategy?.includes('grid'));
       if (gridStrat && gridStrat.total_trades >= 3) {
         results.push({
@@ -685,7 +686,7 @@ export default function InsightsPage() {
           impact: 'medium',
         });
       }
-      
+
       const pairsStrat = strategyPerf.find(s => s.strategy?.includes('pair'));
       if (pairsStrat && pairsStrat.total_trades >= 3) {
         results.push({
@@ -698,21 +699,21 @@ export default function InsightsPage() {
           impact: 'medium',
         });
       }
-      
+
       // Stock strategies
-      const stockStrategies = strategyPerf.filter(s => 
-        s.strategy?.includes('stock') || 
-        s.strategy?.includes('momentum') || 
+      const stockStrategies = strategyPerf.filter(s =>
+        s.strategy?.includes('stock') ||
+        s.strategy?.includes('momentum') ||
         s.strategy?.includes('mean_reversion') ||
         s.strategy?.includes('sector') ||
         s.strategy?.includes('dividend') ||
         s.strategy?.includes('earnings')
       );
-      
+
       if (stockStrategies.length > 0) {
         const totalStockPnl = stockStrategies.reduce((sum, s) => sum + s.total_pnl, 0);
         const totalStockTrades = stockStrategies.reduce((sum, s) => sum + s.total_trades, 0);
-        
+
         if (totalStockTrades >= 5) {
           results.push({
             id: 'stock-strategies',
@@ -730,7 +731,7 @@ export default function InsightsPage() {
     // Analyze spread opportunities
     const avgSpread = opportunities.reduce((sum, o) => sum + (o.profit_percent || 0), 0) / opportunities.length;
     const highSpreadOpps = opportunities.filter(o => (o.profit_percent || 0) > avgSpread * 1.5);
-    
+
     if (highSpreadOpps.length > opportunities.length * 0.1) {
       results.push({
         id: 'spread-opportunities',
@@ -750,7 +751,7 @@ export default function InsightsPage() {
       const newCurrent = max.current + 1;
       return { current: newCurrent, max: Math.max(max.max, newCurrent) };
     }, { current: 0, max: 0 }).max;
-    
+
     if (consecutiveLosses >= 3) {
       results.push({
         id: 'consecutive-losses',
@@ -767,7 +768,7 @@ export default function InsightsPage() {
     // Add general performance insight
     const totalPnL = stats?.total_pnl || 0;
     const roi = stats?.stats_json?.roi_pct || 0;
-    
+
     if (totalPnL > 0) {
       results.push({
         id: 'positive-pnl',
@@ -794,7 +795,7 @@ export default function InsightsPage() {
     // Diversification insight - updated to check all platforms
     const arbTrades = trades.filter(t => t.polymarket_token_id && t.kalshi_ticker);
     const arbPercent = (arbTrades.length / Math.max(1, trades.length)) * 100;
-    
+
     // Platform diversity check
     const platformsWithTrades = Object.values(platformProfits).filter(p => p.trades > 0).length;
     if (platformsWithTrades === 1 && trades.length > 20) {
@@ -817,7 +818,7 @@ export default function InsightsPage() {
         impact: 'low',
       });
     }
-    
+
     if (arbPercent < 30 && trades.length > 10 && polyTrades.length > 0 && kalshiTrades.length > 0) {
       results.push({
         id: 'low-arb',
@@ -837,31 +838,31 @@ export default function InsightsPage() {
   const tuningRecommendations = useMemo<TuningRecommendation[]>(() => {
     const recommendations: TuningRecommendation[] = [];
     if (!config) return recommendations;
-    
+
     // Get opportunity stats (cast to any for dynamic properties)
     const kalshiOpps = opportunities.filter((o: any) => o.platform === 'kalshi' || o.kalshi_ticker);
     const polyOpps = opportunities.filter((o: any) => o.platform === 'polymarket' || o.polymarket_token_id);
-    const avgKalshiProfit = kalshiOpps.length > 0 
-      ? kalshiOpps.reduce((sum, o: any) => sum + (o.profit_percent || 0), 0) / kalshiOpps.length 
+    const avgKalshiProfit = kalshiOpps.length > 0
+      ? kalshiOpps.reduce((sum, o: any) => sum + (o.profit_percent || 0), 0) / kalshiOpps.length
       : 0;
-    const avgPolyProfit = polyOpps.length > 0 
-      ? polyOpps.reduce((sum, o: any) => sum + (o.profit_percent || 0), 0) / polyOpps.length 
+    const avgPolyProfit = polyOpps.length > 0
+      ? polyOpps.reduce((sum, o: any) => sum + (o.profit_percent || 0), 0) / polyOpps.length
       : 0;
-    
+
     // Analyze trade performance by strategy
     const kalshiTrades = trades.filter(t => t.kalshi_ticker);
     const polyTrades = trades.filter(t => t.polymarket_token_id && !t.kalshi_ticker);
     const kalshiWinRate = kalshiTrades.filter(t => t.outcome === 'won').length / Math.max(1, kalshiTrades.filter(t => t.outcome !== 'pending').length) * 100;
     const polyWinRate = polyTrades.filter(t => t.outcome === 'won').length / Math.max(1, polyTrades.filter(t => t.outcome !== 'pending').length) * 100;
-    
+
     // ============ KALSHI TUNING ============
     const kalshiMinProfit = config.kalshi_single_min_profit_pct || 3;
-    
+
     // If few Kalshi trades but many opportunities with lower spreads
     if (kalshiTrades.length < 5 && kalshiOpps.length > 20) {
       const oppsAboveThreshold = kalshiOpps.filter(o => (o.profit_percent || 0) >= kalshiMinProfit).length;
       const oppsBelowThreshold = kalshiOpps.filter(o => (o.profit_percent || 0) >= kalshiMinProfit * 0.5 && (o.profit_percent || 0) < kalshiMinProfit).length;
-      
+
       if (oppsBelowThreshold > oppsAboveThreshold * 0.5) {
         const suggestedMin = Math.max(1, kalshiMinProfit * 0.6);
         recommendations.push({
@@ -877,7 +878,7 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     // If Kalshi has high win rate, increase position size
     if (kalshiWinRate > 65 && kalshiTrades.length >= 10) {
       const currentPos = config.kalshi_single_max_position_usd || 50;
@@ -893,7 +894,7 @@ export default function InsightsPage() {
         priority: 8,
       });
     }
-    
+
     // If Kalshi has low win rate, increase threshold
     if (kalshiWinRate < 45 && kalshiTrades.length >= 5) {
       recommendations.push({
@@ -908,10 +909,10 @@ export default function InsightsPage() {
         priority: 9,
       });
     }
-    
+
     // ============ POLYMARKET TUNING ============
     const polyMinProfit = config.poly_single_min_profit_pct || 0.5;
-    
+
     if (polyTrades.length < 5 && polyOpps.length > 20) {
       recommendations.push({
         id: 'poly-lower-threshold',
@@ -925,11 +926,11 @@ export default function InsightsPage() {
         priority: 7,
       });
     }
-    
+
     // ============ CROSS-PLATFORM ARB TUNING ============
     const crossPlatMinProfit = config.cross_plat_min_profit_buy_poly_pct || 3;
     const crossPlatSimilarity = config.cross_plat_min_similarity || 0.3;
-    
+
     // If not finding cross-platform opportunities
     if (!trades.some(t => t.polymarket_token_id && t.kalshi_ticker)) {
       recommendations.push({
@@ -943,7 +944,7 @@ export default function InsightsPage() {
         confidence: 'medium',
         priority: 7,
       });
-      
+
       recommendations.push({
         id: 'cross-plat-profit',
         strategy: 'Cross-Platform Arbitrage',
@@ -956,17 +957,17 @@ export default function InsightsPage() {
         priority: 6,
       });
     }
-    
+
     // ============ CRYPTO STRATEGY TUNING ============
     if (config.enable_funding_rate_arb) {
       const fundingMinRate = config.funding_min_rate_pct || 0.03;
       const fundingMinApy = config.funding_min_apy || 30;
-      
+
       // Check if funding rate strategy is finding trades
-      const fundingTrades = trades.filter(t => 
+      const fundingTrades = trades.filter(t =>
         t.strategy_type?.includes('funding') || t.arbitrage_type?.includes('funding')
       );
-      
+
       if (fundingTrades.length === 0 && trades.length > 10) {
         recommendations.push({
           id: 'funding-lower-rate',
@@ -979,7 +980,7 @@ export default function InsightsPage() {
           confidence: 'medium',
           priority: 6,
         });
-        
+
         recommendations.push({
           id: 'funding-lower-apy',
           strategy: 'Funding Rate Arbitrage',
@@ -993,14 +994,14 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     // ============ GRID TRADING TUNING ============
     if (config.enable_grid_trading) {
       const gridRange = config.grid_default_range_pct || 10;
       const gridLevels = config.grid_default_levels || 20;
-      
+
       const gridTrades = trades.filter(t => t.strategy_type?.includes('grid'));
-      
+
       if (gridTrades.length === 0 && trades.length > 10) {
         recommendations.push({
           id: 'grid-increase-range',
@@ -1015,16 +1016,16 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     // ============ STOCK STRATEGY TUNING ============
     if (config.enable_stock_mean_reversion) {
       const mrZscore = config.stock_mr_entry_zscore || 2;
       const mrStopLoss = config.stock_mr_stop_loss_pct || 5;
-      
-      const stockTrades = trades.filter(t => 
+
+      const stockTrades = trades.filter(t =>
         t.strategy_type?.includes('stock') || t.strategy_type?.includes('mean_reversion')
       );
-      
+
       if (stockTrades.length === 0 && trades.length > 10) {
         recommendations.push({
           id: 'stock-mr-zscore',
@@ -1039,12 +1040,12 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     if (config.enable_stock_momentum) {
       const momThreshold = config.stock_mom_entry_threshold || 5;
-      
+
       const momTrades = trades.filter(t => t.strategy_type?.includes('momentum'));
-      
+
       if (momTrades.length === 0 && trades.length > 10) {
         recommendations.push({
           id: 'stock-mom-threshold',
@@ -1059,13 +1060,13 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     // ============ PAIRS TRADING TUNING ============
     if (config.enable_pairs_trading) {
       const pairsZscore = config.pairs_entry_zscore || 2;
-      
+
       const pairsTrades = trades.filter(t => t.strategy_type?.includes('pair'));
-      
+
       if (pairsTrades.length === 0 && trades.length > 10) {
         recommendations.push({
           id: 'pairs-zscore',
@@ -1080,12 +1081,12 @@ export default function InsightsPage() {
         });
       }
     }
-    
+
     // ============ GENERAL TUNING ============
     // If overall win rate is high, suggest increasing position sizes
     const completedTrades = trades.filter(t => t.outcome !== 'pending');
     const overallWinRate = completedTrades.filter(t => t.outcome === 'won').length / Math.max(1, completedTrades.length) * 100;
-    
+
     if (overallWinRate > 60 && completedTrades.length >= 20) {
       const currentMaxPos = config.max_position_usd || 100;
       recommendations.push({
@@ -1100,7 +1101,7 @@ export default function InsightsPage() {
         priority: 7,
       });
     }
-    
+
     // If overall win rate is low, suggest tighter thresholds
     if (overallWinRate < 45 && completedTrades.length >= 10) {
       const currentMinProfit = config.min_profit_percent || 5;
@@ -1116,7 +1117,7 @@ export default function InsightsPage() {
         priority: 8,
       });
     }
-    
+
     // Filter out recommendations where current value already matches recommended value
     const filteredRecommendations = recommendations.filter(rec => {
       // Normalize values for comparison
@@ -1126,24 +1127,24 @@ export default function InsightsPage() {
         const cleaned = val.replace(/[$%]/g, '').trim();
         return parseFloat(cleaned) || 0;
       };
-      
+
       const currentNum = normalizeValue(rec.currentValue);
       const recommendedNum = normalizeValue(rec.recommendedValue);
-      
+
       // Consider values "matching" if they're within 5% of each other
       if (currentNum === 0 && recommendedNum === 0) return false;
       const tolerance = Math.abs(recommendedNum) * 0.05 || 0.01;
       const isAlreadyApplied = Math.abs(currentNum - recommendedNum) <= tolerance;
-      
+
       return !isAlreadyApplied;
     });
-    
+
     // Sort by priority
     return filteredRecommendations.sort((a, b) => b.priority - a.priority);
   }, [trades, opportunities, config]);
 
-  const filteredInsights = filter === 'all' 
-    ? insights 
+  const filteredInsights = filter === 'all'
+    ? insights
     : insights.filter(i => i.category === filter);
 
   const categories = ['all', 'performance', 'timing', 'sizing', 'platform', 'strategy', 'crypto', 'stocks', 'risk'] as const;
@@ -1163,7 +1164,7 @@ export default function InsightsPage() {
         </div>
 
         {/* Stats Summary */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
@@ -1205,7 +1206,7 @@ export default function InsightsPage() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-8"
           >
-            <div 
+            <div
               className="flex items-center justify-between mb-4 cursor-pointer"
               onClick={() => setShowTuning(!showTuning)}
             >
@@ -1230,7 +1231,7 @@ export default function InsightsPage() {
                 </motion.div>
               </div>
             </div>
-            
+
             <AnimatePresence>
               {showTuning && (
                 <motion.div
@@ -1267,12 +1268,12 @@ export default function InsightsPage() {
                             </>
                           )}
                         </button>
-                        
+
                         {/* Apply All Button */}
                         <button
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            handleApplyAllRecommendations(tuningRecommendations); 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApplyAllRecommendations(tuningRecommendations);
                           }}
                           disabled={applyingRecommendations}
                           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-neon-green to-neon-blue text-dark-bg font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
@@ -1291,7 +1292,7 @@ export default function InsightsPage() {
                         </button>
                       </div>
                     </div>
-                    
+
                     {/* Apply Result Message */}
                     {applyResult && (
                       <motion.div
@@ -1299,7 +1300,7 @@ export default function InsightsPage() {
                         animate={{ opacity: 1, y: 0 }}
                         className={cn(
                           "mt-3 px-4 py-2 rounded-lg text-sm",
-                          applyResult.success 
+                          applyResult.success
                             ? "bg-neon-green/20 text-neon-green border border-neon-green/30"
                             : "bg-red-500/20 text-red-400 border border-red-500/30"
                         )}
@@ -1313,12 +1314,12 @@ export default function InsightsPage() {
                       </motion.div>
                     )}
                   </div>
-                  
+
                   <div className="space-y-4">
                     {tuningRecommendations.slice(0, 6).map((rec, index) => (
                       <TuningCard key={rec.id} recommendation={rec} index={index} />
                     ))}
-                    
+
                     {tuningRecommendations.length > 6 && (
                       <div className="text-center py-2">
                         <p className="text-sm text-gray-500">
@@ -1327,7 +1328,7 @@ export default function InsightsPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Quick Summary */}
                   <div className="mt-4 p-4 bg-dark-card rounded-xl border border-dark-border">
                     <h4 className="font-semibold mb-3 flex items-center gap-2">
@@ -1375,15 +1376,15 @@ export default function InsightsPage() {
               onClick={() => setFilter(cat)}
               className={cn(
                 "px-4 py-2 rounded-lg text-sm transition-colors capitalize",
-                filter === cat 
-                  ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30' 
+                filter === cat
+                  ? 'bg-neon-purple/20 text-neon-purple border border-neon-purple/30'
                   : 'bg-dark-card text-gray-400 hover:text-white border border-dark-border'
               )}
             >
               {cat}
             </button>
           ))}
-          
+
           <button
             onClick={() => setGenerating(true)}
             className="ml-auto px-4 py-2 rounded-lg text-sm bg-gradient-to-r from-neon-green to-neon-blue text-dark-bg font-semibold flex items-center gap-2 hover:opacity-90 transition-opacity"
@@ -1428,7 +1429,7 @@ export default function InsightsPage() {
               </div>
               {showHistory ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
             </button>
-            
+
             <AnimatePresence>
               {showHistory && (
                 <motion.div
@@ -1478,7 +1479,7 @@ export default function InsightsPage() {
         )}
 
         {/* AI Recommendations Footer */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
@@ -1491,7 +1492,7 @@ export default function InsightsPage() {
             <div>
               <h3 className="font-semibold text-lg mb-2">How AI Insights Work</h3>
               <p className="text-sm text-gray-400 mb-4">
-                Our AI continuously analyzes your trading patterns, market conditions, and performance metrics 
+                Our AI continuously analyzes your trading patterns, market conditions, and performance metrics
                 to provide personalized recommendations. Insights are updated in real-time as new data comes in.
               </p>
               <div className="flex flex-wrap gap-4 text-sm">

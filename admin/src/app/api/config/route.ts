@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+
 // Admin client to bypass RLS for config updates if needed, 
 // though we usually prefer user-context. 
 // Given the issues with RLS on config, using Service Role for reliability 
 // while validating user ID is a safer bet for "System Settings".
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -18,6 +15,11 @@ export async function GET(request: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
     }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    ) as any;
 
     const { data, error } = await supabaseAdmin
       .from('polybot_config')
@@ -48,6 +50,11 @@ export async function POST(request: NextRequest) {
     if (!user_id) {
       return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
     }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    ) as any;
 
     // Check if config exists
     const { data: existing } = await supabaseAdmin

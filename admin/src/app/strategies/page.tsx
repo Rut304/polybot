@@ -386,7 +386,7 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         confidence: 80,
         expectedReturn: '15-30% APY',
         riskLevel: 'medium',
-        configKey: 'enable_time_decay',
+        configKey: 'time_decay_enabled',
         icon: Clock,
         color: 'bg-amber-500/20 text-green-400',
         platforms: ['Polymarket', 'Kalshi'],

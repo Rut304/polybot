@@ -148,6 +148,8 @@ export default function SettingsPage() {
   const [resolutionLossRate, setResolutionLossRate] = useState(config?.resolution_loss_rate ?? 0.12);
   const [lossSeverityMin, setLossSeverityMin] = useState(config?.loss_severity_min ?? 0.03);
   const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.15);
+  // DEBUG: Track last save error
+  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
 
   // Position sizing
   const [maxPositionPct, setMaxPositionPct] = useState(config?.max_position_pct ?? 5.0);
@@ -886,8 +888,11 @@ export default function SettingsPage() {
     if (!config) return;
     setSaving(true);
     setSaveError(null);
+    setLastSaveError(null);
 
     try {
+      console.log('Starting save operation... Payload construction beginning.');
+
       // 1. Update Bot Status (toggles)
       await updateBotStatus.mutateAsync({
         is_running: botEnabled,
@@ -921,7 +926,225 @@ export default function SettingsPage() {
         kalshi_single_min_profit_pct: kalshiSingleMinProfit,
         enable_polymarket_single_arb: enablePolySingleArb,
         enable_kalshi_single_arb: enableKalshiSingleArb,
-        enable_cross_platform_arb: enableCrossPlatArb
+        enable_cross_platform_arb: enableCrossPlatArb,
+        skip_same_platform_overlap: !enableOverlappingArb,
+
+        // Market Making
+        enable_market_making: enableMarketMaking,
+        mm_target_spread_bps: mmTargetSpreadBps,
+        mm_min_spread_bps: mmMinSpreadBps,
+        mm_max_spread_bps: mmMaxSpreadBps,
+        mm_order_size_usd: mmOrderSizeUsd,
+        mm_max_inventory_usd: mmMaxInventoryUsd,
+        mm_quote_refresh_sec: mmQuoteRefreshSec,
+        mm_min_volume_24h: mmMinVolume24h,
+        mm_max_markets: mmMaxMarkets,
+
+        // News Arbitrage
+        enable_news_arbitrage: enableNewsArbitrage,
+        news_min_spread_pct: newsMinSpreadPct,
+        news_max_lag_minutes: newsMaxLagMinutes,
+        news_position_size_usd: newsPositionSizeUsd,
+        news_scan_interval_sec: newsScanIntervalSec,
+        news_keywords: newsKeywords,
+
+        // Funding Rate Arbitrage
+        enable_funding_rate_arb: enableFundingRateArb,
+        funding_min_rate_pct: fundingMinRatePct,
+        funding_min_apy: fundingMinApy,
+        funding_max_position_usd: fundingMaxPositionUsd,
+        funding_max_positions: fundingMaxPositions,
+        funding_max_leverage: fundingMaxLeverage,
+        funding_scan_interval_sec: fundingScanIntervalSec,
+
+        // Grid Trading
+        enable_grid_trading: enableGridTrading,
+        grid_default_range_pct: gridDefaultRangePct,
+        grid_default_levels: gridDefaultLevels,
+        grid_default_investment_usd: gridDefaultInvestmentUsd,
+        grid_max_grids: gridMaxGrids,
+        grid_stop_loss_pct: gridStopLossPct,
+        grid_take_profit_pct: gridTakeProfitPct,
+
+        // Pairs Trading
+        enable_pairs_trading: enablePairsTrading,
+        pairs_entry_zscore: pairsEntryZscore,
+        pairs_exit_zscore: pairsExitZscore,
+        pairs_position_size_usd: pairsPositionSizeUsd,
+        pairs_max_positions: pairsMaxPositions,
+        pairs_max_hold_hours: pairsMaxHoldHours,
+
+        // Stock Strategies
+        enable_stock_mean_reversion: enableStockMeanReversion,
+        stock_mr_rsi_oversold: meanRevRsiOversold,
+        stock_mr_rsi_overbought: meanRevRsiOverbought,
+        stock_mr_position_size_usd: meanRevPositionSizeUsd,
+        stock_mr_max_positions: meanRevMaxPositions,
+        stock_mr_stop_loss_pct: meanRevStopLossPct,
+        stock_mr_take_profit_pct: meanRevTakeProfitPct,
+
+        enable_stock_momentum: enableStockMomentum,
+        stock_momentum_lookback_days: momentumLookbackDays,
+        stock_momentum_min_score: momentumMinScore,
+        stock_mom_position_size_usd: momentumPositionSizeUsd,
+        stock_mom_max_positions: momentumMaxPositions,
+        stock_momentum_trailing_stop_pct: momentumTrailingStopPct,
+
+        enable_sector_rotation: enableSectorRotation,
+        sector_rotation_period_days: sectorRotationPeriodDays,
+        sector_top_n: sectorTopN,
+        sector_position_size_usd: sectorPositionSizeUsd,
+        sector_rebalance_frequency_days: sectorRebalanceFrequencyDays,
+
+        enable_dividend_growth: enableDividendGrowth,
+        dividend_min_yield_pct: dividendMinYieldPct,
+        dividend_min_growth_years: dividendMinGrowthYears,
+        dividend_position_size_usd: dividendPositionSizeUsd,
+        dividend_max_positions: dividendMaxPositions,
+
+        enable_earnings_momentum: enableEarningsMomentum,
+        earnings_min_surprise_pct: earningsMinSurprisePct,
+        earnings_hold_days: earningsHoldDays,
+        earnings_position_size_usd: earningsPositionSizeUsd,
+        earnings_max_positions: earningsMaxPositions,
+
+        // Options Strategies
+        enable_covered_calls: enableCoveredCalls,
+        covered_call_days_to_expiry: coveredCallDaysToExpiry,
+        covered_call_delta_target: coveredCallDeltaTarget,
+        covered_call_min_premium_pct: coveredCallMinPremiumPct,
+
+        enable_cash_secured_puts: enableCashSecuredPuts,
+        csp_days_to_expiry: cspDaysToExpiry,
+        csp_delta_target: cspDeltaTarget,
+        csp_min_premium_pct: cspMinPremiumPct,
+
+        enable_iron_condor: enableIronCondor,
+        iron_condor_days_to_expiry: ironCondorDaysToExpiry,
+        iron_condor_wing_width: ironCondorWingWidth,
+        iron_condor_min_premium_pct: ironCondorMinPremiumPct,
+
+        enable_wheel_strategy: enableWheelStrategy,
+        wheel_stock_list: wheelStockList,
+        wheel_position_size_usd: wheelPositionSizeUsd,
+
+        // Twitter Strategies
+        enable_btc_bracket_arb: enableBtcBracketArb,
+        btc_bracket_min_discount_pct: btcBracketMinDiscountPct,
+        btc_bracket_max_position_usd: btcBracketMaxPositionUsd,
+        btc_bracket_scan_interval_sec: btcBracketScanIntervalSec,
+
+        enable_bracket_compression: enableBracketCompression,
+        bracket_max_imbalance_threshold: bracketMaxImbalanceThreshold,
+        bracket_take_profit_pct: bracketTakeProfitPct,
+        bracket_stop_loss_pct: bracketStopLossPct,
+        bracket_max_position_usd: bracketMaxPositionUsd,
+
+        enable_kalshi_mention_snipe: enableKalshiMentionSnipe,
+        kalshi_snipe_min_profit_cents: kalshiSnipeMinProfitCents,
+        kalshi_snipe_max_position_usd: kalshiSnipeMaxPositionUsd,
+        kalshi_snipe_max_latency_ms: kalshiSnipeMaxLatencyMs,
+
+        enable_whale_copy_trading: enableWhaleCopyTrading,
+        whale_copy_min_win_rate: whaleCopyMinWinRate,
+        whale_copy_delay_seconds: whaleCopyDelaySeconds,
+        whale_copy_max_size_usd: whaleCopyMaxSizeUsd,
+        whale_copy_max_concurrent: whaleCopyMaxConcurrent,
+
+        enable_macro_board: enableMacroBoard,
+        macro_max_exposure_usd: macroMaxExposureUsd,
+        macro_min_conviction_score: macroMinConvictionScore,
+        macro_rebalance_interval_hours: macroRebalanceIntervalHours,
+
+        enable_fear_premium_contrarian: enableFearPremiumContrarian,
+        fear_extreme_low_threshold: fearExtremeLowThreshold,
+        fear_extreme_high_threshold: fearExtremeHighThreshold,
+        fear_min_premium_pct: fearMinPremiumPct,
+        fear_max_position_usd: fearMaxPositionUsd,
+
+        // Congressional Tracker
+        enable_congressional_tracker: enableCongressionalTracker,
+        congress_chambers: congressChambers,
+        congress_parties: congressParties,
+        congress_copy_scale_pct: congressCopyScalePct,
+        congress_max_position_usd: congressMaxPositionUsd,
+        congress_min_trade_amount_usd: congressMinTradeAmountUsd,
+        congress_delay_hours: congressDelayHours,
+        congress_scan_interval_hours: congressScanIntervalHours,
+        congress_tracked_politicians: congressTrackedPoliticians,
+
+        // High Conviction
+        enable_high_conviction_strategy: enableHighConvictionStrategy,
+        high_conviction_min_score: highConvictionMinScore,
+        high_conviction_min_volume: highConvictionMinVolume,
+        high_conviction_max_position_usd: highConvictionMaxPosition,
+        high_conviction_scan_interval_sec: highConvictionScanInterval,
+
+        // Political Event
+        enable_political_event_strategy: enablePoliticalEventStrategy,
+        political_event_categories: politicalEventCategories,
+        political_event_min_edge_pct: politicalEventMinEdge,
+        political_event_max_position_usd: politicalEventMaxPosition,
+        political_event_monitor_interval_sec: politicalEventMonitorInterval,
+
+        // Selective Whale
+        enable_selective_whale_copy: enableSelectiveWhaleCopy,
+        selective_whale_min_win_rate: selectiveWhaleMinWinRate,
+        selective_whale_min_pnl: selectiveWhaleMinPnl,
+        selective_whale_max_copy_size_usd: selectiveWhaleMaxCopySize,
+        selective_whale_delay_seconds: selectiveWhaleDelaySeconds,
+
+        // Advanced Risk Framework
+        kelly_sizing_enabled: kellySizingEnabled,
+        kelly_fraction_cap: kellyFractionCap,
+        kelly_min_confidence: kellyMinConfidence,
+        kelly_max_position_pct: kellyMaxPositionPct,
+
+        regime_detection_enabled: regimeDetectionEnabled,
+        regime_vix_low_threshold: regimeVixLowThreshold,
+        regime_vix_high_threshold: regimeVixHighThreshold,
+        regime_vix_crisis_threshold: regimeVixCrisisThreshold,
+        regime_auto_adjust: regimeAutoAdjust,
+
+        circuit_breaker_enabled: circuitBreakerEnabled,
+        circuit_breaker_level1_pct: circuitBreakerLevel1Pct,
+        circuit_breaker_level2_pct: circuitBreakerLevel2Pct,
+        circuit_breaker_level3_pct: circuitBreakerLevel3Pct,
+        circuit_breaker_reset_hours: circuitBreakerResetHours,
+
+        time_decay_enabled: timeDecayEnabled,
+        time_decay_critical_days: timeDecayCriticalDays,
+        time_decay_avoid_entry_hours: timeDecayAvoidEntryHours,
+
+        order_flow_enabled: orderFlowEnabled,
+        order_flow_signal_threshold: orderFlowSignalThreshold,
+        order_flow_strong_threshold: orderFlowStrongThreshold,
+
+        depeg_detection_enabled: depegDetectionEnabled,
+        depeg_alert_threshold_pct: depegAlertThresholdPct,
+        depeg_arbitrage_threshold_pct: depegArbitrageThresholdPct,
+        depeg_critical_threshold_pct: depegCriticalThresholdPct,
+
+        correlation_limits_enabled: correlationLimitsEnabled,
+        correlation_max_cluster_pct: correlationMaxClusterPct,
+        correlation_max_correlated_pct: correlationMaxCorrelatedPct,
+        correlation_high_threshold: correlationHighThreshold,
+
+        // Simulation Params
+        max_realistic_spread_pct: maxRealisticSpreadPct,
+        min_profit_threshold_pct: minProfitThresholdPct,
+        slippage_min_pct: slippageMinPct,
+        slippage_max_pct: slippageMaxPct,
+        spread_cost_pct: spreadCostPct,
+        execution_failure_rate: executionFailureRate,
+        partial_fill_chance: partialFillChance,
+        partial_fill_min_pct: partialFillMinPct,
+        resolution_loss_rate: resolutionLossRate,
+        loss_severity_min: lossSeverityMin,
+        loss_severity_max: lossSeverityMax,
+        max_position_pct: maxPositionPct,
+        max_position_usd: maxPositionUsd,
+        min_position_usd: minPositionUsd
       });
 
       setSaveSuccess(true);
@@ -934,7 +1157,11 @@ export default function SettingsPage() {
       ]);
     } catch (error) {
       console.error('Failed to save settings:', error);
-      setSaveError(error instanceof Error ? error.message : 'Failed to save settings. Please try again.');
+      const msg = error instanceof Error ? error.message : 'Failed to save settings. Please try again.';
+      setSaveError(msg);
+      setLastSaveError(msg);
+      // Alert the user visibly to the error
+      window.alert(`SAVE FAILED (Debug Mode):\n\n${msg}\n\nCheck console for full payload details.`);
     } finally {
       setSaving(false);
     }
@@ -983,12 +1210,10 @@ export default function SettingsPage() {
 
         <button
           onClick={handleSaveSettings}
-          disabled={!hasChanges || updateBotStatus.isPending || updateConfig.isPending}
+          disabled={updateBotStatus.isPending || updateConfig.isPending}
           className={cn(
             "flex items-center gap-2 px-6 py-3 rounded-xl font-bold shadow-lg transition-all",
-            hasChanges
-              ? "bg-neon-blue hover:bg-neon-blue/80 text-white shadow-neon-blue/20"
-              : "bg-dark-border text-gray-400 cursor-not-allowed"
+            "bg-neon-blue hover:bg-neon-blue/80 text-white shadow-neon-blue/20"
           )}
         >
           {updateBotStatus.isPending || updateConfig.isPending ? (

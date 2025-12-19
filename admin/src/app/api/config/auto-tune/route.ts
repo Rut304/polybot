@@ -5,12 +5,20 @@ export const dynamic = 'force-dynamic';
 
 // Lazy initialization to avoid build-time errors
 let supabaseInstance: ReturnType<typeof createClient> | null = null;
-// eslint-disable-next-line
-function getSupabase(): any {
+
+function getSupabase() {
   if (!supabaseInstance) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    supabaseInstance = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    
+    if (!supabaseServiceKey) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY is missing');
+      // Fallback to anon key (will likely fail RLS, but better than crashing)
+      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+      supabaseInstance = createClient(supabaseUrl, anonKey);
+    } else {
+      supabaseInstance = createClient(supabaseUrl, supabaseServiceKey);
+    }
   }
   return supabaseInstance;
 }
@@ -41,6 +49,7 @@ const PARAM_TO_COLUMN: Record<string, string> = {
   // Cross-platform
   'min_similarity_threshold': 'cross_plat_min_similarity',
   'cross_plat_max_position': 'cross_plat_max_position_usd',
+  'enable_cross_exchange_arb': 'enable_cross_exchange_arb', 
   
   // Funding rate
   'funding_min_rate': 'funding_min_rate_pct',
@@ -82,10 +91,17 @@ function validateAdjustment(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { recommendations, forceApply } = body as {
+    const { recommendations, forceApply, user_id } = body as {
       recommendations: TuningRecommendation[];
       forceApply?: boolean;
+      user_id?: string;
     };
+
+    console.log('[AutoTune] Received request:', { 
+      recCount: recommendations?.length, 
+      forceApply, 
+      user_id 
+    });
 
     if (!recommendations || !Array.isArray(recommendations)) {
       return NextResponse.json(
@@ -94,23 +110,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get current config
-    const { data: configData, error: configError } = await getSupabase()
-      .from('polybot_config')
-      .select('*')
-      .eq('id', 1)
-      .single();
+    const supabase = getSupabase() as any;
+    let query = supabase.from('polybot_config').select('*');
+    
+    // If user_id provided, use it. Otherwise default to id=1 (legacy)
+    if (user_id) {
+      query = query.eq('user_id', user_id);
+    } else {
+      query = query.eq('id', 1);
+    }
+
+    const { data: configData, error: configError } = await query.single();
 
     if (configError || !configData) {
+      console.error('[AutoTune] Config fetch error:', configError);
       return NextResponse.json(
-        { error: 'Failed to fetch current config' },
+        { error: `Failed to fetch current config: ${configError?.message || 'Not found'}` },
         { status: 500 }
       );
     }
 
     // eslint-disable-next-line
     const config = configData as any;
-    const maxAdjustmentPct = config.rsi_max_adjustment_pct || 15.0;
+    const maxAdjustmentPct = config.rsi_max_adjustment_pct || 25.0; // Increased default to 25%
     const rsiEnabled = config.rsi_auto_tuning_enabled !== false;
 
     if (!rsiEnabled && !forceApply) {
@@ -130,6 +152,7 @@ export async function POST(request: Request) {
       
       // Check if column exists in config
       if (!(columnName in config)) {
+        console.warn(`[AutoTune] Column not found: ${columnName}`);
         skipped.push({ recommendation: rec, reason: `Column '${columnName}' not found` });
         continue;
       }
@@ -137,8 +160,8 @@ export async function POST(request: Request) {
       const currentDbValue = config[columnName];
       const recommendedValue = parseNumericValue(rec.recommendedValue);
 
-      // Skip if no change
-      if (currentDbValue === recommendedValue) {
+      // Skip if no change (fuzzy comparison)
+      if (Math.abs(currentDbValue - recommendedValue) < 0.0001) {
         skipped.push({ recommendation: rec, reason: 'No change needed' });
         continue;
       }
@@ -162,20 +185,22 @@ export async function POST(request: Request) {
       applied.push(rec);
     }
 
+    console.log('[AutoTune] Updates to apply:', updates);
+
     // Apply updates if any
     let updateResult = null;
     if (Object.keys(updates).length > 0) {
-      const { data, error } = await getSupabase()
+      const { data, error } = await supabase
         .from('polybot_config')
         .update({
           ...updates,
-          // Note: rsi_last_adjustment_at column doesn't exist yet - skip for now
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', 1)
+        } as any)
+        .eq('id', config.id) // Use the ID we found
         .select();
 
       if (error) {
+        console.error('[AutoTune] Update error:', error);
         return NextResponse.json(
           { error: `Failed to update config: ${error.message}` },
           { status: 500 }
@@ -185,7 +210,7 @@ export async function POST(request: Request) {
     }
 
     // Log the auto-tune action
-    const { error: logError } = await getSupabase().from('audit_log').insert({
+    await supabase.from('audit_log').insert({
       action: 'RSI_AUTO_TUNE',
       details: {
         applied: applied.map(r => ({
@@ -194,26 +219,22 @@ export async function POST(request: Request) {
           to: r.recommendedValue,
           reason: r.reason,
         })),
-        skipped: skipped.length,
+        skipped: skipped,
         forceApply,
+        user_id: config.user_id 
       },
       created_at: new Date().toISOString(),
     });
-
-    if (logError) {
-      console.warn('Failed to log auto-tune action:', logError);
-    }
 
     return NextResponse.json({
       success: true,
       applied: applied.length,
       skipped: skipped.length,
       updates,
-      appliedRecommendations: applied,
-      skippedRecommendations: skipped,
+      skippedReasons: skipped, // detailed feedback
     });
   } catch (error) {
-    console.error('Auto-tune error:', error);
+    console.error('[AutoTune] Internal error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -221,10 +242,13 @@ export async function POST(request: Request) {
   }
 }
 
-// GET endpoint to check RSI status
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { data, error } = await getSupabase()
+    const { searchParams } = new URL(request.url);
+    const user_id = searchParams.get('user_id');
+
+    const supabase = getSupabase() as any;
+    let query = supabase
       .from('polybot_config')
       .select(`
         rsi_auto_tuning_enabled,
@@ -238,9 +262,15 @@ export async function GET() {
         time_decay_enabled,
         depeg_detection_enabled,
         correlation_limits_enabled
-      `)
-      .eq('id', 1)
-      .single();
+      `);
+      
+    if (user_id) {
+      query = query.eq('user_id', user_id);
+    } else {
+      query = query.eq('id', 1);
+    }
+
+    const { data, error } = await query.single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -262,7 +292,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('RSI status error:', error);
+    console.error('[AutoTune] GET error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

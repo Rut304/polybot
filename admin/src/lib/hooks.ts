@@ -742,6 +742,8 @@ export function useUpdateBotConfig() {
       // Sanitize config - remove system fields that shouldn't be manually upserted
       const { id, created_at, updated_at, user_id: _, ...cleanConfig } = config;
 
+      console.log('useUpdateBotConfig: Sending upsert to Supabase:', { cleanConfig });
+
       const { error } = await supabase
         .from('polybot_config')
         .upsert({ 
