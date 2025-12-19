@@ -1521,7 +1521,7 @@ export default function StrategiesPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-white">Trading Strategies</h1>
+              <h1 className="text-2xl font-bold text-white">Trading Strategies (v1.1.91)</h1>
               <p className="text-dark-muted text-sm mt-1">
                 {enabledCount} of {totalCount} strategies enabled
               </p>
