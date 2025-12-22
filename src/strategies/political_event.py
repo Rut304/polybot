@@ -394,3 +394,9 @@ class PoliticalEventStrategy:
             "last_scan_at": self.last_scan_at.isoformat() if self.last_scan_at else None,
             "use_congressional_signal": self.use_congressional_signal,
         }
+
+    def stop(self):
+        """Stop the strategy and cleanup resources"""
+        logger.info("PoliticalEventStrategy stopping...")
+        # No specific cleanup needed, just logging
+        pass

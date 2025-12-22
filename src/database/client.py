@@ -569,6 +569,38 @@ class Database:
             logger.error(f"Failed to calculate daily P&L: {e}")
             return 0.0
     
+    # ==================== Audit Logs ====================
+
+    def log_audit_event(
+        self, 
+        action: str, 
+        details: Dict[str, Any], 
+        user_id: str = "system"
+    ) -> None:
+        """
+        Log an administrative action or critical system event.
+        
+        Args:
+            action: Type of action (e.g. "SETTINGS_UPDATE", "BOT_STOPPED")
+            details: JSON-serializable details
+            user_id: User who performed the action (default: system)
+        """
+        if not self._client:
+            return
+
+        try:
+            entry = {
+                "user_id": user_id,
+                "action": action,
+                "details": details,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            # Fire and forget - don't block main thread too long
+            self._client.table("polybot_audit_logs").insert(entry).execute()
+        except Exception as e:
+            # Audit log failure should not crash the bot
+            logger.warning(f"Failed to log audit event: {e}")
+
     # ==================== Bot Status ====================
     
     def update_bot_status(
@@ -632,7 +664,7 @@ class Database:
             result = self._client.table("polybot_status").select("id").limit(1).execute()
             if result.data:
                 self._client.table("polybot_status").update({
-                    "last_heartbeat_at": datetime.utcnow().isoformat(),
+                    "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
                 }).eq("id", result.data[0]["id"]).execute()
             
         except Exception as e:

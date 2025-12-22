@@ -113,14 +113,24 @@ echo "  ✓ Docker image built: $IMAGE_TAG"
 
 # Step 5: Push to Lightsail
 echo -e "\n${YELLOW}[5/7] Pushing image to Lightsail...${NC}"
+# Sanitize version for Lightsail label (must satisfy regex: ^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$)
+CLEAN_VERSION=$(echo "$VERSION" | tr '.' '-')
 PUSH_RESULT=$(aws lightsail push-container-image \
     --service-name "$SERVICE_NAME" \
-    --label "v${VERSION}-b${NEW_BUILD}" \
+    --label "v${CLEAN_VERSION}-b${NEW_BUILD}" \
     --image "$IMAGE_TAG" \
     --region "$REGION" 2>&1)
 
 # Extract the image reference
-IMAGE_REF=$(echo "$PUSH_RESULT" | grep -o ":$SERVICE_NAME\.polybot\.[0-9]*" | head -1)
+# Extract the image reference
+# Try to extract from the "Refer to this image as" line first (standard AWS CLI output)
+IMAGE_REF=$(echo "$PUSH_RESULT" | grep 'Refer to this image as' | cut -d'"' -f2)
+
+# Fallback to regex if specific line missing (but use valid regex for new format)
+if [ -z "$IMAGE_REF" ]; then
+    IMAGE_REF=$(echo "$PUSH_RESULT" | grep -o ":$SERVICE_NAME\.[a-zA-Z0-9.-]*" | head -1)
+fi
+
 if [ -z "$IMAGE_REF" ]; then
     echo -e "${RED}ERROR: Failed to extract image reference from push${NC}"
     echo "$PUSH_RESULT"

@@ -307,6 +307,35 @@ class PolybotRunner:
         
         self._running = False
         self._tasks = []
+
+    async def _resilient_task(self, task_name: str, coro_func, *args, **kwargs):
+        """
+        Wrapper that makes any async task resilient by auto-restarting on failure.
+        
+        Args:
+            task_name: Name for logging
+            coro_func: The coroutine function to run
+            *args, **kwargs: Arguments to pass to the function
+        """
+        restart_delay = 30  # Start with 30 second delay
+        max_delay = 300  # Max 5 minutes between restarts
+        
+        while self._running:
+            try:
+                logger.info(f"🚀 Starting task: {task_name}")
+                await coro_func(*args, **kwargs)
+                # If the coroutine returns normally, it's done
+                break
+            except asyncio.CancelledError:
+                logger.info(f"⏹️ Task {task_name} cancelled")
+                break
+            except Exception as e:
+                logger.error(f"❌ Task {task_name} failed: {e}")
+                if self._running:
+                    logger.info(f"🔄 Restarting {task_name} in {restart_delay}s...")
+                    await asyncio.sleep(restart_delay)
+                    # Exponential backoff
+                    restart_delay = min(restart_delay * 2, max_delay)
     
     async def fetch_balances(self) -> dict:
         """Fetch balances from both Polymarket and Kalshi."""
@@ -1159,24 +1188,18 @@ class PolybotRunner:
             event_categories = [
                 c.strip() for c in event_categories_str.split(',') if c.strip()
             ]
+            # Create config dict for the strategy
+            political_config = {
+                "enable_political_event": True,
+                "political_min_conviction": getattr(self.config.trading, 'political_min_conviction', "HIGH"),
+                "political_max_position_usd": getattr(self.config.trading, 'political_max_position_usd', 500.0),
+                "political_use_congressional": getattr(self.config.trading, 'political_use_congressional', True),
+                "political_event_lookback_hours": getattr(self.config.trading, 'political_lead_time_hours', 48)
+            }
+            
             self.political_event_strategy = PoliticalEventStrategy(
                 db_client=self.db,
-                min_conviction_score=getattr(
-                    self.config.trading, 'political_min_conviction_score', 0.75
-                ),
-                max_position_usd=getattr(
-                    self.config.trading, 'political_max_position_usd', 500.0
-                ),
-                max_concurrent_events=getattr(
-                    self.config.trading, 'political_max_concurrent_events', 5
-                ),
-                event_categories=event_categories,
-                lead_time_hours=getattr(
-                    self.config.trading, 'political_lead_time_hours', 48
-                ),
-                exit_buffer_hours=getattr(
-                    self.config.trading, 'political_exit_buffer_hours', 2
-                ),
+                config=political_config
             )
             logger.info("✓ Political Event Strategy initialized (80% CONF)")
             logger.info("  🏛️ High-conviction political event trading")
@@ -1188,27 +1211,24 @@ class PolybotRunner:
             self.config.trading, 'enable_high_conviction_strategy', False
         )
         if high_conviction_enabled:
+            # Create config dict for High Conviction Strategy
+            high_conviction_config = {
+                "enable_high_conviction": True,
+                "high_conviction_min_score": getattr(self.config.trading, 'high_conviction_min_score', 0.75),
+                "high_conviction_max_positions": getattr(self.config.trading, 'high_conviction_max_positions', 3),
+                "high_conviction_min_signals": getattr(self.config.trading, 'high_conviction_min_signals', 3),
+                "high_conviction_position_pct": getattr(self.config.trading, 'high_conviction_position_pct', 15.0),
+                "high_conviction_use_kelly": getattr(self.config.trading, 'high_conviction_use_kelly', True),
+                "high_conviction_kelly_fraction": getattr(self.config.trading, 'high_conviction_kelly_fraction', 0.25)
+            }
+            
             self.high_conviction_strategy = HighConvictionStrategy(
-                db_client=self.db,
-                min_conviction_score=getattr(
-                    self.config.trading, 'high_conviction_min_score', 0.75
-                ),
-                max_positions=getattr(
-                    self.config.trading, 'high_conviction_max_positions', 3
-                ),
-                min_confirming_signals=getattr(
-                    self.config.trading, 'high_conviction_min_signals', 3
-                ),
-                position_pct_of_bankroll=getattr(
-                    self.config.trading, 'high_conviction_position_pct', 15.0
-                ),
-                use_kelly_sizing=getattr(
-                    self.config.trading, 'high_conviction_use_kelly', True
-                ),
-                kelly_fraction=getattr(
-                    self.config.trading, 'high_conviction_kelly_fraction', 0.25
-                ),
+                config=high_conviction_config
             )
+            # Inject DB client if needed by strategy (though init didn't ask for it, maybe set it after?)
+            # The init signature shows no db_client argument.
+            if hasattr(self.high_conviction_strategy, 'db'):
+                 self.high_conviction_strategy.db = self.db
             logger.info("✓ High Conviction Strategy initialized (85% CONF)")
             logger.info("  🎯 Fewer, higher-confidence trades")
         else:
@@ -1219,29 +1239,22 @@ class PolybotRunner:
             self.config.trading, 'enable_selective_whale_copy', False
         )
         if selective_whale_enabled:
+            # Create config dict for Selective Whale Copy
+            whale_config = {
+                "enable_selective_whale_copy": True,
+                "swc_min_win_rate": getattr(self.config.trading, 'selective_whale_min_win_rate', 0.65),
+                "swc_min_roi_pct": getattr(self.config.trading, 'selective_whale_min_roi', 0.20),
+                "swc_min_trades": getattr(self.config.trading, 'selective_whale_min_trades', 10),
+                "swc_max_days_inactive": 7, # Default hardcoded or add to config if needed
+                "swc_auto_select_count": 5,
+                "swc_copy_scale_pct": getattr(self.config.trading, 'selective_whale_copy_scale_pct', 5.0),
+                "swc_max_copy_usd": getattr(self.config.trading, 'selective_whale_max_position_usd', 200.0),
+                "swc_max_concurrent_copies": 5
+            }
+            
             self.selective_whale_copy = SelectiveWhaleCopyStrategy(
                 db_client=self.db,
-                min_win_rate=getattr(
-                    self.config.trading, 'selective_whale_min_win_rate', 0.65
-                ),
-                min_roi=getattr(
-                    self.config.trading, 'selective_whale_min_roi', 0.20
-                ),
-                min_trades=getattr(
-                    self.config.trading, 'selective_whale_min_trades', 10
-                ),
-                max_whales_tracked=getattr(
-                    self.config.trading, 'selective_whale_max_tracked', 10
-                ),
-                auto_select=getattr(
-                    self.config.trading, 'selective_whale_auto_select', True
-                ),
-                copy_scale_pct=getattr(
-                    self.config.trading, 'selective_whale_copy_scale_pct', 5.0
-                ),
-                max_position_usd=getattr(
-                    self.config.trading, 'selective_whale_max_position_usd', 200.0
-                ),
+                config=whale_config
             )
             logger.info("✓ Selective Whale Copy initialized (80% CONF)")
             logger.info("  🐋 Performance-based whale selection")
@@ -2278,6 +2291,20 @@ class PolybotRunner:
             # Check every 5 minutes
             await asyncio.sleep(300)
 
+    async def run_heartbeat(self):
+        """
+        Periodically update heartbeat in polybot_status table.
+        This allows the Admin UI to know the bot is alive.
+        Updates every 30 seconds.
+        """
+        while self._running:
+            try:
+                self.db.heartbeat()
+                logger.debug("💓 Heartbeat sent")
+            except Exception as e:
+                logger.warning(f"Heartbeat failed: {e}")
+            await asyncio.sleep(30)  # Update every 30 seconds
+
     async def run_paper_trading_stats(self):
         """Periodically save paper trading stats and print summary."""
         while self._running:
@@ -2400,13 +2427,19 @@ class PolybotRunner:
         # Run cross-platform scanner if enabled
         if cp and self.cross_platform_scanner:
             tasks.append(
-                asyncio.create_task(self.run_cross_platform_scanner())
+                asyncio.create_task(
+                    self._resilient_task("cross_platform_scanner", 
+                                        self.run_cross_platform_scanner)
+                )
             )
         
         # Run single-platform scanner if either platform enabled
         if (ps or ks) and self.single_platform_scanner:
             tasks.append(
-                asyncio.create_task(self.run_single_platform_scanner())
+                asyncio.create_task(
+                    self._resilient_task("single_platform_scanner",
+                                        self.run_single_platform_scanner)
+                )
             )
         
         # Run Market Making strategy (HIGH confidence - 10-20% APR)
@@ -2534,8 +2567,15 @@ class PolybotRunner:
         if self.enable_news_sentiment and self.news_engine:
             tasks.append(asyncio.create_task(self.run_news_sentiment()))
         
-        # Always run balance tracker
-        tasks.append(asyncio.create_task(self.run_balance_tracker()))
+        # Always run balance tracker (resilient)
+        tasks.append(asyncio.create_task(
+            self._resilient_task("balance_tracker", self.run_balance_tracker)
+        ))
+        
+        # Always run heartbeat to update polybot_status (resilient)
+        tasks.append(asyncio.create_task(
+            self._resilient_task("heartbeat", self.run_heartbeat)
+        ))
         
         # Run paper trading stats saver if in simulation mode
         if self.simulation_mode and self.paper_trader:
@@ -2549,7 +2589,15 @@ class PolybotRunner:
         
         try:
             # Run all tasks concurrently
-            await asyncio.gather(*tasks)
+            # CRITICAL: return_exceptions=True prevents one failing task from crashing all others
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # Log any exceptions that occurred
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    task_name = self._tasks[i].get_name() if hasattr(self._tasks[i], 'get_name') else f"task_{i}"
+                    logger.error(f"Task {task_name} failed with error: {result}")
+                    
         except asyncio.CancelledError:
             logger.info("Tasks cancelled, shutting down...")
         except Exception as e:
