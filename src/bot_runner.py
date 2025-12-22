@@ -2724,6 +2724,14 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     
+    # CRITICAL: Start health server FIRST before anything else
+    # This ensures Lightsail health checks pass even if bot init crashes
+    logger.info("🏥 Starting health server FIRST for deployment health checks...")
+    health_task = asyncio.create_task(start_health_server(bot_runner=None))
+    # Give health server time to start
+    await asyncio.sleep(2)
+    logger.info("✅ Health server started, proceeding with bot initialization...")
+    
     # Load simulation mode from database (Admin UI setting)
     # This allows toggling simulation/live from the UI without code changes
     db = Database()
@@ -2752,17 +2760,23 @@ async def main():
         # Add trader addresses to copy here
     ]
     
-    runner = PolybotRunner(
-        tracked_traders=tracked_traders,
-        enable_copy_trading=True,
-        enable_arb_detection=True,
-        enable_position_manager=True,
-        enable_news_sentiment=True,
-        simulation_mode=simulation_mode,  # Now read from database!
-    )
-    
-    # Start health server for Lightsail health checks (pass runner for debug)
-    health_task = asyncio.create_task(start_health_server(bot_runner=runner))
+    try:
+        runner = PolybotRunner(
+            tracked_traders=tracked_traders,
+            enable_copy_trading=True,
+            enable_arb_detection=True,
+            enable_position_manager=True,
+            enable_news_sentiment=True,
+            simulation_mode=simulation_mode,
+        )
+    except Exception as e:
+        logger.error(f"❌ CRITICAL: Failed to create PolybotRunner: {e}")
+        import traceback
+        traceback.print_exc()
+        # Keep health server running so container doesn't restart
+        logger.info("Health server will keep running - fix code and redeploy")
+        while True:
+            await asyncio.sleep(60)
     
     # Setup signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
