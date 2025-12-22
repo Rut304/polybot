@@ -2340,7 +2340,13 @@ class PolybotRunner:
 
     async def run(self):
         """Run all enabled features concurrently."""
-        await self.initialize()
+        try:
+            await self.initialize()
+        except Exception as e:
+            logger.error(f"❌ CRITICAL: Initialize failed: {e}")
+            logger.error("Bot will continue with limited functionality")
+            import traceback
+            traceback.print_exc()
         
         self._running = True
         
