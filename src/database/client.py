@@ -912,6 +912,203 @@ class Database:
             logger.error(f"Failed to select from {table}: {e}")
             return []
 
+    # ==================== Multitenancy Methods ====================
+    # Per-user configuration, secrets, and profile management
+    
+    def get_user_profile(self) -> Optional[Dict]:
+        """
+        Get profile for current user (subscription, limits, features).
+        
+        Returns:
+            User profile dict or None if not found
+        """
+        if not self._client or not self.user_id:
+            return None
+        
+        try:
+            result = self._client.table("polybot_user_profiles").select(
+                "*"
+            ).eq("id", self.user_id).single().execute()
+            
+            return result.data
+            
+        except Exception as e:
+            logger.debug(f"Could not get user profile: {e}")
+            return None
+    
+    def get_user_config(self) -> Optional[Dict]:
+        """
+        Get trading configuration for current user.
+        
+        Returns:
+            User config dict or None if not found
+        """
+        if not self._client or not self.user_id:
+            return None
+        
+        try:
+            result = self._client.table("polybot_user_config").select(
+                "*"
+            ).eq("user_id", self.user_id).single().execute()
+            
+            return result.data
+            
+        except Exception as e:
+            logger.debug(f"Could not get user config: {e}")
+            return None
+    
+    def get_user_secrets(self, is_paper: bool = True) -> Dict[str, Dict]:
+        """
+        Get API secrets for current user by platform.
+        
+        Args:
+            is_paper: If True, get paper/sandbox keys. If False, get live keys.
+            
+        Returns:
+            Dict mapping platform -> secret details
+        """
+        if not self._client or not self.user_id:
+            return {}
+        
+        try:
+            result = self._client.table("polybot_user_secrets").select(
+                "platform, api_key_encrypted, api_secret_encrypted, "
+                "private_key_encrypted, wallet_address, additional_config, "
+                "is_paper, validation_status"
+            ).eq(
+                "user_id", self.user_id
+            ).eq(
+                "is_active", True
+            ).eq(
+                "is_paper", is_paper
+            ).execute()
+            
+            secrets = {}
+            for row in (result.data or []):
+                platform = row["platform"]
+                secrets[platform] = {
+                    # TODO: Decrypt using Supabase Vault or KMS
+                    "api_key": row.get("api_key_encrypted"),
+                    "api_secret": row.get("api_secret_encrypted"),
+                    "private_key": row.get("private_key_encrypted"),
+                    "wallet_address": row.get("wallet_address"),
+                    "is_paper": row.get("is_paper", True),
+                    "validation_status": row.get("validation_status"),
+                    **(row.get("additional_config") or {}),
+                }
+            
+            return secrets
+            
+        except Exception as e:
+            logger.error(f"Failed to get user secrets: {e}")
+            return {}
+    
+    def update_user_config(self, config_updates: Dict[str, Any]) -> bool:
+        """
+        Update trading configuration for current user.
+        
+        Args:
+            config_updates: Dict of config fields to update
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._client or not self.user_id:
+            return False
+        
+        try:
+            config_updates["updated_at"] = datetime.utcnow().isoformat()
+            
+            self._client.table("polybot_user_config").upsert({
+                "user_id": self.user_id,
+                **config_updates
+            }, on_conflict="user_id").execute()
+            
+            logger.info(f"Updated user config for {self.user_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update user config: {e}")
+            return False
+    
+    def increment_trade_count(self) -> Dict:
+        """
+        Increment monthly trade count for billing/limits.
+        
+        Returns:
+            Dict with success status and current counts
+        """
+        if not self._client or not self.user_id:
+            return {"success": False, "error": "No user context"}
+        
+        try:
+            result = self._client.rpc(
+                "increment_user_trades",
+                {"p_user_id": self.user_id}
+            ).execute()
+            
+            return result.data if result.data else {"success": True}
+            
+        except Exception as e:
+            logger.error(f"Failed to increment trade count: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def check_subscription_limits(self) -> Dict[str, Any]:
+        """
+        Check if user is within subscription limits.
+        
+        Returns:
+            Dict with limit status and details
+        """
+        profile = self.get_user_profile()
+        
+        if not profile:
+            return {
+                "allowed": False,
+                "reason": "Profile not found",
+                "tier": "unknown",
+            }
+        
+        tier = profile.get("subscription_tier", "free")
+        trades = profile.get("trades_this_month", 0)
+        limit = profile.get("monthly_trade_limit", 100)
+        
+        return {
+            "allowed": trades < limit,
+            "reason": None if trades < limit else "Monthly limit reached",
+            "tier": tier,
+            "trades_this_month": trades,
+            "monthly_limit": limit,
+            "remaining": max(0, limit - trades),
+        }
+    
+    def get_active_users(self) -> List[Dict]:
+        """
+        Get all active users for BotManager (admin operation).
+        
+        Returns:
+            List of active user profiles
+        """
+        if not self._client:
+            return []
+        
+        try:
+            # Get users who have been active recently and aren't paused
+            from datetime import timedelta
+            cutoff = (datetime.utcnow() - timedelta(days=7)).isoformat()
+            
+            result = self._client.table("polybot_user_profiles").select(
+                "id, display_name, subscription_tier, features_enabled"
+            ).gte(
+                "last_active_at", cutoff
+            ).execute()
+            
+            return result.data or []
+            
+        except Exception as e:
+            logger.error(f"Failed to get active users: {e}")
+            return []
+
 
 # SQL to create tables (run this in Supabase SQL Editor)
 SCHEMA_SQL = """
