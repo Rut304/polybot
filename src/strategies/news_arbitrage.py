@@ -761,7 +761,7 @@ class NewsArbitrageStrategy:
             except Exception as e:
                 logger.error(f"News arbitrage error: {e}")
             
-            await asyncio.sleep(self.scan_interval_sec)
+            await asyncio.sleep(self.scan_interval)
         
         self._running = False
         

@@ -400,13 +400,14 @@ class PolybotRunner:
     async def is_market_blacklisted(self, market_id: str, title: str = "") -> bool:
         """Check if a market is in the blacklist."""
         # Simple check against cached set
-        if market_id in self._blacklist:
+        if market_id in self.blacklisted_markets:
             return True
             
-        # Check title against keywords
+        # Check title against keywords (only if we have keyword-style entries)
         title_lower = title.lower()
-        for keyword in self._blacklist:
-            if keyword in title_lower and len(keyword) > 3:  # Avoid short keyword matches
+        for entry in self.blacklisted_markets:
+            # Only do keyword matching for non-UUID entries (keywords are shorter)
+            if len(entry) < 30 and entry in title_lower and len(entry) > 3:
                 return True
                 
         return False
@@ -891,12 +892,13 @@ class PolybotRunner:
                 self.alpaca_client = None
         
         # Initialize IBKR Client (Interactive Brokers)
-        # Uses sidecar container on AWS Lightsail locally reachable via localhost
+        # IBKR requires IB Gateway/TWS running locally or in sidecar container
+        # In simulation mode, we gracefully skip if gateway is not available
         if self.config.trading.enable_ibkr:
             # Logic: Simulation = Paper Port (4002), Live = Live Port (4001)
             ibkr_port = 4002 if self.simulation_mode else 4001
             
-            logger.info(f"Connecting to IBKR ({'PAPER' if self.simulation_mode else 'LIVE'})...")
+            logger.info(f"Attempting IBKR connection ({'PAPER' if self.simulation_mode else 'LIVE'} port {ibkr_port})...")
             self.ibkr_client = IBKRClient(
                 host='localhost', 
                 port=ibkr_port, 
@@ -907,15 +909,21 @@ class PolybotRunner:
             if ibkr_initialized:
                 logger.info(f"✓ IBKR Client initialized on port {ibkr_port}")
             else:
-                logger.error(f"❌ IBKR Client failed to connect to port {ibkr_port}")
-                logger.error("  💡 CHECK: Is the IB Gateway container running?")
-                logger.error(
-                    f"  💡 CHECK: Mode mismatch? You are in {'SIMULATION' if self.simulation_mode else 'LIVE'} "
-                    f"mode (expecting port {ibkr_port})."
-                )
-                logger.error("  If IB Gateway is in a different mode, connection is REFUSED by design (Safety).")
+                if self.simulation_mode:
+                    # In simulation mode, gracefully continue without IBKR
+                    logger.info("⏸️ IBKR Gateway not available - continuing without IBKR in simulation mode")
+                    logger.info("   💡 To enable: Run IB Gateway Docker container on port 4002 (paper trading)")
+                else:
+                    # In LIVE mode, this is a critical error
+                    logger.error(f"❌ IBKR Client failed to connect to port {ibkr_port}")
+                    logger.error("  💡 CHECK: Is the IB Gateway container running?")
+                    logger.error(
+                        f"  💡 CHECK: Mode mismatch? You are in {'SIMULATION' if self.simulation_mode else 'LIVE'} "
+                        f"mode (expecting port {ibkr_port})."
+                    )
+                    logger.error("  If IB Gateway is in a different mode, connection is REFUSED by design (Safety).")
                 self.ibkr_client = None
-        elif self.config.trading.enable_ibkr:
+        else:
              logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
 
         # Initialize IBKR Futures Momentum
@@ -1557,11 +1565,11 @@ class PolybotRunner:
         skip_reason = None
         status = "detected"
         
-        if self.is_market_blacklisted(market_a_id, opp.market_a.question):
+        if await self.is_market_blacklisted(market_a_id, opp.market_a.question):
             skip_reason = f"Market A blacklisted: {opp.market_a.question[:50]}..."
             status = "skipped"
             logger.info(f"⛔ {skip_reason}")
-        elif self.is_market_blacklisted(market_b_id, opp.market_b.question):
+        elif await self.is_market_blacklisted(market_b_id, opp.market_b.question):
             skip_reason = f"Market B blacklisted: {opp.market_b.question[:50]}..."
             status = "skipped"
             logger.info(f"⛔ {skip_reason}")

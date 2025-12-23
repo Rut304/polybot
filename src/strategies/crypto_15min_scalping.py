@@ -322,8 +322,7 @@ class Crypto15MinScalpingStrategy:
                 url = f"{self.POLYMARKET_API}/markets"
                 params = {
                     "closed": "false",
-                    "limit": 50,
-                    # Note: API might not support text search, so we fetch and filter
+                    "limit": 100,  # Increased limit for better coverage
                 }
                 
                 async with session.get(url, params=params) as resp:
@@ -337,12 +336,23 @@ class Crypto15MinScalpingStrategy:
                                 market["_parsed_symbol"] = parsed[0]
                                 market["_parsed_direction"] = parsed[1]
                                 markets.append(market)
+                    elif resp.status == 429:
+                        logger.warning(f"Polymarket rate limit hit, backing off...")
+                        await asyncio.sleep(5)
+                    else:
+                        logger.warning(f"Polymarket API returned {resp.status} for markets query")
                     
                     # Rate limiting
                     await asyncio.sleep(0.5)
+            
+            # Log if no markets found (they may be discontinued)
+            if not markets:
+                logger.debug(f"No active 15-min crypto markets found for {self.symbols}")
         
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error fetching 15-min markets: {type(e).__name__}: {e}")
         except Exception as e:
-            logger.error(f"Error fetching 15-min markets: {e}")
+            logger.error(f"Error fetching 15-min markets: {type(e).__name__}: {e}", exc_info=True)
         
         return markets
     
