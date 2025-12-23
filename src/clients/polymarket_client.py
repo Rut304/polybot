@@ -1,6 +1,8 @@
 """
 Polymarket WebSocket and REST client for real-time order book data.
 Based on jtdoherty/arb-bot with enhancements for production use.
+
+Now includes LIVE TRADING support via py-clob-client.
 """
 
 import asyncio
@@ -12,6 +14,16 @@ from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, field
 import websocket
 import requests
+
+# Import py-clob-client for live trading
+try:
+    from py_clob_client.client import ClobClient
+    from py_clob_client.clob_types import OrderArgs, ApiCreds
+    from py_clob_client.constants import POLYGON
+    CLOB_CLIENT_AVAILABLE = True
+except ImportError:
+    CLOB_CLIENT_AVAILABLE = False
+    ClobClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -454,4 +466,200 @@ class PolymarketClient:
                 "position_count": 0,
                 "error": str(e),
             }
+
+    # =========================================================================
+    # LIVE TRADING METHODS
+    # =========================================================================
+
+    def create_clob_client(
+        self,
+        private_key: str,
+        chain_id: int = 137,  # Polygon mainnet
+        funder: Optional[str] = None,
+    ) -> Optional[Any]:
+        """
+        Create a ClobClient instance for live trading.
+        
+        Args:
+            private_key: Ethereum private key (0x prefixed)
+            chain_id: Chain ID (137 for Polygon mainnet)
+            funder: Optional funder address
+            
+        Returns:
+            ClobClient instance or None if unavailable
+        """
+        if not CLOB_CLIENT_AVAILABLE:
+            logger.error(
+                "py-clob-client not installed. "
+                "Install with: pip install py-clob-client"
+            )
+            return None
+        
+        try:
+            # Create credentials
+            creds = ApiCreds(
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                api_passphrase="",  # Polymarket doesn't use passphrase
+            )
+            
+            # Create client
+            client = ClobClient(
+                host="https://clob.polymarket.com",
+                chain_id=chain_id,
+                key=private_key,
+                creds=creds,
+                funder=funder,
+            )
+            
+            logger.info("✓ Polymarket ClobClient created for live trading")
+            return client
+            
+        except Exception as e:
+            logger.error(f"Failed to create ClobClient: {e}")
+            return None
+
+    async def place_order(
+        self,
+        clob_client: Any,
+        token_id: str,
+        side: str,  # 'BUY' or 'SELL'
+        price: float,  # 0.0 to 1.0
+        size: float,  # Number of shares
+        order_type: str = "GTC",  # GTC, FOK, IOC
+    ) -> Dict:
+        """
+        Place a live order on Polymarket.
+        
+        Args:
+            clob_client: ClobClient instance from create_clob_client()
+            token_id: The token ID to trade
+            side: 'BUY' or 'SELL'
+            price: Price between 0 and 1 (e.g., 0.65 for 65 cents)
+            size: Number of shares to trade
+            order_type: Order type (GTC=Good Till Cancel, FOK, IOC)
+            
+        Returns:
+            Dict with order result:
+            {
+                "success": bool,
+                "order_id": str or None,
+                "filled_size": float,
+                "fill_price": float,
+                "tx_hash": str or None,
+                "error": str or None,
+            }
+        """
+        if not clob_client:
+            return {
+                "success": False,
+                "order_id": None,
+                "filled_size": 0.0,
+                "fill_price": 0.0,
+                "tx_hash": None,
+                "error": "ClobClient not initialized",
+            }
+        
+        try:
+            logger.info(
+                f"🔴 LIVE ORDER: {side} {size} shares of {token_id[:20]}... "
+                f"@ ${price:.4f}"
+            )
+            
+            # Create order args
+            order_args = {
+                "token_id": token_id,
+                "price": price,
+                "size": size,
+                "side": side.upper(),
+            }
+            
+            # Set order options based on type
+            options = None
+            if order_type == "FOK":
+                options = {"time_in_force": "FOK"}
+            elif order_type == "IOC":
+                options = {"time_in_force": "IOC"}
+            
+            # Submit order
+            result = clob_client.create_and_post_order(order_args, options)
+            
+            # Parse response
+            if result and result.get("success"):
+                order_id = result.get("orderID", result.get("order_id"))
+                logger.info(f"✅ Order placed successfully: {order_id}")
+                return {
+                    "success": True,
+                    "order_id": order_id,
+                    "filled_size": float(result.get("filledSize", size)),
+                    "fill_price": price,
+                    "tx_hash": result.get("transactionHash"),
+                    "error": None,
+                }
+            else:
+                error_msg = result.get("errorMsg", "Unknown error")
+                logger.error(f"❌ Order failed: {error_msg}")
+                return {
+                    "success": False,
+                    "order_id": None,
+                    "filled_size": 0.0,
+                    "fill_price": 0.0,
+                    "tx_hash": None,
+                    "error": error_msg,
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Order execution error: {e}")
+            return {
+                "success": False,
+                "order_id": None,
+                "filled_size": 0.0,
+                "fill_price": 0.0,
+                "tx_hash": None,
+                "error": str(e),
+            }
+
+    async def cancel_order(
+        self,
+        clob_client: Any,
+        order_id: str,
+    ) -> Dict:
+        """
+        Cancel an existing order on Polymarket.
+        
+        Args:
+            clob_client: ClobClient instance
+            order_id: Order ID to cancel
+            
+        Returns:
+            Dict with cancel result
+        """
+        if not clob_client:
+            return {"success": False, "error": "ClobClient not initialized"}
+        
+        try:
+            result = clob_client.cancel(order_id)
+            if result and result.get("success"):
+                logger.info(f"✅ Order {order_id} cancelled")
+                return {"success": True, "error": None}
+            else:
+                return {
+                    "success": False,
+                    "error": result.get("errorMsg", "Cancel failed"),
+                }
+        except Exception as e:
+            logger.error(f"Cancel error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_open_orders(self, clob_client: Any) -> List[Dict]:
+        """Get all open orders for the account."""
+        if not clob_client:
+            return []
+        
+        try:
+            orders = clob_client.get_orders()
+            return orders if orders else []
+        except Exception as e:
+            logger.error(f"Failed to get open orders: {e}")
+            return []
 

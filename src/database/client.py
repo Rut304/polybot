@@ -513,6 +513,62 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to log trade: {e}")
             return None
+
+    def log_live_trade(self, trade_data: Dict[str, Any]) -> Optional[int]:
+        """
+        Log a LIVE (non-simulation) trade execution.
+        
+        This is separate from log_trade which is used for paper trading.
+        Live trades need additional tracking for order management.
+        
+        Args:
+            trade_data: Dict with keys:
+                - opportunity_id: str
+                - platform: str
+                - market_id: str
+                - market_title: str
+                - position_size_usd: float
+                - expected_profit_pct: float
+                - order_ids: List[str]
+                - status: str ("open", "filled", "partial", "cancelled")
+            
+        Returns:
+            Inserted row ID or None if failed
+        """
+        if not self._client:
+            logger.debug("Database not connected, skipping live trade log")
+            return None
+        
+        try:
+            import json
+            
+            insert_data = {
+                "opportunity_id": trade_data.get("opportunity_id"),
+                "platform": trade_data.get("platform"),
+                "market_id": trade_data.get("market_id"),
+                "market_title": trade_data.get("market_title", "")[:200],
+                "position_size_usd": trade_data.get("position_size_usd", 0),
+                "expected_profit_pct": trade_data.get("expected_profit_pct", 0),
+                "order_ids": json.dumps(trade_data.get("order_ids", [])),
+                "status": trade_data.get("status", "open"),
+                "created_at": datetime.utcnow().isoformat(),
+                "is_simulation": False,
+            }
+            
+            if self.user_id:
+                insert_data["user_id"] = self.user_id
+                
+            result = self._client.table(
+                "polybot_live_trades"
+            ).insert(insert_data).execute()
+            
+            if result.data:
+                return result.data[0].get("id")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to log live trade: {e}")
+            return None
     
     def get_recent_trades(self, limit: int = 50) -> List[Dict]:
         """Get recent trades."""

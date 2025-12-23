@@ -471,15 +471,74 @@ class TradeExecutor:
         """
         Execute order on Polymarket via py-clob-client.
         
-        Returns dict with: success, filled_size, fill_price, order_id, tx_hash, fees, error
+        Returns dict with: success, filled_size, fill_price, order_id,
+        tx_hash, fees, error
+        
+        IMPORTANT: This method is ONLY called when dry_run=False (live mode).
+        In simulation mode, trades are simulated in the paper trader.
         """
-        # TODO: Implement actual Polymarket order execution
-        # Using py-clob-client library
-        logger.warning("Polymarket order execution not yet implemented")
-        return {
-            "success": False,
-            "error": "Not implemented",
-        }
+        if self.dry_run:
+            logger.info(
+                f"[DRY RUN] Would execute Polymarket order: "
+                f"{side} {size} @ {price}"
+            )
+            return {
+                "success": True,
+                "filled_size": size,
+                "fill_price": price,
+                "order_id": f"DRY-PM-{int(time.time())}",
+                "tx_hash": None,
+                "fees": size * price * 0.01,  # ~1% estimated fees
+                "error": None,
+            }
+        
+        # LIVE TRADING
+        if not self.polymarket_client:
+            return {
+                "success": False,
+                "error": "Polymarket client not initialized",
+            }
+        
+        try:
+            # Get the clob client for live trading
+            # The polymarket_client should have a clob_client attribute
+            # that was initialized with the private key
+            clob_client = getattr(
+                self.polymarket_client, '_clob_client', None
+            )
+            
+            if not clob_client:
+                return {
+                    "success": False,
+                    "error": "ClobClient not initialized for live trading",
+                }
+            
+            # Place the order
+            result = await self.polymarket_client.place_order(
+                clob_client=clob_client,
+                token_id=token_id,
+                side=side.upper(),
+                price=price,
+                size=size,
+                order_type="GTC",
+            )
+            
+            return {
+                "success": result.get("success", False),
+                "filled_size": result.get("filled_size", 0),
+                "fill_price": result.get("fill_price", price),
+                "order_id": result.get("order_id"),
+                "tx_hash": result.get("tx_hash"),
+                "fees": size * price * 0.02,  # Estimate 2% fees
+                "error": result.get("error"),
+            }
+            
+        except Exception as e:
+            logger.error(f"Polymarket order execution failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
     
     async def _execute_kalshi_order(
         self,
@@ -491,14 +550,74 @@ class TradeExecutor:
         """
         Execute order on Kalshi via their trading API.
         
-        Returns dict with: success, filled_size, fill_price, order_id, fees, error
+        Returns dict with: success, filled_size, fill_price, order_id,
+        fees, error
+        
+        IMPORTANT: This method is ONLY called when dry_run=False (live mode).
+        In simulation mode, trades are simulated in the paper trader.
         """
-        # TODO: Implement actual Kalshi order execution
-        logger.warning("Kalshi order execution not yet implemented")
-        return {
-            "success": False,
-            "error": "Not implemented",
-        }
+        if self.dry_run:
+            logger.info(
+                f"[DRY RUN] Would execute Kalshi order: "
+                f"{side} {size} @ {price}"
+            )
+            return {
+                "success": True,
+                "filled_size": size,
+                "fill_price": price,
+                "order_id": f"DRY-KL-{int(time.time())}",
+                "fees": size * 0.07,  # Kalshi ~7 cent per contract fee
+                "error": None,
+            }
+        
+        # LIVE TRADING
+        if not self.kalshi_client:
+            return {
+                "success": False,
+                "error": "Kalshi client not initialized",
+            }
+        
+        if not self.kalshi_client.is_authenticated:
+            return {
+                "success": False,
+                "error": "Kalshi client not authenticated",
+            }
+        
+        try:
+            # Convert price from decimal (0.65) to cents (65)
+            price_cents = int(price * 100)
+            
+            # Determine action based on side
+            # For arbitrage: we're always buying
+            action = "buy"
+            kalshi_side = "yes" if side.lower() in ["buy", "yes"] else "no"
+            
+            # Place the order
+            result = await self.kalshi_client.place_order(
+                ticker=ticker,
+                side=kalshi_side,
+                action=action,
+                count=int(size),
+                price_cents=price_cents,
+                order_type="limit",
+                time_in_force="good_till_canceled",
+            )
+            
+            return {
+                "success": result.get("success", False),
+                "filled_size": result.get("filled_count", 0),
+                "fill_price": price,
+                "order_id": result.get("order_id"),
+                "fees": result.get("fees_cents", 0) / 100.0,
+                "error": result.get("error"),
+            }
+            
+        except Exception as e:
+            logger.error(f"Kalshi order execution failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
     
     def get_pending_approvals(self) -> List[Opportunity]:
         """Get opportunities pending manual approval."""

@@ -612,3 +612,256 @@ class KalshiClient:
                 "error": str(e),
             }
 
+    # =========================================================================
+    # LIVE TRADING METHODS
+    # =========================================================================
+
+    async def place_order(
+        self,
+        ticker: str,
+        side: str,  # 'yes' or 'no'
+        action: str,  # 'buy' or 'sell'
+        count: int,  # Number of contracts
+        price_cents: int,  # Price in cents (1-99)
+        order_type: str = "limit",  # 'limit' or 'market'
+        time_in_force: str = "good_till_canceled",  # GTC, FOK, IOC
+        client_order_id: Optional[str] = None,
+    ) -> Dict:
+        """
+        Place a live order on Kalshi.
+        
+        Args:
+            ticker: Market ticker (e.g., "KXBTCUSD-25JAN03-B101500")
+            side: 'yes' or 'no'
+            action: 'buy' or 'sell'
+            count: Number of contracts
+            price_cents: Price in cents (1-99)
+            order_type: 'limit' or 'market'
+            time_in_force: Order duration
+            client_order_id: Optional client-side order ID
+            
+        Returns:
+            Dict with order result:
+            {
+                "success": bool,
+                "order_id": str or None,
+                "filled_count": int,
+                "remaining_count": int,
+                "status": str,
+                "fees_cents": int,
+                "error": str or None,
+            }
+        """
+        if not self.is_authenticated:
+            return {
+                "success": False,
+                "order_id": None,
+                "filled_count": 0,
+                "remaining_count": count,
+                "status": "failed",
+                "fees_cents": 0,
+                "error": "Not authenticated - API key and private key required",
+            }
+        
+        try:
+            # Apply rate limiting
+            self._wait_for_rate_limit()
+            
+            logger.info(
+                f"🔴 LIVE ORDER: {action.upper()} {count} {side.upper()} "
+                f"contracts of {ticker} @ {price_cents}¢"
+            )
+            
+            # Build order payload
+            order_payload = {
+                "ticker": ticker,
+                "side": side.lower(),
+                "action": action.lower(),
+                "count": count,
+                "type": order_type,
+                "time_in_force": time_in_force,
+            }
+            
+            # Add price for limit orders
+            if order_type == "limit":
+                if side.lower() == "yes":
+                    order_payload["yes_price"] = price_cents
+                else:
+                    order_payload["no_price"] = price_cents
+            
+            # Add client order ID if provided
+            if client_order_id:
+                order_payload["client_order_id"] = client_order_id
+            
+            # Get auth headers for POST
+            path = "/trade-api/v2/portfolio/orders"
+            headers = self._get_auth_headers(path)
+            headers["Content-Type"] = "application/json"
+            
+            # Submit order
+            response = requests.post(
+                f"{self.api_url}/portfolio/orders",
+                headers=headers,
+                json=order_payload,
+                timeout=15,
+            )
+            
+            # Handle rate limiting
+            self._handle_rate_limit_response(response.status_code)
+            
+            if response.status_code == 429:
+                return {
+                    "success": False,
+                    "order_id": None,
+                    "filled_count": 0,
+                    "remaining_count": count,
+                    "status": "rate_limited",
+                    "fees_cents": 0,
+                    "error": "Rate limited (429) - try again later",
+                }
+            
+            if response.status_code == 201:
+                data = response.json()
+                order = data.get("order", {})
+                order_id = order.get("order_id")
+                status = order.get("status", "submitted")
+                filled = order.get("fill_count", 0)
+                remaining = order.get("remaining_count", count)
+                taker_fees = order.get("taker_fees", 0)
+                maker_fees = order.get("maker_fees", 0)
+                
+                logger.info(
+                    f"✅ Order placed: {order_id} | "
+                    f"Status: {status} | Filled: {filled}/{count}"
+                )
+                
+                return {
+                    "success": True,
+                    "order_id": order_id,
+                    "filled_count": filled,
+                    "remaining_count": remaining,
+                    "status": status,
+                    "fees_cents": taker_fees + maker_fees,
+                    "error": None,
+                }
+            else:
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get(
+                    "message",
+                    f"HTTP {response.status_code}"
+                )
+                logger.error(f"❌ Order failed: {error_msg}")
+                return {
+                    "success": False,
+                    "order_id": None,
+                    "filled_count": 0,
+                    "remaining_count": count,
+                    "status": "failed",
+                    "fees_cents": 0,
+                    "error": error_msg,
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Order execution error: {e}")
+            return {
+                "success": False,
+                "order_id": None,
+                "filled_count": 0,
+                "remaining_count": count,
+                "status": "error",
+                "fees_cents": 0,
+                "error": str(e),
+            }
+
+    async def cancel_order(self, order_id: str) -> Dict:
+        """
+        Cancel an existing order on Kalshi.
+        
+        Args:
+            order_id: The order ID to cancel
+            
+        Returns:
+            Dict with cancel result
+        """
+        if not self.is_authenticated:
+            return {"success": False, "error": "Not authenticated"}
+        
+        try:
+            self._wait_for_rate_limit()
+            
+            path = f"/trade-api/v2/portfolio/orders/{order_id}"
+            headers = self._get_auth_headers(path)
+            
+            response = requests.delete(
+                f"{self.api_url}/portfolio/orders/{order_id}",
+                headers=headers,
+                timeout=10,
+            )
+            
+            self._handle_rate_limit_response(response.status_code)
+            
+            if response.status_code in [200, 204]:
+                logger.info(f"✅ Order {order_id} cancelled")
+                return {"success": True, "error": None}
+            else:
+                error_msg = response.json().get("message", "Cancel failed")
+                return {"success": False, "error": error_msg}
+                
+        except Exception as e:
+            logger.error(f"Cancel error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def get_open_orders(self) -> List[Dict]:
+        """Get all open orders for the account."""
+        if not self.is_authenticated:
+            return []
+        
+        try:
+            self._wait_for_rate_limit()
+            
+            path = "/trade-api/v2/portfolio/orders"
+            headers = self._get_auth_headers(path)
+            
+            response = requests.get(
+                f"{self.api_url}/portfolio/orders",
+                headers=headers,
+                params={"status": "resting"},
+                timeout=10,
+            )
+            
+            self._handle_rate_limit_response(response.status_code)
+            
+            if response.status_code == 200:
+                return response.json().get("orders", [])
+            return []
+            
+        except Exception as e:
+            logger.error(f"Failed to get open orders: {e}")
+            return []
+
+    async def get_order(self, order_id: str) -> Optional[Dict]:
+        """Get details of a specific order."""
+        if not self.is_authenticated:
+            return None
+        
+        try:
+            self._wait_for_rate_limit()
+            
+            path = f"/trade-api/v2/portfolio/orders/{order_id}"
+            headers = self._get_auth_headers(path)
+            
+            response = requests.get(
+                f"{self.api_url}/portfolio/orders/{order_id}",
+                headers=headers,
+                timeout=10,
+            )
+            
+            self._handle_rate_limit_response(response.status_code)
+            
+            if response.status_code == 200:
+                return response.json().get("order")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get order {order_id}: {e}")
+            return None

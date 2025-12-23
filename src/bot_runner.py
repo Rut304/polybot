@@ -1382,6 +1382,43 @@ class PolybotRunner:
             logger.info("✓ Realistic Paper Trader initialized")
             logger.info("📊 Starting balance: $1,000.00")
             logger.info("📉 Slippage, partial fills, failures enabled")
+        else:
+            # LIVE TRADING MODE - Initialize live execution clients
+            logger.warning("=" * 60)
+            logger.warning("🔴 LIVE TRADING MODE ENABLED 🔴")
+            logger.warning("Real money will be used for trades!")
+            logger.warning("=" * 60)
+            
+            # Initialize Polymarket ClobClient for live order execution
+            if self.private_key:
+                self._polymarket_clob_client = (
+                    self.polymarket_client.create_clob_client(
+                        private_key=self.private_key,
+                        chain_id=137,  # Polygon mainnet
+                    )
+                )
+                if self._polymarket_clob_client:
+                    logger.info("✓ Polymarket LIVE trading client initialized")
+                else:
+                    logger.warning(
+                        "⚠️ Polymarket live trading unavailable "
+                        "(ClobClient failed)"
+                    )
+            else:
+                self._polymarket_clob_client = None
+                logger.warning(
+                    "⚠️ Polymarket live trading unavailable "
+                    "(no private key)"
+                )
+            
+            # Kalshi client already initialized with auth
+            if self.kalshi_client.is_authenticated:
+                logger.info("✓ Kalshi LIVE trading client ready")
+            else:
+                logger.warning(
+                    "⚠️ Kalshi live trading unavailable "
+                    "(not authenticated)"
+                )
         
         # Initialize balance aggregator for multi-platform balance tracking
         # Collects from: Polymarket, Kalshi, Crypto (CCXT), Stocks (Alpaca)
@@ -1648,6 +1685,9 @@ class PolybotRunner:
                     status="failed",
                     skip_reason=str(e)
                 )
+        else:
+            # LIVE TRADING MODE - Execute real overlapping arb trade
+            await self._execute_live_overlapping_arb_trade(opp, opp_id)
     
     async def on_cross_platform_opportunity(self, opp: Opportunity):
         """Handle cross-platform arbitrage opportunities (Polymarket↔Kalshi)."""
@@ -1747,6 +1787,9 @@ class PolybotRunner:
                     status="failed",
                     skip_reason=str(e)
                 )
+        else:
+            # LIVE TRADING MODE - Execute real trades
+            await self._execute_live_cross_platform_trade(opp, opp_id)
     
     async def on_single_platform_opportunity(
         self, 
@@ -1855,6 +1898,12 @@ class PolybotRunner:
                     status="failed",
                     skip_reason=str(e)
                 )
+        else:
+            # =========================================================
+            # LIVE TRADING MODE
+            # Execute real orders on Polymarket or Kalshi
+            # =========================================================
+            await self._execute_live_single_platform_trade(opp, opp_id, arb_type)
     
     async def on_position_claim(self, result: ClaimResult):
         """Handle position claim results."""
@@ -1868,6 +1917,638 @@ class PolybotRunner:
                 f"[CLAIM] Failed to claim position {result.position_id}: "
                 f"{result.error}"
             )
+
+    # =========================================================================
+    # LIVE TRADING EXECUTION METHODS
+    # These methods execute REAL orders when simulation_mode=False
+    # =========================================================================
+
+    async def _execute_live_single_platform_trade(
+        self,
+        opp: SinglePlatformOpportunity,
+        opp_id: str,
+        arb_type: ArbitrageType,
+    ):
+        """
+        Execute a live single-platform arbitrage trade.
+        
+        For single-platform arb, we need to buy ALL outcomes so that
+        we're guaranteed $1 at resolution regardless of outcome.
+        
+        Args:
+            opp: The opportunity to execute
+            opp_id: Database opportunity ID
+            arb_type: Type of arbitrage (polymarket_single or kalshi_single)
+        """
+        logger.warning(
+            f"🔴 LIVE TRADE: {opp.platform.upper()} single-platform arb | "
+            f"{opp.profit_pct:.2f}% profit"
+        )
+        
+        try:
+            # Calculate position size
+            max_size = self.config.trading.max_trade_size
+            position_size = min(max_size, 100)  # Cap at $100 for safety
+            
+            if opp.platform == "polymarket":
+                result = await self._execute_polymarket_live_trade(
+                    opp, position_size
+                )
+            elif opp.platform == "kalshi":
+                result = await self._execute_kalshi_live_trade(
+                    opp, position_size
+                )
+            else:
+                result = {
+                    "success": False, "error": f"Unknown platform: {opp.platform}"
+                }
+            
+            # Update database with result
+            if result.get("success"):
+                logger.info(f"✅ Live trade executed: {result.get('order_ids')}")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="executed",
+                    executed_at=datetime.utcnow(),
+                    execution_result="pending_resolution"
+                )
+                # Track in analytics
+                self.analytics.record_opportunity(arb_type)
+                
+                # Log to live trades table
+                self.db.log_live_trade({
+                    "opportunity_id": opp_id,
+                    "platform": opp.platform,
+                    "market_id": opp.market_id,
+                    "market_title": opp.market_title[:200],
+                    "position_size_usd": position_size,
+                    "expected_profit_pct": float(opp.profit_pct),
+                    "order_ids": result.get("order_ids", []),
+                    "status": "open",
+                })
+            else:
+                error = result.get("error", "Unknown error")
+                logger.error(f"❌ Live trade failed: {error}")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason=f"Execution failed: {error}"
+                )
+                self.analytics.record_failed_execution(arb_type)
+                
+        except Exception as e:
+            logger.error(f"❌ Live trade exception: {e}")
+            self.db.update_opportunity_status(
+                opportunity_id=opp_id,
+                status="failed",
+                skip_reason=str(e)
+            )
+
+    async def _execute_polymarket_live_trade(
+        self,
+        opp: SinglePlatformOpportunity,
+        position_size: float,
+    ) -> dict:
+        """
+        Execute a live trade on Polymarket.
+        
+        For single-platform arb, we buy both YES and NO tokens.
+        """
+        clob_client = getattr(self, '_polymarket_clob_client', None)
+        
+        if not clob_client:
+            return {
+                "success": False,
+                "error": "Polymarket ClobClient not initialized"
+            }
+        
+        try:
+            # Get YES and NO token IDs
+            yes_token_id = opp.outcomes.get("yes", {}).get("token_id")
+            no_token_id = opp.outcomes.get("no", {}).get("token_id")
+            yes_price = opp.outcomes.get("yes", {}).get("price", 0.5)
+            no_price = opp.outcomes.get("no", {}).get("price", 0.5)
+            
+            if not yes_token_id or not no_token_id:
+                return {
+                    "success": False,
+                    "error": "Missing token IDs for YES/NO outcomes"
+                }
+            
+            # Calculate shares to buy for each outcome
+            # Total cost = yes_shares * yes_price + no_shares * no_price
+            # For equal investment, buy equal dollar amounts
+            yes_shares = (position_size / 2) / yes_price
+            no_shares = (position_size / 2) / no_price
+            
+            order_ids = []
+            
+            # Buy YES tokens
+            yes_result = await self.polymarket_client.place_order(
+                clob_client=clob_client,
+                token_id=yes_token_id,
+                side="BUY",
+                price=yes_price,
+                size=yes_shares,
+                order_type="GTC",
+            )
+            
+            if yes_result.get("success"):
+                order_ids.append(yes_result.get("order_id"))
+            else:
+                return {
+                    "success": False,
+                    "error": f"YES order failed: {yes_result.get('error')}"
+                }
+            
+            # Buy NO tokens
+            no_result = await self.polymarket_client.place_order(
+                clob_client=clob_client,
+                token_id=no_token_id,
+                side="BUY",
+                price=no_price,
+                size=no_shares,
+                order_type="GTC",
+            )
+            
+            if no_result.get("success"):
+                order_ids.append(no_result.get("order_id"))
+                return {
+                    "success": True,
+                    "order_ids": order_ids,
+                    "yes_order": yes_result,
+                    "no_order": no_result,
+                }
+            else:
+                # YES succeeded but NO failed - need to handle partial
+                logger.warning(
+                    f"Partial execution: YES succeeded, NO failed. "
+                    f"Order {order_ids[0]} may need manual handling."
+                )
+                return {
+                    "success": False,
+                    "error": f"NO order failed: {no_result.get('error')}",
+                    "partial_order_ids": order_ids,
+                }
+                
+        except Exception as e:
+            logger.error(f"Polymarket live trade error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _execute_kalshi_live_trade(
+        self,
+        opp: SinglePlatformOpportunity,
+        position_size: float,
+    ) -> dict:
+        """
+        Execute a live trade on Kalshi.
+        
+        For single-platform arb, we buy both YES and NO contracts.
+        """
+        if not self.kalshi_client.is_authenticated:
+            return {
+                "success": False,
+                "error": "Kalshi client not authenticated"
+            }
+        
+        try:
+            # Get ticker
+            ticker = opp.market_id
+            yes_price = opp.outcomes.get("yes", {}).get("price", 0.5)
+            no_price = opp.outcomes.get("no", {}).get("price", 0.5)
+            
+            # Calculate contracts to buy
+            # On Kalshi, each contract costs price_cents and pays $1
+            yes_contracts = int((position_size / 2) / yes_price)
+            no_contracts = int((position_size / 2) / no_price)
+            
+            order_ids = []
+            
+            # Buy YES contracts
+            yes_result = await self.kalshi_client.place_order(
+                ticker=ticker,
+                side="yes",
+                action="buy",
+                count=yes_contracts,
+                price_cents=int(yes_price * 100),
+                order_type="limit",
+            )
+            
+            if yes_result.get("success"):
+                order_ids.append(yes_result.get("order_id"))
+            else:
+                return {
+                    "success": False,
+                    "error": f"YES order failed: {yes_result.get('error')}"
+                }
+            
+            # Buy NO contracts
+            no_result = await self.kalshi_client.place_order(
+                ticker=ticker,
+                side="no",
+                action="buy",
+                count=no_contracts,
+                price_cents=int(no_price * 100),
+                order_type="limit",
+            )
+            
+            if no_result.get("success"):
+                order_ids.append(no_result.get("order_id"))
+                return {
+                    "success": True,
+                    "order_ids": order_ids,
+                    "yes_order": yes_result,
+                    "no_order": no_result,
+                }
+            else:
+                logger.warning(
+                    f"Partial execution: YES succeeded, NO failed. "
+                    f"Order {order_ids[0]} may need manual handling."
+                )
+                return {
+                    "success": False,
+                    "error": f"NO order failed: {no_result.get('error')}",
+                    "partial_order_ids": order_ids,
+                }
+                
+        except Exception as e:
+            logger.error(f"Kalshi live trade error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _execute_live_cross_platform_trade(
+        self,
+        opp: Opportunity,
+        opp_id: str,
+    ):
+        """
+        Execute a live cross-platform arbitrage trade.
+        
+        For cross-platform arb, we buy on one platform and sell on another.
+        Example: Buy YES on Polymarket @ 0.45, Sell YES on Kalshi @ 0.55
+        
+        Args:
+            opp: The cross-platform opportunity
+            opp_id: Database opportunity ID
+        """
+        logger.warning(
+            f"🔴 LIVE CROSS-PLATFORM TRADE: "
+            f"Buy {opp.buy_platform} @ {opp.buy_price:.2f} → "
+            f"Sell {opp.sell_platform} @ {opp.sell_price:.2f} | "
+            f"{opp.profit_percent:.2f}% profit"
+        )
+        
+        try:
+            max_size = self.config.trading.max_trade_size
+            position_size = min(max_size, 100)
+            
+            # Execute buy leg first
+            buy_result = await self._execute_cross_platform_leg(
+                platform=opp.buy_platform,
+                market_id=opp.buy_market_id,
+                side="buy",
+                price=opp.buy_price,
+                position_size=position_size,
+            )
+            
+            if not buy_result.get("success"):
+                logger.error(
+                    f"Buy leg failed: {buy_result.get('error')}"
+                )
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason=f"Buy leg failed: {buy_result.get('error')}"
+                )
+                return
+            
+            # Execute sell leg
+            sell_result = await self._execute_cross_platform_leg(
+                platform=opp.sell_platform,
+                market_id=opp.sell_market_id,
+                side="sell",
+                price=opp.sell_price,
+                position_size=position_size,
+            )
+            
+            if not sell_result.get("success"):
+                logger.error(
+                    f"Sell leg failed (buy leg succeeded!): "
+                    f"{sell_result.get('error')}"
+                )
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="partial",
+                    skip_reason=f"Sell leg failed: {sell_result.get('error')}",
+                    execution_result="partial_buy_only"
+                )
+                # Alert for manual intervention - use trade_failed notification
+                self.notifier.send_trade_failed(
+                    platform=opp.buy_platform,
+                    reason=(
+                        f"⚠️ PARTIAL EXECUTION: Buy succeeded on "
+                        f"{opp.buy_platform}, sell failed on {opp.sell_platform}"
+                    )
+                )
+                return
+            
+            # Both legs succeeded
+            logger.info(
+                f"✅ Cross-platform trade executed: "
+                f"Buy {buy_result.get('order_id')}, "
+                f"Sell {sell_result.get('order_id')}"
+            )
+            
+            self.db.update_opportunity_status(
+                opportunity_id=opp_id,
+                status="executed",
+                executed_at=datetime.utcnow(),
+                execution_result="pending_resolution"
+            )
+            
+            self.analytics.record_opportunity(ArbitrageType.CROSS_PLATFORM)
+            
+            self.db.log_live_trade({
+                "opportunity_id": opp_id,
+                "platform": f"{opp.buy_platform}_to_{opp.sell_platform}",
+                "market_id": opp.buy_market_id,
+                "market_title": opp.buy_market_name[:200],
+                "position_size_usd": position_size,
+                "expected_profit_pct": float(opp.profit_percent),
+                "order_ids": [
+                    buy_result.get("order_id"),
+                    sell_result.get("order_id")
+                ],
+                "status": "open",
+            })
+            
+        except Exception as e:
+            logger.error(f"❌ Cross-platform trade exception: {e}")
+            self.db.update_opportunity_status(
+                opportunity_id=opp_id,
+                status="failed",
+                skip_reason=str(e)
+            )
+
+    async def _execute_cross_platform_leg(
+        self,
+        platform: str,
+        market_id: str,
+        side: str,
+        price: float,
+        position_size: float,
+    ) -> dict:
+        """
+        Execute a single leg of a cross-platform trade.
+        
+        Args:
+            platform: "polymarket" or "kalshi"
+            market_id: Market/ticker ID
+            side: "buy" or "sell"
+            price: Price to trade at
+            position_size: USD amount to trade
+        """
+        contracts = int(position_size / price)
+        
+        if platform == "polymarket":
+            clob_client = getattr(self, '_polymarket_clob_client', None)
+            if not clob_client:
+                return {
+                    "success": False,
+                    "error": "Polymarket ClobClient not initialized"
+                }
+            
+            return await self.polymarket_client.place_order(
+                clob_client=clob_client,
+                token_id=market_id,
+                side=side.upper(),
+                price=price,
+                size=contracts,
+                order_type="GTC",
+            )
+            
+        elif platform == "kalshi":
+            if not self.kalshi_client.is_authenticated:
+                return {
+                    "success": False,
+                    "error": "Kalshi client not authenticated"
+                }
+            
+            action = "buy" if side == "buy" else "sell"
+            return await self.kalshi_client.place_order(
+                ticker=market_id,
+                side="yes",
+                action=action,
+                count=contracts,
+                price_cents=int(price * 100),
+                order_type="limit",
+            )
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown platform: {platform}"
+            }
+
+    async def _execute_live_overlapping_arb_trade(
+        self,
+        opp: OverlapOpportunity,
+        opp_id: str,
+    ):
+        """
+        Execute a live overlapping arbitrage trade on Polymarket.
+        
+        Overlapping arb exploits correlated markets. Example:
+        - Market A: "Will X win election?" at 0.60
+        - Market B: "Will X win primary?" at 0.40
+        - If A implies B, buy B (underpriced) or sell A (overpriced)
+        
+        CAUTION: This is more speculative than pure YES+NO arb.
+        """
+        logger.warning(
+            f"🔴 LIVE OVERLAPPING ARB: {opp.relationship} | "
+            f"{opp.deviation:.1f}% deviation | "
+            f"Potential: ${opp.profit_potential:.4f}"
+        )
+        
+        try:
+            max_size = self.config.trading.max_trade_size
+            position_size = min(max_size, 50)
+            
+            clob_client = getattr(self, '_polymarket_clob_client', None)
+            if not clob_client:
+                logger.error("Polymarket ClobClient not initialized")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason="ClobClient not initialized"
+                )
+                return
+            
+            # Determine trade direction based on relationship
+            # For "subset" relationship: if A implies B, and A > B, buy B
+            # For "superset" relationship: if B implies A, and A < B, sell B
+            trade_action = self._determine_overlap_trade_action(opp)
+            
+            if not trade_action:
+                logger.warning(
+                    f"Could not determine trade action for {opp.relationship}"
+                )
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="skipped",
+                    skip_reason="Could not determine trade action"
+                )
+                return
+            
+            # Execute the trade
+            market_id = trade_action["market_id"]
+            token_id = trade_action["token_id"]
+            side = trade_action["side"]
+            price = trade_action["price"]
+            
+            shares = int(position_size / price)
+            
+            result = await self.polymarket_client.place_order(
+                clob_client=clob_client,
+                token_id=token_id,
+                side=side,
+                price=price,
+                size=shares,
+                order_type="GTC",
+            )
+            
+            if result.get("success"):
+                logger.info(
+                    f"✅ Overlapping arb executed: {result.get('order_id')}"
+                )
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="executed",
+                    executed_at=datetime.utcnow(),
+                    execution_result="pending_resolution"
+                )
+                
+                self.db.log_live_trade({
+                    "opportunity_id": opp_id,
+                    "platform": "polymarket",
+                    "market_id": market_id,
+                    "market_title": trade_action.get("market_title", "")[:200],
+                    "position_size_usd": position_size,
+                    "expected_profit_pct": float(opp.profit_potential * 100),
+                    "order_ids": [result.get("order_id")],
+                    "status": "open",
+                })
+            else:
+                error = result.get("error", "Unknown error")
+                logger.error(f"❌ Overlapping arb failed: {error}")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="failed",
+                    skip_reason=f"Execution failed: {error}"
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Overlapping arb exception: {e}")
+            self.db.update_opportunity_status(
+                opportunity_id=opp_id,
+                status="failed",
+                skip_reason=str(e)
+            )
+
+    def _determine_overlap_trade_action(
+        self, opp: OverlapOpportunity
+    ) -> Optional[dict]:
+        """
+        Determine the trade action for an overlapping arbitrage opportunity.
+        
+        Returns dict with: market_id, token_id, side, price, market_title
+        or None if trade action cannot be determined.
+        """
+        # Get prices
+        price_a = opp.market_a.yes_price or 0.5
+        price_b = opp.market_b.yes_price or 0.5
+        
+        if opp.relationship == "subset":
+            # A is subset of B (A implies B)
+            # If A > B, B is underpriced - BUY B
+            if price_a > price_b:
+                return {
+                    "market_id": opp.market_b.condition_id,
+                    "token_id": opp.market_b.yes_token_id,
+                    "side": "BUY",
+                    "price": price_b,
+                    "market_title": opp.market_b.question,
+                }
+            else:
+                # A < B - A is overpriced, SELL A 
+                return {
+                    "market_id": opp.market_a.condition_id,
+                    "token_id": opp.market_a.yes_token_id,
+                    "side": "SELL",
+                    "price": price_a,
+                    "market_title": opp.market_a.question,
+                }
+                
+        elif opp.relationship == "superset":
+            # B is subset of A (B implies A)
+            # If B > A, A is underpriced - BUY A
+            if price_b > price_a:
+                return {
+                    "market_id": opp.market_a.condition_id,
+                    "token_id": opp.market_a.yes_token_id,
+                    "side": "BUY",
+                    "price": price_a,
+                    "market_title": opp.market_a.question,
+                }
+            else:
+                return {
+                    "market_id": opp.market_b.condition_id,
+                    "token_id": opp.market_b.yes_token_id,
+                    "side": "SELL",
+                    "price": price_b,
+                    "market_title": opp.market_b.question,
+                }
+                
+        elif opp.relationship == "complement":
+            # A and B are complements (A + B should = 1)
+            total = price_a + price_b
+            if total > 1.02:
+                # Overpriced overall - sell the higher one
+                if price_a > price_b:
+                    return {
+                        "market_id": opp.market_a.condition_id,
+                        "token_id": opp.market_a.yes_token_id,
+                        "side": "SELL",
+                        "price": price_a,
+                        "market_title": opp.market_a.question,
+                    }
+                else:
+                    return {
+                        "market_id": opp.market_b.condition_id,
+                        "token_id": opp.market_b.yes_token_id,
+                        "side": "SELL",
+                        "price": price_b,
+                        "market_title": opp.market_b.question,
+                    }
+            elif total < 0.98:
+                # Underpriced overall - buy the lower one
+                if price_a < price_b:
+                    return {
+                        "market_id": opp.market_a.condition_id,
+                        "token_id": opp.market_a.yes_token_id,
+                        "side": "BUY",
+                        "price": price_a,
+                        "market_title": opp.market_a.question,
+                    }
+                else:
+                    return {
+                        "market_id": opp.market_b.condition_id,
+                        "token_id": opp.market_b.yes_token_id,
+                        "side": "BUY",
+                        "price": price_b,
+                        "market_title": opp.market_b.question,
+                    }
+        
+        return None
     
     async def on_portfolio_update(self, summary: PortfolioSummary):
         """Handle portfolio updates."""
