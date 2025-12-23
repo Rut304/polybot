@@ -39,14 +39,15 @@ export function StatDetailModal({ isOpen, onClose, type, stats, realTimeStats, t
   const statsJson = stats?.stats_json;
   const { data: config } = useBotConfig();
   
-  // Calculate total starting balance from config
+  // Calculate total starting balance from config (6 platforms x $5,000 = $30,000)
   const totalStartingBalance = useMemo(() => {
-    const polyStarting = config?.polymarket_starting_balance || 20000;
-    const kalshiStarting = config?.kalshi_starting_balance || 20000;
-    const binanceStarting = config?.binance_starting_balance || 20000;
-    const coinbaseStarting = config?.coinbase_starting_balance || 20000;
-    const alpacaStarting = config?.alpaca_starting_balance || 20000;
-    return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
+    const polyStarting = config?.polymarket_starting_balance || 5000;
+    const kalshiStarting = config?.kalshi_starting_balance || 5000;
+    const binanceStarting = config?.binance_starting_balance || 5000;
+    const coinbaseStarting = config?.coinbase_starting_balance || 5000;
+    const alpacaStarting = config?.alpaca_starting_balance || 5000;
+    const ibkrStarting = config?.ibkr_starting_balance || 5000;
+    return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
   }, [config]);
   
   // Handle escape key

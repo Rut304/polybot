@@ -1678,6 +1678,14 @@ class PolybotRunner:
                         executed_at=datetime.utcnow(),
                         execution_result=exec_result
                     )
+                else:
+                    # Paper trader returned None - it was skipped (cooldown, false positive, etc.)
+                    # The paper trader already logged the skip reason, but update original record
+                    self.db.update_opportunity_status(
+                        opportunity_id=opp_id,
+                        status="skipped",
+                        skip_reason="Paper trader skipped (see logs)"
+                    )
             except Exception as e:
                 logger.error(f"Error paper trading arb: {e}")
                 self.db.update_opportunity_status(
@@ -1779,6 +1787,13 @@ class PolybotRunner:
                         status=status,
                         executed_at=datetime.utcnow(),
                         execution_result=exec_result
+                    )
+                else:
+                    # Paper trader skipped this opportunity
+                    self.db.update_opportunity_status(
+                        opportunity_id=opp_id,
+                        status="skipped",
+                        skip_reason="Paper trader skipped"
                     )
             except Exception as e:
                 logger.error(f"Error paper trading cross-platform arb: {e}")
@@ -1889,6 +1904,13 @@ class PolybotRunner:
                         status=status,
                         executed_at=datetime.utcnow(),
                         execution_result=exec_result
+                    )
+                else:
+                    # Paper trader skipped this opportunity
+                    self.db.update_opportunity_status(
+                        opportunity_id=opp_id,
+                        status="skipped",
+                        skip_reason="Paper trader skipped"
                     )
             except Exception as e:
                 logger.error(f"Error paper trading single-platform: {e}")

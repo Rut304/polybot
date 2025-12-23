@@ -199,13 +199,14 @@ export function usePnLHistory(hours: number = 24) {
   return useQuery({
     queryKey: ['pnlHistory', trades.length, hours, config?.polymarket_starting_balance],
     queryFn: () => {
-      // Calculate TOTAL starting balance across all platforms
-      const polyStarting = config?.polymarket_starting_balance || 20000;
-      const kalshiStarting = config?.kalshi_starting_balance || 20000;
-      const binanceStarting = config?.binance_starting_balance || 20000;
-      const coinbaseStarting = config?.coinbase_starting_balance || 20000;
-      const alpacaStarting = config?.alpaca_starting_balance || 20000;
-      const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
+      // Calculate TOTAL starting balance across all 6 platforms
+      const polyStarting = config?.polymarket_starting_balance || 5000;
+      const kalshiStarting = config?.kalshi_starting_balance || 5000;
+      const binanceStarting = config?.binance_starting_balance || 5000;
+      const coinbaseStarting = config?.coinbase_starting_balance || 5000;
+      const alpacaStarting = config?.alpaca_starting_balance || 5000;
+      const ibkrStarting = config?.ibkr_starting_balance || 5000;
+      const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
       
       // Filter trades within the time window
       const since = new Date();
