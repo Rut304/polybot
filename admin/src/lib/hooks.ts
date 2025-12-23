@@ -247,8 +247,8 @@ export function usePnLHistory(hours: number = 24) {
 }
 
 // Default starting balance - fallback if not set in config
-// Default is $100K total ($20K per platform x 5 platforms)
-const DEFAULT_STARTING_BALANCE = 100000;
+// Default is $30K total ($5K per platform x 6 platforms)
+const DEFAULT_STARTING_BALANCE = 30000;
 
 // Compute real-time stats from database aggregates (100% accurate)
 // Uses polybot_strategy_performance view for totals, recent trades for details
@@ -258,16 +258,17 @@ export function useRealTimeStats(timeframeHours?: number) {
   const { data: config } = useBotConfig(); // Get starting balance from config
   
   return useQuery({
-    queryKey: ['realTimeStats', timeframeHours, config?.polymarket_starting_balance, config?.kalshi_starting_balance, config?.binance_starting_balance, config?.coinbase_starting_balance, config?.alpaca_starting_balance],
+    queryKey: ['realTimeStats', timeframeHours, config?.polymarket_starting_balance, config?.kalshi_starting_balance, config?.binance_starting_balance, config?.coinbase_starting_balance, config?.alpaca_starting_balance, config?.ibkr_starting_balance],
     queryFn: async () => {
-      // Calculate TOTAL starting balance across all platforms
-      const polyStarting = config?.polymarket_starting_balance || 20000;
-      const kalshiStarting = config?.kalshi_starting_balance || 20000;
-      const binanceStarting = config?.binance_starting_balance || 20000;
-      const coinbaseStarting = config?.coinbase_starting_balance || 20000;
-      const alpacaStarting = config?.alpaca_starting_balance || 20000;
+      // Calculate TOTAL starting balance across all platforms (including IBKR)
+      const polyStarting = config?.polymarket_starting_balance || 5000;
+      const kalshiStarting = config?.kalshi_starting_balance || 5000;
+      const binanceStarting = config?.binance_starting_balance || 5000;
+      const coinbaseStarting = config?.coinbase_starting_balance || 5000;
+      const alpacaStarting = config?.alpaca_starting_balance || 5000;
+      const ibkrStarting = config?.ibkr_starting_balance || 5000;
       
-      const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting;
+      const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
       
       // Fetch accurate totals from database aggregate view
       const { data: strategyPerf, error: perfError } = await supabase
