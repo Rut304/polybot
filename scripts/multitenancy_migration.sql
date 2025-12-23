@@ -109,6 +109,30 @@ BEGIN
     ) THEN
         ALTER TABLE polybot_user_profiles ADD COLUMN features_enabled JSONB DEFAULT '{}'::jsonb;
     END IF;
+    
+    -- Add last_active_at if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'last_active_at'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN last_active_at TIMESTAMPTZ;
+    END IF;
+    
+    -- Add onboarding_completed if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'onboarding_completed'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN onboarding_completed BOOLEAN DEFAULT FALSE;
+    END IF;
+    
+    -- Add referral_code if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'referral_code'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN referral_code TEXT UNIQUE;
+    END IF;
 END $$;
 
 -- Indexes
@@ -140,8 +164,7 @@ GRANT ALL ON polybot_user_profiles TO service_role;
 -- 2. Per-User Secrets (API Keys)
 -- ============================================================
 
-DROP POLICY IF EXISTS "Users can manage own secrets" ON polybot_user_secrets;
-
+-- Create table first, then handle policies
 CREATE TABLE IF NOT EXISTS polybot_user_secrets (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -175,6 +198,9 @@ CREATE TABLE IF NOT EXISTS polybot_user_secrets (
     UNIQUE(user_id, platform, is_paper)
 );
 
+-- Now drop existing policy if exists (table exists now)
+DROP POLICY IF EXISTS "Users can manage own secrets" ON polybot_user_secrets;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_user_secrets_user 
     ON polybot_user_secrets(user_id);
@@ -199,8 +225,7 @@ GRANT USAGE, SELECT ON SEQUENCE polybot_user_secrets_id_seq TO service_role;
 -- 3. Per-User Configuration
 -- ============================================================
 
-DROP POLICY IF EXISTS "Users can manage own config" ON polybot_user_config;
-
+-- Create table first
 CREATE TABLE IF NOT EXISTS polybot_user_config (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
@@ -256,6 +281,9 @@ CREATE TABLE IF NOT EXISTS polybot_user_config (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Now drop existing policy if exists (table exists now)
+DROP POLICY IF EXISTS "Users can manage own config" ON polybot_user_config;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_user_config_user 

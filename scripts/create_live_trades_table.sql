@@ -34,6 +34,11 @@ CREATE INDEX IF NOT EXISTS idx_live_trades_created
 -- Enable RLS
 ALTER TABLE polybot_live_trades ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if re-running
+DROP POLICY IF EXISTS "Users can view own live trades" ON polybot_live_trades;
+DROP POLICY IF EXISTS "Users can insert own live trades" ON polybot_live_trades;
+DROP POLICY IF EXISTS "Users can update own live trades" ON polybot_live_trades;
+
 -- RLS Policy: Users can only see their own live trades
 CREATE POLICY "Users can view own live trades" 
     ON polybot_live_trades
