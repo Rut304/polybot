@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RefreshCw, Check, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Check, AlertTriangle, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface VersionInfo {
   uiVersion: string;
   botVersion: string | null;
-  botStatus: 'online' | 'offline' | 'unknown';
+  botStatus: 'online' | 'offline' | 'unknown' | 'auth_required';
   isLatest: boolean;
 }
 
@@ -27,6 +27,20 @@ export function VersionBadge() {
     const fetchBotVersion = async () => {
       try {
         const response = await fetch('/api/bot/status');
+        
+        // Check for auth redirect (Vercel protection)
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('text/html') || response.redirected) {
+          // Got HTML instead of JSON = auth required
+          setVersionInfo(prev => ({ 
+            ...prev, 
+            botStatus: 'auth_required',
+            botVersion: null 
+          }));
+          setLoading(false);
+          return;
+        }
+        
         if (response.ok) {
           const data = await response.json();
           const botVersion = data.version || data.status?.version || null;
@@ -37,8 +51,10 @@ export function VersionBadge() {
             uiVersion: UI_VERSION,
             botVersion,
             botStatus: isOnline ? 'online' : 'offline',
-            isLatest: true, // We'll assume latest for now
+            isLatest: true,
           });
+        } else if (response.status === 401 || response.status === 403) {
+          setVersionInfo(prev => ({ ...prev, botStatus: 'auth_required' }));
         }
       } catch (error) {
         console.error('Failed to fetch bot version:', error);
@@ -55,9 +71,15 @@ export function VersionBadge() {
   }, []);
 
   const getBadgeColor = (isLatest: boolean, status: string) => {
+    if (status === 'auth_required') return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30 cursor-pointer';
     if (status === 'offline') return 'bg-red-500/20 text-red-400 border-red-500/30';
     if (!isLatest) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
     return 'bg-neon-green/20 text-neon-green border-neon-green/30';
+  };
+
+  const handleAuthClick = () => {
+    // Refresh the page to trigger Vercel auth
+    window.location.reload();
   };
 
   return (
@@ -87,11 +109,19 @@ export function VersionBadge() {
             ? 'bg-gray-500/20 text-gray-400 border-gray-500/30'
             : getBadgeColor(true, versionInfo.botStatus)
         )}
-        title={`Bot Status: ${versionInfo.botStatus}`}
+        title={versionInfo.botStatus === 'auth_required' 
+          ? 'Click to login - Vercel auth required' 
+          : `Bot Status: ${versionInfo.botStatus}`}
+        onClick={versionInfo.botStatus === 'auth_required' ? handleAuthClick : undefined}
       >
         <span className="opacity-70">Bot</span>
         {loading ? (
           <RefreshCw className="w-3 h-3 animate-spin" />
+        ) : versionInfo.botStatus === 'auth_required' ? (
+          <>
+            <LogIn className="w-3 h-3" />
+            <span>Login</span>
+          </>
         ) : versionInfo.botVersion ? (
           <>
             <span>v{versionInfo.botVersion}</span>
