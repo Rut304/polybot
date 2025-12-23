@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
       query = query.eq('user_id', userId);
     } else {
       // Fallback: Get valid running bot or most recent
-      query = query.order('last_updated', { ascending: false }).limit(1);
+      // Note: column is 'updated_at' not 'last_updated'
+      query = query.order('updated_at', { ascending: false }).limit(1);
     }
 
     const { data, error } = await query.single();
@@ -65,10 +66,11 @@ export async function GET(request: NextRequest) {
 
     // Construct response compatible with frontend expectation
     return NextResponse.json({
-      status: data?.is_running ? 'online' : 'offline',
+      status: data?.is_running ? 'running' : 'offline',
+      is_running: data?.is_running || false,
       version: data?.version || 'unknown',
       mode: data?.mode || 'simulation',
-      last_updated: data?.last_updated,
+      updated_at: data?.updated_at,
       user_id: data?.user_id
     });
 
