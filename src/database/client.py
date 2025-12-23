@@ -665,6 +665,7 @@ class Database:
         dry_run: bool = True,
         max_trade_size: float = None,
         min_profit_threshold: float = None,
+        version: str = None,
         **kwargs,
     ) -> bool:
         """Update bot status record."""
@@ -676,11 +677,14 @@ class Database:
                 "is_running": is_running,
                 "dry_run_mode": dry_run,  # Match table column name
                 "last_heartbeat_at": datetime.utcnow().isoformat(),
+                "last_updated": datetime.utcnow().isoformat(),
             }
             if max_trade_size is not None:
                 update_data["max_trade_size"] = max_trade_size
             if min_profit_threshold is not None:
                 update_data["min_profit_threshold"] = min_profit_threshold
+            if version is not None:
+                update_data["version"] = version
             
             # Update the first (and only) status row
             result = self._client.table("polybot_status").select("id").limit(1).execute()
@@ -711,17 +715,25 @@ class Database:
             logger.error(f"Failed to get bot status: {e}")
             return None
     
-    def heartbeat(self):
-        """Update heartbeat timestamp."""
+    def heartbeat(self, version: str = None):
+        """Update heartbeat timestamp and optionally version."""
         if not self._client:
             return
 
         try:
+            update_data = {
+                "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "is_running": True,
+            }
+            if version:
+                update_data["version"] = version
+            
             result = self._client.table("polybot_status").select("id").limit(1).execute()
             if result.data:
-                self._client.table("polybot_status").update({
-                    "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", result.data[0]["id"]).execute()
+                self._client.table("polybot_status").update(
+                    update_data
+                ).eq("id", result.data[0]["id"]).execute()
             
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")

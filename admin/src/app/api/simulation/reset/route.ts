@@ -20,18 +20,19 @@ function getSupabaseAdmin(): any {
 async function getTotalStartingBalance(): Promise<number> {
   const { data: config } = await getSupabaseAdmin()
     .from('polybot_config')
-    .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance')
+    .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance, ibkr_starting_balance')
     .eq('id', 1)
     .single();
   
-  if (!config) return 100000; // Default: 5 platforms x $20,000
+  if (!config) return 30000; // Default: 6 platforms x $5,000
   
   return (
-    (config.polymarket_starting_balance || 20000) +
-    (config.kalshi_starting_balance || 20000) +
-    (config.binance_starting_balance || 20000) +
-    (config.coinbase_starting_balance || 20000) +
-    (config.alpaca_starting_balance || 20000)
+    (config.polymarket_starting_balance || 5000) +
+    (config.kalshi_starting_balance || 5000) +
+    (config.binance_starting_balance || 5000) +
+    (config.coinbase_starting_balance || 5000) +
+    (config.alpaca_starting_balance || 5000) +
+    (config.ibkr_starting_balance || 5000)
   );
 }
 

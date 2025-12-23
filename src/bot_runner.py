@@ -2986,9 +2986,10 @@ class PolybotRunner:
         This allows the Admin UI to know the bot is alive.
         Updates every 30 seconds.
         """
+        version = get_version()
         while self._running:
             try:
-                self.db.heartbeat()
+                self.db.heartbeat(version=version)
                 logger.debug("💓 Heartbeat sent")
             except Exception as e:
                 logger.warning(f"Heartbeat failed: {e}")

@@ -66,6 +66,7 @@ export default function Dashboard() {
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
 
   // Starting balance constant (6 platforms x $5,000 each = $30,000)
+  // 6 platforms x $5,000 each = $30,000 total
   const STARTING_BALANCE = 30000;
 
   // Prefer real-time computed stats (more accurate - uses database aggregates)
