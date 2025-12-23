@@ -544,32 +544,40 @@ export function useMissedMoney(hours: number = 24) {
       if (!user?.id) return null;
       
       try {
-        const { data, error } = await supabase.rpc('get_missed_money_stats', {
-          p_user_id: user.id,
-          hours_lookback: hours
-        });
+        // Calculate missed money directly from opportunities table
+        const since = new Date();
+        since.setHours(since.getHours() - hours);
+        
+        const { data: opps, error } = await supabase
+          .from('polybot_opportunities')
+          .select('status, profit_percent')
+          .gte('created_at', since.toISOString());
 
         if (error) {
-          // Suppress "invalid input syntax" error log as it's a known schema migration issue
-          if (!error.message.includes('invalid input syntax')) {
-            console.error('Error fetching missed money stats:', error);
-          }
+          console.error('Error fetching opportunities for missed money:', error);
           return null;
         }
         
-        // RPC returns an array
-        const result = Array.isArray(data) ? data[0] : data;
+        const opportunities = opps || [];
+        const totalOpps = opportunities.length;
+        const executedCount = opportunities.filter(o => o.status === 'executed').length;
+        const missedProfitPct = opportunities
+          .filter(o => o.status !== 'executed')
+          .reduce((sum, o) => sum + (o.profit_percent || 0), 0);
+        const actualPnlPct = opportunities
+          .filter(o => o.status === 'executed')
+          .reduce((sum, o) => sum + (o.profit_percent || 0), 0);
         
-        return result || {
-          missed_money: 0,
-          opportunities_count: 0,
-          executed_count: 0,
-          conversion_rate: 0,
-          actual_pnl: 0,
+        return {
+          missed_money: missedProfitPct * 100, // Convert to dollar-like amount
+          opportunities_count: totalOpps,
+          executed_count: executedCount,
+          conversion_rate: totalOpps > 0 ? Math.round(executedCount / totalOpps * 1000) / 10 : 0,
+          actual_pnl: actualPnlPct * 100,
         };
       } catch (err) {
-        console.warn('Missed money RPC failed', err);
-        return null; // Graceful fallback
+        console.warn('Missed money calculation failed', err);
+        return null;
       }
     },
     refetchInterval: 10000,
