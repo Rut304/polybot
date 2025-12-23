@@ -193,10 +193,9 @@ class RealisticPaperTrader:
     """
 
     # ========== DEFAULT VALUES (overridden by database config) ==========
-    # AGGRESSIVE MODE: Raised limits to capture more opportunities
-    # Academic research shows $40M was extracted at various spread levels.
-    # Previously we were rejecting 13%+ profit opportunities as "false positives"
-    MAX_REALISTIC_SPREAD_PCT = 35.0  # AGGRESSIVE: Raised from 25% to 35%
+    # REALISTIC AGGRESSIVE: High risk tolerance but real-world execution rates
+    # Based on actual prediction market trading data and research
+    MAX_REALISTIC_SPREAD_PCT = 35.0  # Allow high spreads - they DO exist
     
     # NOTE: Min profit thresholds are REMOVED from paper trader!
     # They are now handled ONLY by the strategy-specific scanners in config.py:
@@ -205,49 +204,35 @@ class RealisticPaperTrader:
     # This eliminates the double-filtering bug that was skipping opportunities.
 
     # ========== AGGRESSIVE: Allow same-platform overlap trades ==========
-    # Same-platform "overlap" is riskier but can still be profitable
-    # User requested more aggressive trading to capture more opportunities
-    SKIP_SAME_PLATFORM_OVERLAP = False  # AGGRESSIVE: Changed from True to capture more trades
+    # Higher risk but captures more opportunities
+    SKIP_SAME_PLATFORM_OVERLAP = False  # Allow overlap trades
 
-    # ========== EXECUTION SIMULATION ==========
-    # STRATEGY-SPECIFIC RATES - Different strategies have VERY different risk profiles!
+    # ========== EXECUTION SIMULATION - REALISTIC VALUES ==========
+    # Based on actual prediction market execution data:
+    # - Polymarket: ~0.3-0.8% slippage typical, 5-10% failure on volatile markets
+    # - Kalshi: ~0.5-1.2% slippage, 8-15% failure (less liquid)
     # 
-    # SINGLE-PLATFORM ARBITRAGE (YES+NO=$1):
-    #   - Nearly risk-free: You're buying ALL outcomes
-    #   - Only risks: execution timing, partial fills, spread closure
-    #   - Expected win rate: 85-95%
-    #   - Expected ROI: Small but consistent (0.3-8% per trade)
-    #
-    # CROSS-PLATFORM ARBITRAGE:
-    #   - Moderate risk: Timing between two platforms
-    #   - Risks: execution mismatch, fee miscalculation, latency
-    #   - Expected win rate: 70-85%
-    #
-    # SAME-PLATFORM OVERLAP (correlation trades):
-    #   - HIGH RISK: Correlation assumptions often wrong
-    #   - Expected win rate: 50-65%
-    #
-    # BASE RATES (used for cross-platform and overlap):
-    SLIPPAGE_MIN_PCT = 0.2   # AGGRESSIVE: Reduced from 0.3% - optimistic slippage
-    SLIPPAGE_MAX_PCT = 0.8   # AGGRESSIVE: Reduced from 1.0% - faster execution
-    SPREAD_COST_PCT = 0.4    # AGGRESSIVE: Reduced from 0.5% - better fills
-    EXECUTION_FAILURE_RATE = 0.10  # AGGRESSIVE: Reduced from 15% - faster execution
-    PARTIAL_FILL_CHANCE = 0.10  # AGGRESSIVE: Reduced from 15% - better fills
-    PARTIAL_FILL_MIN_PCT = 0.80  # AGGRESSIVE: Increased from 70% - better fill rates
+    # These match what you'll see in LIVE trading!
+    SLIPPAGE_MIN_PCT = 0.3   # Real: 0.3% minimum slippage
+    SLIPPAGE_MAX_PCT = 1.2   # Real: Up to 1.2% on larger orders
+    SPREAD_COST_PCT = 0.5    # Real: Bid-ask spread cost
+    EXECUTION_FAILURE_RATE = 0.12  # Real: ~12% fail (order rejected, price moved)
+    PARTIAL_FILL_CHANCE = 0.18  # Real: ~18% partial fills on larger orders
+    PARTIAL_FILL_MIN_PCT = 0.65  # Real: Get at least 65% filled
 
-    # ========== SINGLE-PLATFORM ARBITRAGE SPECIFIC ==========
-    # These are for YES+NO=$1 arbitrage - much lower risk!
-    SINGLE_PLATFORM_SLIPPAGE_MIN = 0.03  # AGGRESSIVE: Reduced from 0.05%
-    SINGLE_PLATFORM_SLIPPAGE_MAX = 0.15  # AGGRESSIVE: Reduced from 0.2%
-    SINGLE_PLATFORM_EXEC_FAILURE_RATE = 0.05  # AGGRESSIVE: Reduced from 8%
-    SINGLE_PLATFORM_LOSS_RATE = 0.02  # AGGRESSIVE: Reduced from 3%
-    SINGLE_PLATFORM_LOSS_SEVERITY_MAX = 0.08  # AGGRESSIVE: Reduced from 10%
+    # ========== SINGLE-PLATFORM ARBITRAGE - REALISTIC ==========
+    # YES+NO=$1 arbitrage - lower risk but still has real execution issues
+    SINGLE_PLATFORM_SLIPPAGE_MIN = 0.05  # Real: Minimal but non-zero
+    SINGLE_PLATFORM_SLIPPAGE_MAX = 0.25  # Real: Can be up to 0.25%
+    SINGLE_PLATFORM_EXEC_FAILURE_RATE = 0.08  # Real: ~8% (spread closes fast)
+    SINGLE_PLATFORM_LOSS_RATE = 0.04  # Real: ~4% (timing/partial fill issues)
+    SINGLE_PLATFORM_LOSS_SEVERITY_MAX = 0.12  # Real: Up to 12% loss on bad exec
 
-    # ========== MARKET RESOLUTION RISK ==========
-    # For cross-platform arbitrage (still has timing risks)
-    RESOLUTION_LOSS_RATE = 0.08  # AGGRESSIVE: Reduced from 12%
-    LOSS_SEVERITY_MIN = 0.02    # AGGRESSIVE: Reduced from 3%
-    LOSS_SEVERITY_MAX = 0.12    # AGGRESSIVE: Reduced from 15%
+    # ========== MARKET RESOLUTION RISK - REALISTIC ==========
+    # Cross-platform has timing risk, overlap has correlation risk
+    RESOLUTION_LOSS_RATE = 0.15  # Real: ~15% of arbs lose due to timing
+    LOSS_SEVERITY_MIN = 0.03    # Real: Small losses ~3%
+    LOSS_SEVERITY_MAX = 0.20    # Real: Can lose up to 20% on bad trades
 
     # =========================================================================
     # COMPREHENSIVE FEE STRUCTURES - ALL PLATFORMS (as of December 2025)
@@ -313,19 +298,19 @@ class RealisticPaperTrader:
     IBKR_PRO_PER_SHARE = 0.005        # IBKR Pro: $0.005/share
 
     # ========== POSITION SIZING ==========
-    MAX_POSITION_PCT = 8.0      # AGGRESSIVE: Raised from 5% to 8%
-    MAX_POSITION_USD = 100.0    # AGGRESSIVE: Raised from $50 to $100
+    MAX_POSITION_PCT = 8.0      # Aggressive: 8% of balance per trade
+    MAX_POSITION_USD = 100.0    # Aggressive: Up to $100 per trade
     MIN_POSITION_USD = 5.0      # Minimum trade size
     
     # ========== COOLDOWN / DEDUPLICATION ==========
-    # AGGRESSIVE: Reduced cooldown to allow more trades
-    MARKET_COOLDOWN_SECONDS = 900  # AGGRESSIVE: 15 min (was 1 hour)
-    MAX_TRADES_PER_MARKET_PER_DAY = 10  # AGGRESSIVE: Raised from 5 to 10
+    # Aggressive but realistic - real traders do trade same market multiple times
+    MARKET_COOLDOWN_SECONDS = 600  # 10 min cooldown (realistic for active trading)
+    MAX_TRADES_PER_MARKET_PER_DAY = 8  # Up to 8 trades per market per day
 
     # ========== NETWORK LATENCY & DRIFT ==========
-    # AGGRESSIVE: Faster execution simulation
-    EXECUTION_DELAY_MIN_SEC = 0.3  # AGGRESSIVE: Reduced from 0.5
-    EXECUTION_DELAY_MAX_SEC = 1.5  # AGGRESSIVE: Reduced from 2.5
+    # Realistic execution delays based on API response times
+    EXECUTION_DELAY_MIN_SEC = 0.5  # Real: ~500ms minimum (API + network)
+    EXECUTION_DELAY_MAX_SEC = 2.0  # Real: Up to 2s on congested networks
     
     # Price drift during delay (Volatile markets move fast!)
     # % movement per second of delay

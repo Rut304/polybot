@@ -38,8 +38,15 @@ CREATE INDEX IF NOT EXISTS idx_polybot_opportunities_skip_reason
 ON polybot_opportunities(skip_reason) 
 WHERE skip_reason IS NOT NULL;
 
--- 4. DROP existing functions first (required when changing return types)
+-- 4. DROP ALL existing function overloads (required when changing return types)
+-- Drop with explicit signatures to handle all possible overloads
+DROP FUNCTION IF EXISTS get_missed_money_stats();
+DROP FUNCTION IF EXISTS get_missed_money_stats(UUID);
+DROP FUNCTION IF EXISTS get_missed_money_stats(INTEGER);
 DROP FUNCTION IF EXISTS get_missed_money_stats(UUID, INTEGER);
+DROP FUNCTION IF EXISTS get_skip_reason_breakdown();
+DROP FUNCTION IF EXISTS get_skip_reason_breakdown(UUID);
+DROP FUNCTION IF EXISTS get_skip_reason_breakdown(INTEGER);
 DROP FUNCTION IF EXISTS get_skip_reason_breakdown(UUID, INTEGER);
 
 -- 5. Create RPC function for missed money stats

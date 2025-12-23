@@ -449,8 +449,7 @@ $$ LANGUAGE plpgsql;
 -- 5. Audit Trail for Config Changes
 -- ============================================================
 
-DROP POLICY IF EXISTS "Users can view own audit logs" ON polybot_config_audit;
-
+-- Create table first, then drop existing policy
 CREATE TABLE IF NOT EXISTS polybot_config_audit (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id),
@@ -463,6 +462,9 @@ CREATE TABLE IF NOT EXISTS polybot_config_audit (
     ip_address INET,
     user_agent TEXT
 );
+
+-- Now safe to drop policy (table exists)
+DROP POLICY IF EXISTS "Users can view own audit logs" ON polybot_config_audit;
 
 CREATE INDEX IF NOT EXISTS idx_config_audit_user 
     ON polybot_config_audit(user_id);
