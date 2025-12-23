@@ -1,9 +1,17 @@
 -- PolyBot Multitenancy Database Migration
 -- Creates enhanced user profiles, per-user secrets, and per-user config tables
+-- 
+-- Run this in Supabase SQL Editor
+-- Note: Run each section separately if you encounter errors
 
 -- ============================================================
 -- 1. Enhanced User Profiles
 -- ============================================================
+
+-- Drop existing policies if they exist (to allow re-running)
+DROP POLICY IF EXISTS "Users can view own profile" ON polybot_user_profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON polybot_user_profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON polybot_user_profiles;
 
 CREATE TABLE IF NOT EXISTS polybot_user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -59,6 +67,50 @@ CREATE TABLE IF NOT EXISTS polybot_user_profiles (
     referred_by UUID REFERENCES polybot_user_profiles(id)
 );
 
+-- Add columns if table already exists (for upgrades)
+DO $$
+BEGIN
+    -- Add subscription_tier if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'subscription_tier'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN subscription_tier TEXT DEFAULT 'free';
+    END IF;
+    
+    -- Add monthly_trade_limit if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'monthly_trade_limit'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN monthly_trade_limit INT DEFAULT 100;
+    END IF;
+    
+    -- Add trades_this_month if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'trades_this_month'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN trades_this_month INT DEFAULT 0;
+    END IF;
+    
+    -- Add trades_month_reset_at if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'trades_month_reset_at'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN trades_month_reset_at TIMESTAMPTZ DEFAULT DATE_TRUNC('month', NOW() + INTERVAL '1 month');
+    END IF;
+    
+    -- Add features_enabled if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'polybot_user_profiles' AND column_name = 'features_enabled'
+    ) THEN
+        ALTER TABLE polybot_user_profiles ADD COLUMN features_enabled JSONB DEFAULT '{}'::jsonb;
+    END IF;
+END $$;
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_user_profiles_tier 
     ON polybot_user_profiles(subscription_tier);
@@ -88,6 +140,8 @@ GRANT ALL ON polybot_user_profiles TO service_role;
 -- 2. Per-User Secrets (API Keys)
 -- ============================================================
 
+DROP POLICY IF EXISTS "Users can manage own secrets" ON polybot_user_secrets;
+
 CREATE TABLE IF NOT EXISTS polybot_user_secrets (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -95,11 +149,10 @@ CREATE TABLE IF NOT EXISTS polybot_user_secrets (
         CHECK (platform IN ('polymarket', 'kalshi', 'alpaca', 'ibkr', 'binance', 'coinbase')),
     
     -- Encrypted key storage
-    -- Use Supabase Vault (pgsodium) or external KMS in production
     api_key_encrypted TEXT,
     api_secret_encrypted TEXT,
     private_key_encrypted TEXT,
-    wallet_address TEXT,  -- Not sensitive, stored plaintext
+    wallet_address TEXT,
     
     -- Additional platform-specific config
     additional_config JSONB DEFAULT '{}'::jsonb,
@@ -107,7 +160,7 @@ CREATE TABLE IF NOT EXISTS polybot_user_secrets (
     -- Key metadata
     is_paper BOOLEAN DEFAULT TRUE,
     is_active BOOLEAN DEFAULT TRUE,
-    label TEXT,  -- User-defined label like "Main Trading" or "Test Account"
+    label TEXT,
     
     -- Validation
     last_validated_at TIMESTAMPTZ,
@@ -119,7 +172,6 @@ CREATE TABLE IF NOT EXISTS polybot_user_secrets (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     
-    -- Ensure unique per user/platform/mode combination
     UNIQUE(user_id, platform, is_paper)
 );
 
@@ -138,7 +190,7 @@ CREATE POLICY "Users can manage own secrets"
     ON polybot_user_secrets FOR ALL
     USING (auth.uid() = user_id);
 
--- Grant service role full access (for bot to read secrets)
+-- Grant service role full access
 GRANT ALL ON polybot_user_secrets TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE polybot_user_secrets_id_seq TO service_role;
 
@@ -146,6 +198,8 @@ GRANT USAGE, SELECT ON SEQUENCE polybot_user_secrets_id_seq TO service_role;
 -- ============================================================
 -- 3. Per-User Configuration
 -- ============================================================
+
+DROP POLICY IF EXISTS "Users can manage own config" ON polybot_user_config;
 
 CREATE TABLE IF NOT EXISTS polybot_user_config (
     id BIGSERIAL PRIMARY KEY,
@@ -195,7 +249,7 @@ CREATE TABLE IF NOT EXISTS polybot_user_config (
     trading_days JSONB DEFAULT '["mon", "tue", "wed", "thu", "fri"]'::jsonb,
     trading_timezone TEXT DEFAULT 'America/New_York',
     
-    -- Advanced (JSON for flexibility)
+    -- Advanced
     advanced_config JSONB DEFAULT '{}'::jsonb,
     
     -- Timestamps
@@ -227,15 +281,22 @@ GRANT USAGE, SELECT ON SEQUENCE polybot_user_config_id_seq TO service_role;
 CREATE OR REPLACE FUNCTION increment_user_trades(p_user_id UUID)
 RETURNS JSONB AS $$
 DECLARE
-    v_profile polybot_user_profiles%ROWTYPE;
+    v_trades_this_month INT;
+    v_monthly_limit INT;
+    v_reset_at TIMESTAMPTZ;
     v_at_limit BOOLEAN;
 BEGIN
-    -- Get current profile
-    SELECT * INTO v_profile 
+    -- Get current values
+    SELECT 
+        COALESCE(trades_this_month, 0),
+        COALESCE(monthly_trade_limit, 100),
+        trades_month_reset_at
+    INTO v_trades_this_month, v_monthly_limit, v_reset_at
     FROM polybot_user_profiles 
     WHERE id = p_user_id;
     
-    IF v_profile IS NULL THEN
+    -- Check if profile exists
+    IF NOT FOUND THEN
         RETURN jsonb_build_object(
             'success', FALSE,
             'error', 'Profile not found'
@@ -243,7 +304,7 @@ BEGIN
     END IF;
     
     -- Check if we need to reset monthly counter
-    IF v_profile.trades_month_reset_at <= NOW() THEN
+    IF v_reset_at IS NULL OR v_reset_at <= NOW() THEN
         UPDATE polybot_user_profiles SET
             trades_this_month = 1,
             trades_month_reset_at = DATE_TRUNC('month', NOW() + INTERVAL '1 month'),
@@ -253,21 +314,21 @@ BEGIN
         RETURN jsonb_build_object(
             'success', TRUE,
             'trades_this_month', 1,
-            'monthly_limit', v_profile.monthly_trade_limit,
+            'monthly_limit', v_monthly_limit,
             'at_limit', FALSE,
             'month_reset', TRUE
         );
     END IF;
     
     -- Check if at limit
-    v_at_limit := v_profile.trades_this_month >= v_profile.monthly_trade_limit;
+    v_at_limit := v_trades_this_month >= v_monthly_limit;
     
     IF v_at_limit THEN
         RETURN jsonb_build_object(
             'success', FALSE,
             'error', 'Monthly trade limit reached',
-            'trades_this_month', v_profile.trades_this_month,
-            'monthly_limit', v_profile.monthly_trade_limit,
+            'trades_this_month', v_trades_this_month,
+            'monthly_limit', v_monthly_limit,
             'at_limit', TRUE
         );
     END IF;
@@ -280,15 +341,15 @@ BEGIN
     
     RETURN jsonb_build_object(
         'success', TRUE,
-        'trades_this_month', v_profile.trades_this_month + 1,
-        'monthly_limit', v_profile.monthly_trade_limit,
-        'at_limit', (v_profile.trades_this_month + 1) >= v_profile.monthly_trade_limit
+        'trades_this_month', v_trades_this_month + 1,
+        'monthly_limit', v_monthly_limit,
+        'at_limit', (v_trades_this_month + 1) >= v_monthly_limit
     );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- Function to create user profile on signup
+-- Function to create user profile on signup (if not using existing trigger)
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -297,11 +358,13 @@ BEGIN
         NEW.id, 
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'name', SPLIT_PART(NEW.email, '@', 1))
-    );
+    )
+    ON CONFLICT (id) DO NOTHING;
     
     -- Also create default config
     INSERT INTO polybot_user_config (user_id)
-    VALUES (NEW.id);
+    VALUES (NEW.id)
+    ON CONFLICT (user_id) DO NOTHING;
     
     RETURN NEW;
 END;
@@ -342,7 +405,7 @@ BEGIN
             );
         WHEN 'enterprise' THEN
             RETURN jsonb_build_object(
-                'monthly_trades', -1,  -- Unlimited
+                'monthly_trades', -1,
                 'max_trade_size', 10000,
                 'max_daily_loss', 10000,
                 'features', ARRAY['all']
@@ -357,6 +420,8 @@ $$ LANGUAGE plpgsql;
 -- ============================================================
 -- 5. Audit Trail for Config Changes
 -- ============================================================
+
+DROP POLICY IF EXISTS "Users can view own audit logs" ON polybot_config_audit;
 
 CREATE TABLE IF NOT EXISTS polybot_config_audit (
     id BIGSERIAL PRIMARY KEY,

@@ -9,6 +9,7 @@ This document outlines the architectural approach for implementing multitenancy 
 The system already has partial multitenancy support:
 
 ### Existing Infrastructure
+
 1. **User Authentication**: Supabase Auth with `auth.users` table
 2. **User ID References**: Most tables have `user_id` foreign key
 3. **RLS Policies**: Row-Level Security on most tables
@@ -16,6 +17,7 @@ The system already has partial multitenancy support:
 5. **Bot Manager**: `src/manager.py` exists for orchestrating multiple instances
 
 ### Gaps to Address
+
 1. Bot runner doesn't dynamically load per-user config
 2. Secrets management is global, not per-user
 3. API keys (Polymarket, Kalshi, Alpaca, IBKR) need per-user storage
@@ -25,18 +27,21 @@ The system already has partial multitenancy support:
 ## Architecture Tiers
 
 ### Tier 1: Soft Multitenancy (Current Phase)
+
 - Single bot process serves all users
 - User isolation via database row-level security
 - Shared API rate limits
 - Manual key management per user
 
 ### Tier 2: Process Multitenancy (Target)
+
 - One bot process per active user
 - Bot Manager orchestrates multiple PolybotRunner instances
 - Per-user config and secrets loaded at startup
 - Process restart on config change
 
 ### Tier 3: Container Multitenancy (Future)
+
 - One container per user
 - Full resource isolation
 - Kubernetes/ECS orchestration
@@ -45,6 +50,7 @@ The system already has partial multitenancy support:
 ## Database Schema Changes
 
 ### 1. User Profile Table (Enhanced)
+
 ```sql
 CREATE TABLE IF NOT EXISTS polybot_user_profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -83,6 +89,7 @@ CREATE TABLE IF NOT EXISTS polybot_user_profiles (
 ```
 
 ### 2. Per-User Secrets Table
+
 ```sql
 CREATE TABLE IF NOT EXISTS polybot_user_secrets (
     id BIGSERIAL PRIMARY KEY,
@@ -118,6 +125,7 @@ CREATE POLICY "Users can manage own secrets"
 ```
 
 ### 3. Per-User Config Table
+
 ```sql
 CREATE TABLE IF NOT EXISTS polybot_user_config (
     id BIGSERIAL PRIMARY KEY,
@@ -336,6 +344,7 @@ class Database:
 ## API Endpoints
 
 ### User Config API
+
 ```typescript
 // admin/src/app/api/user/config/route.ts
 
@@ -371,6 +380,7 @@ export async function PUT(request: Request) {
 ```
 
 ### User Secrets API
+
 ```typescript
 // admin/src/app/api/user/secrets/route.ts
 
@@ -401,18 +411,21 @@ export async function POST(request: Request) {
 ## UI Changes
 
 ### 1. User Onboarding Flow
+
 - Welcome screen with terms acceptance
 - Platform connection wizard (Polymarket → Kalshi → Optional brokers)
 - Initial config setup (risk tolerance, strategies)
 - Subscription selection
 
 ### 2. API Keys Management Page
+
 - Per-platform key entry forms
 - Key validation status indicators
 - Paper vs Live mode toggle per platform
 - Key rotation support
 
 ### 3. Subscription/Billing Page
+
 - Current plan display
 - Usage metrics (trades this month, etc.)
 - Upgrade/downgrade options
@@ -421,6 +434,7 @@ export async function POST(request: Request) {
 ## Security Considerations
 
 ### Key Storage
+
 1. **Option A: Supabase Vault** (Recommended)
    - Built into Supabase
    - Server-side encryption
@@ -437,6 +451,7 @@ export async function POST(request: Request) {
    - Zero-knowledge approach
 
 ### Access Control
+
 - All tables use RLS with `auth.uid() = user_id`
 - Service role bypasses RLS for admin operations
 - Audit logging for sensitive operations
@@ -444,26 +459,31 @@ export async function POST(request: Request) {
 ## Rollout Plan
 
 ### Phase 1: Foundation (Week 1)
+
 - [ ] Create database migrations
 - [ ] Add user_config and user_secrets tables
 - [ ] Update Database class with new methods
 
 ### Phase 2: Bot Changes (Week 2)
+
 - [ ] Modify PolybotRunner to load per-user config
 - [ ] Enhance BotManager for multi-user orchestration
 - [ ] Add subscription validation
 
 ### Phase 3: UI (Week 3)
+
 - [ ] API keys management page
 - [ ] User config page
 - [ ] Onboarding flow
 
 ### Phase 4: Testing (Week 4)
+
 - [ ] Multi-user simulation testing
 - [ ] Key rotation testing
 - [ ] Subscription limit enforcement
 
 ### Phase 5: Production (Week 5)
+
 - [ ] Gradual rollout to beta users
 - [ ] Monitoring and alerting
 - [ ] Documentation
@@ -471,12 +491,14 @@ export async function POST(request: Request) {
 ## Monitoring
 
 ### Per-User Metrics
+
 - Trades executed
 - P&L by strategy
 - API rate limit usage
 - Error rates
 
 ### System Metrics  
+
 - Active user count
 - Total bot processes
 - Resource utilization per user
