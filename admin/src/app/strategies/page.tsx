@@ -1437,6 +1437,22 @@ export default function StrategiesPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { data: config, isLoading } = useBotConfig();
+  
+  // Get tier info - handles case where context might not be available
+  let tierInfo: { tier: string; isPro: boolean; isElite: boolean; isFree: boolean } = { 
+    tier: 'free', isPro: false, isElite: false, isFree: true 
+  };
+  try {
+    const ctx = useTier();
+    tierInfo = { tier: ctx.tier, isPro: ctx.isPro, isElite: ctx.isElite, isFree: ctx.isFree };
+  } catch {
+    // TierProvider not available, use defaults
+  }
+  const { tier, isPro, isElite, isFree } = tierInfo;
+  
+  // Free tier strategy limit
+  const FREE_TIER_STRATEGY_LIMIT = 3;
+  const FREE_TIER_STRATEGIES = ['single_platform_arb', 'news_arbitrage', 'market_making'];
 
   // State
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['prediction-core']));
@@ -1511,8 +1527,39 @@ export default function StrategiesPage() {
     return value === true;
   };
 
+  // Check if strategy is locked for current tier
+  const isStrategyLocked = (strategy: Strategy): boolean => {
+    // Admins see everything
+    if (isAdmin) return false;
+    // Pro and Elite can access all
+    if (isPro || isElite) return false;
+    // Free tier: only allow whitelisted strategies
+    return !FREE_TIER_STRATEGIES.includes(strategy.configKey);
+  };
+
+  // Get count of enabled strategies for free tier limit
+  const getEnabledCount = (): number => {
+    return STRATEGY_CATEGORIES.flatMap(c => c.strategies)
+      .filter(s => isStrategyEnabled(s)).length;
+  };
+
   const toggleStrategy = (strategy: Strategy) => {
+    // Check if locked
+    if (isStrategyLocked(strategy)) {
+      return; // Can't toggle locked strategies
+    }
+    
     const currentValue = isStrategyEnabled(strategy);
+    
+    // Check free tier limit when enabling
+    if (!currentValue && isFree && !isAdmin) {
+      const currentEnabled = getEnabledCount();
+      if (currentEnabled >= FREE_TIER_STRATEGY_LIMIT) {
+        alert(`Free tier is limited to ${FREE_TIER_STRATEGY_LIMIT} strategies. Upgrade to Pro for unlimited strategies.`);
+        return;
+      }
+    }
+    
     let newValue: boolean;
 
     if (strategy.configKey === 'skip_same_platform_overlap') {
@@ -1673,11 +1720,13 @@ export default function StrategiesPage() {
                       {filteredStrategies.map(strategy => {
                         const enabled = isStrategyEnabled(strategy);
                         const isStratExpanded = expandedStrategies.has(strategy.id);
+                        const isLocked = isStrategyLocked(strategy);
 
                         return (
                           <div key={strategy.id} className={cn(
                             'transition-colors',
-                            enabled ? 'bg-dark-bg/30' : ''
+                            enabled ? 'bg-dark-bg/30' : '',
+                            isLocked ? 'opacity-60' : ''
                           )}>
                             {/* Strategy Row */}
                             <div className="px-4 py-3 flex items-center justify-between">
@@ -1695,6 +1744,12 @@ export default function StrategiesPage() {
                                     </button>
                                     <ConfidenceBadge confidence={strategy.confidence} />
                                     <RiskBadge level={strategy.riskLevel} />
+                                    {isLocked && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+                                        <Lock className="w-3 h-3" />
+                                        Pro
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-xs text-dark-muted truncate">{strategy.description}</p>
                                 </div>
@@ -1715,7 +1770,7 @@ export default function StrategiesPage() {
                                 <ToggleSwitch
                                   enabled={enabled}
                                   onToggle={() => toggleStrategy(strategy)}
-                                  disabled={!isAdmin}
+                                  disabled={!isAdmin || isLocked}
                                   size="sm"
                                 />
                                 <button
@@ -1792,6 +1847,7 @@ export default function StrategiesPage() {
                                                 max={setting.max}
                                                 step={setting.step}
                                                 disabled={!isAdmin}
+                                                title={setting.tooltip || setting.label}
                                                 className="w-full bg-dark-border border border-dark-border rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-neon-green disabled:opacity-50"
                                               />
                                             </div>

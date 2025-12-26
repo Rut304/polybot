@@ -11,11 +11,16 @@ import {
   UserPlus,
   Calendar,
   Mail,
+  Crown,
+  Zap,
+  Settings,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { UserTierEditor } from '@/components/UserTierEditor';
+import { SubscriptionTier } from '@/lib/privy';
 
 interface User {
   id: string;
@@ -25,11 +30,23 @@ interface User {
   created_at: string;
   last_sign_in_at?: string;
   notifications_enabled?: boolean;
+  subscription_tier?: SubscriptionTier;
+  subscription_status?: string;
+  custom_price?: number;
+  discount_percent?: number;
+  notes?: string;
 }
+
+const TIER_BADGES = {
+  free: { icon: Eye, color: 'bg-gray-500/20 text-gray-400', label: 'Free' },
+  pro: { icon: Zap, color: 'bg-neon-blue/20 text-neon-blue', label: 'Pro' },
+  elite: { icon: Crown, color: 'bg-neon-purple/20 text-neon-purple', label: 'Elite' },
+};
 
 export default function UsersPage() {
   const { user: currentUser, isAdmin } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Fetch users via API (uses service key to bypass RLS)
   const { data: users = [], refetch, isLoading, error } = useQuery<User[]>({
@@ -62,6 +79,38 @@ export default function UsersPage() {
     } catch (err) {
       console.error('Failed to update user role:', err);
       alert('Failed to update user role');
+    }
+  };
+
+  const handleTierUpdate = async (updates: {
+    subscription_tier: SubscriptionTier;
+    subscription_status: string;
+    custom_price?: number;
+    discount_percent?: number;
+    admin_notes?: string;
+  }) => {
+    if (!editingUser) return;
+    
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: editingUser.id, 
+          updates: {
+            subscription_tier: updates.subscription_tier,
+            subscription_status: updates.subscription_status,
+            custom_price: updates.custom_price,
+            discount_percent: updates.discount_percent,
+            admin_notes: updates.admin_notes,
+          }
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to update tier');
+      refetch();
+    } catch (err) {
+      console.error('Failed to update user tier:', err);
+      throw err;
     }
   };
 
@@ -217,22 +266,49 @@ export default function UsersPage() {
                     <p className="font-medium truncate max-w-[150px]">
                       {user.display_name || 'No name'}
                     </p>
-                    <div className={cn(
-                      "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium mt-1",
-                      user.role === 'admin' 
-                        ? 'bg-neon-purple/20 text-neon-purple' 
-                        : 'bg-gray-500/20 text-gray-400'
-                    )}>
-                      {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      {user.role === 'admin' ? 'Admin' : 'Read Only'}
+                    <div className="flex items-center gap-2 mt-1">
+                      {/* Role Badge */}
+                      <div className={cn(
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                        user.role === 'admin' 
+                          ? 'bg-neon-purple/20 text-neon-purple' 
+                          : 'bg-gray-500/20 text-gray-400'
+                      )}>
+                        {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {user.role === 'admin' ? 'Admin' : 'Viewer'}
+                      </div>
+                      {/* Tier Badge */}
+                      {(() => {
+                        const tier = user.subscription_tier || 'free';
+                        const badge = TIER_BADGES[tier];
+                        const TierIcon = badge.icon;
+                        return (
+                          <div className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
+                            badge.color
+                          )}>
+                            <TierIcon className="w-3 h-3" />
+                            {badge.label}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
-                {user.id === currentUser?.id && (
-                  <span className="text-xs bg-neon-green/20 text-neon-green px-2 py-1 rounded">
-                    You
-                  </span>
-                )}
+                <div className="flex items-center gap-1">
+                  {user.id === currentUser?.id && (
+                    <span className="text-xs bg-neon-green/20 text-neon-green px-2 py-1 rounded">
+                      You
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setEditingUser(user)}
+                    className="p-1.5 text-gray-400 hover:text-neon-purple hover:bg-neon-purple/10 rounded-lg transition-colors"
+                    title="Edit user tier and pricing"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {/* User Details */}
@@ -293,9 +369,27 @@ export default function UsersPage() {
           </div>
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-gray-400" />
-            <span>{users.filter(u => u.role === 'viewer').length} Read Only</span>
+            <span>{users.filter(u => u.role === 'viewer').length} Viewers</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Crown className="w-4 h-4 text-neon-purple" />
+            <span>{users.filter(u => u.subscription_tier === 'elite').length} Elite</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-neon-blue" />
+            <span>{users.filter(u => u.subscription_tier === 'pro').length} Pro</span>
           </div>
         </motion.div>
+      )}
+
+      {/* User Tier Editor Modal */}
+      {editingUser && (
+        <UserTierEditor
+          user={editingUser}
+          isOpen={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={handleTierUpdate}
+        />
       )}
     </div>
   );

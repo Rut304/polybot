@@ -34,12 +34,51 @@
   - [x] Upgrade prompts for free users
   - Created: `/admin/src/components/QuickStartGuide.tsx`
 
+- [x] **LEGAL PAGES** 📄 ✅
+  - [x] Terms of Service page (`/terms`)
+  - [x] Privacy Policy page (`/privacy`)
+  - [x] Footer links in landing page
+  - Transferred from poly-parlay codebase
+
+- [x] **ADMIN USER TIER MANAGEMENT** 👑 ✅
+  - [x] Admin can view all users with tier badges
+  - [x] Edit user tier (Free/Pro/Elite)
+  - [x] Set custom pricing or discount percentage
+  - [x] Mark accounts as "comped" (free access)
+  - [x] Add admin notes (internal only)
+  - Created: `/admin/src/components/UserTierEditor.tsx`
+  - Updated: `/admin/src/app/users/page.tsx`
+  - Updated: `/admin/src/app/api/users/route.ts`
+
+- [x] **TIER-BASED STRATEGY LOCKING** 🔒 ✅
+  - [x] Free tier limited to 3 strategies (single_platform_arb, news_arbitrage, market_making)
+  - [x] Locked strategies show "Pro" badge with lock icon
+  - [x] Locked strategies cannot be toggled on
+  - [x] Alert when hitting free tier limit
+  - Updated: `/admin/src/app/strategies/page.tsx`
+
 - [ ] **SECRETS PAGE IMPROVEMENTS** 🔐
   - [x] API key management with edit/delete (EXISTS)
   - [x] Platform signup links (Polymarket, Kalshi, Alpaca) (EXISTS)
   - [ ] Add setup status indicators (connected/not connected)
   - [ ] Add balance display for each connected platform
   - [ ] Add "Test Connection" button for each API key
+
+### 🐛 BUGS TO INVESTIGATE
+
+- [ ] **FEE CALCULATION BUG** 💰 (Priority)
+  - Balance Details modal shows $332+ in "Total Fees Paid"
+  - Only 1 trade has been made so far
+  - Need to investigate fee tracking logic
+  - Possible causes:
+    - Fees from previous trades being carried over incorrectly
+    - Incorrect fee calculation in `src/analytics/` or `src/services/`
+    - Database migration issue with fee columns
+    - Fee data not being reset when starting fresh
+  - Files to check:
+    - `/admin/src/app/balances/` - Balance page logic
+    - `/src/services/analytics_engine.py` - Fee calculations
+    - Database tables: `polybot_trades`, `polybot_balances`
 
 - [ ] **STRIPE INTEGRATION** 💳
   - [ ] Wire up Stripe checkout for Pro ($9.99/mo) and Elite ($99.99/mo)

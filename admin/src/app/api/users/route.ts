@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch profile data
+    // Fetch profile data from polybot_user_profiles
     const { data: profiles, error: profileError } = await supabase
       .from('polybot_user_profiles')
       .select('*');
@@ -45,12 +45,23 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching profiles:', profileError);
     }
 
-    // Create a map of profiles by user ID
+    // Also fetch from polybot_profiles for SaaS tier data
+    const { data: saasProfiles, error: saasError } = await supabase
+      .from('polybot_profiles')
+      .select('id, subscription_tier, subscription_status, custom_price, discount_percent, admin_notes, monthly_trades_used, monthly_trades_limit');
+
+    if (saasError) {
+      console.error('Error fetching saas profiles:', saasError);
+    }
+
+    // Create maps by user ID
     const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+    const saasProfileMap = new Map((saasProfiles || []).map(p => [p.id, p]));
 
     // Merge auth users with profile data
     const users = (authUsers?.users || []).map(user => {
       const profile = profileMap.get(user.id);
+      const saasProfile = saasProfileMap.get(user.id);
       // Normalize role: database uses 'admin' | 'viewer'
       const rawRole = profile?.role || user.user_metadata?.role || 'viewer';
       const role = rawRole === 'admin' ? 'admin' : 'viewer';
@@ -69,6 +80,14 @@ export async function GET(request: NextRequest) {
         avatar_url: profile?.avatar_url,
         timezone: profile?.timezone,
         notifications_enabled: profile?.notifications_enabled ?? true,
+        // SaaS tier fields
+        subscription_tier: saasProfile?.subscription_tier || 'free',
+        subscription_status: saasProfile?.subscription_status || 'active',
+        custom_price: saasProfile?.custom_price,
+        discount_percent: saasProfile?.discount_percent,
+        notes: saasProfile?.admin_notes,
+        monthly_trades_used: saasProfile?.monthly_trades_used || 0,
+        monthly_trades_limit: saasProfile?.monthly_trades_limit || 0,
       };
     });
 
@@ -184,6 +203,89 @@ export async function PATCH(request: NextRequest) {
         profileResult = data;
       }
       results.profile = profileResult;
+    }
+
+    // Update SaaS tier/subscription in polybot_profiles
+    if (updates.subscription_tier || updates.subscription_status || 
+        updates.custom_price !== undefined || updates.discount_percent !== undefined || 
+        updates.admin_notes !== undefined) {
+      
+      const tierUpdates: Record<string, any> = {};
+      if (updates.subscription_tier) {
+        tierUpdates.subscription_tier = updates.subscription_tier;
+        // Update trade limits based on tier
+        switch (updates.subscription_tier) {
+          case 'free':
+            tierUpdates.monthly_trades_limit = 0;
+            break;
+          case 'pro':
+            tierUpdates.monthly_trades_limit = 1000;
+            break;
+          case 'elite':
+            tierUpdates.monthly_trades_limit = -1; // Unlimited
+            break;
+        }
+      }
+      if (updates.subscription_status) tierUpdates.subscription_status = updates.subscription_status;
+      if (updates.custom_price !== undefined) tierUpdates.custom_price = updates.custom_price;
+      if (updates.discount_percent !== undefined) tierUpdates.discount_percent = updates.discount_percent;
+      if (updates.admin_notes !== undefined) tierUpdates.admin_notes = updates.admin_notes;
+      tierUpdates.updated_at = new Date().toISOString();
+
+      // First check if saas profile exists
+      const { data: existingSaas } = await supabase
+        .from('polybot_profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      let tierResult;
+      if (existingSaas) {
+        // Update existing
+        const { data, error } = await supabase
+          .from('polybot_profiles')
+          .update(tierUpdates)
+          .eq('id', userId)
+          .select();
+        
+        if (error) {
+          console.error('Tier update error:', error);
+          return NextResponse.json(
+            { error: `Failed to update tier: ${error.message}` },
+            { status: 500 }
+          );
+        }
+        tierResult = data;
+      } else {
+        // Insert new saas profile with defaults
+        const { data, error } = await supabase
+          .from('polybot_profiles')
+          .insert({
+            id: userId,
+            subscription_tier: updates.subscription_tier || 'free',
+            subscription_status: updates.subscription_status || 'active',
+            custom_price: updates.custom_price,
+            discount_percent: updates.discount_percent,
+            admin_notes: updates.admin_notes,
+            monthly_trades_used: 0,
+            monthly_trades_limit: updates.subscription_tier === 'elite' ? -1 : 
+                                   updates.subscription_tier === 'pro' ? 1000 : 0,
+            is_simulation: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select();
+        
+        if (error) {
+          console.error('Tier insert error:', error);
+          return NextResponse.json(
+            { error: `Failed to create tier profile: ${error.message}` },
+            { status: 500 }
+          );
+        }
+        tierResult = data;
+      }
+      results.tier = tierResult;
     }
 
     return NextResponse.json({
