@@ -1173,7 +1173,7 @@ class Config:
             ),
             # 15-Minute Crypto Scalping Strategy config
             enable_15min_crypto_scalping=self._get_bool(
-                "enable_15min_crypto_scalping", "ENABLE_15MIN_SCALP", False
+                "enable_15min_crypto_scalping", "ENABLE_15MIN_SCALP", True  # ON by default
             ),
             crypto_scalp_entry_threshold=self._get_float(
                 "crypto_scalp_entry_threshold", "CRYPTO_SCALP_ENTRY", 0.45

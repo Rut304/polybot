@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   Settings,
   Power,
@@ -95,14 +96,16 @@ import { CircuitBreakerStatus } from '@/components/CircuitBreakerStatus';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { data: status } = useBotStatus();
   const { data: config, isLoading: configLoading } = useBotConfig();
 
   // Mutations
-  // State for settings tabs
-  const [activeTab, setActiveTab] = useState('general');
+  // State for settings tabs - default to URL param or 'general'
+  const initialTab = searchParams.get('tab') || 'general';
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const updateBotStatus = useUpdateBotStatus();
   const updateConfig = useUpdateBotConfig();
