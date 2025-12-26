@@ -1,10 +1,58 @@
 # PolyBot To-Do List
 
-## Active Tasks (December 13, 2025)
+## Active Tasks (December 26, 2025)
 
 ### 🔴 HIGH PRIORITY - Current Issues
 
-#### v1.1.14 - Simulation Tuning & Live Trading Prep
+#### v1.1.15 - Strategy Implementation & Documentation
+
+- [x] **SPIKE HUNTER STRATEGY IMPLEMENTED** 🎯
+  - Created `src/strategies/spike_hunter.py`
+  - Detects 2%+ price moves in <30 seconds
+  - Mean-reversion trades with tight stops (3% SL, 1.5% TP)
+  - Max 5 min hold time, max 3 concurrent positions
+  - Based on Twitter alpha from @0xReflection, @hanakoxbt, @carverfomo
+
+- [x] **ALL STRATEGIES ENABLED FOR SIMULATION** ✅
+  - Changed all `enable_*` config defaults from False to True
+  - Strategies now enabled by default:
+    - ✅ Spike Hunter (NEW)
+    - ✅ BTC Bracket Arb
+    - ✅ Bracket Compression
+    - ✅ Kalshi Mention Snipe
+    - ✅ Whale Copy Trading
+    - ✅ Selective Whale Copy
+    - ✅ Macro Board
+    - ✅ Fear Premium Contrarian
+    - ✅ Congressional Tracker
+    - ✅ Political Event Strategy
+    - ✅ High Conviction Strategy
+    - ✅ AI Superforecasting
+    - ✅ 15-Min Crypto Scalping
+
+- [ ] **UPDATE DOCUMENTATION** 📝
+  - [ ] Update `/docs` page with new Spike Hunter strategy
+  - [ ] Update strategy explanations for all 14+ strategies
+  - [ ] Add Twitter research sources and expected returns
+  - [ ] Document config keys and their defaults
+
+- [ ] **UPDATE STRATEGIES PAGE** 📊
+  - [ ] Add Spike Hunter to `admin/src/app/strategies/page.tsx`
+  - [ ] Verify all strategies have config toggles
+  - [ ] Add expected return ranges for each strategy
+  - [ ] Wire up settings sliders for Spike Hunter
+
+- [ ] **UPDATE WORKFLOWS PAGE** 🔄
+  - [ ] Add Spike Hunter workflow diagram
+  - [ ] Document WebSocket integration for real-time detection
+  - [ ] Show strategy interconnections
+
+- [ ] **WIRE UP NEW STRATEGIES TO ALL PAGES** 🔌
+  - [ ] Analytics page: Add Spike Hunter to strategy breakdown charts
+  - [ ] Dashboard: Show Spike Hunter in active strategies
+  - [ ] History page: Include Spike Hunter trades in history
+  - [ ] Insights page: Add Spike Hunter performance metrics
+  - [ ] Strategy Builder: Include Spike Hunter as base template
 
 - [ ] **IMPLEMENT LIVE TRADING** 🚨 (PRIORITY #1 for post-simulation)
   - `bot_runner.py` line 1287: `if self.simulation_mode:` has no `else` for live execution

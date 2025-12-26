@@ -293,14 +293,14 @@ class TradingConfig:
     
     # BTC Bracket Arbitrage (85% CONFIDENCE - $20K-200K/month potential)
     # Buy YES + NO when combined < $1.00 for guaranteed profit
-    enable_btc_bracket_arb: bool = False        # OFF by default
+    enable_btc_bracket_arb: bool = True         # ON by default for simulation
     btc_bracket_min_discount_pct: float = 0.5   # Min combined discount (0.5%)
     btc_bracket_max_position_usd: float = 50.0  # Max position per bracket
     btc_bracket_scan_interval_sec: int = 2      # ULTRA-FAST: 2 seconds
     
     # Bracket Compression (70% CONFIDENCE - 15-30% APY)
     # Mean reversion on stretched bracket prices
-    enable_bracket_compression: bool = False    # OFF by default
+    enable_bracket_compression: bool = True     # ON by default for simulation
     bracket_max_imbalance_threshold: float = 0.30  # Max imbalance to trade
     bracket_take_profit_pct: float = 3.0        # Take profit at 3%
     bracket_stop_loss_pct: float = 10.0         # Stop loss at 10%
@@ -308,14 +308,14 @@ class TradingConfig:
     
     # Kalshi Mention Market Sniping (80% CONFIDENCE - $120+/event)
     # Fast execution on resolved mention markets
-    enable_kalshi_mention_snipe: bool = False   # OFF by default
+    enable_kalshi_mention_snipe: bool = True    # ON by default for simulation
     kalshi_snipe_min_profit_cents: int = 2      # Min profit (2¢)
     kalshi_snipe_max_position_usd: float = 100.0  # Max position
     kalshi_snipe_max_latency_ms: int = 1000     # Max acceptable latency
     
     # Whale Copy Trading (75% CONFIDENCE - 25-50% APY)
     # Track and copy high win-rate wallets
-    enable_whale_copy_trading: bool = False     # OFF by default
+    enable_whale_copy_trading: bool = True      # ON by default for simulation
     whale_copy_min_win_rate: int = 80           # Min wallet win rate (%)
     whale_copy_delay_seconds: int = 30          # Delay before copying
     whale_copy_max_size_usd: float = 50.0       # Max copy size
@@ -323,14 +323,14 @@ class TradingConfig:
     
     # Macro Board Strategy (65% CONFIDENCE - $62K/month potential)
     # Heavy weighted exposure to macro events
-    enable_macro_board: bool = False            # OFF by default
+    enable_macro_board: bool = True             # ON by default for simulation
     macro_max_exposure_usd: float = 5000.0      # Max total exposure
     macro_min_conviction_score: int = 70        # Min conviction (0-100)
     macro_rebalance_interval_hours: int = 24    # Rebalance every 24h
     
     # Fear Premium Contrarian (70% CONFIDENCE - 25-60% APY)
     # Trade against extreme sentiment - 91.4% win rate approach
-    enable_fear_premium_contrarian: bool = False  # OFF by default
+    enable_fear_premium_contrarian: bool = True   # ON by default for simulation
     fear_extreme_low_threshold: float = 0.15    # YES < 15% = extreme fear
     fear_extreme_high_threshold: float = 0.85   # YES > 85% = extreme greed
     fear_min_premium_pct: int = 10              # Min fear premium (%)
@@ -338,7 +338,7 @@ class TradingConfig:
 
     # Congressional Tracker (75% CONFIDENCE - 15-40% APY)
     # Copy Congress member stock trades (scaled to your bankroll)
-    enable_congressional_tracker: bool = False  # OFF by default
+    enable_congressional_tracker: bool = True   # ON by default for simulation
     congress_tracked_politicians: str = ""      # Comma-separated names
     congress_chamber_filter: str = "both"       # house, senate, both
     congress_copy_scale_pct: float = 10.0       # % of bankroll to copy
@@ -349,7 +349,7 @@ class TradingConfig:
 
     # Political Event Strategy (80% CONFIDENCE - 30-60% APY)
     # Trade high-conviction political events (elections, legislation, etc.)
-    enable_political_event_strategy: bool = False  # OFF by default
+    enable_political_event_strategy: bool = True   # ON by default for simulation
     political_min_conviction_score: float = 0.75   # Min conviction (0-1)
     political_max_position_usd: float = 500.0      # Max position per event
     political_max_concurrent_events: int = 5       # Max simultaneous events
@@ -359,7 +359,7 @@ class TradingConfig:
 
     # High Conviction Strategy (85% CONFIDENCE - 40-80% APY)
     # Focus on fewer, higher-confidence trades with multi-signal confirmation
-    enable_high_conviction_strategy: bool = False  # OFF by default
+    enable_high_conviction_strategy: bool = True   # ON by default for simulation
     high_conviction_min_score: float = 0.75        # Min conviction (0-1)
     high_conviction_max_positions: int = 3         # Max concurrent positions
     high_conviction_min_signals: int = 3           # Min confirming signals
@@ -369,7 +369,7 @@ class TradingConfig:
 
     # Selective Whale Copy Strategy (80% CONFIDENCE - 35-65% APY)
     # Performance-based whale selection (only copy winning whales)
-    enable_selective_whale_copy: bool = False      # OFF by default
+    enable_selective_whale_copy: bool = True       # ON by default for simulation
     selective_whale_min_win_rate: float = 0.65     # Min 65% win rate
     selective_whale_min_roi: float = 0.20          # Min 20% ROI
     selective_whale_min_trades: int = 10           # Min trades for stats
@@ -400,7 +400,7 @@ class TradingConfig:
     # Gemini-powered AI analysis based on BlackSky bot architecture
     # Combines base rates, factor analysis, and divergence detection
     # =========================================================================
-    enable_ai_superforecasting: bool = False       # OFF by default
+    enable_ai_superforecasting: bool = True        # ON by default for simulation
     ai_model: str = "gemini-1.5-pro"             # Gemini model to use
     ai_min_divergence_pct: float = 10.0            # Min market vs AI divergence
     ai_max_position_usd: float = 100.0             # Max position per trade
@@ -410,6 +410,20 @@ class TradingConfig:
     ai_max_concurrent: int = 5                     # Max concurrent AI positions
     ai_use_base_rates: bool = True                 # Use historical base rates
     ai_use_factor_analysis: bool = True            # Use multi-factor analysis
+
+    # =========================================================================
+    # SPIKE HUNTER STRATEGY (HIGH PRIORITY - $5K-100K/month potential)
+    # Based on Twitter alpha: Detect 2%+ moves in <30s, mean-reversion trade
+    # Uses WebSocket for real-time price monitoring, tight stops
+    # =========================================================================
+    enable_spike_hunter: bool = True               # ON by default per Twitter research
+    spike_min_magnitude_pct: float = 2.0           # Min spike size to trigger
+    spike_max_duration_sec: float = 30.0           # Max time for spike detection
+    spike_take_profit_pct: float = 1.5             # Target profit percentage
+    spike_stop_loss_pct: float = 3.0               # Stop loss percentage
+    spike_max_hold_sec: float = 300.0              # Max hold time (5 min)
+    spike_max_position_usd: float = 50.0           # Max position per spike trade
+    spike_max_concurrent: int = 3                  # Max concurrent spike positions
 
     # =========================================================================
     # WHALE SLIPPAGE PROTECTION (NEW)
@@ -1235,6 +1249,31 @@ class Config:
             ),
             ai_use_factor_analysis=self._get_bool(
                 "ai_use_factor_analysis", "AI_USE_FACTORS", True
+            ),
+            # Spike Hunter Strategy config
+            enable_spike_hunter=self._get_bool(
+                "enable_spike_hunter", "ENABLE_SPIKE_HUNTER", True
+            ),
+            spike_min_magnitude_pct=self._get_float(
+                "spike_min_magnitude_pct", "SPIKE_MIN_MAGNITUDE", 2.0
+            ),
+            spike_max_duration_sec=self._get_float(
+                "spike_max_duration_sec", "SPIKE_MAX_DURATION", 30.0
+            ),
+            spike_take_profit_pct=self._get_float(
+                "spike_take_profit_pct", "SPIKE_TAKE_PROFIT", 1.5
+            ),
+            spike_stop_loss_pct=self._get_float(
+                "spike_stop_loss_pct", "SPIKE_STOP_LOSS", 3.0
+            ),
+            spike_max_hold_sec=self._get_float(
+                "spike_max_hold_sec", "SPIKE_MAX_HOLD", 300.0
+            ),
+            spike_max_position_usd=self._get_float(
+                "spike_max_position_usd", "SPIKE_MAX_POS", 50.0
+            ),
+            spike_max_concurrent=self._get_int(
+                "spike_max_concurrent", "SPIKE_MAX_CONCURRENT", 3
             ),
             # Whale Slippage Protection config
             whale_slippage_enabled=self._get_bool(

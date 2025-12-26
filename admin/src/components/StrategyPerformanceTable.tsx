@@ -50,6 +50,13 @@ const STRATEGY_ICONS: Record<string, any> = {
     'market_making': BarChart3,
     'news_arbitrage': Zap,
     'overlapping_arb': Target,
+    'spike_hunter': Zap,
+    'crypto_15min_scalping': Zap,
+    'ai_superforecasting': Brain,
+    'selective_whale_copy': Crown,
+    'political_event': Landmark,
+    'high_conviction': Brain,
+    'time_decay': Clock,
     'manual': BarChart3,
 };
 

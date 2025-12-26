@@ -424,6 +424,17 @@ export default function SettingsPage() {
   const [selectiveWhaleMaxCopySize, setSelectiveWhaleMaxCopySize] = useState(config?.selective_whale_max_copy_size_usd ?? 100);
   const [selectiveWhaleDelaySeconds, setSelectiveWhaleDelaySeconds] = useState(config?.selective_whale_delay_seconds ?? 30);
 
+  // Spike Hunter Strategy (85% confidence - $5K-100K/month)
+  // Mean-reversion on rapid price spikes (2%+ in <30 seconds)
+  const [enableSpikeHunter, setEnableSpikeHunter] = useState(config?.enable_spike_hunter ?? true);
+  const [spikeMinMagnitudePct, setSpikeMinMagnitudePct] = useState(config?.spike_min_magnitude_pct ?? 2.0);
+  const [spikeMaxDurationSec, setSpikeMaxDurationSec] = useState(config?.spike_max_duration_sec ?? 30);
+  const [spikeTakeProfitPct, setSpikeTakeProfitPct] = useState(config?.spike_take_profit_pct ?? 1.5);
+  const [spikeStopLossPct, setSpikeStopLossPct] = useState(config?.spike_stop_loss_pct ?? 3.0);
+  const [spikeMaxHoldSec, setSpikeMaxHoldSec] = useState(config?.spike_max_hold_sec ?? 300);
+  const [spikeMaxPositionUsd, setSpikeMaxPositionUsd] = useState(config?.spike_max_position_usd ?? 50);
+  const [spikeMaxConcurrent, setSpikeMaxConcurrent] = useState(config?.spike_max_concurrent ?? 3);
+
   // UI state for new strategy sections
   const [showNewHighConfidenceStrategies, setShowNewHighConfidenceStrategies] = useState(false);
 
@@ -734,6 +745,16 @@ export default function SettingsPage() {
       if (config.selective_whale_min_pnl !== undefined) setSelectiveWhaleMinPnl(config.selective_whale_min_pnl);
       if (config.selective_whale_max_copy_size_usd !== undefined) setSelectiveWhaleMaxCopySize(config.selective_whale_max_copy_size_usd);
       if (config.selective_whale_delay_seconds !== undefined) setSelectiveWhaleDelaySeconds(config.selective_whale_delay_seconds);
+
+      // Spike Hunter Strategy (85% confidence)
+      if (config.enable_spike_hunter !== undefined) setEnableSpikeHunter(config.enable_spike_hunter);
+      if (config.spike_min_magnitude_pct !== undefined) setSpikeMinMagnitudePct(config.spike_min_magnitude_pct);
+      if (config.spike_max_duration_sec !== undefined) setSpikeMaxDurationSec(config.spike_max_duration_sec);
+      if (config.spike_take_profit_pct !== undefined) setSpikeTakeProfitPct(config.spike_take_profit_pct);
+      if (config.spike_stop_loss_pct !== undefined) setSpikeStopLossPct(config.spike_stop_loss_pct);
+      if (config.spike_max_hold_sec !== undefined) setSpikeMaxHoldSec(config.spike_max_hold_sec);
+      if (config.spike_max_position_usd !== undefined) setSpikeMaxPositionUsd(config.spike_max_position_usd);
+      if (config.spike_max_concurrent !== undefined) setSpikeMaxConcurrent(config.spike_max_concurrent);
 
       // Exchange Enablement (NEW)
       if (config.enable_binance !== undefined) setEnableBinance(config.enable_binance);
@@ -1096,6 +1117,16 @@ export default function SettingsPage() {
         selective_whale_min_pnl: selectiveWhaleMinPnl,
         selective_whale_max_copy_size_usd: selectiveWhaleMaxCopySize,
         selective_whale_delay_seconds: selectiveWhaleDelaySeconds,
+
+        // Spike Hunter Strategy
+        enable_spike_hunter: enableSpikeHunter,
+        spike_min_magnitude_pct: spikeMinMagnitudePct,
+        spike_max_duration_sec: spikeMaxDurationSec,
+        spike_take_profit_pct: spikeTakeProfitPct,
+        spike_stop_loss_pct: spikeStopLossPct,
+        spike_max_hold_sec: spikeMaxHoldSec,
+        spike_max_position_usd: spikeMaxPositionUsd,
+        spike_max_concurrent: spikeMaxConcurrent,
 
         // Advanced Risk Framework
         kelly_sizing_enabled: kellySizingEnabled,
