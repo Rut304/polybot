@@ -42,6 +42,7 @@ This document analyzes the infrastructure costs and options for running PolyBot 
 | AWS Amplify | Pay-per-use | ~$2/mo | Tightly integrated with AWS |
 
 **Recommendation:** Stay on **Vercel Free** tier. It handles:
+
 - ✅ Admin dashboard
 - ✅ Landing page
 - ✅ API routes (Stripe webhooks, config reads)
@@ -57,6 +58,7 @@ This document analyzes the infrastructure costs and options for running PolyBot 
 | Pro + | $599/mo | 100GB DB, team features | Large scale |
 
 **Supabase Pro Includes:**
+
 - 8GB database space
 - Daily backups retained 7 days
 - Point-in-time recovery
@@ -65,7 +67,8 @@ This document analyzes the infrastructure costs and options for running PolyBot 
 - Row-level security
 - Real-time subscriptions
 
-**Recommendation:** 
+**Recommendation:**
+
 - Start with **Free** tier during beta/launch
 - Upgrade to **Pro** ($25/mo) when you hit 100+ paying users
 - Break-even: Just 2-3 Pro tier subscribers covers this cost
@@ -90,6 +93,7 @@ This document analyzes the infrastructure costs and options for running PolyBot 
 ## SaaS Scaling Scenarios
 
 ### Scenario 1: MVP Launch (0-50 users)
+
 ```
 Component              Monthly Cost
 ─────────────────────────────────
@@ -102,11 +106,13 @@ TOTAL                  $8/month
 ```
 
 **Margin Analysis at MVP:**
+
 - 5 Pro users ($29/mo × 5) = $145 revenue
 - Costs: $8
 - **Gross Margin: 94.5%**
 
 ### Scenario 2: Growth (50-500 users)
+
 ```
 Component              Monthly Cost
 ─────────────────────────────────
@@ -120,6 +126,7 @@ TOTAL                  $69-89/month
 ```
 
 **Margin Analysis at Growth:**
+
 - 50 Pro users ($29 × 50) = $1,450/mo
 - 10 Elite users ($99 × 10) = $990/mo
 - Total Revenue: $2,440/mo
@@ -127,6 +134,7 @@ TOTAL                  $69-89/month
 - **Gross Margin: 96.4%**
 
 ### Scenario 3: Scale (500-5000 users)
+
 ```
 Component              Monthly Cost
 ─────────────────────────────────
@@ -141,6 +149,7 @@ TOTAL                  ~$1,059/month
 ```
 
 **Margin Analysis at Scale:**
+
 - 500 Pro users = $14,500/mo
 - 100 Elite users = $9,900/mo
 - Total Revenue: $24,400/mo
@@ -152,7 +161,9 @@ TOTAL                  ~$1,059/month
 ## Cost Optimization Strategies
 
 ### 1. Keep Infrastructure Minimal
+
 The trading bot is a **single Python process** that:
+
 - Scans markets periodically
 - Executes trades via APIs
 - Logs to Supabase
@@ -160,12 +171,15 @@ The trading bot is a **single Python process** that:
 This doesn't need Kubernetes, auto-scaling, or complex orchestration.
 
 ### 2. Use Supabase Edge Functions for Webhooks
+
 Instead of Vercel API routes, use Supabase Edge Functions (included in all plans):
+
 - Stripe webhooks
 - Privy authentication callbacks
 - Scheduled tasks
 
 ### 3. Leverage Free Tiers Strategically
+
 | Service | Free Tier |
 |---------|-----------|
 | Vercel | 100GB bandwidth, unlimited deploys |
@@ -176,7 +190,9 @@ Instead of Vercel API routes, use Supabase Edge Functions (included in all plans
 | CloudFlare | Unlimited DNS, basic CDN |
 
 ### 4. Delay Expensive Upgrades
+
 Only upgrade when you hit limits:
+
 - Supabase Pro: When DB exceeds 500MB
 - Vercel Pro: When bandwidth exceeds 100GB
 - Multiple bot instances: When single instance can't keep up
@@ -186,6 +202,7 @@ Only upgrade when you hit limits:
 ## Per-User Cost Analysis
 
 ### Fixed Costs (Don't Scale with Users)
+
 | Item | Monthly |
 |------|---------|
 | Lightsail Bot | $7 |
@@ -193,6 +210,7 @@ Only upgrade when you hit limits:
 | **Total Fixed** | **$8** |
 
 ### Variable Costs (Scale with Users)
+
 | Item | Per User/Month |
 |------|----------------|
 | Supabase Storage | ~$0.02 |
@@ -215,6 +233,7 @@ Only upgrade when you hit limits:
 ## Build vs Buy: Infrastructure Services
 
 ### Authentication
+
 | Option | Cost | Recommendation |
 |--------|------|----------------|
 | Privy (current) | $0-250/mo | ✅ Keep - Great UX, wallet support |
@@ -222,6 +241,7 @@ Only upgrade when you hit limits:
 | Auth0 | $23-240/mo | Overkill for this use case |
 
 ### Payments
+
 | Option | Cost | Recommendation |
 |--------|------|----------------|
 | Stripe | 2.9% + $0.30/txn | ✅ Keep - Industry standard |
@@ -229,6 +249,7 @@ Only upgrade when you hit limits:
 | LemonSqueezy | 5% + $0.50/txn | Simpler merchant of record |
 
 ### Monitoring
+
 | Option | Cost | Recommendation |
 |--------|------|----------------|
 | Sentry (free) | $0 | ✅ Error tracking |
@@ -237,6 +258,7 @@ Only upgrade when you hit limits:
 | Better Uptime | $20/mo | Consider for SLA monitoring |
 
 ### Customer Support
+
 | Option | Cost | Recommendation |
 |--------|------|----------------|
 | Crisp | $0-25/mo | ✅ Free tier for MVP |
@@ -261,6 +283,7 @@ Only upgrade when you hit limits:
 ## Action Items
 
 ### Immediate (Before Launch)
+
 - [x] Vercel deployment configured
 - [x] Supabase database ready
 - [x] Lightsail bot running
@@ -269,11 +292,13 @@ Only upgrade when you hit limits:
 - [ ] Set up error monitoring (Sentry)
 
 ### Post-Launch (1-3 months)
+
 - [ ] Monitor Supabase usage, plan for Pro upgrade
 - [ ] Set up automated alerts for system health
 - [ ] Implement customer support channel (Discord/Crisp)
 
 ### Scale Phase (3-12 months)
+
 - [ ] Evaluate multi-region bot deployment
 - [ ] Consider dedicated database instance
 - [ ] Implement proper CI/CD pipeline
@@ -297,6 +322,7 @@ Only upgrade when you hit limits:
 ## Conclusion
 
 **Current setup is highly efficient:**
+
 - ~$8/month total infrastructure cost
 - 97%+ gross margins achievable immediately
 - No need for expensive "enterprise" infrastructure
