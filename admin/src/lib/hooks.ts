@@ -181,12 +181,21 @@ export interface StrategyStats {
 }
 
 // Fetch server-side computed strategy performance (100% accurate across full history)
-export function useStrategyPerformance() {
+export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
   return useQuery({
-    queryKey: ['strategyPerformance'],
+    queryKey: ['strategyPerformance', tradingMode],
     queryFn: async (): Promise<StrategyStats[]> => {
-      const { data, error } = await supabase
-        .rpc('get_strategy_performance_stats');
+      // Use the view which has trading_mode column
+      let query = supabase
+        .from('polybot_strategy_performance')
+        .select('*');
+      
+      // Filter by trading mode if specified
+      if (tradingMode) {
+        query = query.eq('trading_mode', tradingMode);
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching strategy stats:', error);
@@ -199,12 +208,12 @@ export function useStrategyPerformance() {
 }
 
 // Compute P&L history from actual trades (accurate, not stale stats table)
-export function usePnLHistory(hours: number = 24) {
-  const { data: trades = [] } = useSimulatedTrades(500);
+export function usePnLHistory(hours: number = 24, tradingMode?: 'paper' | 'live') {
+  const { data: trades = [] } = useSimulatedTrades(500, tradingMode);
   const { data: config } = useBotConfig();
   
   return useQuery({
-    queryKey: ['pnlHistory', trades.length, hours, config?.polymarket_starting_balance],
+    queryKey: ['pnlHistory', trades.length, hours, tradingMode, config?.polymarket_starting_balance],
     queryFn: () => {
       // Calculate TOTAL starting balance across all 6 platforms
       const polyStarting = config?.polymarket_starting_balance || 5000;
@@ -634,16 +643,22 @@ export function useBotConfig() {
 }
 
 // Fetch user positions (active bets from simulated trades)
-export function usePositions() {
+export function usePositions(tradingMode?: 'paper' | 'live') {
   return useQuery({
-    queryKey: ['positions'],
+    queryKey: ['positions', tradingMode],
     queryFn: async () => {
       // Query pending (open) trades from simulated_trades
-      const { data, error } = await supabase
+      let query = supabase
         .from('polybot_simulated_trades')
         .select('*')
-        .eq('outcome', 'pending')
-        .order('created_at', { ascending: false });
+        .eq('outcome', 'pending');
+      
+      // Filter by trading mode if specified
+      if (tradingMode) {
+        query = query.eq('trading_mode', tradingMode);
+      }
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching positions:', error);

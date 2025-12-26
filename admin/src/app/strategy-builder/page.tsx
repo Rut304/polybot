@@ -119,7 +119,7 @@ export default function StrategyBuilderPage() {
   };
 
   return (
-    <FeatureGate requiredTier="elite" feature="Custom Strategy Builder">
+    <FeatureGate feature="Custom Strategy Builder">
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

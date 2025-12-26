@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { usePositions } from '@/lib/hooks';
+import { useTier } from '@/lib/useTier';
 import { Tooltip } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 
@@ -86,7 +87,11 @@ const FIELD_TOOLTIPS = {
 };
 
 export default function PositionsPage() {
-  const { data: dbPositions, isLoading, refetch } = usePositions();
+  // Get trading mode from tier context
+  const { isSimulation: isUserSimMode } = useTier();
+  const tradingMode = isUserSimMode ? 'paper' : 'live';
+  
+  const { data: dbPositions, isLoading, refetch } = usePositions(tradingMode);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'prediction' | 'crypto' | 'stock'>('all');
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
@@ -192,6 +197,14 @@ export default function PositionsPage() {
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <BarChart3 className="text-purple-400" />
             Open Positions
+            {/* Simulation/Live Badge */}
+            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+              isUserSimMode 
+                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' 
+                : 'bg-green-500/20 text-green-400 border border-green-500/30'
+            }`}>
+              {isUserSimMode ? '📝 PAPER' : '💰 LIVE'}
+            </span>
           </h1>
           <p className="text-gray-400 mt-1">
             Monitor all active trading positions across platforms

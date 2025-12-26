@@ -70,7 +70,7 @@ export default function Dashboard() {
   // Fetch all trades for accurate modal calculations
   const { data: allTrades } = useSimulatedTrades(5000, tradingMode);
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
-  const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
+  const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760, tradingMode); // 0 = All time = 1 year
 
   // Starting balance constant (6 platforms x $5,000 each = $30,000)
   // 6 platforms x $5,000 each = $30,000 total

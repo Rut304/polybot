@@ -22,7 +22,9 @@ import {
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { useConnectionSummary, useConnectedPlatforms, useBotStatus, useSimulationStats } from '@/lib/hooks';
+import { useConnectionSummary, useConnectedPlatforms, useBotStatus, useSimulationStats, useRealTimeStats } from '@/lib/hooks';
+import { useTier } from '@/lib/useTier';
+import { TradingModeToggle } from '@/components/TradingModeToggle';
 
 interface PlatformBalance {
   platform: string;
@@ -75,15 +77,22 @@ export default function BalancesPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Get trading mode from tier context
+  const { isSimulation: isUserSimMode } = useTier();
+  const tradingMode = isUserSimMode ? 'paper' : 'live';
+
   // Get connected platforms from centralized secrets
   const { data: connectedPlatforms = [] } = useConnectedPlatforms();
   const connectionSummary = useConnectionSummary();
   const { data: botStatus } = useBotStatus();
   const { data: simStats } = useSimulationStats();
   
-  // Determine if we're in simulation mode
-  const isSimulation = botStatus?.dry_run_mode ?? true;
-  const simulatedBalance = simStats?.simulated_balance ?? 5000;
+  // Get real-time stats filtered by trading mode
+  const { data: realTimeStats } = useRealTimeStats(undefined, tradingMode);
+  
+  // Use context-based simulation mode, not bot status
+  const isSimulation = isUserSimMode;
+  const simulatedBalance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 30000;
 
   useEffect(() => {
     fetchBalances();

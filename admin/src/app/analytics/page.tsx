@@ -36,15 +36,22 @@ import {
 } from 'recharts';
 
 import { useSimulatedTrades, useOpportunities, useStrategyPerformance, useBotStatus, useBotConfig } from '@/lib/hooks';
+import { useTier } from '@/lib/useTier';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
+import { TradingModeToggle } from '@/components/TradingModeToggle';
 
 export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState(168); // 7 days default
-  const { data: serverStats, isLoading: statsLoading } = useStrategyPerformance();
+  
+  // Get current trading mode from user context
+  const { isSimulation: isUserSimMode } = useTier();
+  const tradingMode = isUserSimMode ? 'paper' : 'live';
+  
+  const { data: serverStats, isLoading: statsLoading } = useStrategyPerformance(tradingMode);
   const { data: botStatus } = useBotStatus();
   const { data: config } = useBotConfig();
-  const { data: trades } = useSimulatedTrades(2000);
+  const { data: trades } = useSimulatedTrades(2000, tradingMode);
 
   const isSimulation = botStatus?.mode !== 'live';
 

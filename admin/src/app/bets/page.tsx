@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSimulatedTrades, usePositions, useDisabledMarkets, useManualTrades } from '@/lib/hooks';
+import { useTier } from '@/lib/useTier';
 import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -308,7 +309,12 @@ export default function BetsPage() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
-  const { data: trades = [] } = useSimulatedTrades(2000); // Increased from 100 to show all trades
+  
+  // Get trading mode from tier context
+  const { isSimulation: isUserSimMode } = useTier();
+  const tradingMode = isUserSimMode ? 'paper' : 'live';
+  
+  const { data: trades = [] } = useSimulatedTrades(2000, tradingMode); // Increased from 100 to show all trades
   const { data: manualTrades = [] } = useManualTrades(50);
   const { data: disabledMarkets = [] } = useDisabledMarkets();
 
@@ -432,8 +438,20 @@ export default function BetsPage() {
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Wallet className="w-8 h-8 text-neon-blue" />
               My Bets
+              {/* Simulation/Live Badge */}
+              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                isUserSimMode 
+                  ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' 
+                  : 'bg-green-500/20 text-green-400 border border-green-500/30'
+              }`}>
+                {isUserSimMode ? '📝 PAPER' : '💰 LIVE'}
+              </span>
             </h1>
-            <p className="text-gray-400 mt-2">View and manage your automated and manual positions</p>
+            <p className="text-gray-400 mt-2">
+              {isUserSimMode 
+                ? 'Viewing simulated trades - No real money at risk'
+                : 'Viewing live trades - Real money positions'}
+            </p>
           </div>
           {isAdmin ? (
             <button
