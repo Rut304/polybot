@@ -42,6 +42,7 @@ import { Opportunity, SimulatedTrade } from '@/lib/supabase';
 import { MoneyStatsWidget } from '@/components/MoneyStatsWidget';
 import { useTier } from '@/lib/useTier';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
+import { WelcomeBanner, QuickStartFAB, PageCTA } from '@/components/QuickStartGuide';
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -174,6 +175,15 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
+      {/* Welcome Banner for new users */}
+      <WelcomeBanner />
+      
+      {/* Page CTA */}
+      <PageCTA page="dashboard" />
+      
+      {/* Quick Start FAB */}
+      <QuickStartFAB />
+
       {/* Stat Detail Modal */}
       <StatDetailModal
         isOpen={modalType !== null}

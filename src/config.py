@@ -245,6 +245,13 @@ class TradingConfig:
     regime_vix_crisis_threshold: float = 35.0   # VIX > 35 = CRISIS
     regime_auto_adjust: bool = True             # Auto-adjust strategy params
     
+    # Autonomous RSI/Strategy Tuning (Pro+ Feature)
+    # When enabled, bot automatically adjusts RSI thresholds based on performance
+    autonomous_rsi_enabled: bool = False         # OFF by default - Pro feature
+    autonomous_rsi_min_trades: int = 20          # Min trades before auto-adjusting
+    autonomous_rsi_adjustment_pct: float = 5.0   # Max adjustment per cycle (%)
+    autonomous_rsi_learning_rate: float = 0.1    # How fast to adapt (0-1)
+
     # Circuit Breaker System
     # Automatic trading halts on excessive drawdown
     circuit_breaker_enabled: bool = True        # ON by default (safety)
@@ -934,6 +941,19 @@ class Config:
             ),
             regime_auto_adjust=self._get_bool(
                 "regime_auto_adjust", "REGIME_AUTO_ADJUST", True
+            ),
+            # Autonomous RSI (Pro+ feature)
+            autonomous_rsi_enabled=self._get_bool(
+                "autonomous_rsi_enabled", "AUTONOMOUS_RSI_ENABLED", False
+            ),
+            autonomous_rsi_min_trades=self._get_int(
+                "autonomous_rsi_min_trades", "AUTONOMOUS_RSI_MIN_TRADES", 20
+            ),
+            autonomous_rsi_adjustment_pct=self._get_float(
+                "autonomous_rsi_adjustment_pct", "AUTONOMOUS_RSI_ADJ_PCT", 5.0
+            ),
+            autonomous_rsi_learning_rate=self._get_float(
+                "autonomous_rsi_learning_rate", "AUTONOMOUS_RSI_LR", 0.1
             ),
             # Circuit Breaker System
             circuit_breaker_enabled=self._get_bool(

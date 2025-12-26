@@ -40,6 +40,7 @@ import { useTier } from '@/lib/useTier';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
+import { PageCTA } from '@/components/QuickStartGuide';
 
 export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState(168); // 7 days default
@@ -142,6 +143,9 @@ export default function AnalyticsPage() {
           ))}
         </div>
       </div>
+
+      {/* Page CTA */}
+      <PageCTA page="analytics" />
 
       {/* Top Level KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

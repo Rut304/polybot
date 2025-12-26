@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
 import { AuthGuard } from '@/components/AuthGuard';
 import { ProfileProvider } from '@/lib/useTier';
+import { OnboardingCheck } from '@/components/OnboardingCheck';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -24,7 +25,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AuthProvider>
         <AuthGuard>
           <ProfileProvider>
-            {children}
+            <OnboardingCheck>
+              {children}
+            </OnboardingCheck>
           </ProfileProvider>
         </AuthGuard>
       </AuthProvider>

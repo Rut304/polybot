@@ -2,7 +2,148 @@
 
 ## Active Tasks (December 26, 2025)
 
-### 🔴 HIGH PRIORITY - Current Issues
+### 🔴 HIGH PRIORITY - SaaS Launch (PolyParlay.io)
+
+#### User Signup & Onboarding Flow
+
+- [x] **CREATE ONBOARDING WIZARD** 🧙 ✅
+  - [x] Step 1: Welcome message with feature overview
+  - [x] Step 2: Wallet info (Privy embedded wallet on Polygon)
+  - [x] Step 3: Platform setup links (Polymarket, Kalshi, Alpaca)
+  - [x] Step 4: Select up to 3 strategies (Free tier)
+  - [x] Step 5: Simulation mode explanation
+  - [x] Show progress indicator, allow skip/return later
+  - Created: `/admin/src/components/OnboardingWizard.tsx`
+  - Created: `/admin/src/components/OnboardingCheck.tsx`
+
+- [x] **LIVE TRADING GATE** 🚨 ✅
+  - [x] When user switches sim → live, show multi-step confirmation modal
+  - [x] Step 1: Warning about real money, requires checkbox agreement
+  - [x] Step 2: User must explicitly enable EACH strategy for live
+  - [x] Step 3: Final confirmation with strategy list
+  - [x] Check for API keys before allowing live mode
+  - [x] All strategies start DISABLED when switching to live
+  - Created: `/admin/src/components/LiveTradingGate.tsx`
+  - Updated: `/admin/src/components/TradingModeToggle.tsx`
+
+- [x] **QUICK START GUIDE & CTAs** 📍 ✅
+  - [x] Welcome Banner on dashboard for new users
+  - [x] Quick Start FAB (floating action button) with setup steps
+  - [x] Page-specific CTAs (dashboard, analytics, strategies, history)
+  - [x] Setup checklist with progress tracking
+  - [x] Upgrade prompts for free users
+  - Created: `/admin/src/components/QuickStartGuide.tsx`
+
+- [ ] **SECRETS PAGE IMPROVEMENTS** 🔐
+  - [x] API key management with edit/delete (EXISTS)
+  - [x] Platform signup links (Polymarket, Kalshi, Alpaca) (EXISTS)
+  - [ ] Add setup status indicators (connected/not connected)
+  - [ ] Add balance display for each connected platform
+  - [ ] Add "Test Connection" button for each API key
+
+- [ ] **STRIPE INTEGRATION** 💳
+  - [ ] Wire up Stripe checkout for Pro ($9.99/mo) and Elite ($99.99/mo)
+  - [ ] Create Stripe products and pricing
+  - [ ] Handle webhooks for subscription status changes
+  - [ ] Display current tier in settings/navbar
+  - [ ] Add upgrade prompts when hitting tier limits
+
+#### Tier-Based Access Control
+
+- [x] **TIER LIMITS DEFINED** ✅ (in `/admin/src/lib/privy.ts`)
+
+  ```
+  Free:  3 strategies, 100 trades/mo, basic analytics
+  Pro:   All strategies, 1000 trades/mo, AI analytics, autonomous RSI
+  Elite: Unlimited trades, whale tracking, congressional tracker, priority support
+  ```
+
+- [x] **FREE TIER DEFAULTS** ✅
+  - Default enabled_strategies: ['single_platform_arb', 'news_arbitrage', 'market_making']
+  - Autonomous RSI: DISABLED by default
+  - Live trading: DISABLED by default
+  - live_enabled_strategies: EMPTY by default (user must explicitly enable)
+
+- [x] **LIVE TRADING GATE** 🚨 ✅
+  - [x] When user switches from simulation to live, show confirmation modal
+  - [x] Require explicit toggle for EACH strategy they want live
+  - [x] Show risk level for each strategy
+  - [x] Block live trading if no platform API keys configured
+  - [x] All strategies disabled by default when going live
+
+- [ ] **STRATEGY LIMITING BY TIER** 📊
+  - [ ] Free users: Max 3 strategies enabled at once
+  - [ ] Show "Upgrade to Pro" when trying to enable 4th strategy
+  - [ ] Pro users: All strategies available
+  - [ ] Elite users: All strategies + whale/congress trackers
+
+#### Autonomous RSI Control
+
+- [x] **AUTONOMOUS RSI TOGGLE ADDED** ✅
+  - `autonomous_rsi_enabled` defaults to False
+  - Config options: min_trades, adjust_interval_hours, max_rsi_adjustment
+  - Pro/Elite feature only
+
+- [ ] **UI FOR AUTONOMOUS RSI** 🤖
+  - [ ] Add toggle in Settings page (AI Analytics section)
+  - [ ] Show current RSI thresholds
+  - [ ] Display adjustment history
+  - [ ] Only show for Pro/Elite users
+
+### 🟢 USER JOURNEY ANALYSIS (Landing → Trading)
+
+#### Complete User Flow (Implemented)
+
+1. **Landing Page** → User visits PolyParlay.io
+   - [x] Hero section with value proposition
+   - [x] Feature grid showing Free/Pro/Elite
+   - [x] Pricing cards with CTAs
+   - [x] "Get Started Free" button
+
+2. **Signup/Login** → Privy authentication
+   - [x] Email OTP login
+   - [x] Embedded wallet creation (Polygon)
+   - [x] Non-custodial setup
+
+3. **Onboarding Wizard** (NEW) → First-time user setup
+   - [x] Welcome step
+   - [x] Wallet explanation
+   - [x] Platform connection links
+   - [x] Strategy selection (3 for Free)
+   - [x] Simulation mode intro
+
+4. **Dashboard** → Main trading view
+   - [x] Welcome banner for new users
+   - [x] Quick Start FAB
+   - [x] Trading mode toggle (Sim/Live)
+   - [x] Real-time stats and charts
+   - [x] Recent trades feed
+
+5. **Secrets** → API key management
+   - [x] Platform signup links
+   - [x] API key entry with masking
+   - [x] Re-auth for sensitive ops
+
+6. **Strategies** → Configure trading strategies
+   - [x] Strategy cards with explanations
+   - [x] Enable/disable toggles
+   - [x] Parameter configuration
+   - [ ] Tier-based locking (TODO)
+
+7. **Settings** → Full configuration
+   - [x] Trading mode toggle
+   - [x] Risk parameters
+   - [x] Platform enables
+   - [x] Simulation parameters
+
+8. **Going Live** (NEW) → Live trading activation
+   - [x] Multi-step confirmation modal
+   - [x] Risk acknowledgment checkbox
+   - [x] Per-strategy enable selection
+   - [x] API key verification
+   - [x] Final confirmation
+
+### 🟡 MEDIUM PRIORITY - Strategy Implementation
 
 #### v1.1.15 - Strategy Implementation & Documentation
 
@@ -36,11 +177,11 @@
   - [ ] Add Twitter research sources and expected returns
   - [ ] Document config keys and their defaults
 
-- [ ] **UPDATE STRATEGIES PAGE** 📊
-  - [ ] Add Spike Hunter to `admin/src/app/strategies/page.tsx`
-  - [ ] Verify all strategies have config toggles
+- [x] **UPDATE STRATEGIES PAGE** 📊 ✅
+  - [x] Add Spike Hunter to `admin/src/app/strategies/page.tsx`
+  - [x] Verify all strategies have config toggles
   - [ ] Add expected return ranges for each strategy
-  - [ ] Wire up settings sliders for Spike Hunter
+  - [x] Wire up settings sliders for Spike Hunter
 
 - [ ] **UPDATE WORKFLOWS PAGE** 🔄
   - [ ] Add Spike Hunter workflow diagram

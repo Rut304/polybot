@@ -42,7 +42,22 @@ ALTER TABLE polybot_user_config
 ADD COLUMN IF NOT EXISTS is_simulation BOOLEAN DEFAULT TRUE;
 
 ALTER TABLE polybot_user_config 
-ADD COLUMN IF NOT EXISTS enabled_strategies TEXT[] DEFAULT ARRAY['single_platform_arb'];
+ADD COLUMN IF NOT EXISTS enabled_strategies TEXT[] DEFAULT ARRAY['single_platform_arb', 'news_arbitrage', 'market_making'];
+
+-- Live mode enabled strategies - starts EMPTY, user must explicitly enable
+-- When switching sim -> live, ALL strategies disabled by default
+ALTER TABLE polybot_user_config 
+ADD COLUMN IF NOT EXISTS live_enabled_strategies TEXT[] DEFAULT ARRAY[]::TEXT[];
+
+-- NOTE: Free tier default strategies (top 3 proven):
+-- 1. single_platform_arb - Safest, guaranteed profit
+-- 2. news_arbitrage - News-driven opportunities  
+-- 3. market_making - Spread capture
+-- Pro/Elite users can enable all 15+ strategies
+-- 
+-- IMPORTANT: live_enabled_strategies starts EMPTY
+-- User MUST explicitly choose which strategies to enable when going live
+-- This prevents accidental live trading with unintended strategies
 
 -- ==========================================
 -- INDEXES FOR PERFORMANCE

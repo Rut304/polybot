@@ -6,7 +6,7 @@ import {
   AlertTriangle, TrendingUp, Target, Landmark, Brain, Crown, Activity,
   Shield, BarChart3, Newspaper, Users, Grid3X3, Repeat, LineChart,
   Wallet, Globe, Flame, BookOpen, ArrowLeftRight, Bitcoin, X, ExternalLink,
-  Sparkles, GitBranch, Info
+  Sparkles, GitBranch, Info, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,7 +14,9 @@ import { useBotConfig } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { useTier } from '@/lib/useTier';
 import Link from 'next/link';
+import { PageCTA } from '@/components/QuickStartGuide';
 
 // =============================================================================
 // TYPES & INTERFACES
