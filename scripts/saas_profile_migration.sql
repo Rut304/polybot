@@ -78,6 +78,10 @@ $$ LANGUAGE plpgsql;
 -- Only called for LIVE trades (simulation trades are free & unlimited)
 -- ==========================================
 
+-- Drop existing function first to allow signature change
+DROP FUNCTION IF EXISTS increment_user_trades(UUID);
+DROP FUNCTION IF EXISTS increment_user_trades(UUID, BOOLEAN);
+
 CREATE OR REPLACE FUNCTION increment_user_trades(p_user_id UUID, p_is_simulation BOOLEAN DEFAULT FALSE)
 RETURNS JSON AS $$
 DECLARE
@@ -150,7 +154,8 @@ BEGIN
     UPDATE polybot_profiles
     SET subscription_tier = 'free',
         subscription_status = 'inactive',
-        monthly_trades_limit = 100,
+        monthly_trades_limit = 0,  -- Free tier = 0 live trades
+        is_simulation = TRUE,      -- Force back to simulation
         updated_at = NOW()
     WHERE subscription_status = 'trialing'
       AND trial_ends_at < NOW()
@@ -169,12 +174,15 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION update_tier_limits()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Update trade limits based on tier
+  -- Update trade limits based on tier (for LIVE trades only)
+  -- Free: 0 live trades (simulation only)
+  -- Pro: 1000 live trades/month  
+  -- Elite: unlimited (-1)
   NEW.monthly_trades_limit := CASE NEW.subscription_tier
-    WHEN 'free' THEN 100
+    WHEN 'free' THEN 0      -- No live trades for free tier
     WHEN 'pro' THEN 1000
-    WHEN 'elite' THEN -1  -- unlimited
-    ELSE 100
+    WHEN 'elite' THEN -1    -- Unlimited
+    ELSE 0
   END;
   
   -- Reset to simulation if downgrading to free

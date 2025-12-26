@@ -112,6 +112,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
       '1,000 Live Trades/Month',
       'All 10+ Automated Strategies',
       'Automated RSI Trading',
+      'Missed Money Analysis',
       'Advanced Analytics Dashboard',
       'AI Market Insights',
       'Email Support',
@@ -131,7 +132,7 @@ export const TIER_LIMITS: Record<SubscriptionTier, {
       'API Access',
       'Priority Support',
     ],
-    price: 49.99,
+    price: 99.99,
   },
 };
 

@@ -34,9 +34,9 @@ const TIERS = [
   {
     name: 'Elite',
     tier: 'elite' as SubscriptionTier,
-    price: '$49.99',
+    price: '$99.99',
     period: '/month',
-    description: 'Full power with custom strategies & intel.',
+    description: 'Full power with custom strategies & market intel.',
     features: TIER_LIMITS.elite.features,
     priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_ELITE || 'price_elite_placeholder',
     mode: 'subscription',

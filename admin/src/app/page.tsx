@@ -40,6 +40,8 @@ import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 import { Opportunity, SimulatedTrade } from '@/lib/supabase';
 import { MoneyStatsWidget } from '@/components/MoneyStatsWidget';
+import { useTier } from '@/lib/useTier';
+import { TradingModeToggle } from '@/components/TradingModeToggle';
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -55,13 +57,18 @@ export default function Dashboard() {
   // Global timeframe state - all components use this
   const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
 
+  // Get current trading mode from user context
+  const { isSimulation: isUserSimMode } = useTier();
+  const tradingMode = isUserSimMode ? 'paper' : 'live';
+
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const isSimulation = botStatus?.mode !== 'live';
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
-  const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours);
-  const { data: trades } = useSimulatedTrades(20);
+  // Pass trading mode to get stats filtered by current mode
+  const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours, tradingMode);
+  const { data: trades } = useSimulatedTrades(20, tradingMode);
   // Fetch all trades for accurate modal calculations
-  const { data: allTrades } = useSimulatedTrades(5000);
+  const { data: allTrades } = useSimulatedTrades(5000, tradingMode);
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760); // 0 = All time = 1 year
 
@@ -193,23 +200,33 @@ export default function Dashboard() {
             <Activity className="w-8 h-8 text-neon-green" />
             Dashboard
           </h1>
-          <p className="text-gray-400 mt-2">Real-time overview of your arbitrage bot</p>
+          <p className="text-gray-400 mt-2">
+            Real-time overview of your arbitrage bot
+            <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${
+              isUserSimMode ? 'bg-neon-green/20 text-neon-green' : 'bg-red-500/20 text-red-400'
+            }`}>
+              {isUserSimMode ? 'SIMULATION' : 'LIVE'}
+            </span>
+          </p>
         </div>
 
-        {/* Global Timeframe Selector */}
-        <div className="flex items-center gap-2 bg-dark-card border border-dark-border rounded-xl px-4 py-2">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <span className="text-sm text-gray-400">Showing:</span>
-          <select
-            value={globalTimeframeHours}
-            onChange={(e) => setGlobalTimeframeHours(Number(e.target.value))}
-            className="bg-dark-border rounded-lg px-3 py-1.5 text-sm border-none outline-none text-white cursor-pointer hover:bg-dark-border/70 transition-colors"
-            title="Select timeframe for all dashboard data"
-          >
-            {TIMEFRAME_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+        {/* Trading Mode Toggle + Global Timeframe Selector */}
+        <div className="flex items-center gap-3">
+          <TradingModeToggle compact />
+          <div className="flex items-center gap-2 bg-dark-card border border-dark-border rounded-xl px-4 py-2">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-400">Showing:</span>
+            <select
+              value={globalTimeframeHours}
+              onChange={(e) => setGlobalTimeframeHours(Number(e.target.value))}
+              className="bg-dark-border rounded-lg px-3 py-1.5 text-sm border-none outline-none text-white cursor-pointer hover:bg-dark-border/70 transition-colors"
+              title="Select timeframe for all dashboard data"
+            >
+              {TIMEFRAME_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

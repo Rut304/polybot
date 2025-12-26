@@ -109,16 +109,23 @@ export function useSimulationHistory(hours: number = 24) {
   });
 }
 
-// Fetch simulated trades
-export function useSimulatedTrades(limit: number = 50) {
+// Fetch simulated trades with optional trading mode filter
+export function useSimulatedTrades(limit: number = 50, tradingMode?: 'paper' | 'live') {
   return useQuery({
-    queryKey: ['simulatedTrades', limit],
+    queryKey: ['simulatedTrades', limit, tradingMode],
     queryFn: async (): Promise<SimulatedTrade[]> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('polybot_simulated_trades')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
+      
+      // Filter by trading mode if specified
+      if (tradingMode) {
+        query = query.eq('trading_mode', tradingMode);
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching simulated trades:', error);
@@ -253,13 +260,13 @@ const DEFAULT_STARTING_BALANCE = 30000;
 
 // Compute real-time stats from database aggregates (100% accurate)
 // Uses polybot_strategy_performance view for totals, recent trades for details
-export function useRealTimeStats(timeframeHours?: number) {
-  const { data: recentTrades = [] } = useSimulatedTrades(100); // Just for recent activity display
+export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' | 'live') {
+  const { data: recentTrades = [] } = useSimulatedTrades(100, tradingMode); // Just for recent activity display
   const { data: opportunities = [] } = useOpportunities(1000, timeframeHours);
   const { data: config } = useBotConfig(); // Get starting balance from config
   
   return useQuery({
-    queryKey: ['realTimeStats', timeframeHours, config?.polymarket_starting_balance, config?.kalshi_starting_balance, config?.binance_starting_balance, config?.coinbase_starting_balance, config?.alpaca_starting_balance, config?.ibkr_starting_balance],
+    queryKey: ['realTimeStats', timeframeHours, tradingMode, config?.polymarket_starting_balance, config?.kalshi_starting_balance, config?.binance_starting_balance, config?.coinbase_starting_balance, config?.alpaca_starting_balance, config?.ibkr_starting_balance],
     queryFn: async () => {
       // Calculate TOTAL starting balance across all platforms (including IBKR)
       const polyStarting = config?.polymarket_starting_balance || 5000;
@@ -271,10 +278,17 @@ export function useRealTimeStats(timeframeHours?: number) {
       
       const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
       
-      // Fetch accurate totals from database aggregate view
-      const { data: strategyPerf, error: perfError } = await supabase
+      // Fetch accurate totals from database aggregate view (filtered by trading mode)
+      let strategyQuery = supabase
         .from('polybot_strategy_performance')
         .select('*');
+      
+      // Filter by trading mode if specified
+      if (tradingMode) {
+        strategyQuery = strategyQuery.eq('trading_mode', tradingMode);
+      }
+      
+      const { data: strategyPerf, error: perfError } = await strategyQuery;
       
       if (perfError) {
         console.error('Error fetching strategy performance:', perfError);
@@ -321,10 +335,17 @@ export function useRealTimeStats(timeframeHours?: number) {
         since.setHours(since.getHours() - timeframeHours);
         
         // Fetch trades within timeframe for filtered stats
-        const { data: filteredTradesData, error: tradesError } = await supabase
+        let tradesQuery = supabase
           .from('polybot_simulated_trades')
-          .select('actual_profit_usd, outcome')
+          .select('actual_profit_usd, outcome, trading_mode')
           .gte('created_at', since.toISOString());
+        
+        // Filter by trading mode if specified
+        if (tradingMode) {
+          tradesQuery = tradesQuery.eq('trading_mode', tradingMode);
+        }
+        
+        const { data: filteredTradesData, error: tradesError } = await tradesQuery;
         
         if (!tradesError && filteredTradesData) {
           const validTrades = filteredTradesData.filter(t => t.outcome !== 'failed_execution');
