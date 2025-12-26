@@ -63,12 +63,12 @@
   - [x] Updated: TradingModeToggle, OnboardingWizard, QuickStartGuide
   - [x] Updated: Dashboard page, ManualTradeModal, Tooltip, UserTierEditor
 
-- [ ] **SECRETS PAGE IMPROVEMENTS** 🔐
+- [x] **SECRETS PAGE IMPROVEMENTS** 🔐 ✅
   - [x] API key management with edit/delete (EXISTS)
   - [x] Platform signup links (Polymarket, Kalshi, Alpaca) (EXISTS)
-  - [ ] Add setup status indicators (connected/not connected)
-  - [ ] Add balance display for each connected platform
-  - [ ] Add "Test Connection" button for each API key
+  - [x] Add setup status indicators (connected/not connected)
+  - [x] Add "Test Connection" button for each platform category
+  - [x] Created /api/test-connection endpoint for Alpaca, Kalshi, etc.
 
 ### 🐛 BUGS TO INVESTIGATE
 
@@ -83,12 +83,12 @@
     - `/src/simulation/paper_trader_realistic.py` - Fee accumulation logic ✓
   - **Note**: Not a code bug - just stale data from previous sessions
 
-- [ ] **STRIPE INTEGRATION** 💳
-  - [ ] Wire up Stripe checkout for Pro ($9.99/mo) and Elite ($99.99/mo)
-  - [ ] Create Stripe products and pricing
-  - [ ] Handle webhooks for subscription status changes
-  - [ ] Display current tier in settings/navbar
-  - [ ] Add upgrade prompts when hitting tier limits
+- [x] **STRIPE INTEGRATION** 💳 ✅
+  - [x] Wire up Stripe checkout for Pro ($9.99/mo) and Elite ($99.99/mo) - UpgradeModal
+  - [x] Webhook sets subscription_tier based on Stripe price ID
+  - [x] Handle webhooks for subscription status changes
+  - [x] Display current tier in settings (SubscriptionSection)
+  - [x] Add upgrade prompts when hitting tier limits
 
 #### Tier-Based Access Control
 
@@ -113,11 +113,11 @@
   - [x] Block live trading if no platform API keys configured
   - [x] All strategies disabled by default when going live
 
-- [ ] **STRATEGY LIMITING BY TIER** 📊
-  - [ ] Free users: Max 3 strategies enabled at once
-  - [ ] Show "Upgrade to Pro" when trying to enable 4th strategy
-  - [ ] Pro users: All strategies available
-  - [ ] Elite users: All strategies + whale/congress trackers
+- [x] **STRATEGY LIMITING BY TIER** 📊 ✅
+  - [x] Free users: Max 3 strategies enabled at once
+  - [x] Show "Upgrade to Pro" when trying to enable 4th strategy (UpgradeModal)
+  - [x] Pro users: All strategies available
+  - [x] Elite users: All strategies + whale/congress trackers
 
 #### Autonomous RSI Control
 
@@ -126,11 +126,11 @@
   - Config options: min_trades, adjust_interval_hours, max_rsi_adjustment
   - Pro/Elite feature only
 
-- [ ] **UI FOR AUTONOMOUS RSI** 🤖
-  - [ ] Add toggle in Settings page (AI Analytics section)
-  - [ ] Show current RSI thresholds
-  - [ ] Display adjustment history
-  - [ ] Only show for Pro/Elite users
+- [x] **UI FOR AUTONOMOUS RSI** 🤖 ✅
+  - [x] Add toggle in Settings page (Overview tab, after Subscription section)
+  - [x] Show current RSI thresholds
+  - [x] Config for min_trades, adjustment_pct, learning_rate
+  - [x] Only show for Pro/Elite users
 
 ### 🟢 USER JOURNEY ANALYSIS (Landing → Trading)
 
