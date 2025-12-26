@@ -299,15 +299,18 @@ export async function POST(request: NextRequest) {
     // Get the total starting balance from config
     const startingBalance = await getTotalStartingBalance();
 
-    // Insert fresh starting stats with configured starting balance
+    // UPSERT fresh starting stats with ID=1 (CRITICAL: paper_trader_realistic.py always uses ID=1)
+    // Using upsert ensures the reset stats aren't overwritten by a stale stats row
     const { error: statsError } = await getSupabaseAdmin()
       .from('polybot_simulation_stats')
-      .insert({
+      .upsert({
+        id: 1,  // CRITICAL: Must match paper_trader_realistic.py which always uses id=1
         snapshot_at: new Date().toISOString(),
         simulated_balance: startingBalance,
         total_pnl: 0,
         total_trades: 0,
         win_rate: 0,
+        session_label: 'simulation_v1',
         stats_json: {
           total_opportunities_seen: 0,
           total_simulated_trades: 0,
@@ -330,7 +333,7 @@ export async function POST(request: NextRequest) {
           failed_executions: 0,
           avg_trade_pnl: '0.00',
         },
-      });
+      }, { onConflict: 'id' });
 
     if (statsError) throw statsError;
 
