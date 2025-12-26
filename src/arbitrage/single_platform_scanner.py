@@ -136,7 +136,7 @@ class SinglePlatformScanner:
     
     def __init__(
         self,
-        min_profit_pct: float = 0.5,  # Legacy/default for both platforms
+        min_profit_pct: float = 2.0,  # RAISED: Default 2% min profit
         scan_interval_seconds: int = 30,
         on_opportunity: Optional[Callable] = None,
         db_client=None,  # Database client for logging ALL scans
@@ -150,13 +150,15 @@ class SinglePlatformScanner:
         market_cooldown_seconds: int = 3600,  # 1 hour default cooldown
     ):
         self.min_profit_pct = Decimal(str(min_profit_pct))
-        # Per-platform thresholds (use defaults if not provided)
-        self.poly_min_profit = Decimal(str(poly_min_profit_pct if poly_min_profit_pct else min_profit_pct))
+        # Per-platform thresholds (TUNED 2024-12-26 based on simulation results)
+        # Polymarket: Raised from 0.3% to 2.0% - tiny spreads eaten by slippage
+        # Kalshi: Keep at 8.0% - must cover 7% fee + net profit
+        self.poly_min_profit = Decimal(str(poly_min_profit_pct if poly_min_profit_pct else 2.0))
         self.poly_max_spread = Decimal(str(poly_max_spread_pct if poly_max_spread_pct else 15.0))
-        self.poly_max_position = Decimal(str(poly_max_position_usd if poly_max_position_usd else 50.0))
-        self.kalshi_min_profit = Decimal(str(kalshi_min_profit_pct if kalshi_min_profit_pct else 2.0))  # Higher due to 7% fees!
+        self.poly_max_position = Decimal(str(poly_max_position_usd if poly_max_position_usd else 35.0))
+        self.kalshi_min_profit = Decimal(str(kalshi_min_profit_pct if kalshi_min_profit_pct else 8.0))
         self.kalshi_max_spread = Decimal(str(kalshi_max_spread_pct if kalshi_max_spread_pct else 15.0))
-        self.kalshi_max_position = Decimal(str(kalshi_max_position_usd if kalshi_max_position_usd else 50.0))
+        self.kalshi_max_position = Decimal(str(kalshi_max_position_usd if kalshi_max_position_usd else 75.0))
         
         self.scan_interval = scan_interval_seconds
         self.on_opportunity = on_opportunity

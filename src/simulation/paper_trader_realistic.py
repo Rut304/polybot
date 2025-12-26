@@ -298,14 +298,19 @@ class RealisticPaperTrader:
     IBKR_PRO_PER_SHARE = 0.005        # IBKR Pro: $0.005/share
 
     # ========== POSITION SIZING ==========
-    MAX_POSITION_PCT = 8.0      # Aggressive: 8% of balance per trade
-    MAX_POSITION_USD = 100.0    # Aggressive: Up to $100 per trade
+    # TUNED 2024-12-26: Reduced position size to minimize slippage impact
+    MAX_POSITION_PCT = 5.0      # REDUCED from 8% - smaller = less slippage
+    MAX_POSITION_USD = 25.0     # REDUCED from 100 - quality over quantity
     MIN_POSITION_USD = 5.0      # Minimum trade size
     
     # ========== COOLDOWN / DEDUPLICATION ==========
     # Aggressive but realistic - real traders do trade same market multiple times
     MARKET_COOLDOWN_SECONDS = 600  # 10 min cooldown (realistic for active trading)
     MAX_TRADES_PER_MARKET_PER_DAY = 8  # Up to 8 trades per market per day
+    
+    # ========== DAILY TRADE LIMITS ==========
+    # TUNED 2024-12-26: Quality over quantity - focus on high-conviction trades
+    MAX_DAILY_TRADES = 50       # Total trades per day across all strategies
 
     # ========== NETWORK LATENCY & DRIFT ==========
     # Realistic execution delays based on API response times
@@ -331,6 +336,10 @@ class RealisticPaperTrader:
         
         # Cooldown tracking - CRITICAL to prevent unrealistic repeated trades
         self._market_trade_times: Dict[str, list] = {}  # market_id -> [trade_times]
+        
+        # Daily trade limit tracking
+        self._daily_trade_count = 0
+        self._daily_trade_date: Optional[datetime] = None
         
         # Load config from database (overrides class defaults)
         self._load_config_from_db()
@@ -830,6 +839,34 @@ class RealisticPaperTrader:
             )
             return None
 
+        # ========== DAILY TRADE LIMIT CHECK ==========
+        # Quality over quantity - focus on high-conviction trades
+        today = now.date()
+        if self._daily_trade_date != today:
+            self._daily_trade_date = today
+            self._daily_trade_count = 0
+        
+        if self._daily_trade_count >= self.MAX_DAILY_TRADES:
+            logger.info(
+                f"🚫 SKIPPED (daily limit): {self._daily_trade_count}/"
+                f"{self.MAX_DAILY_TRADES} trades today"
+            )
+            self._log_skipped_opportunity(
+                market_title=market_a_title,
+                spread_pct=spread_pct,
+                reason=f"Daily limit reached: {self.MAX_DAILY_TRADES} trades",
+                opportunity_info={
+                    "market_a_id": market_a_id,
+                    "market_b_id": market_b_id,
+                    "platform_a": platform_a,
+                    "platform_b": platform_b,
+                    "price_a": float(price_a),
+                    "price_b": float(price_b),
+                    "arbitrage_type": arbitrage_type,
+                }
+            )
+            return None
+
         # ========== SAME-PLATFORM FILTER ==========
         # Skip same-platform "overlap" trades - they're NOT real arbitrage!
         # EXCEPTION: Single-platform arb is INTENTIONALLY same-platform
@@ -1109,6 +1146,9 @@ class RealisticPaperTrader:
 
         # Store trade
         self.trades[trade.id] = trade
+        
+        # ========== INCREMENT DAILY TRADE COUNTER ==========
+        self._daily_trade_count += 1
         
         # ========== MARK MARKETS AS TRADED (COOLDOWN) ==========
         # CRITICAL: This prevents unrealistic repeated trades

@@ -22,10 +22,10 @@ class TradingConfig:
     simulation_starting_balance: float = 10000.0
     
     # Minimum profit threshold (percentage) to execute a trade
-    min_profit_percent: float = 1.0
+    min_profit_percent: float = 2.0  # RAISED from 1.0% - tiny spreads = slippage eats profit
     
     # Maximum trade size in USD
-    max_trade_size: float = 100.0
+    max_trade_size: float = 25.0  # REDUCED from 100 - smaller size = less slippage impact
     
     # Maximum daily loss before circuit breaker triggers (USD)
     max_daily_loss: float = 50.0
@@ -66,20 +66,22 @@ class TradingConfig:
     # =========================================================================
     # POLYMARKET SINGLE - PhD Research Optimized (Saguillo et al., 2025)
     # Academic data: $40M extracted at 0.3-2% margins, 0% trading fees
+    # TUNED 2024-12-26: Raised min profit to 2% to filter tiny spreads eaten by slippage
     # =========================================================================
-    poly_single_min_profit_pct: float = 0.3    # Aggressive: 0% fees = micro-arb works
+    poly_single_min_profit_pct: float = 2.0    # RAISED from 0.3% - tiny spreads = slippage eats profit
     poly_single_max_spread_pct: float = 30.0   # RAISED from 12% - big spreads are real!
-    poly_single_max_position_usd: float = 100.0 # Single-plat is safest
+    poly_single_max_position_usd: float = 35.0 # REDUCED from 100 - underperforming (40% WR)
     poly_single_scan_interval_sec: int = 5     # Every 5 seconds - catch all edges
     poly_single_min_conditions: int = 2        # Prioritize 3+ condition markets
     
     # =========================================================================
     # KALSHI SINGLE - Fee-Adjusted (7% on profits = need 8%+ gross)
     # Only profitable if spread exceeds fee drag significantly
+    # TUNED 2024-12-26: BEST PERFORMER (76% WR, $1,223 P&L) - increased allocation!
     # =========================================================================
     kalshi_single_min_profit_pct: float = 8.0  # RAISED: 7% fees + 1% net = 8% minimum
     kalshi_single_max_spread_pct: float = 30.0 # RAISED from 15% - big spreads are real!
-    kalshi_single_max_position_usd: float = 50.0  # Increased from 30 - scale wins
+    kalshi_single_max_position_usd: float = 75.0  # RAISED from 50 - best performer gets 60% allocation
     kalshi_single_scan_interval_sec: int = 5   # FASTEST: every 5 seconds
     
     # =========================================================================
@@ -548,10 +550,10 @@ class Config:
         self.trading = TradingConfig(
             dry_run=self._get_bool("dry_run", "DRY_RUN", True),
             min_profit_percent=self._get_float(
-                "min_profit_percent", "MIN_PROFIT_PERCENT", 1.0
+                "min_profit_percent", "MIN_PROFIT_PERCENT", 2.0  # RAISED from 1.0%
             ),
             max_trade_size=self._get_float(
-                "max_trade_size", "MAX_TRADE_SIZE", 100.0
+                "max_trade_size", "MAX_TRADE_SIZE", 25.0  # REDUCED from 100
             ),
             max_daily_loss=self._get_float(
                 "max_daily_loss", "MAX_DAILY_LOSS", 50.0
@@ -585,30 +587,30 @@ class Config:
                 True
             ),
             # ============================================================
-            # PER-STRATEGY SETTINGS (loaded from Supabase)
+            # PER-STRATEGY SETTINGS (TUNED 2024-12-26 based on simulation)
             # ============================================================
-            # Polymarket Single
+            # Polymarket Single - RAISED min profit, REDUCED position (underperforming)
             poly_single_min_profit_pct=self._get_float(
-                "poly_single_min_profit_pct", "POLY_SINGLE_MIN_PROFIT_PCT", 0.5
+                "poly_single_min_profit_pct", "POLY_SINGLE_MIN_PROFIT_PCT", 2.0  # RAISED from 0.5
             ),
             poly_single_max_spread_pct=self._get_float(
-                "poly_single_max_spread_pct", "POLY_SINGLE_MAX_SPREAD_PCT", 15.0
+                "poly_single_max_spread_pct", "POLY_SINGLE_MAX_SPREAD_PCT", 30.0  # RAISED from 15
             ),
             poly_single_max_position_usd=self._get_float(
-                "poly_single_max_position_usd", "POLY_SINGLE_MAX_POS_USD", 50.0
+                "poly_single_max_position_usd", "POLY_SINGLE_MAX_POS_USD", 35.0  # REDUCED from 50
             ),
             poly_single_scan_interval_sec=self._get_int(
                 "poly_single_scan_interval_sec", "POLY_SINGLE_SCAN_SEC", 60
             ),
-            # Kalshi Single (higher thresholds due to 7% fees)
+            # Kalshi Single - BEST PERFORMER (76% WR) - INCREASED position
             kalshi_single_min_profit_pct=self._get_float(
-                "kalshi_single_min_profit_pct", "KALSHI_SINGLE_MIN_PROFIT_PCT", 2.0
+                "kalshi_single_min_profit_pct", "KALSHI_SINGLE_MIN_PROFIT_PCT", 8.0  # RAISED from 2.0
             ),
             kalshi_single_max_spread_pct=self._get_float(
-                "kalshi_single_max_spread_pct", "KALSHI_SINGLE_MAX_SPREAD_PCT", 15.0
+                "kalshi_single_max_spread_pct", "KALSHI_SINGLE_MAX_SPREAD_PCT", 30.0  # RAISED from 15
             ),
             kalshi_single_max_position_usd=self._get_float(
-                "kalshi_single_max_position_usd", "KALSHI_SINGLE_MAX_POS_USD", 50.0
+                "kalshi_single_max_position_usd", "KALSHI_SINGLE_MAX_POS_USD", 75.0  # RAISED from 50
             ),
             kalshi_single_scan_interval_sec=self._get_int(
                 "kalshi_single_scan_interval_sec", "KALSHI_SINGLE_SCAN_SEC", 60
