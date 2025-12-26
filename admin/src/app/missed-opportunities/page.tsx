@@ -187,7 +187,7 @@ function MissedOpportunitiesContent() {
                 </div>
                 <div className="text-right">
                   <span className="block text-neon-green font-mono">Bullish Div</span>
-                  <Link href="/insights" className="text-xs text-neon-blue hover:text-white">View AI Analysis &rarr;</Link>
+                  <Link href="/strategies" className="text-xs text-neon-blue hover:text-white">Adjust RSI Threshold &rarr;</Link>
                 </div>
               </div>
 
@@ -198,7 +198,7 @@ function MissedOpportunitiesContent() {
                 </div>
                 <div className="text-right">
                   <span className="block text-yellow-400 font-mono">Neutral</span>
-                  <Link href="/settings?tab=strategies" className="text-xs text-neon-blue hover:text-white">Adjust Strategy Settings &rarr;</Link>
+                  <Link href="/strategies" className="text-xs text-neon-blue hover:text-white">View Arb Settings &rarr;</Link>
                 </div>
               </div>
             </div>

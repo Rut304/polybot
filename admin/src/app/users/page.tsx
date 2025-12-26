@@ -74,11 +74,15 @@ export default function UsersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, updates: { role: newRole } }),
       });
-      if (!res.ok) throw new Error('Failed to update');
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('Role update error:', data);
+        throw new Error(data.error || 'Failed to update');
+      }
       refetch();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update user role:', err);
-      alert('Failed to update user role');
+      alert(`Failed to update user role: ${err.message}`);
     }
   };
 

@@ -160,7 +160,21 @@ function BalanceDetails({ stats, statsJson, realTimeStats, trades, startingBalan
   const totalPnL = realTimeStats?.all_time_pnl ?? stats?.total_pnl ?? 0;
   const currentBalance = realTimeStats?.all_time_balance ?? (startingBalance + totalPnL);
   const roiPct = realTimeStats?.roi_pct ?? (startingBalance > 0 ? (totalPnL / startingBalance) * 100 : 0);
-  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
+  
+  // FIX: Calculate fees from actual trades instead of potentially stale stats_json
+  const totalTradeCount = realTimeStats?.all_time_trades ?? statsJson?.total_simulated_trades ?? trades.length;
+  const statsJsonFees = parseFloat(statsJson?.total_fees_paid || '0');
+  
+  // Calculate fees directly from trades if we have them and stats seem stale
+  const calculatedFees = trades.reduce((sum, t) => sum + (t.total_fees_usd || 0), 0);
+  
+  // Use calculated fees if stats_json fees seem unreasonably high compared to trade count
+  // A single trade shouldn't have more than ~$50 in fees (based on max position of $150)
+  const maxReasonableFees = Math.max(totalTradeCount * 50, 100);
+  const totalFees = (statsJsonFees > maxReasonableFees && calculatedFees < statsJsonFees) 
+    ? calculatedFees 
+    : (calculatedFees > 0 ? calculatedFees : statsJsonFees);
+  
   const balancePct = Math.min(500, (currentBalance / startingBalance) * 100);
   
   return (
@@ -202,9 +216,16 @@ function PnLDetails({ stats, statsJson, realTimeStats, trades }: { stats: Simula
   
   // Get values from statsJson (computed server-side) or realTimeStats
   const totalLosses = parseFloat(statsJson?.total_losses || '0');
-  const totalFees = parseFloat(statsJson?.total_fees_paid || '0');
+  const statsJsonFees = parseFloat(statsJson?.total_fees_paid || '0');
   const bestTrade = realTimeStats?.best_trade_profit ?? parseFloat(statsJson?.best_trade_profit || '0');
   const worstTrade = realTimeStats?.worst_trade_loss ?? parseFloat(statsJson?.worst_trade_loss || '0');
+  
+  // FIX: Calculate fees from actual trades if stats_json seems stale
+  const calculatedFees = trades.reduce((sum, t) => sum + (t.total_fees_usd || 0), 0);
+  const maxReasonableFees = Math.max(totalTrades * 50, 100);
+  const totalFees = (statsJsonFees > maxReasonableFees && calculatedFees < statsJsonFees) 
+    ? calculatedFees 
+    : (calculatedFees > 0 ? calculatedFees : statsJsonFees);
   
   // Gross profit = P&L + Losses (since P&L already accounts for losses)
   const totalGrossProfit = totalPnL + totalLosses + totalFees;
