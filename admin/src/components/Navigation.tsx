@@ -109,13 +109,21 @@ const navSections: NavSection[] = [
   {
     title: 'Admin',
     items: [
+      { href: '/admin', label: 'Admin Dashboard', icon: Shield, adminOnly: true },
+      { href: '/admin/subscriptions', label: 'Subscriptions', icon: Coins, adminOnly: true },
+      { href: '/admin/support', label: 'AI Support', icon: Brain, adminOnly: true },
       { href: '/diagnostics', label: 'Diagnostics', icon: Activity, adminOnly: true },
-      { href: '/docs', label: 'Documentation', icon: BookOpen },
       { href: '/strategies', label: 'Strategies', icon: Target, adminOnly: true },
-      { href: '/settings', label: 'Settings', icon: Settings },
       { href: '/secrets', label: 'API Keys', icon: Key, adminOnly: true },
-      { href: '/logs', label: 'Audit Logs', icon: FileText, adminOnly: true },
       { href: '/users', label: 'Users', icon: Users, adminOnly: true },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { href: '/settings', label: 'Settings', icon: Settings },
+      { href: '/pricing', label: 'Pricing', icon: Store },
+      { href: '/docs', label: 'Documentation', icon: BookOpen },
     ],
   },
 ];

@@ -219,17 +219,45 @@ CREATE POLICY "Users can update own profile"
   WITH CHECK (auth.uid() = id);
 
 -- ==========================================
+-- ADMIN AUDIT LOG TABLE
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS polybot_admin_audit_log (
+  id SERIAL PRIMARY KEY,
+  admin_user_id UUID REFERENCES auth.users(id),
+  action TEXT NOT NULL,
+  target_user_id UUID REFERENCES auth.users(id),
+  changes JSONB,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_created 
+ON polybot_admin_audit_log(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_target 
+ON polybot_admin_audit_log(target_user_id);
+
+-- ==========================================
 -- SAMPLE DATA (for testing)
 -- ==========================================
 
+-- Ensure email column exists (might be missing in some deployments)
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS email TEXT;
+
 -- Update existing admin user to elite tier for testing
+-- Use a subquery to find the user by auth.users email
 UPDATE polybot_profiles
 SET subscription_tier = 'elite',
     subscription_status = 'active',
     monthly_trades_limit = -1,
     is_simulation = FALSE,
     onboarding_completed = TRUE
-WHERE email = 'rutrohd@gmail.com';
+WHERE id IN (
+  SELECT id FROM auth.users WHERE email = 'rutrohd@gmail.com'
+);
 
 -- ==========================================
 -- VERIFICATION
