@@ -321,7 +321,7 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-8">
-              Start free, upgrade when you're ready to go live.
+              Start free, upgrade when you&apos;re ready to go live.
             </p>
           </div>
           
@@ -426,7 +426,7 @@ export default function LandingPage() {
                     <Star key={j} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                   ))}
                 </div>
-                <p className="text-gray-300 mb-4">"{testimonial.quote}"</p>
+                <p className="text-gray-300 mb-4">&ldquo;{testimonial.quote}&rdquo;</p>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-green to-neon-blue flex items-center justify-center font-bold">
                     {testimonial.avatar}
