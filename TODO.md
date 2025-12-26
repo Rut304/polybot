@@ -23,6 +23,7 @@
   - [x] Step 3: Final confirmation with strategy list
   - [x] Check for API keys before allowing live mode
   - [x] All strategies start DISABLED when switching to live
+  - [x] **BIG RED WARNING** - Enhanced with massive red header, danger zone, pulsing icons
   - Created: `/admin/src/components/LiveTradingGate.tsx`
   - Updated: `/admin/src/components/TradingModeToggle.tsx`
 
@@ -57,6 +58,11 @@
   - [x] Alert when hitting free tier limit
   - Updated: `/admin/src/app/strategies/page.tsx`
 
+- [x] **TERMINOLOGY CHANGE** 📝 ✅
+  - [x] Changed all "Simulation" to "Paper Trading" in UI
+  - [x] Updated: TradingModeToggle, OnboardingWizard, QuickStartGuide
+  - [x] Updated: Dashboard page, ManualTradeModal, Tooltip, UserTierEditor
+
 - [ ] **SECRETS PAGE IMPROVEMENTS** 🔐
   - [x] API key management with edit/delete (EXISTS)
   - [x] Platform signup links (Polymarket, Kalshi, Alpaca) (EXISTS)
@@ -66,19 +72,16 @@
 
 ### 🐛 BUGS TO INVESTIGATE
 
-- [ ] **FEE CALCULATION BUG** 💰 (Priority)
+- [x] **FEE CALCULATION BUG** 💰 (INVESTIGATED - Data Issue)
   - Balance Details modal shows $332+ in "Total Fees Paid"
-  - Only 1 trade has been made so far
-  - Need to investigate fee tracking logic
-  - Possible causes:
-    - Fees from previous trades being carried over incorrectly
-    - Incorrect fee calculation in `src/analytics/` or `src/services/`
-    - Database migration issue with fee columns
-    - Fee data not being reset when starting fresh
-  - Files to check:
-    - `/admin/src/app/balances/` - Balance page logic
-    - `/src/services/analytics_engine.py` - Fee calculations
-    - Database tables: `polybot_trades`, `polybot_balances`
+  - **Root Cause**: `stats_json.total_fees_paid` in `polybot_simulation_stats` table has accumulated fees from previous sessions
+  - **Solution**: User needs to click "Reset Simulation" in Settings to clear old data
+  - The Reset endpoint properly initializes `stats_json` with `total_fees_paid: '0.00'`
+  - Files checked:
+    - `/admin/src/components/StatDetailModal.tsx` - Frontend display logic ✓
+    - `/admin/src/app/api/simulation/reset/route.ts` - Reset logic correctly clears fees ✓
+    - `/src/simulation/paper_trader_realistic.py` - Fee accumulation logic ✓
+  - **Note**: Not a code bug - just stale data from previous sessions
 
 - [ ] **STRIPE INTEGRATION** 💳
   - [ ] Wire up Stripe checkout for Pro ($9.99/mo) and Elite ($99.99/mo)
@@ -91,7 +94,7 @@
 
 - [x] **TIER LIMITS DEFINED** ✅ (in `/admin/src/lib/privy.ts`)
 
-  ```
+  ```text
   Free:  3 strategies, 100 trades/mo, basic analytics
   Pro:   All strategies, 1000 trades/mo, AI analytics, autonomous RSI
   Elite: Unlimited trades, whale tracking, congressional tracker, priority support
