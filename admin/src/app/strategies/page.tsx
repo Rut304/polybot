@@ -1453,6 +1453,9 @@ export default function StrategiesPage() {
   // Free tier strategy limit
   const FREE_TIER_STRATEGY_LIMIT = 3;
   const FREE_TIER_STRATEGIES = ['single_platform_arb', 'news_arbitrage', 'market_making'];
+  
+  // Upgrade modal state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // State
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['prediction-core']));
@@ -1555,7 +1558,7 @@ export default function StrategiesPage() {
     if (!currentValue && isFree && !isAdmin) {
       const currentEnabled = getEnabledCount();
       if (currentEnabled >= FREE_TIER_STRATEGY_LIMIT) {
-        alert(`Free tier is limited to ${FREE_TIER_STRATEGY_LIMIT} strategies. Upgrade to Pro for unlimited strategies.`);
+        setShowUpgradeModal(true);
         return;
       }
     }
@@ -2073,6 +2076,35 @@ export default function StrategiesPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Upgrade Modal for Free Tier Strategy Limit */}
+      {showUpgradeModal && (
+        <UpgradeModalWrapper 
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          currentTier={tier as 'free' | 'pro' | 'elite'}
+          highlightTier="pro"
+          trigger="strategy_limit"
+        />
+      )}
     </div>
   );
+}
+
+// Wrapper component for UpgradeModal to handle dynamic import
+function UpgradeModalWrapper(props: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  currentTier: 'free' | 'pro' | 'elite'; 
+  highlightTier?: 'pro' | 'elite';
+  trigger?: string;
+}) {
+  const [UpgradeModal, setUpgradeModal] = useState<React.ComponentType<any> | null>(null);
+  
+  useEffect(() => {
+    import('@/components/UpgradeModal').then(mod => setUpgradeModal(() => mod.default));
+  }, []);
+  
+  if (!UpgradeModal) return null;
+  return <UpgradeModal {...props} />;
 }

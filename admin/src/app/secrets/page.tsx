@@ -21,10 +21,28 @@ import {
   Upload,
   Download,
   Rocket,
+  Zap,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+
+// Platform to category mapping for test connections
+const TESTABLE_PLATFORMS: Record<string, string[]> = {
+  prediction_markets: ['polymarket', 'kalshi'],
+  crypto_exchanges: ['binance', 'coinbase'],
+  stock_brokers: ['alpaca'],
+};
+
+interface ConnectionStatus {
+  connected: boolean;
+  balance?: number;
+  error?: string;
+  details?: string;
+  lastChecked?: Date;
+}
 
 interface Secret {
   key_name: string;
@@ -155,6 +173,10 @@ export default function SecretsPage() {
   const [reauthPassword, setReauthPassword] = useState('');
   const [reauthError, setReauthError] = useState<string | null>(null);
   const [reauthLoading, setReauthLoading] = useState(false);
+
+  // Connection testing state
+  const [connectionStatus, setConnectionStatus] = useState<Record<string, ConnectionStatus>>({});
+  const [testingConnection, setTestingConnection] = useState<string | null>(null);
 
   // Check if reauth session is still valid
   const checkReauthValid = useCallback(() => {
@@ -382,6 +404,64 @@ export default function SecretsPage() {
 
   // Legacy redeploy function (for backwards compatibility)
   const redeployBot = () => restartBot('restart');
+
+  // Test connection to a platform
+  const testConnection = async (platform: string) => {
+    if (!user?.id) return;
+    
+    setTestingConnection(platform);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, userId: user.id }),
+      });
+      
+      const result = await response.json();
+      
+      setConnectionStatus(prev => ({
+        ...prev,
+        [platform]: {
+          connected: result.connected,
+          balance: result.balance,
+          error: result.error,
+          details: result.details,
+          lastChecked: new Date(),
+        },
+      }));
+      
+      if (result.connected) {
+        setSuccess(`✓ ${platform} connection verified${result.details ? `: ${result.details}` : ''}`);
+        setTimeout(() => setSuccess(null), 5000);
+      } else {
+        setError(`${platform}: ${result.error || 'Connection failed'}`);
+      }
+    } catch (err: any) {
+      setConnectionStatus(prev => ({
+        ...prev,
+        [platform]: {
+          connected: false,
+          error: err.message || 'Connection test failed',
+          lastChecked: new Date(),
+        },
+      }));
+      setError(`${platform}: ${err.message || 'Connection test failed'}`);
+    } finally {
+      setTestingConnection(null);
+    }
+  };
+
+  // Test all connections in a category
+  const testAllConnections = async (category: string) => {
+    const platforms = TESTABLE_PLATFORMS[category];
+    if (!platforms) return;
+    
+    for (const platform of platforms) {
+      await testConnection(platform);
+    }
+  };
 
   const handleEdit = (secret: Secret) => {
     // Require re-authentication for editing secrets
@@ -802,10 +882,11 @@ export default function SecretsPage() {
               </svg>
             </button>
 
-            {/* Signup Links */}
-            {isExpanded && info.signupLinks && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {info.signupLinks.map(link => (
+            {/* Signup Links & Connection Test */}
+            {isExpanded && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {/* Signup Links */}
+                {info.signupLinks?.map(link => (
                   <a
                     key={link.name}
                     href={link.url}
@@ -817,6 +898,49 @@ export default function SecretsPage() {
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 ))}
+                
+                {/* Connection Status Indicators */}
+                {TESTABLE_PLATFORMS[category]?.map(platform => {
+                  const status = connectionStatus[platform];
+                  return (
+                    <div key={platform} className="flex items-center gap-1">
+                      {status && (
+                        <span className={`text-xs px-2 py-1 rounded-lg flex items-center gap-1 ${
+                          status.connected 
+                            ? 'bg-green-500/20 text-green-400' 
+                            : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          {status.connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                          {platform}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                {/* Test Connection Button */}
+                {TESTABLE_PLATFORMS[category] && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      testAllConnections(category);
+                    }}
+                    disabled={testingConnection !== null}
+                    className="text-xs px-3 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded-lg flex items-center gap-1 transition-colors disabled:opacity-50"
+                  >
+                    {testingConnection && TESTABLE_PLATFORMS[category]?.includes(testingConnection) ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-3 h-3" />
+                        Test Connections
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
 

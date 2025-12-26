@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   Database,
   RefreshCw,
+  Gift,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -93,12 +94,170 @@ function ToggleSwitch({ enabled, onToggle, disabled, size = 'md' }: ToggleSwitch
 }
 
 import { CircuitBreakerStatus } from '@/components/CircuitBreakerStatus';
+import { useTier } from '@/lib/useTier';
+import { Crown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
+
+// Subscription Section Component
+function SubscriptionSection() {
+  const { tier, profile, isPro, isElite, isFree } = useTier();
+  const [loading, setLoading] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const handleManageSubscription = async () => {
+    if (!profile?.id) return;
+    setLoading(true);
+    
+    try {
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
+          returnUrl: window.location.href,
+        }),
+      });
+      
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error('Failed to open billing portal:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTierBadge = () => {
+    if (isElite) return { icon: Crown, color: 'yellow', label: 'Elite' };
+    if (isPro) return { icon: Sparkles, color: 'blue', label: 'Pro' };
+    return { icon: Gift, color: 'gray', label: 'Free' };
+  };
+
+  const badge = getTierBadge();
+  const BadgeIcon = badge.icon;
+
+  return (
+    <div className="card">
+      <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+        <CreditCard className="w-5 h-5 text-neon-blue" />
+        Subscription
+      </h2>
+      
+      <div className="p-4 bg-dark-border/30 rounded-xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-12 h-12 rounded-xl flex items-center justify-center",
+              badge.color === 'yellow' && "bg-yellow-500/20",
+              badge.color === 'blue' && "bg-blue-500/20",
+              badge.color === 'gray' && "bg-gray-500/20",
+            )}>
+              <BadgeIcon className={cn(
+                "w-6 h-6",
+                badge.color === 'yellow' && "text-yellow-400",
+                badge.color === 'blue' && "text-blue-400",
+                badge.color === 'gray' && "text-gray-400",
+              )} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">{badge.label} Plan</h3>
+                {profile?.subscriptionStatus === 'active' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/20 text-green-400 uppercase">
+                    Active
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-400">
+                {isFree 
+                  ? 'Unlimited paper trading, 3 strategies' 
+                  : isPro 
+                    ? '1,000 live trades/month, all strategies'
+                    : 'Unlimited live trades, premium features'}
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            {!isFree && profile?.stripeCustomerId && (
+              <button
+                onClick={handleManageSubscription}
+                disabled={loading}
+                className="px-4 py-2 bg-dark-border hover:bg-gray-700 text-white rounded-lg font-semibold text-sm flex items-center gap-2"
+              >
+                {loading ? 'Loading...' : <>Manage Billing <ExternalLink className="w-4 h-4" /></>}
+              </button>
+            )}
+            
+            {!isElite && (
+              <button
+                onClick={() => setShowUpgrade(true)}
+                className={cn(
+                  "px-4 py-2 rounded-lg font-semibold text-sm",
+                  isFree
+                    ? "bg-neon-blue hover:bg-blue-600 text-white"
+                    : "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black"
+                )}
+              >
+                {isFree ? 'Upgrade to Pro' : 'Upgrade to Elite'}
+              </button>
+            )}
+          </div>
+        </div>
+        
+        {/* Trade limits for Pro users */}
+        {isPro && (
+          <div className="mt-4 pt-4 border-t border-dark-border">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Live trades this month</span>
+              <span className="text-white">
+                {profile?.monthlyTradesUsed || 0} / {profile?.monthlyTradesLimit || 1000}
+              </span>
+            </div>
+            <div className="mt-2 h-2 bg-dark-border rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-neon-blue rounded-full transition-all"
+                style={{ 
+                  width: `${Math.min(((profile?.monthlyTradesUsed || 0) / (profile?.monthlyTradesLimit || 1000)) * 100, 100)}%` 
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Upgrade Modal - Dynamically imported to avoid SSR issues */}
+      {showUpgrade && (
+        <UpgradeModalWrapper 
+          isOpen={showUpgrade}
+          onClose={() => setShowUpgrade(false)}
+          currentTier={tier}
+          highlightTier={isFree ? 'pro' : 'elite'}
+        />
+      )}
+    </div>
+  );
+}
+
+// Wrapper component for UpgradeModal to handle dynamic import
+function UpgradeModalWrapper(props: { isOpen: boolean; onClose: () => void; currentTier: 'free' | 'pro' | 'elite'; highlightTier?: 'pro' | 'elite' }) {
+  const [UpgradeModal, setUpgradeModal] = useState<React.ComponentType<any> | null>(null);
+  
+  useEffect(() => {
+    import('@/components/UpgradeModal').then(mod => setUpgradeModal(() => mod.default));
+  }, []);
+  
+  if (!UpgradeModal) return null;
+  return <UpgradeModal {...props} />;
+}
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const { isPro, isElite } = useTier();
   const { data: status } = useBotStatus();
   const { data: config, isLoading: configLoading } = useBotConfig();
 
@@ -257,6 +416,12 @@ export default function SettingsPage() {
   const [meanRevMaxPositions, setMeanRevMaxPositions] = useState(config?.mean_rev_max_positions ?? 5);
   const [meanRevStopLossPct, setMeanRevStopLossPct] = useState(config?.mean_rev_stop_loss_pct ?? 5);
   const [meanRevTakeProfitPct, setMeanRevTakeProfitPct] = useState(config?.mean_rev_take_profit_pct ?? 10);
+
+  // Autonomous RSI Optimization (Pro feature - auto-adjusts RSI thresholds)
+  const [enableAutonomousRsi, setEnableAutonomousRsi] = useState(config?.autonomous_rsi_enabled ?? false);
+  const [autonomousRsiMinTrades, setAutonomousRsiMinTrades] = useState(config?.autonomous_rsi_min_trades ?? 20);
+  const [autonomousRsiAdjustmentPct, setAutonomousRsiAdjustmentPct] = useState(config?.autonomous_rsi_adjustment_pct ?? 5.0);
+  const [autonomousRsiLearningRate, setAutonomousRsiLearningRate] = useState(config?.autonomous_rsi_learning_rate ?? 0.1);
 
   // Stock Momentum (75% confidence - 20-40% APY)
   const [enableStockMomentum, setEnableStockMomentum] = useState(config?.enable_stock_momentum ?? false);
@@ -635,6 +800,12 @@ export default function SettingsPage() {
       if (config.mean_rev_stop_loss_pct !== undefined) setMeanRevStopLossPct(config.mean_rev_stop_loss_pct);
       if (config.mean_rev_take_profit_pct !== undefined) setMeanRevTakeProfitPct(config.mean_rev_take_profit_pct);
 
+      // Autonomous RSI (Pro feature)
+      if (config.autonomous_rsi_enabled !== undefined) setEnableAutonomousRsi(config.autonomous_rsi_enabled);
+      if (config.autonomous_rsi_min_trades !== undefined) setAutonomousRsiMinTrades(config.autonomous_rsi_min_trades);
+      if (config.autonomous_rsi_adjustment_pct !== undefined) setAutonomousRsiAdjustmentPct(config.autonomous_rsi_adjustment_pct);
+      if (config.autonomous_rsi_learning_rate !== undefined) setAutonomousRsiLearningRate(config.autonomous_rsi_learning_rate);
+
       if (config.enable_stock_momentum !== undefined) setEnableStockMomentum(config.enable_stock_momentum);
       if (config.momentum_lookback_days !== undefined) setMomentumLookbackDays(config.momentum_lookback_days);
       if (config.momentum_min_score !== undefined) setMomentumMinScore(config.momentum_min_score);
@@ -1007,6 +1178,12 @@ export default function SettingsPage() {
         stock_mr_stop_loss_pct: meanRevStopLossPct,
         stock_mr_take_profit_pct: meanRevTakeProfitPct,
 
+        // Autonomous RSI (Pro feature)
+        autonomous_rsi_enabled: enableAutonomousRsi,
+        autonomous_rsi_min_trades: autonomousRsiMinTrades,
+        autonomous_rsi_adjustment_pct: autonomousRsiAdjustmentPct,
+        autonomous_rsi_learning_rate: autonomousRsiLearningRate,
+
         enable_stock_momentum: enableStockMomentum,
         stock_momentum_lookback_days: momentumLookbackDays,
         stock_momentum_min_score: momentumMinScore,
@@ -1349,6 +1526,98 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Subscription Section */}
+            <SubscriptionSection />
+
+            {/* Autonomous RSI Section (Pro/Elite only) */}
+            {(isPro || isElite) && (
+              <div className="card mt-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
+                    <Activity className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold flex items-center gap-2">
+                      Autonomous RSI Optimization
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">
+                        AI-Powered
+                      </span>
+                    </h3>
+                    <p className="text-sm text-gray-400">
+                      Automatically adjusts RSI thresholds based on market performance
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
+                    <div>
+                      <h4 className="font-medium">Enable Autonomous RSI</h4>
+                      <p className="text-sm text-gray-500">
+                        Let AI optimize your RSI oversold/overbought thresholds based on trade outcomes
+                      </p>
+                    </div>
+                    <ToggleSwitch
+                      enabled={enableAutonomousRsi}
+                      onToggle={() => setEnableAutonomousRsi(!enableAutonomousRsi)}
+                      disabled={!isAdmin}
+                    />
+                  </div>
+
+                  {enableAutonomousRsi && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-dark-border/20 rounded-xl">
+                      <div>
+                        <label className="text-sm text-gray-400">Min Trades Before Adjusting</label>
+                        <input
+                          type="number"
+                          value={autonomousRsiMinTrades}
+                          onChange={(e) => setAutonomousRsiMinTrades(Number(e.target.value))}
+                          className="w-full bg-dark-border rounded-lg p-2 mt-1"
+                          placeholder="20"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Trades needed for reliable data</p>
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-400">Max Adjustment %</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={autonomousRsiAdjustmentPct}
+                          onChange={(e) => setAutonomousRsiAdjustmentPct(Number(e.target.value))}
+                          className="w-full bg-dark-border rounded-lg p-2 mt-1"
+                          placeholder="5.0"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Max RSI change per cycle</p>
+                      </div>
+                      <div>
+                        <label className="text-sm text-gray-400">Learning Rate</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          value={autonomousRsiLearningRate}
+                          onChange={(e) => setAutonomousRsiLearningRate(Number(e.target.value))}
+                          className="w-full bg-dark-border rounded-lg p-2 mt-1"
+                          placeholder="0.1"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Adaptation speed (0-1)</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-400 mt-0.5" />
+                      <div className="text-sm text-purple-300">
+                        <strong>How it works:</strong> After {autonomousRsiMinTrades} trades, the system analyzes win rates
+                        at different RSI levels and gradually shifts thresholds toward more profitable zones.
+                        Current RSI: Oversold ≤{meanRevRsiOversold}, Overbought ≥{meanRevRsiOverbought}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
