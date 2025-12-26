@@ -95,7 +95,7 @@ const navSections: NavSection[] = [
       { href: '/balances', label: 'Balances', icon: Coins },
       { href: '/history', label: 'Trade History', icon: History },
       { href: '/business', label: 'P&L Dashboard', icon: Briefcase, requiredTier: 'pro' },
-      { href: '/taxes', label: 'Tax Center', icon: Receipt, requiredTier: 'pro' },
+      { href: '/taxes', label: 'Tax Center', icon: Receipt, requiredTier: 'elite' },
     ],
   },
   {
@@ -103,6 +103,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
       { href: '/strategy-history', label: 'Strategy History', icon: History, requiredTier: 'pro' },
+      { href: '/strategy-builder', label: 'Strategy Builder', icon: Target, requiredTier: 'elite' },
     ],
   },
   {

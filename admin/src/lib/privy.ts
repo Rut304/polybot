@@ -88,43 +88,48 @@ export interface UserProfile {
 
 // Tier limits
 export const TIER_LIMITS: Record<SubscriptionTier, {
-  monthlyTrades: number;
+  monthlyTrades: number;      // Live trades per month (-1 = unlimited)
+  simulationTrades: number;   // Sim trades per month (-1 = unlimited)
   features: string[];
   price: number;
 }> = {
   free: {
-    monthlyTrades: 100,
+    monthlyTrades: 0,           // No live trading
+    simulationTrades: -1,       // Unlimited simulation
     features: [
-      'Basic Dashboard',
-      'Simulation Trading',
-      '3 Basic Strategies',
-      'Community Support',
+      'Unlimited Simulation Trading',
+      'Top 3 Strategies (Arbitrage, RSI, News)',
+      'Basic Dashboard & Analytics',
+      'Community Discord Access',
     ],
     price: 0,
   },
   pro: {
     monthlyTrades: 1000,
+    simulationTrades: -1,       // Unlimited simulation
     features: [
-      'Full Dashboard',
-      'Live Trading',
-      'All 10+ Strategies',
-      'Tax Center',
-      'Missed Money Analyzer',
-      'AI Superforecasting',
+      'Everything in Free',
+      '1,000 Live Trades/Month',
+      'All 10+ Automated Strategies',
+      'Automated RSI Trading',
+      'Advanced Analytics Dashboard',
+      'AI Market Insights',
       'Email Support',
     ],
-    price: 19.99,
+    price: 9.99,
   },
   elite: {
-    monthlyTrades: -1, // unlimited
+    monthlyTrades: -1,          // Unlimited live trades
+    simulationTrades: -1,       // Unlimited simulation
     features: [
       'Everything in Pro',
+      'Unlimited Live Trades',
       'Whale Tracker',
-      'Congress Tracker',
+      'Congress Tracker', 
+      'Tax Analysis & Reports',
+      'Custom Strategy Builder',
       'API Access',
-      'Custom Strategies',
       'Priority Support',
-      'Unlimited Trades',
     ],
     price: 49.99,
   },
@@ -152,23 +157,28 @@ export function canTrade(
   tradesUsed: number,
   isLive: boolean
 ): { allowed: boolean; reason?: string } {
-  // Free tier cannot do live trading
-  if (tier === 'free' && isLive) {
+  // Simulation trades are always unlimited for all tiers
+  if (!isLive) {
+    return { allowed: true };
+  }
+  
+  // Free tier cannot do live trading at all
+  if (tier === 'free') {
     return { allowed: false, reason: 'Upgrade to Pro for live trading' };
   }
   
   const limit = TIER_LIMITS[tier].monthlyTrades;
   
-  // Unlimited trades for elite
+  // Unlimited live trades for elite
   if (limit === -1) {
     return { allowed: true };
   }
   
-  // Check trade limit
+  // Check live trade limit (Pro tier)
   if (tradesUsed >= limit) {
     return { 
       allowed: false, 
-      reason: `Monthly trade limit reached (${limit}). Upgrade for more trades.` 
+      reason: `Monthly live trade limit reached (${limit}). Upgrade to Elite for unlimited.` 
     };
   }
   

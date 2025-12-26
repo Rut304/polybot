@@ -14,12 +14,13 @@ ADD COLUMN IF NOT EXISTS privy_user_id TEXT UNIQUE;
 ALTER TABLE polybot_profiles 
 ADD COLUMN IF NOT EXISTS wallet_address TEXT;
 
--- Trade counting for billing
+-- Trade counting for billing (only counts LIVE trades, not simulation)
 ALTER TABLE polybot_profiles 
 ADD COLUMN IF NOT EXISTS monthly_trades_used INTEGER DEFAULT 0;
 
+-- Trade limits by tier: Free=0 (no live), Pro=1000, Elite=-1 (unlimited)
 ALTER TABLE polybot_profiles 
-ADD COLUMN IF NOT EXISTS monthly_trades_limit INTEGER DEFAULT 100;
+ADD COLUMN IF NOT EXISTS monthly_trades_limit INTEGER DEFAULT 0;
 
 -- Trial tracking
 ALTER TABLE polybot_profiles 
@@ -74,15 +75,25 @@ $$ LANGUAGE plpgsql;
 
 -- ==========================================
 -- INCREMENT TRADE COUNT FUNCTION
+-- Only called for LIVE trades (simulation trades are free & unlimited)
 -- ==========================================
 
-CREATE OR REPLACE FUNCTION increment_user_trades(p_user_id UUID)
+CREATE OR REPLACE FUNCTION increment_user_trades(p_user_id UUID, p_is_simulation BOOLEAN DEFAULT FALSE)
 RETURNS JSON AS $$
 DECLARE
   v_trades_used INTEGER;
   v_trades_limit INTEGER;
   v_tier TEXT;
 BEGIN
+  -- Simulation trades don't count against limits
+  IF p_is_simulation THEN
+    RETURN json_build_object(
+      'success', true,
+      'mode', 'simulation',
+      'message', 'Simulation trades are unlimited'
+    );
+  END IF;
+
   SELECT monthly_trades_used, monthly_trades_limit, subscription_tier
   INTO v_trades_used, v_trades_limit, v_tier
   FROM polybot_profiles
@@ -92,17 +103,26 @@ BEGIN
     RETURN json_build_object('success', false, 'error', 'User not found');
   END IF;
   
-  -- Check limit (-1 means unlimited)
+  -- Free tier cannot do live trades (limit = 0)
+  IF v_tier = 'free' OR v_trades_limit = 0 THEN
+    RETURN json_build_object(
+      'success', false, 
+      'error', 'Upgrade to Pro for live trading',
+      'tier', v_tier
+    );
+  END IF;
+  
+  -- Check limit (-1 means unlimited for Elite)
   IF v_trades_limit != -1 AND v_trades_used >= v_trades_limit THEN
     RETURN json_build_object(
       'success', false, 
-      'error', 'Monthly trade limit reached',
+      'error', 'Monthly live trade limit reached. Upgrade to Elite for unlimited.',
       'trades_used', v_trades_used,
       'trades_limit', v_trades_limit
     );
   END IF;
   
-  -- Increment counter
+  -- Increment counter for live trades
   UPDATE polybot_profiles
   SET monthly_trades_used = monthly_trades_used + 1,
       updated_at = NOW()
