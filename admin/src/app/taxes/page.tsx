@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { EliteFeature } from '@/components/FeatureGate';
 
 interface TaxTransaction {
   id: string;
@@ -321,6 +322,7 @@ export default function TaxesPage() {
   };
 
   return (
+    <EliteFeature>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -791,5 +793,6 @@ export default function TaxesPage() {
         </div>
       </div>
     </div>
+    </EliteFeature>
   );
 }

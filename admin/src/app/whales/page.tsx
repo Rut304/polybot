@@ -33,6 +33,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { EliteFeature } from '@/components/FeatureGate';
 
 // Whale tier definitions based on PnL and volume
 const WHALE_TIERS = {
@@ -376,6 +377,7 @@ export default function WhalesPage() {
   }, [trackedWhales]);
 
   return (
+    <EliteFeature>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -949,5 +951,6 @@ export default function WhalesPage() {
         </div>
       </div>
     </div>
+    </EliteFeature>
   );
 }

@@ -1,9 +1,11 @@
 'use client';
 
 import { Building2, AlertCircle } from 'lucide-react';
+import { EliteFeature } from '@/components/FeatureGate';
 
 export default function CongressPage() {
   return (
+    <EliteFeature>
     <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -57,5 +59,6 @@ export default function CongressPage() {
         </div>
       </div>
     </div>
+    </EliteFeature>
   );
 }

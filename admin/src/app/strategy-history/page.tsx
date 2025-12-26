@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { ProFeature } from '@/components/FeatureGate';
 
 interface ConfigChange {
   id: number;
@@ -23,7 +24,7 @@ interface NewChange {
   change_type: string;
 }
 
-export default function StrategyHistoryPage() {
+function StrategyHistoryPageContent() {
   const [changes, setChanges] = useState<ConfigChange[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -436,5 +437,13 @@ export default function StrategyHistoryPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StrategyHistoryPage() {
+  return (
+    <ProFeature>
+      <StrategyHistoryPageContent />
+    </ProFeature>
   );
 }

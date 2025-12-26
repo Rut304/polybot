@@ -1375,12 +1375,14 @@ class PolybotRunner:
         
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
+            # Use configurable starting balance from database config
+            starting_balance = Decimal(str(self.config.trading.simulation_starting_balance))
             self.paper_trader = RealisticPaperTrader(
                 db_client=self.db,
-                starting_balance=Decimal("1000.00"),
+                starting_balance=starting_balance,
             )
             logger.info("✓ Realistic Paper Trader initialized")
-            logger.info("📊 Starting balance: $1,000.00")
+            logger.info(f"📊 Starting balance: ${starting_balance:,.2f}")
             logger.info("📉 Slippage, partial fills, failures enabled")
         else:
             # LIVE TRADING MODE - Initialize live execution clients

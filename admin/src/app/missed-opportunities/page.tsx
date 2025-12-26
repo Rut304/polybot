@@ -17,8 +17,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOpportunities, useBotConfig, useUpdateBotConfig } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
 import { Tooltip } from '@/components/Tooltip';
+import { ProFeature } from '@/components/FeatureGate';
 
-export default function MissedOpportunitiesPage() {
+function MissedOpportunitiesContent() {
   const [timeframeHours, setTimeframeHours] = useState(24);
   const { data: opportunities, isLoading } = useOpportunities(1000, timeframeHours);
   const { data: config } = useBotConfig();
@@ -245,6 +246,15 @@ export default function MissedOpportunitiesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Default export with tier gate
+export default function MissedOpportunitiesPage() {
+  return (
+    <ProFeature>
+      <MissedOpportunitiesContent />
+    </ProFeature>
   );
 }
 

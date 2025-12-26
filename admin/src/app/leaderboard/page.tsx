@@ -33,6 +33,7 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { ProFeature } from '@/components/FeatureGate';
 
 interface LeaderboardTrader {
   rank: number;
@@ -263,7 +264,7 @@ function generateInsights(traders: LeaderboardTrader[]): StrategyInsight[] {
 type SortField = 'rank' | 'pnl' | 'volume' | 'roi';
 type TierFilter = 'all' | 'elite' | 'pro' | 'skilled' | 'active' | 'volume';
 
-export default function LeaderboardPage() {
+function LeaderboardPageContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
@@ -860,5 +861,13 @@ export default function LeaderboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LeaderboardPage() {
+  return (
+    <ProFeature>
+      <LeaderboardPageContent />
+    </ProFeature>
   );
 }

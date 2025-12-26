@@ -24,6 +24,7 @@ import {
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { ProFeature } from '@/components/FeatureGate';
 
 interface CostItem {
   category: string;
@@ -295,13 +296,14 @@ export default function BusinessPage() {
   }[timeFrame];
 
   return (
+    <ProFeature>
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Building2 className="text-blue-400" />
-            RutRoh LLC
+            P&L Dashboard
             {dataMode === 'simulated' && (
               <span className="text-sm font-normal bg-blue-500/20 text-blue-400 px-2 py-1 rounded-md">
                 📊 Simulated P&L
@@ -724,5 +726,6 @@ export default function BusinessPage() {
         </p>
       </div>
     </div>
+    </ProFeature>
   );
 }

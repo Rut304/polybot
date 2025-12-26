@@ -33,6 +33,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ProFeature } from '@/components/FeatureGate';
 import {
   useSimulatedTrades,
   useOpportunities,
@@ -1150,6 +1151,7 @@ export default function InsightsPage() {
   const categories = ['all', 'performance', 'timing', 'sizing', 'platform', 'strategy', 'crypto', 'stocks', 'risk'] as const;
 
   return (
+    <ProFeature>
     <div className="p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
@@ -1518,5 +1520,6 @@ export default function InsightsPage() {
         </motion.div>
       </div>
     </div>
+    </ProFeature>
   );
 }

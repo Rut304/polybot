@@ -553,6 +553,7 @@ class Database:
                 "status": trade_data.get("status", "open"),
                 "created_at": datetime.utcnow().isoformat(),
                 "is_simulation": False,
+                "trading_mode": "live",  # Explicit live trading mode
             }
             
             if self.user_id:
