@@ -1616,6 +1616,11 @@ class PolybotRunner:
         # Generate ID
         opp_id = f"overlap_{opp.market_a.condition_id[:10]}_{opp.detected_at.timestamp():.0f}"
         
+        # Calculate total_profit in USD based on trade size and profit %
+        trade_size = float(self.config.trading.max_trade_size)
+        profit_pct = float(opp.profit_potential * 100)
+        total_profit_usd = trade_size * (profit_pct / 100.0)
+        
         # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
@@ -1628,7 +1633,9 @@ class PolybotRunner:
                 "sell_market_name": opp.market_b.question[:200],
                 "buy_price": 0.0,  # Overlapping arb doesn't have direct prices
                 "sell_price": 0.0,
-                "profit_percent": float(opp.profit_potential * 100),
+                "profit_percent": profit_pct,
+                "total_profit": total_profit_usd,
+                "max_size": trade_size,
                 "confidence": float(opp.confidence),
                 "strategy": f"overlapping_arb_{opp.relationship}",
                 "detected_at": opp.detected_at.isoformat(),
@@ -1723,6 +1730,10 @@ class PolybotRunner:
         else:
             opp_id = f"cross_{opp.buy_platform}_{opp.buy_market_id[:10]}_{opp.detected_at.timestamp():.0f}"
 
+        # Calculate total_profit in USD based on trade size and profit %
+        trade_size = float(self.config.trading.max_trade_size)
+        total_profit_usd = trade_size * (opp.profit_percent / 100.0)
+        
         # Log to database
         try:
             self.db.log_opportunity({
@@ -1737,6 +1748,8 @@ class PolybotRunner:
                 "buy_price": opp.buy_price,
                 "sell_price": opp.sell_price,
                 "profit_percent": opp.profit_percent,
+                "total_profit": total_profit_usd,
+                "max_size": trade_size,
                 "confidence": opp.confidence,
                 "strategy": opp.strategy,
                 "detected_at": opp.detected_at.isoformat(),
@@ -1841,6 +1854,10 @@ class PolybotRunner:
         # Generate predictable ID
         opp_id = f"single_{opp.platform}_{opp.market_id[:20]}_{opp.detected_at.timestamp():.0f}"
         
+        # Calculate total_profit in USD based on trade size and profit %
+        trade_size = float(self.config.trading.max_trade_size)
+        total_profit_usd = trade_size * (float(opp.profit_pct) / 100.0)
+        
         # Log to database
         try:
             self.db.log_opportunity({
@@ -1854,6 +1871,8 @@ class PolybotRunner:
                 "buy_price": float(opp.total_price),
                 "sell_price": 1.0,  # Guaranteed $1 payout
                 "profit_percent": float(opp.profit_pct),
+                "total_profit": total_profit_usd,
+                "max_size": trade_size,
                 "strategy": f"single_platform_{opp.platform}",
                 "detected_at": opp.detected_at.isoformat(),
                 "status": "detected",
@@ -2584,32 +2603,18 @@ class PolybotRunner:
         )
     
     async def on_news_alert(self, alert: MarketAlert):
-        """Handle news/sentiment alerts."""
+        """Handle news/sentiment alerts - informational signals, not arbitrage."""
         logger.info(
             f"[NEWS] {alert.alert_type}: {alert.news_item.title[:60]}... "
             f"-> {alert.suggested_action.upper()} confidence: {alert.confidence:.0%}"
         )
         
-        # Log to database with proper schema fields
-        try:
-            source_name = alert.news_item.source.value if hasattr(alert.news_item.source, 'value') else str(alert.news_item.source)
-            self.db.log_opportunity({
-                "id": f"news_{alert.market_condition_id[:15]}_{alert.created_at.timestamp():.0f}",
-                "buy_platform": "polymarket",  # News alerts are for Polymarket
-                "sell_platform": "polymarket",
-                "buy_market_id": alert.market_condition_id,
-                "sell_market_id": alert.market_condition_id,
-                "buy_market_name": alert.news_item.title[:200],
-                "sell_market_name": alert.market_question[:200],
-                "buy_price": 0.0,  # News alerts don't have direct prices
-                "sell_price": 0.0,
-                "profit_percent": 0.0,
-                "confidence": float(alert.confidence),
-                "strategy": f"news_sentiment_{source_name}",
-                "detected_at": alert.created_at.isoformat(),
-            })
-        except Exception as e:
-            logger.error(f"Error logging news alert: {e}")
+        # NOTE: News alerts are informational signals, NOT arbitrage opportunities.
+        # They don't have guaranteed profit like arbitrage (YES+NO<$1).
+        # Don't log them to opportunities table - they pollute missed money stats.
+        # 
+        # If news creates price divergence between platforms, that gets
+        # detected separately by NewsArbitrageStrategy with actual profit %.
     
     async def run_copy_trading(self):
         """Run copy trading engine."""
