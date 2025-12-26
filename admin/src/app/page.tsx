@@ -215,7 +215,7 @@ export default function Dashboard() {
             <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${
               isUserSimMode ? 'bg-neon-green/20 text-neon-green' : 'bg-red-500/20 text-red-400'
             }`}>
-              {isUserSimMode ? 'SIMULATION' : 'LIVE'}
+              {isUserSimMode ? 'PAPER TRADING' : 'LIVE'}
             </span>
           </p>
         </div>
@@ -245,7 +245,7 @@ export default function Dashboard() {
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title={isSimulation ? "Simulated Balance" : "Real Balance"}
+          title={isSimulation ? "Paper Balance" : "Real Balance"}
           tooltip={isSimulation ? METRIC_TOOLTIPS.simulatedBalance : "Your actual exchange balance"}
           value={formatCurrency(balance)}
           change={roiPct}

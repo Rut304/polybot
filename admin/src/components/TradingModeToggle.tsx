@@ -77,12 +77,12 @@ export function TradingModeToggle({ compact = false }: TradingModeToggleProps) {
             ${isChanging ? 'opacity-50 cursor-wait' : ''}
             ${isSimulation && isFree ? 'opacity-50 cursor-not-allowed' : ''}
           `}
-          title={isSimulation && isFree ? 'Upgrade to Pro for live trading' : isSimulation ? 'Click to enable live trading' : 'Click to switch to simulation'}
+          title={isSimulation && isFree ? 'Upgrade to Pro for live trading' : isSimulation ? 'Click to enable live trading' : 'Click to switch to paper trading'}
         >
           {isSimulation ? (
             <>
               <Activity className="w-3 h-3" />
-              <span>Simulation</span>
+              <span>Paper</span>
             </>
           ) : (
             <>
@@ -114,7 +114,7 @@ export function TradingModeToggle({ compact = false }: TradingModeToggleProps) {
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Simulation */}
+          {/* Paper Trading */}
           <button
             onClick={() => !isSimulation && handleToggle()}
             disabled={isChanging || isSimulation}
@@ -127,7 +127,7 @@ export function TradingModeToggle({ compact = false }: TradingModeToggleProps) {
             `}
           >
             <Activity className="w-4 h-4" />
-            Simulation
+            Paper Trading
           </button>
 
           {/* Live */}

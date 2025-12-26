@@ -62,8 +62,8 @@ const STEPS = [
   },
   {
     id: 'simulation',
-    title: 'Start in Simulation Mode',
-    description: 'Practice with paper money before risking real funds.',
+    title: 'Start with Paper Trading',
+    description: 'Practice with virtual money before risking real funds.',
     icon: Shield,
   },
 ];
@@ -229,7 +229,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
               </div>
               <div className="flex items-center gap-3 text-sm text-gray-300">
                 <CheckCircle className="w-5 h-5 text-neon-green flex-shrink-0" />
-                <span>Start with simulation - No real money risk</span>
+                <span>Start with paper trading - No real money risk</span>
               </div>
               <div className="flex items-center gap-3 text-sm text-gray-300">
                 <CheckCircle className="w-5 h-5 text-neon-green flex-shrink-0" />
@@ -396,9 +396,9 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             >
               <Activity className="w-10 h-10 text-neon-green" />
             </motion.div>
-            <h3 className="text-xl font-semibold text-white mb-2">You&apos;re Starting in Simulation Mode</h3>
+            <h3 className="text-xl font-semibold text-white mb-2">You&apos;re Starting with Paper Trading</h3>
             <p className="text-gray-400 mb-6">
-              Practice trading with $30,000 in paper money. No real funds at risk!
+              Practice trading with $30,000 in virtual money. No real funds at risk!
             </p>
 
             <div className="bg-dark-bg/50 rounded-lg p-6 mb-6 text-left">
@@ -406,7 +406,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
               <ol className="space-y-3 text-sm text-gray-300">
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center flex-shrink-0 text-xs font-bold">1</span>
-                  <span>Watch your Dashboard for opportunities and simulated trades</span>
+                  <span>Watch your Dashboard for opportunities and paper trades</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center flex-shrink-0 text-xs font-bold">2</span>

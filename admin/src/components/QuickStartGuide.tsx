@@ -221,8 +221,8 @@ export function WelcomeBanner() {
               Welcome to PolyParlay! 🎉
             </h2>
             <p className="text-sm text-gray-400 mb-3">
-              You&apos;re in simulation mode with $30,000 virtual balance. 
-              Watch the bot find opportunities and simulate trades.
+              You&apos;re in paper trading mode with $30,000 virtual balance. 
+              Watch the bot find opportunities and execute paper trades.
             </p>
             <div className="flex flex-wrap gap-2">
               <Link
@@ -301,8 +301,8 @@ export function SetupChecklist() {
     },
     {
       id: 'simulation',
-      title: 'Run Simulation',
-      description: 'Test with paper money',
+      title: 'Run Paper Trading',
+      description: 'Test with virtual money',
       isComplete: !isSimulation, // Complete once they've at least tried
       href: '/',
     },
@@ -407,7 +407,7 @@ export function PageCTA({ page }: PageCTAProps) {
           <div className="flex items-center gap-3">
             <Activity className="w-5 h-5 text-neon-blue" />
             <p className="text-sm text-gray-300">
-              Viewing <span className="text-neon-green font-medium">simulation</span> results. 
+              Viewing <span className="text-neon-green font-medium">paper trading</span> results. 
               {isFree ? ' Upgrade to Pro to see live analytics.' : ' Switch to live mode to see real performance.'}
             </p>
           </div>
@@ -456,7 +456,7 @@ export function PageCTA({ page }: PageCTAProps) {
           <div className="flex items-center gap-3">
             <Shield className="w-5 h-5 text-neon-green" />
             <p className="text-sm text-gray-300">
-              These are <span className="text-neon-green font-medium">simulated trades</span> - no real money involved.
+              These are <span className="text-neon-green font-medium">paper trades</span> - no real money involved.
             </p>
           </div>
         </div>

@@ -84,7 +84,7 @@ export function LabelWithTooltip({ label, tooltip, className, position = 'top' }
 // Metric tooltips - centralized definitions
 export const METRIC_TOOLTIPS = {
   // Dashboard metrics
-  simulatedBalance: "Your virtual trading balance. Starts at $1,000 and changes based on simulated trade outcomes. This shows what your balance would be if these were real trades.",
+  simulatedBalance: "Your virtual trading balance. Starts at $30,000 and changes based on paper trade outcomes. This shows what your balance would be if these were real trades.",
   totalPnL: "Profit and Loss - The total amount gained or lost from all trades. Green means profit, red means loss. This is calculated from all completed trades.",
   winRate: "The percentage of trades that made a profit. Higher is better. A win rate above 50% with good risk management typically leads to profitability.",
   opportunities: "Arbitrage opportunities detected by the bot. These are price discrepancies between Polymarket and Kalshi where the same event has different prices.",
@@ -118,7 +118,7 @@ export const METRIC_TOOLTIPS = {
   // Settings - Execution Simulation
   slippageMinPct: "Minimum price slippage to simulate. Real trades rarely execute at exact quoted prices.",
   slippageMaxPct: "Maximum price slippage to simulate. Larger orders and volatile markets have more slippage.",
-  spreadCostPct: "Simulated bid-ask spread cost. You buy at ask and sell at bid, losing this spread.",
+  spreadCostPct: "Estimated bid-ask spread cost. You buy at ask and sell at bid, losing this spread.",
   executionFailureRate: "Probability that an opportunity disappears before you can execute. Markets move fast!",
   partialFillChance: "Probability of only getting part of your order filled due to limited liquidity.",
   partialFillMinPct: "When partial fill occurs, minimum percentage of order that gets filled.",
@@ -134,8 +134,8 @@ export const METRIC_TOOLTIPS = {
   minPositionUsd: "Minimum position size in USD. Trades below this aren't worth the fees.",
   
   // Bot status
-  botRunning: "Whether the bot is actively scanning for opportunities and executing simulated trades.",
-  dryRunMode: "When enabled, the bot simulates trades without real money. Always keep this ON until you're confident.",
+  botRunning: "Whether the bot is actively scanning for opportunities and executing trades.",
+  dryRunMode: "When enabled, the bot runs in paper trading mode without real money. Always keep this ON until you're confident.",
   lastHeartbeat: "Last time the bot reported it was alive. If stale, the bot may have crashed.",
   
   // Analytics - Risk & Performance Metrics

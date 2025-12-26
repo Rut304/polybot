@@ -327,7 +327,7 @@ export function ManualTradeModal({ isOpen, onClose, prefillMarket }: ManualTrade
                 <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
                   <p className="font-medium text-yellow-400">Paper Trading Mode</p>
-                  <p className="text-gray-400">This is a simulated trade. No real money will be used.</p>
+                  <p className="text-gray-400">This is a paper trade. No real money will be used.</p>
                 </div>
               </div>
 

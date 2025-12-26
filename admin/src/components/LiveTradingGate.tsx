@@ -195,22 +195,24 @@ export function LiveTradingGate({ isOpen, onClose, onConfirm }: LiveTradingGateP
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-dark-card border border-red-500/30 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden"
+        className="bg-dark-card border-2 border-red-500 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.3)]"
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-dark-border bg-red-500/5">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-red-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Enable Live Trading</h2>
-              <p className="text-sm text-gray-400">This will use real funds</p>
-            </div>
+        {/* GIANT WARNING HEADER */}
+        <div className="px-6 py-6 bg-gradient-to-r from-red-900/80 via-red-800/80 to-red-900/80 border-b-2 border-red-500">
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <AlertTriangle className="w-10 h-10 text-red-400 animate-pulse" />
+            <h2 className="text-3xl font-black text-red-400 uppercase tracking-wider animate-pulse">
+              ⚠️ REAL MONEY WARNING ⚠️
+            </h2>
+            <AlertTriangle className="w-10 h-10 text-red-400 animate-pulse" />
+          </div>
+          <div className="text-center">
+            <p className="text-xl font-bold text-white">You are about to enable LIVE TRADING</p>
+            <p className="text-red-300 font-semibold mt-1">This will execute trades with YOUR REAL MONEY</p>
           </div>
         </div>
 
@@ -246,27 +248,37 @@ export function LiveTradingGate({ isOpen, onClose, onConfirm }: LiveTradingGateP
                   </div>
                 )}
 
-                {/* Warning list */}
-                <div className="bg-dark-bg/50 rounded-lg p-4 mb-6">
-                  <p className="text-sm text-white font-medium mb-3">
-                    ⚠️ By switching to live mode, you acknowledge:
-                  </p>
-                  <ul className="space-y-3 text-sm text-gray-400">
-                    <li className="flex items-start gap-2">
-                      <span className="text-red-400 mt-1">•</span>
-                      <span>All trades will execute with <strong className="text-red-400">real money</strong> from your connected accounts</span>
+                {/* BIG RED DANGER ZONE */}
+                <div className="bg-red-900/30 border-2 border-red-500 rounded-xl p-6 mb-6">
+                  <div className="flex items-center justify-center gap-2 mb-4">
+                    <AlertTriangle className="w-8 h-8 text-red-400" />
+                    <h3 className="text-2xl font-black text-red-400 uppercase">DANGER ZONE</h3>
+                    <AlertTriangle className="w-8 h-8 text-red-400" />
+                  </div>
+                  <ul className="space-y-4 text-base">
+                    <li className="flex items-start gap-3 bg-red-950/50 p-3 rounded-lg border border-red-500/50">
+                      <span className="text-red-400 text-xl font-bold">💰</span>
+                      <span className="text-white font-semibold">
+                        ALL TRADES WILL USE <span className="text-red-400 font-black text-lg">REAL MONEY</span> FROM YOUR CONNECTED ACCOUNTS
+                      </span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-red-400 mt-1">•</span>
-                      <span>Losses are <strong className="text-red-400">permanent</strong> and cannot be reversed</span>
+                    <li className="flex items-start gap-3 bg-red-950/50 p-3 rounded-lg border border-red-500/50">
+                      <span className="text-red-400 text-xl font-bold">⚠️</span>
+                      <span className="text-white font-semibold">
+                        LOSSES ARE <span className="text-red-400 font-black text-lg">PERMANENT AND IRREVERSIBLE</span>
+                      </span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-red-400 mt-1">•</span>
-                      <span>You are responsible for tax reporting on all gains</span>
+                    <li className="flex items-start gap-3 bg-red-950/50 p-3 rounded-lg border border-red-500/50">
+                      <span className="text-red-400 text-xl font-bold">📊</span>
+                      <span className="text-white font-semibold">
+                        You are <span className="text-red-400 font-black">100% RESPONSIBLE</span> for all trading outcomes and tax reporting
+                      </span>
                     </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-red-400 mt-1">•</span>
-                      <span>Past simulation performance does not guarantee live results</span>
+                    <li className="flex items-start gap-3 bg-red-950/50 p-3 rounded-lg border border-red-500/50">
+                      <span className="text-red-400 text-xl font-bold">📉</span>
+                      <span className="text-white font-semibold">
+                        Past <span className="text-amber-400">paper trading</span> performance <span className="text-red-400 font-black">DOES NOT</span> guarantee live results
+                      </span>
                     </li>
                   </ul>
                 </div>
@@ -285,16 +297,16 @@ export function LiveTradingGate({ isOpen, onClose, onConfirm }: LiveTradingGateP
                   </div>
                 </div>
 
-                {/* Checkbox agreement */}
-                <label className="flex items-start gap-3 cursor-pointer group">
+                {/* Checkbox agreement - more prominent */}
+                <label className="flex items-start gap-3 cursor-pointer group bg-amber-500/10 border-2 border-amber-500/50 rounded-lg p-4">
                   <input
                     type="checkbox"
                     checked={agreedToRisks}
                     onChange={(e) => setAgreedToRisks(e.target.checked)}
-                    className="mt-1 w-5 h-5 rounded border-gray-500 bg-dark-bg text-neon-green focus:ring-neon-green focus:ring-offset-dark-bg"
+                    className="mt-1 w-6 h-6 rounded border-amber-500 bg-dark-bg text-red-500 focus:ring-red-500 focus:ring-offset-dark-bg"
                   />
-                  <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
-                    I understand that live trading uses real funds and I accept all risks associated with automated trading.
+                  <span className="text-base text-white font-semibold group-hover:text-amber-400 transition-colors">
+                    I UNDERSTAND that live trading uses <span className="text-red-400 font-black">REAL MONEY</span> and I accept <span className="text-red-400 font-black">FULL RESPONSIBILITY</span> for all risks, losses, and outcomes associated with automated trading.
                   </span>
                 </label>
               </motion.div>
@@ -379,13 +391,20 @@ export function LiveTradingGate({ isOpen, onClose, onConfirm }: LiveTradingGateP
                 exit={{ opacity: 0, x: -20 }}
                 className="text-center"
               >
-                <div className="w-20 h-20 mx-auto mb-6 bg-red-500/20 rounded-full flex items-center justify-center">
-                  <Zap className="w-10 h-10 text-red-400" />
+                {/* Big scary final warning */}
+                <div className="w-24 h-24 mx-auto mb-6 bg-red-500/30 rounded-full flex items-center justify-center border-4 border-red-500 animate-pulse">
+                  <Zap className="w-12 h-12 text-red-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Ready to Go Live?</h3>
-                <p className="text-gray-400 mb-6">
-                  You&apos;re about to enable live trading with {selectedStrategies.length} strategies.
-                </p>
+                
+                <div className="bg-red-900/30 border-2 border-red-500 rounded-xl p-4 mb-6">
+                  <h3 className="text-2xl font-black text-red-400 mb-2 uppercase">⚠️ FINAL WARNING ⚠️</h3>
+                  <p className="text-white font-bold text-lg">
+                    You&apos;re about to enable <span className="text-red-400">LIVE TRADING</span> with {selectedStrategies.length} strategies.
+                  </p>
+                  <p className="text-red-300 mt-2 font-semibold">
+                    Real money will be at risk. This action cannot be undone for trades already placed.
+                  </p>
+                </div>
 
                 <div className="bg-dark-bg/50 rounded-lg p-4 text-left mb-6">
                   <p className="text-sm text-gray-500 mb-2">Enabled strategies:</p>

@@ -257,7 +257,7 @@ export function UserTierEditor({ user, isOpen, onClose, onSave }: UserTierEditor
                 <p className="text-yellow-200 font-medium">Downgrading to Free</p>
                 <p className="text-yellow-200/70 mt-1">
                   This will remove access to premium features. User will be limited to 3 strategies 
-                  and simulation mode only.
+                  and paper trading mode only.
                 </p>
               </div>
             </div>
