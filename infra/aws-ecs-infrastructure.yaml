@@ -1,0 +1,371 @@
+# PolyParlay AWS Infrastructure - Scalable Multi-Tenant Architecture
+#
+# This configuration supports 25-100+ concurrent users with:
+# - ECS Fargate for bot execution (auto-scaling)
+# - App Runner for admin dashboard
+# - Supabase for database (managed)
+# - CloudFront for CDN
+#
+# Estimated costs at scale:
+#   25 users: ~$50-100/mo
+#   50 users: ~$100-200/mo
+#   100 users: ~$200-400/mo
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: PolyParlay Scalable Infrastructure
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [development, staging, production]
+  
+  DomainName:
+    Type: String
+    Default: polyparlay.io
+  
+  # Supabase connection (managed externally)
+  SupabaseUrl:
+    Type: String
+    NoEcho: true
+  
+  SupabaseServiceKey:
+    Type: String
+    NoEcho: true
+  
+  # Privy auth
+  PrivyAppId:
+    Type: String
+    NoEcho: true
+  
+  PrivyAppSecret:
+    Type: String
+    NoEcho: true
+  
+  # Stripe billing
+  StripeSecretKey:
+    Type: String
+    NoEcho: true
+  
+  StripeWebhookSecret:
+    Type: String
+    NoEcho: true
+
+Resources:
+  # ========================================
+  # VPC & Networking
+  # ========================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-vpc
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  Route:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref RouteTable
+
+  SubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref RouteTable
+
+  # ========================================
+  # Secrets Manager
+  # ========================================
+  AppSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${AWS::StackName}/app-secrets
+      Description: PolyParlay application secrets
+      SecretString: !Sub |
+        {
+          "SUPABASE_URL": "${SupabaseUrl}",
+          "SUPABASE_SERVICE_ROLE_KEY": "${SupabaseServiceKey}",
+          "PRIVY_APP_ID": "${PrivyAppId}",
+          "PRIVY_APP_SECRET": "${PrivyAppSecret}",
+          "STRIPE_SECRET_KEY": "${StripeSecretKey}",
+          "STRIPE_WEBHOOK_SECRET": "${StripeWebhookSecret}"
+        }
+
+  # ========================================
+  # ECR Repository for Bot Images
+  # ========================================
+  BotRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${AWS::StackName}-bot
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  # ========================================
+  # ECS Cluster for Bot Fleet
+  # ========================================
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${AWS::StackName}-cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: 80
+        - CapacityProvider: FARGATE
+          Weight: 20
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  # ========================================
+  # ECS Task Definition - Per-User Bot
+  # ========================================
+  BotTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-bot
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'  # 0.25 vCPU per bot instance
+      Memory: '512'  # 512 MB per bot instance
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: bot
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BotRepository}:latest
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BotLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: bot
+          Environment:
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+          Secrets:
+            - Name: SUPABASE_URL
+              ValueFrom: !Sub ${AppSecrets}:SUPABASE_URL::
+            - Name: SUPABASE_SERVICE_ROLE_KEY
+              ValueFrom: !Sub ${AppSecrets}:SUPABASE_SERVICE_ROLE_KEY::
+
+  # ========================================
+  # ECS Service - Bot Manager (Orchestrator)
+  # ========================================
+  BotManagerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AWS::StackName}-bot-manager
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref BotManagerTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref BotSecurityGroup
+          Subnets:
+            - !Ref PublicSubnet1
+            - !Ref PublicSubnet2
+
+  BotManagerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AWS::StackName}-bot-manager
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '512'  # Manager needs more CPU for orchestration
+      Memory: '1024'
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: manager
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BotRepository}:latest
+          Essential: true
+          Command:
+            - python
+            - -m
+            - src.main
+            - --manager
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BotLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: manager
+          Environment:
+            - Name: ENVIRONMENT
+              Value: !Ref Environment
+            - Name: ECS_CLUSTER
+              Value: !Ref ECSCluster
+            - Name: BOT_TASK_DEFINITION
+              Value: !Ref BotTaskDefinition
+          Secrets:
+            - Name: SUPABASE_URL
+              ValueFrom: !Sub ${AppSecrets}:SUPABASE_URL::
+            - Name: SUPABASE_SERVICE_ROLE_KEY
+              ValueFrom: !Sub ${AppSecrets}:SUPABASE_SERVICE_ROLE_KEY::
+
+  # ========================================
+  # Security Groups
+  # ========================================
+  BotSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for bot tasks
+      VpcId: !Ref VPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  # ========================================
+  # IAM Roles
+  # ========================================
+  ECSExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AppSecrets
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECSTaskPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Allow manager to spawn per-user bot tasks
+              - Effect: Allow
+                Action:
+                  - ecs:RunTask
+                  - ecs:StopTask
+                  - ecs:DescribeTasks
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt ECSExecutionRole.Arn
+                  - !GetAtt ECSTaskRole.Arn
+
+  # ========================================
+  # CloudWatch Logs
+  # ========================================
+  BotLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AWS::StackName}
+      RetentionInDays: 30
+
+  # ========================================
+  # Auto Scaling (for future growth)
+  # ========================================
+  # Note: ECS Service Auto Scaling can be added here
+  # to automatically scale based on user count or CPU usage
+
+Outputs:
+  ClusterArn:
+    Description: ECS Cluster ARN
+    Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ClusterArn
+
+  BotRepositoryUri:
+    Description: ECR Repository URI for bot images
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${BotRepository}
+
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${AWS::StackName}-VPCId

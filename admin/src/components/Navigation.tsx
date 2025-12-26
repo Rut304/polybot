@@ -36,10 +36,16 @@ import {
   Target,
   Activity,
   AlertTriangle,
+  Lock,
+  Crown,
+  Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { useTier } from '@/lib/useTier';
+
+import { SubscriptionTier } from '@/lib/privy';
 
 interface NavSection {
   title: string;
@@ -51,6 +57,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  requiredTier?: SubscriptionTier; // 'free' | 'pro' | 'elite'
 }
 
 const navSections: NavSection[] = [
@@ -59,7 +66,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/analytics', label: 'Analytics', icon: TrendingUp },
-      { href: '/missed-opportunities', label: 'Missed Money', icon: AlertTriangle },
+      { href: '/missed-opportunities', label: 'Missed Money', icon: AlertTriangle, requiredTier: 'pro' },
       { href: '/notifications', label: 'Notifications', icon: Bell },
     ],
   },
@@ -76,10 +83,10 @@ const navSections: NavSection[] = [
     title: 'Research',
     items: [
       { href: '/news', label: 'News Feed', icon: Newspaper },
-      { href: '/insights', label: 'AI Insights', icon: Brain },
-      { href: '/whales', label: 'Whale Tracker', icon: Fish, adminOnly: true },
-      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, adminOnly: true },
-      { href: '/congress', label: 'Congress Tracker', icon: Landmark, adminOnly: true },
+      { href: '/insights', label: 'AI Insights', icon: Brain, requiredTier: 'pro' },
+      { href: '/whales', label: 'Whale Tracker', icon: Fish, requiredTier: 'elite' },
+      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, requiredTier: 'pro' },
+      { href: '/congress', label: 'Congress Tracker', icon: Landmark, requiredTier: 'elite' },
     ],
   },
   {
@@ -87,15 +94,15 @@ const navSections: NavSection[] = [
     items: [
       { href: '/balances', label: 'Balances', icon: Coins },
       { href: '/history', label: 'Trade History', icon: History },
-      { href: '/business', label: 'P&L Dashboard', icon: Briefcase, adminOnly: true },
-      { href: '/taxes', label: 'Tax Center', icon: Receipt, adminOnly: true },
+      { href: '/business', label: 'P&L Dashboard', icon: Briefcase, requiredTier: 'pro' },
+      { href: '/taxes', label: 'Tax Center', icon: Receipt, requiredTier: 'pro' },
     ],
   },
   {
     title: 'Automation',
     items: [
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
-      { href: '/strategy-history', label: 'Strategy History', icon: History, adminOnly: true },
+      { href: '/strategy-history', label: 'Strategy History', icon: History, requiredTier: 'pro' },
     ],
   },
   {
@@ -116,6 +123,22 @@ export function Navigation() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { user, isAdmin, signOut } = useAuth();
+  const { tier, isPro, isElite } = useTier();
+
+  // Helper to check if user has access to a tier
+  const hasTierAccess = (requiredTier?: SubscriptionTier) => {
+    if (!requiredTier || requiredTier === 'free') return true;
+    if (requiredTier === 'pro') return isPro || isElite;
+    if (requiredTier === 'elite') return isElite;
+    return false;
+  };
+
+  // Get tier badge icon
+  const getTierIcon = (requiredTier?: SubscriptionTier) => {
+    if (!requiredTier || requiredTier === 'free') return null;
+    if (requiredTier === 'pro') return Sparkles;
+    return Crown;
+  };
 
   return (
     <aside
@@ -150,13 +173,25 @@ export function Navigation() {
 
       {/* User Badge - Compact */}
       {!collapsed && user && (
-        <div className="px-3 py-2 border-b border-dark-border flex-shrink-0">
+        <div className="px-3 py-2 border-b border-dark-border flex-shrink-0 space-y-2">
           <div className={cn(
             "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs",
             isAdmin ? "bg-neon-green/10 text-neon-green" : "bg-neon-blue/10 text-neon-blue"
           )}>
             {isAdmin ? <Shield className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             <span className="font-medium truncate">{isAdmin ? 'Admin' : 'Read Only'}</span>
+          </div>
+          {/* Subscription Tier Badge */}
+          <div className={cn(
+            "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs",
+            tier === 'elite' && "bg-yellow-500/10 text-yellow-400",
+            tier === 'pro' && "bg-neon-blue/10 text-neon-blue",
+            tier === 'free' && "bg-gray-700/50 text-gray-400"
+          )}>
+            {tier === 'elite' && <Crown className="w-3 h-3" />}
+            {tier === 'pro' && <Sparkles className="w-3 h-3" />}
+            {tier === 'free' && <Zap className="w-3 h-3" />}
+            <span className="font-medium capitalize">{tier} Plan</span>
           </div>
         </div>
       )}
@@ -178,21 +213,39 @@ export function Navigation() {
                 {visibleItems.map((item) => {
                   const isActive = pathname === item.href;
                   const Icon = item.icon;
+                  const hasAccess = hasTierAccess(item.requiredTier);
+                  const TierIcon = getTierIcon(item.requiredTier);
 
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={hasAccess ? item.href : '/pricing'}
                       className={cn(
-                        "flex items-center gap-2 px-2 py-1.5 rounded-md transition-all text-sm",
+                        "flex items-center gap-2 px-2 py-1.5 rounded-md transition-all text-sm group",
                         isActive
                           ? "bg-neon-green/15 text-neon-green"
-                          : "hover:bg-dark-border text-gray-400 hover:text-white"
+                          : hasAccess 
+                            ? "hover:bg-dark-border text-gray-400 hover:text-white"
+                            : "text-gray-600 hover:bg-dark-border/50 cursor-not-allowed"
                       )}
-                      title={collapsed ? item.label : undefined}
+                      title={collapsed ? item.label : (!hasAccess ? `Upgrade to ${item.requiredTier} for ${item.label}` : undefined)}
                     >
-                      <Icon className={cn("w-4 h-4 flex-shrink-0", isActive && "text-neon-green")} />
-                      {!collapsed && <span>{item.label}</span>}
+                      <Icon className={cn(
+                        "w-4 h-4 flex-shrink-0", 
+                        isActive && "text-neon-green",
+                        !hasAccess && "opacity-50"
+                      )} />
+                      {!collapsed && (
+                        <>
+                          <span className={cn(!hasAccess && "opacity-50")}>{item.label}</span>
+                          {!hasAccess && TierIcon && (
+                            <TierIcon className={cn(
+                              "w-3 h-3 ml-auto",
+                              item.requiredTier === 'pro' ? "text-neon-blue" : "text-yellow-400"
+                            )} />
+                          )}
+                        </>
+                      )}
                     </Link>
                   );
                 })}

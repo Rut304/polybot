@@ -1,0 +1,218 @@
+-- PolyParlay SaaS Profile Migration
+-- Adds fields needed for multi-tenant SaaS operation
+-- Run this after existing multitenancy_migration.sql
+
+-- ==========================================
+-- ADD NEW PROFILE COLUMNS
+-- ==========================================
+
+-- Privy integration
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS privy_user_id TEXT UNIQUE;
+
+-- Wallet address from Privy embedded wallet
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS wallet_address TEXT;
+
+-- Trade counting for billing
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS monthly_trades_used INTEGER DEFAULT 0;
+
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS monthly_trades_limit INTEGER DEFAULT 100;
+
+-- Trial tracking
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
+
+-- Onboarding state
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN DEFAULT FALSE;
+
+-- Trading mode (simulation vs live)
+ALTER TABLE polybot_profiles 
+ADD COLUMN IF NOT EXISTS is_simulation BOOLEAN DEFAULT TRUE;
+
+-- ==========================================
+-- UPDATE USER CONFIG TABLE
+-- ==========================================
+
+ALTER TABLE polybot_user_config 
+ADD COLUMN IF NOT EXISTS is_simulation BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE polybot_user_config 
+ADD COLUMN IF NOT EXISTS enabled_strategies TEXT[] DEFAULT ARRAY['single_platform_arb'];
+
+-- ==========================================
+-- INDEXES FOR PERFORMANCE
+-- ==========================================
+
+CREATE INDEX IF NOT EXISTS idx_profiles_privy 
+ON polybot_profiles(privy_user_id) WHERE privy_user_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_profiles_subscription 
+ON polybot_profiles(subscription_tier, subscription_status);
+
+CREATE INDEX IF NOT EXISTS idx_profiles_trial 
+ON polybot_profiles(trial_ends_at) WHERE trial_ends_at IS NOT NULL;
+
+-- ==========================================
+-- MONTHLY TRADE COUNTER RESET FUNCTION
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION reset_monthly_trades()
+RETURNS void AS $$
+BEGIN
+  UPDATE polybot_profiles
+  SET monthly_trades_used = 0,
+      updated_at = NOW()
+  WHERE subscription_status IN ('active', 'trialing');
+  
+  RAISE NOTICE 'Monthly trade counters reset for all active users';
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- INCREMENT TRADE COUNT FUNCTION
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION increment_user_trades(p_user_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_trades_used INTEGER;
+  v_trades_limit INTEGER;
+  v_tier TEXT;
+BEGIN
+  SELECT monthly_trades_used, monthly_trades_limit, subscription_tier
+  INTO v_trades_used, v_trades_limit, v_tier
+  FROM polybot_profiles
+  WHERE id = p_user_id;
+  
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'error', 'User not found');
+  END IF;
+  
+  -- Check limit (-1 means unlimited)
+  IF v_trades_limit != -1 AND v_trades_used >= v_trades_limit THEN
+    RETURN json_build_object(
+      'success', false, 
+      'error', 'Monthly trade limit reached',
+      'trades_used', v_trades_used,
+      'trades_limit', v_trades_limit
+    );
+  END IF;
+  
+  -- Increment counter
+  UPDATE polybot_profiles
+  SET monthly_trades_used = monthly_trades_used + 1,
+      updated_at = NOW()
+  WHERE id = p_user_id;
+  
+  RETURN json_build_object(
+    'success', true,
+    'trades_used', v_trades_used + 1,
+    'trades_limit', v_trades_limit,
+    'trades_remaining', CASE WHEN v_trades_limit = -1 THEN -1 ELSE v_trades_limit - v_trades_used - 1 END
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- TRIAL EXPIRY CHECK FUNCTION
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION downgrade_expired_trials()
+RETURNS INTEGER AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  WITH expired AS (
+    UPDATE polybot_profiles
+    SET subscription_tier = 'free',
+        subscription_status = 'inactive',
+        monthly_trades_limit = 100,
+        updated_at = NOW()
+    WHERE subscription_status = 'trialing'
+      AND trial_ends_at < NOW()
+    RETURNING id
+  )
+  SELECT COUNT(*) INTO v_count FROM expired;
+  
+  RETURN v_count;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- TIER LIMITS UPDATE TRIGGER
+-- ==========================================
+
+CREATE OR REPLACE FUNCTION update_tier_limits()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Update trade limits based on tier
+  NEW.monthly_trades_limit := CASE NEW.subscription_tier
+    WHEN 'free' THEN 100
+    WHEN 'pro' THEN 1000
+    WHEN 'elite' THEN -1  -- unlimited
+    ELSE 100
+  END;
+  
+  -- Reset to simulation if downgrading to free
+  IF NEW.subscription_tier = 'free' AND OLD.subscription_tier != 'free' THEN
+    NEW.is_simulation := TRUE;
+  END IF;
+  
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_tier_limits ON polybot_profiles;
+CREATE TRIGGER trigger_update_tier_limits
+  BEFORE UPDATE OF subscription_tier ON polybot_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_tier_limits();
+
+-- ==========================================
+-- GRANT PERMISSIONS
+-- ==========================================
+
+-- Allow authenticated users to read their own profile
+DROP POLICY IF EXISTS "Users can read own profile" ON polybot_profiles;
+CREATE POLICY "Users can read own profile"
+  ON polybot_profiles FOR SELECT
+  USING (auth.uid() = id);
+
+-- Allow authenticated users to update their own profile (limited fields)
+DROP POLICY IF EXISTS "Users can update own profile" ON polybot_profiles;
+CREATE POLICY "Users can update own profile"
+  ON polybot_profiles FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- ==========================================
+-- SAMPLE DATA (for testing)
+-- ==========================================
+
+-- Update existing admin user to elite tier for testing
+UPDATE polybot_profiles
+SET subscription_tier = 'elite',
+    subscription_status = 'active',
+    monthly_trades_limit = -1,
+    is_simulation = FALSE,
+    onboarding_completed = TRUE
+WHERE email = 'rutrohd@gmail.com';
+
+-- ==========================================
+-- VERIFICATION
+-- ==========================================
+
+SELECT 'Migration complete!' AS status;
+
+SELECT 
+  column_name, 
+  data_type, 
+  column_default
+FROM information_schema.columns 
+WHERE table_name = 'polybot_profiles'
+ORDER BY ordinal_position;
