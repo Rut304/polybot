@@ -343,6 +343,61 @@ class RealisticPaperTrader:
         
         # Load config from database (overrides class defaults)
         self._load_config_from_db()
+        
+        # Validate data integrity on startup
+        self._validate_data_integrity()
+
+    def _validate_data_integrity(self):
+        """
+        Check for data inconsistencies between stats and trades tables.
+        
+        CRITICAL: This catches the bug where reset created a new stats row
+        but paper_trader continued updating the old id=1 row.
+        """
+        try:
+            if not self.db or not hasattr(self.db, '_client') or not self.db._client:
+                return
+            
+            # Get current stats from id=1
+            stats_result = self.db._client.table("polybot_simulation_stats").select(
+                "id, total_trades, stats_json"
+            ).eq("id", 1).execute()
+            
+            if not stats_result.data:
+                logger.warning("⚠️ No stats row with id=1 found - will create on first save")
+                return
+            
+            stats_row = stats_result.data[0]
+            stats_json = stats_row.get("stats_json", {})
+            stats_total_trades = stats_json.get("total_simulated_trades", 0)
+            
+            # Get actual trade count from trades table
+            trades_result = self.db._client.table("polybot_simulated_trades").select(
+                "id", count="exact"
+            ).execute()
+            actual_trade_count = trades_result.count or 0
+            
+            # Check for mismatch
+            if stats_total_trades > 0 and actual_trade_count == 0:
+                logger.error(
+                    f"🚨 DATA INCONSISTENCY DETECTED: "
+                    f"stats_json shows {stats_total_trades} trades but trades table has {actual_trade_count}. "
+                    f"This usually means a reset didn't complete properly. "
+                    f"Consider running a simulation reset from the dashboard."
+                )
+            elif stats_total_trades != actual_trade_count and actual_trade_count > 0:
+                # Allow some drift (trades table may have been trimmed)
+                drift_pct = abs(stats_total_trades - actual_trade_count) / max(actual_trade_count, 1) * 100
+                if drift_pct > 50:
+                    logger.warning(
+                        f"⚠️ Stats/trades count mismatch: "
+                        f"stats={stats_total_trades}, trades={actual_trade_count} ({drift_pct:.0f}% drift)"
+                    )
+            else:
+                logger.info(f"✓ Data integrity check passed: {actual_trade_count} trades")
+                
+        except Exception as e:
+            logger.warning(f"Data integrity check failed: {e}")
 
     def _load_config_from_db(self):
         """
