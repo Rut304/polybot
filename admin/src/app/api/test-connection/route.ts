@@ -133,8 +133,9 @@ async function testKalshi(secrets: Record<string, string>): Promise<{ connected:
 
 // Alpaca test
 async function testAlpaca(secrets: Record<string, string>): Promise<{ connected: boolean; balance?: number; error?: string; details?: string }> {
-  const apiKey = secrets['ALPACA_API_KEY'];
-  const apiSecret = secrets['ALPACA_SECRET_KEY'];
+  // Try paper keys first, then fall back to generic keys
+  const apiKey = secrets['ALPACA_PAPER_API_KEY'] || secrets['ALPACA_API_KEY'];
+  const apiSecret = secrets['ALPACA_PAPER_API_SECRET'] || secrets['ALPACA_API_SECRET'];
   
   if (!apiKey || !apiSecret) {
     return { connected: false, error: 'Missing Alpaca API key or secret' };
@@ -172,7 +173,7 @@ async function testAlpaca(secrets: Record<string, string>): Promise<{ connected:
 // Binance test (US)
 async function testBinance(secrets: Record<string, string>): Promise<{ connected: boolean; balance?: number; error?: string; details?: string }> {
   const apiKey = secrets['BINANCE_API_KEY'];
-  const apiSecret = secrets['BINANCE_SECRET_KEY'];
+  const apiSecret = secrets['BINANCE_API_SECRET'] || secrets['BINANCE_SECRET_KEY'];
   
   if (!apiKey || !apiSecret) {
     return { connected: false, error: 'Missing Binance API key or secret' };
@@ -192,7 +193,7 @@ async function testBinance(secrets: Record<string, string>): Promise<{ connected
 // Coinbase test
 async function testCoinbase(secrets: Record<string, string>): Promise<{ connected: boolean; balance?: number; error?: string; details?: string }> {
   const apiKey = secrets['COINBASE_API_KEY'];
-  const apiSecret = secrets['COINBASE_SECRET_KEY'];
+  const apiSecret = secrets['COINBASE_API_SECRET'] || secrets['COINBASE_SECRET_KEY'];
   
   if (!apiKey || !apiSecret) {
     return { connected: false, error: 'Missing Coinbase API key or secret' };
