@@ -407,8 +407,6 @@ export default function SecretsPage() {
 
   // Test connection to a platform
   const testConnection = async (platform: string) => {
-    if (!user?.id) return;
-    
     setTestingConnection(platform);
     setError(null);
     
@@ -416,7 +414,7 @@ export default function SecretsPage() {
       const response = await fetch('/api/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform, userId: user.id }),
+        body: JSON.stringify({ platform }),
       });
       
       const result = await response.json();

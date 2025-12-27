@@ -10,10 +10,10 @@ const getSupabaseAdmin = () => {
 
 export async function POST(req: NextRequest) {
   try {
-    const { platform, userId } = await req.json();
+    const { platform } = await req.json();
     
-    if (!platform || !userId) {
-      return NextResponse.json({ error: 'Missing platform or userId' }, { status: 400 });
+    if (!platform) {
+      return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
     }
     
     const supabase = getSupabaseAdmin();
@@ -21,11 +21,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
     }
     
-    // Get the secrets for this platform
+    // Get all configured secrets (polybot_secrets is a global table, no user_id)
     const { data: secrets, error: secretsError } = await supabase
       .from('polybot_secrets')
       .select('key_name, key_value')
-      .eq('user_id', userId);
+      .eq('is_configured', true);
     
     if (secretsError) {
       console.error('Error fetching secrets:', secretsError);
