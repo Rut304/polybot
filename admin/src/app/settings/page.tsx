@@ -99,9 +99,12 @@ import { Crown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
 
 // Subscription Section Component
 function SubscriptionSection() {
-  const { tier, profile, isPro, isElite, isFree } = useTier();
+  const { tier, profile, isPro, isElite, isFree, refreshProfile } = useTier();
   const [loading, setLoading] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleManageSubscription = async () => {
     if (!profile?.id) return;
@@ -125,6 +128,41 @@ function SubscriptionSection() {
       console.error('Failed to open billing portal:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!profile?.id) return;
+    setCancelLoading(true);
+    setCancelMessage(null);
+    
+    try {
+      const response = await fetch('/api/stripe/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setCancelMessage({ 
+          type: 'success', 
+          text: 'Your subscription has been cancelled. You\'ll retain access until the end of your billing period.' 
+        });
+        setShowCancelConfirm(false);
+        // Refresh profile to get updated subscription status
+        setTimeout(() => refreshProfile?.(), 2000);
+      } else {
+        setCancelMessage({ type: 'error', text: data.error || 'Failed to cancel subscription' });
+      }
+    } catch (err) {
+      console.error('Failed to cancel subscription:', err);
+      setCancelMessage({ type: 'error', text: 'An error occurred while cancelling. Please try again.' });
+    } finally {
+      setCancelLoading(false);
     }
   };
 
@@ -206,6 +244,16 @@ function SubscriptionSection() {
           </div>
         </div>
         
+        {/* Cancel subscription message */}
+        {cancelMessage && (
+          <div className={cn(
+            "mt-4 p-4 rounded-lg text-sm",
+            cancelMessage.type === 'success' ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-red-500/10 border border-red-500/30 text-red-400"
+          )}>
+            {cancelMessage.text}
+          </div>
+        )}
+        
         {/* Trade limits for Pro users */}
         {isPro && (
           <div className="mt-4 pt-4 border-t border-dark-border">
@@ -225,7 +273,63 @@ function SubscriptionSection() {
             </div>
           </div>
         )}
+        
+        {/* Cancel Subscription Link */}
+        {!isFree && profile?.stripeCustomerId && profile?.subscriptionStatus === 'active' && (
+          <div className="mt-4 pt-4 border-t border-dark-border">
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="text-sm text-gray-500 hover:text-red-400 transition-colors underline"
+            >
+              Cancel subscription
+            </button>
+          </div>
+        )}
       </div>
+      
+      {/* Cancel Confirmation Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-card border border-dark-border rounded-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <AlertTriangle className="w-6 h-6" />
+              <h3 className="text-lg font-bold">Cancel Subscription?</h3>
+            </div>
+            
+            <p className="text-gray-400 text-sm">
+              Are you sure you want to cancel your {tier === 'elite' ? 'Elite' : 'Pro'} subscription? 
+              You&apos;ll lose access to:
+            </p>
+            
+            <ul className="text-sm text-gray-300 space-y-2 pl-4">
+              <li>• Live trading capabilities</li>
+              <li>• AI-powered insights and analytics</li>
+              <li>• Advanced strategies</li>
+              {tier === 'elite' && <li>• Congress & Whale tracking</li>}
+            </ul>
+            
+            <p className="text-sm text-gray-500">
+              Your access will continue until the end of your current billing period.
+            </p>
+            
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 px-4 py-3 bg-dark-border hover:bg-gray-700 rounded-xl font-semibold text-sm"
+              >
+                Keep Subscription
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={cancelLoading}
+                className="flex-1 px-4 py-3 bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 rounded-xl font-semibold text-sm"
+              >
+                {cancelLoading ? 'Cancelling...' : 'Yes, Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Upgrade Modal - Dynamically imported to avoid SSR issues */}
       {showUpgrade && (
