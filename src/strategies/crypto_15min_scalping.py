@@ -312,42 +312,75 @@ class Crypto15MinScalpingStrategy:
         return position.quantize(Decimal("0.01"))
     
     async def fetch_15min_markets(self) -> List[Dict]:
-        """Fetch active 15-minute crypto markets from Polymarket."""
+        """Fetch active 15-minute crypto markets from Polymarket with pagination."""
         session = await self._get_session()
         markets = []
         
         try:
-            # Search for 15-minute markets
-            for symbol in self.symbols:
-                url = f"{self.POLYMARKET_API}/markets"
+            # Paginate through all markets (Polymarket has 20K+ markets)
+            url = f"{self.POLYMARKET_API}/markets"
+            offset = 0
+            limit = 100
+            max_pages = 50  # Safety limit: 50 * 100 = 5000 markets max
+            pages_fetched = 0
+            
+            while pages_fetched < max_pages:
                 params = {
                     "closed": "false",
-                    "limit": 100,  # Increased limit for better coverage
+                    "limit": limit,
+                    "offset": offset,
                 }
                 
-                async with session.get(url, params=params) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        all_markets = data if isinstance(data, list) else data.get("markets", [])
-                        
-                        for market in all_markets:
-                            parsed = self._parse_market_info(market)
-                            if parsed and parsed[0] == symbol:
-                                market["_parsed_symbol"] = parsed[0]
-                                market["_parsed_direction"] = parsed[1]
-                                markets.append(market)
-                    elif resp.status == 429:
-                        logger.warning(f"Polymarket rate limit hit, backing off...")
-                        await asyncio.sleep(5)
-                    else:
-                        logger.warning(f"Polymarket API returned {resp.status} for markets query")
+                try:
+                    async with session.get(url, params=params) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            all_markets = data if isinstance(data, list) else data.get("markets", [])
+                            
+                            if not all_markets:
+                                # No more markets
+                                break
+                            
+                            # Check each market for 15-min crypto matches
+                            for market in all_markets:
+                                parsed = self._parse_market_info(market)
+                                if parsed:
+                                    symbol, direction = parsed
+                                    if symbol in self.symbols:
+                                        market["_parsed_symbol"] = symbol
+                                        market["_parsed_direction"] = direction
+                                        markets.append(market)
+                            
+                            offset += limit
+                            pages_fetched += 1
+                            
+                            # If we got fewer than limit, we've reached the end
+                            if len(all_markets) < limit:
+                                break
+                                
+                        elif resp.status == 429:
+                            logger.warning(f"Polymarket rate limit hit at offset {offset}, backing off...")
+                            await asyncio.sleep(5)
+                            continue  # Retry same page
+                        else:
+                            logger.warning(f"Polymarket API returned {resp.status} at offset {offset}")
+                            break
                     
-                    # Rate limiting
-                    await asyncio.sleep(0.5)
+                    # Rate limiting between pages
+                    await asyncio.sleep(0.3)
+                    
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout fetching markets at offset {offset}, continuing...")
+                    offset += limit
+                    pages_fetched += 1
+                    continue
             
-            # Log if no markets found (they may be discontinued)
+            logger.debug(f"Scanned {pages_fetched * limit} markets, found {len(markets)} 15-min crypto markets for {self.symbols}")
+            
+            # Log if no markets found (they may be discontinued or not available)
             if not markets:
-                logger.debug(f"No active 15-min crypto markets found for {self.symbols}")
+                logger.info(f"No active 15-min crypto markets found for {self.symbols}. "
+                           f"These markets may not be available on Polymarket currently.")
         
         except aiohttp.ClientError as e:
             logger.error(f"Network error fetching 15-min markets: {type(e).__name__}: {e}")

@@ -653,7 +653,12 @@ const STRATEGY_DOCS: StrategyDoc[] = [
       'Bernard & Thomas (1989) - PEAD Evidence',
     ],
   },
-  // ========== ADVANCED FRAMEWORK MODULES ==========
+];
+
+// ========== RISK MANAGEMENT FRAMEWORKS ==========
+// These are NOT trading strategies - they are risk management layers
+// that apply to ALL enabled strategies.
+const FRAMEWORK_DOCS: StrategyDoc[] = [
   {
     id: 'kelly_criterion',
     name: 'Kelly Criterion Position Sizing',
@@ -1207,6 +1212,7 @@ const riskColors = {
 export default function DocsPage() {
   const [expandedStrategy, setExpandedStrategy] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [showFrameworks, setShowFrameworks] = useState(false);
 
   const filteredDocs = filterCategory 
     ? STRATEGY_DOCS.filter(s => s.category === filterCategory)
@@ -1467,6 +1473,141 @@ export default function DocsPage() {
             </AnimatePresence>
           </motion.div>
         ))}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          RISK MANAGEMENT FRAMEWORKS SECTION
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <div className="card p-6 border-blue-500/30">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Shield className="text-blue-400" />
+            Risk Management Frameworks
+          </h2>
+          <button
+            onClick={() => setShowFrameworks(!showFrameworks)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            {showFrameworks ? 'Hide Frameworks' : `View ${FRAMEWORK_DOCS.length} Frameworks`}
+          </button>
+        </div>
+        
+        {/* Explanation Box */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <Shield className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-gray-300">
+              <p className="mb-2">
+                <strong className="text-white">Frameworks are NOT trading strategies.</strong> They are risk management 
+                layers that <em>modify how trades are executed</em> across ALL your enabled strategies.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <div className="text-yellow-400 font-medium text-xs mb-1">📊 Position Sizing</div>
+                  <p className="text-xs text-gray-400">Kelly Criterion calculates optimal bet sizes based on your edge</p>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <div className="text-red-400 font-medium text-xs mb-1">🛑 Risk Protection</div>
+                  <p className="text-xs text-gray-400">Circuit Breakers halt trading during drawdowns to preserve capital</p>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3">
+                  <div className="text-green-400 font-medium text-xs mb-1">🔄 Adaptive Behavior</div>
+                  <p className="text-xs text-gray-400">Regime Detection adjusts risk based on market conditions</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-gray-400">
+                <strong>Do frameworks override strategy settings?</strong> No - they work <em>alongside</em> strategy settings. 
+                If a strategy wants to trade $100 but Kelly calculates $50 based on edge, it uses $50. 
+                If Circuit Breaker triggers, ALL strategies pause.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Framework List */}
+        <AnimatePresence>
+          {showFrameworks && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="space-y-4 overflow-hidden"
+            >
+              {FRAMEWORK_DOCS.map((framework) => (
+                <motion.div
+                  key={framework.id}
+                  className="border border-blue-500/20 rounded-xl overflow-hidden"
+                >
+                  <button
+                    onClick={() => setExpandedStrategy(expandedStrategy === framework.id ? null : framework.id)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-blue-500/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg bg-gradient-to-r ${framework.color}`}>
+                        {framework.icon}
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold">{framework.name}</div>
+                        <div className="flex items-center gap-2 text-xs mt-1">
+                          <span className="text-blue-400">{framework.expectedApy}</span>
+                          <span className="text-gray-500">•</span>
+                          <span className="text-gray-400">Applies to all strategies</span>
+                        </div>
+                      </div>
+                    </div>
+                    {expandedStrategy === framework.id ? (
+                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    )}
+                  </button>
+                  
+                  <AnimatePresence>
+                    {expandedStrategy === framework.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="border-t border-blue-500/20"
+                      >
+                        <div className="p-4 space-y-4 bg-gray-800/30">
+                          <p className="text-gray-300">{framework.description}</p>
+                          
+                          <div>
+                            <h4 className="font-medium text-sm mb-2 text-blue-400">How It Works</h4>
+                            <ul className="space-y-1">
+                              {framework.howItWorks.map((step, i) => (
+                                <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
+                                  <span className="text-blue-400 font-mono">{i + 1}.</span>
+                                  {step}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {framework.configParams && framework.configParams.length > 0 && (
+                            <div>
+                              <h4 className="font-medium text-sm mb-2 text-blue-400">Config Parameters</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {framework.configParams.map((param) => (
+                                  <div key={param.name} className="bg-gray-900/50 p-2 rounded text-xs">
+                                    <code className="text-green-400">{param.name}</code>
+                                    <span className="text-gray-500 ml-2">(default: {param.default})</span>
+                                    <div className="text-gray-400 mt-1">{param.description}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Additional Resources */}

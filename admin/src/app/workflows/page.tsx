@@ -1193,44 +1193,7 @@ const STRATEGIES: Strategy[] = [
     configKey: 'enable_sector_rotation',
   },
   
-  // ===== NEW HIGH-PERFORMANCE STRATEGIES (2024) =====
-  {
-    id: 'crypto_15min_scalping',
-    name: '15-Min Crypto Scalping',
-    emoji: '⚡',
-    confidence: 90,
-    expectedApy: '100-500%+',
-    description: 'High-frequency BTC/ETH binary options scalping on 15-minute expirations. Based on Twitter success story: $956 → $208K in months. Uses technical analysis + Kelly criterion sizing.',
-    keyPoints: [
-      'Twitter-proven: @0xReflection made $208K from $956',
-      '15-minute expiration windows for quick profits',
-      '45%+ entry threshold with Kelly fraction sizing',
-      'Multi-indicator confluence: RSI, Bollinger, VWAP',
-      'Conservative: 90%+ confidence required',
-      'Slippage protection built-in',
-    ],
-    platforms: ['Kalshi', 'Polymarket'],
-    riskLevel: 'high',
-    category: 'crypto',
-    icon: <Zap className="w-6 h-6" />,
-    color: 'from-yellow-500 to-orange-500',
-    requirements: [
-      'Kalshi API key (preferred for crypto)',
-      'Real-time BTC/ETH price feeds',
-      'Technical indicator calculations',
-      '$50+ starting balance recommended',
-    ],
-    workflow: [
-      'Scan BTC/ETH 15-min markets every 2 seconds',
-      'Calculate RSI, Bollinger Bands, VWAP deviation',
-      'Score opportunity (0-100) based on confluence',
-      'If score ≥ 45 AND confidence ≥ 90%, enter trade',
-      'Apply Kelly criterion for position sizing',
-      'Track win/loss streaks for adjustment',
-      'Auto-exit at expiration',
-    ],
-    configKey: 'enable_15min_crypto_scalping',
-  },
+  // ===== AI & ADVANCED STRATEGIES (2024) =====
   {
     id: 'ai_superforecasting',
     name: 'AI Superforecasting',
@@ -1281,7 +1244,7 @@ const categoryTitles = {
   prediction: { title: 'Prediction Markets', icon: '🎯', subtitle: 'Polymarket & Kalshi' },
   crypto: { title: 'Crypto Strategies', icon: '₿', subtitle: 'CCXT Exchanges' },
   stock: { title: 'Stock Trading', icon: '📈', subtitle: 'Alpaca' },
-  framework: { title: 'Risk Framework', icon: '🛡️', subtitle: 'Risk Management' },
+  framework: { title: 'Risk Management & Enhancements', icon: '🛡️', subtitle: 'Applied to all strategies' },
 };
 
 const riskColors = {
@@ -1302,11 +1265,18 @@ export default function WorkflowsPage() {
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy | null>(null);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
 
+  // Separate strategies from frameworks
+  const tradingStrategies = STRATEGIES.filter(s => s.category !== 'framework');
+  const riskFrameworks = STRATEGIES.filter(s => s.category === 'framework');
+  
   // Sort by confidence (already sorted in STRATEGIES array)
-  const sortedStrategies = [...STRATEGIES].sort((a, b) => b.confidence - a.confidence);
+  const sortedStrategies = [...tradingStrategies].sort((a, b) => b.confidence - a.confidence);
+  const sortedFrameworks = [...riskFrameworks].sort((a, b) => b.confidence - a.confidence);
   
   const filteredStrategies = filterCategory 
-    ? sortedStrategies.filter(s => s.category === filterCategory)
+    ? (filterCategory === 'framework' 
+        ? sortedFrameworks 
+        : sortedStrategies.filter(s => s.category === filterCategory))
     : sortedStrategies;
 
   return (
@@ -1319,7 +1289,7 @@ export default function WorkflowsPage() {
             Trading Workflows
           </h1>
           <p className="text-gray-400 mt-1">
-            {STRATEGIES.length} strategies sorted by confidence % • Click any card for details
+            {tradingStrategies.length} trading strategies + {riskFrameworks.length} risk frameworks • Click any card for details
           </p>
         </div>
         <div className="flex gap-2">
@@ -1329,7 +1299,7 @@ export default function WorkflowsPage() {
               !filterCategory ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'
             }`}
           >
-            All ({STRATEGIES.length})
+            All Strategies ({tradingStrategies.length})
           </button>
           <button
             onClick={() => setFilterCategory('prediction')}
@@ -1578,10 +1548,25 @@ export default function WorkflowsPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Target className="text-green-400" />
-            All Strategies (Sorted by Confidence %)
+            Trading Strategies (Sorted by Confidence %)
           </h2>
           <div className="text-sm text-gray-400">
-            Highest confidence → Lowest confidence (left to right, top to bottom)
+            These are active trading systems that generate buy/sell signals
+          </div>
+        </div>
+        
+        {/* Explanation Box */}
+        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <Zap className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="font-medium text-yellow-400 mb-1">What are Trading Strategies?</div>
+              <p className="text-sm text-gray-300">
+                Trading strategies are <strong>active systems that generate trading signals</strong>. Each strategy 
+                analyzes specific market conditions and executes trades when opportunities are found. 
+                Strategies can run independently or together - enable multiple strategies to diversify your trading.
+              </p>
+            </div>
           </div>
         </div>
         
@@ -1622,6 +1607,95 @@ export default function WorkflowsPage() {
           ))}
         </div>
       </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          RISK FRAMEWORKS SECTION - Separate from Trading Strategies
+          ════════════════════════════════════════════════════════════════════════ */}
+      {filterCategory !== 'prediction' && filterCategory !== 'crypto' && filterCategory !== 'stock' && (
+        <div className="card p-6 border-blue-500/30">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Shield className="text-blue-400" />
+              Risk Management Frameworks
+            </h2>
+            <div className="text-sm text-blue-400">
+              These enhance ALL trading strategies - not standalone trading systems
+            </div>
+          </div>
+          
+          {/* Framework Explanation Box */}
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <Shield className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium text-blue-400 mb-2">How do Frameworks differ from Strategies?</div>
+                <div className="space-y-2 text-sm text-gray-300">
+                  <p>
+                    <strong className="text-white">Strategies</strong> generate trading signals (buy/sell decisions). 
+                    <strong className="text-white"> Frameworks</strong> are <em>risk management layers</em> that modify 
+                    HOW those trades are executed.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                    <div className="bg-gray-800/50 rounded-lg p-3">
+                      <div className="text-yellow-400 font-medium mb-1">⚡ Single Strategy Mode</div>
+                      <p className="text-xs">If you run ONE strategy (e.g., Arbitrage), frameworks apply to that strategy&apos;s trades only.</p>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-3">
+                      <div className="text-green-400 font-medium mb-1">🔄 Multi-Strategy Mode</div>
+                      <p className="text-xs">If you run MULTIPLE strategies, frameworks apply to ALL of them - providing unified risk management.</p>
+                    </div>
+                  </div>
+                  <div className="bg-gray-800/50 rounded-lg p-3 mt-3">
+                    <div className="text-purple-400 font-medium mb-1">⚙️ Do frameworks override strategy settings?</div>
+                    <p className="text-xs">
+                      <strong>No</strong> - frameworks work <em>alongside</em> strategy settings. For example, if a strategy wants to trade $100 
+                      but Kelly Criterion calculates $50 based on your edge, it will use $50. If Circuit Breaker is triggered, 
+                      ALL strategies pause. Think of frameworks as safety rails that protect your capital.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {sortedFrameworks.map((framework) => (
+              <motion.div
+                key={framework.id}
+                whileHover={{ scale: 1.03, y: -3 }}
+                className={`cursor-pointer rounded-xl p-4 border transition-all ${
+                  categoryColors[framework.category]
+                } hover:border-opacity-70`}
+                onClick={() => setSelectedStrategy(framework)}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`p-2 rounded-lg bg-gradient-to-r ${framework.color}`}>
+                    {framework.icon}
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${getConfidenceColor(framework.confidence)} bg-gray-800`}>
+                    {framework.confidence}%
+                  </span>
+                </div>
+                <div className="text-sm font-bold leading-tight mb-2">
+                  {framework.emoji && <span className="mr-1">{framework.emoji}</span>}
+                  {framework.name}
+                </div>
+                <div className="text-xs text-gray-400 mb-2 line-clamp-2">
+                  {framework.description.substring(0, 80)}...
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400">
+                    Enhancement
+                  </span>
+                  <span className="text-xs text-blue-400 font-medium">
+                    {framework.expectedApy}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Strategy Detail Modal */}
       {selectedStrategy && (

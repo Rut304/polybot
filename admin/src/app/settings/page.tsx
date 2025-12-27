@@ -491,6 +491,16 @@ export default function SettingsPage() {
   const [fundingMaxLeverage, setFundingMaxLeverage] = useState(config?.funding_max_leverage ?? 3);
   const [fundingScanIntervalSec, setFundingScanIntervalSec] = useState(config?.funding_scan_interval_sec ?? 300);
 
+  // 15-Min Crypto Scalping (90% confidence - 100-500%+ APY - HIGH RISK)
+  const [enable15MinCryptoScalping, setEnable15MinCryptoScalping] = useState(config?.enable_15min_crypto_scalping ?? true);
+  const [scalp15MinEntryThreshold, setScalp15MinEntryThreshold] = useState(config?.scalp_15min_entry_threshold ?? 0.45);
+  const [scalp15MinMaxPositionUsd, setScalp15MinMaxPositionUsd] = useState(config?.scalp_15min_max_position_usd ?? 50.0);
+  const [scalp15MinMinPositionUsd, setScalp15MinMinPositionUsd] = useState(config?.scalp_15min_min_position_usd ?? 10.0);
+  const [scalp15MinScanIntervalSec, setScalp15MinScanIntervalSec] = useState(config?.scalp_15min_scan_interval_sec ?? 2);
+  const [scalp15MinUseKellySizing, setScalp15MinUseKellySizing] = useState(config?.scalp_15min_use_kelly ?? true);
+  const [scalp15MinKellyFraction, setScalp15MinKellyFraction] = useState(config?.scalp_15min_kelly_fraction ?? 0.25);
+  const [scalp15MinMaxConcurrentTrades, setScalp15MinMaxConcurrentTrades] = useState(config?.scalp_15min_max_concurrent ?? 5);
+
   // Grid Trading (75% confidence - 20-60% APY in ranging markets)
   const [enableGridTrading, setEnableGridTrading] = useState(config?.enable_grid_trading ?? false);
   const [gridDefaultRangePct, setGridDefaultRangePct] = useState(config?.grid_default_range_pct ?? 10.0);
@@ -878,6 +888,16 @@ export default function SettingsPage() {
       if (config.funding_max_leverage !== undefined) setFundingMaxLeverage(config.funding_max_leverage);
       if (config.funding_scan_interval_sec !== undefined) setFundingScanIntervalSec(config.funding_scan_interval_sec);
 
+      // 15-Min Crypto Scalping
+      if (config.enable_15min_crypto_scalping !== undefined) setEnable15MinCryptoScalping(config.enable_15min_crypto_scalping);
+      if (config.scalp_15min_entry_threshold !== undefined) setScalp15MinEntryThreshold(config.scalp_15min_entry_threshold);
+      if (config.scalp_15min_max_position_usd !== undefined) setScalp15MinMaxPositionUsd(config.scalp_15min_max_position_usd);
+      if (config.scalp_15min_min_position_usd !== undefined) setScalp15MinMinPositionUsd(config.scalp_15min_min_position_usd);
+      if (config.scalp_15min_scan_interval_sec !== undefined) setScalp15MinScanIntervalSec(config.scalp_15min_scan_interval_sec);
+      if (config.scalp_15min_use_kelly !== undefined) setScalp15MinUseKellySizing(config.scalp_15min_use_kelly);
+      if (config.scalp_15min_kelly_fraction !== undefined) setScalp15MinKellyFraction(config.scalp_15min_kelly_fraction);
+      if (config.scalp_15min_max_concurrent !== undefined) setScalp15MinMaxConcurrentTrades(config.scalp_15min_max_concurrent);
+
       // Grid Trading (NEW)
       if (config.enable_grid_trading !== undefined) setEnableGridTrading(config.enable_grid_trading);
       if (config.grid_default_range_pct !== undefined) setGridDefaultRangePct(config.grid_default_range_pct);
@@ -1255,6 +1275,16 @@ export default function SettingsPage() {
         funding_max_positions: fundingMaxPositions,
         funding_max_leverage: fundingMaxLeverage,
         funding_scan_interval_sec: fundingScanIntervalSec,
+
+        // 15-Min Crypto Scalping
+        enable_15min_crypto_scalping: enable15MinCryptoScalping,
+        scalp_15min_entry_threshold: scalp15MinEntryThreshold,
+        scalp_15min_max_position_usd: scalp15MinMaxPositionUsd,
+        scalp_15min_min_position_usd: scalp15MinMinPositionUsd,
+        scalp_15min_scan_interval_sec: scalp15MinScanIntervalSec,
+        scalp_15min_use_kelly: scalp15MinUseKellySizing,
+        scalp_15min_kelly_fraction: scalp15MinKellyFraction,
+        scalp_15min_max_concurrent: scalp15MinMaxConcurrentTrades,
 
         // Grid Trading
         enable_grid_trading: enableGridTrading,
