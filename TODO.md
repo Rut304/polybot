@@ -6,15 +6,26 @@
 
 #### User Signup & Onboarding Flow
 
-- [x] **CREATE ONBOARDING WIZARD** 🧙 ✅
+- [x] **CREATE ONBOARDING WIZARD** 🧙 ✅ (ENHANCED Dec 27)
   - [x] Step 1: Welcome message with feature overview
   - [x] Step 2: Wallet info (Privy embedded wallet on Polygon)
   - [x] Step 3: Platform setup links (Polymarket, Kalshi, Alpaca)
+  - [x] **NEW: Inline API key entry** - Users can add keys directly in wizard
+  - [x] Expandable cards for each platform with API key/secret inputs
+  - [x] Help links to each platform's API documentation
+  - [x] Visual confirmation when keys saved
   - [x] Step 4: Select up to 3 strategies (Free tier)
   - [x] Step 5: Simulation mode explanation
   - [x] Show progress indicator, allow skip/return later
   - Created: `/admin/src/components/OnboardingWizard.tsx`
   - Created: `/admin/src/components/OnboardingCheck.tsx`
+
+- [x] **SECRETS SYNC VERIFIED** 🔐 ✅ (Dec 27)
+  - [x] Supabase `polybot_secrets` is single source of truth
+  - [x] Bot reads from Supabase via `db.get_secret()` (already implemented)
+  - [x] AWS Secrets Manager only for bootstrap (SUPABASE_URL, SERVICE_ROLE_KEY)
+  - [x] Test connection endpoints working (Alpaca, Kalshi, Polymarket, etc.)
+  - [x] Fixed key name mismatches (ALPACA_API_SECRET vs ALPACA_SECRET_KEY)
 
 - [x] **LIVE TRADING GATE** 🚨 ✅
   - [x] When user switches sim → live, show multi-step confirmation modal

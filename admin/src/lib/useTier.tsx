@@ -62,8 +62,29 @@ export function TierProvider({ children, userId }: { children: React.ReactNode; 
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error);
-        // Create default profile if not exists
+        console.log('Profile not found, creating default profile for user:', userId);
+        // Create default profile in database
+        const defaultProfileData = {
+          id: userId,
+          email: '', // Will be updated on next auth sync
+          subscription_tier: 'free',
+          subscription_status: 'inactive',
+          monthly_trades_used: 0,
+          monthly_trades_limit: TIER_LIMITS.free.monthlyTrades,
+          onboarding_completed: false,
+          is_simulation: true,
+          updated_at: new Date().toISOString(),
+        };
+        
+        // Upsert to create profile if not exists
+        const { error: upsertError } = await supabase
+          .from('polybot_profiles')
+          .upsert(defaultProfileData, { onConflict: 'id' });
+        
+        if (upsertError) {
+          console.error('Error creating profile:', upsertError);
+        }
+        
         const defaultProfile: UserProfile = {
           id: userId,
           email: '',
