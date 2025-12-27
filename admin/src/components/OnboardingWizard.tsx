@@ -75,6 +75,11 @@ const PLATFORM_LINKS = [
     description: '0% fees, USDC on Polygon',
     color: 'from-purple-500 to-blue-500',
     icon: '🎯',
+    apiKeyName: 'POLYMARKET_API_KEY',
+    secretKeyName: 'POLYMARKET_SECRET',
+    apiKeyLabel: 'API Key',
+    secretKeyLabel: 'Secret',
+    helpUrl: 'https://docs.polymarket.com/#api',
   },
   {
     name: 'Kalshi',
@@ -82,6 +87,11 @@ const PLATFORM_LINKS = [
     description: 'US-regulated, USD deposits',
     color: 'from-green-500 to-emerald-500',
     icon: '📊',
+    apiKeyName: 'KALSHI_API_KEY',
+    secretKeyName: 'KALSHI_PRIVATE_KEY',
+    apiKeyLabel: 'API Key',
+    secretKeyLabel: 'Private Key (RSA)',
+    helpUrl: 'https://trading-api.readme.io/reference/authentication',
   },
   {
     name: 'Alpaca',
@@ -89,6 +99,11 @@ const PLATFORM_LINKS = [
     description: 'Commission-free stocks',
     color: 'from-yellow-500 to-orange-500',
     icon: '📈',
+    apiKeyName: 'ALPACA_API_KEY',
+    secretKeyName: 'ALPACA_API_SECRET',
+    apiKeyLabel: 'API Key',
+    secretKeyLabel: 'API Secret',
+    helpUrl: 'https://docs.alpaca.markets/docs/api-keys',
   },
 ];
 
@@ -133,10 +148,46 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
   ]);
   const [isCompleting, setIsCompleting] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  
+  // Platform API key state
+  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+  const [platformKeys, setPlatformKeys] = useState<Record<string, { apiKey: string; secretKey: string }>>({});
+  const [savingKeys, setSavingKeys] = useState<string | null>(null);
+  const [keysSaved, setKeysSaved] = useState<Record<string, boolean>>({});
 
   const step = STEPS[currentStep];
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === STEPS.length - 1;
+
+  // Save platform API keys to Supabase
+  const savePlatformKeys = async (platform: typeof PLATFORM_LINKS[0]) => {
+    const keys = platformKeys[platform.name];
+    if (!keys?.apiKey || !keys?.secretKey) return;
+    
+    setSavingKeys(platform.name);
+    try {
+      // Save API key
+      await fetch('/api/secrets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key_name: platform.apiKeyName, key_value: keys.apiKey }),
+      });
+      
+      // Save secret key
+      await fetch('/api/secrets', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key_name: platform.secretKeyName, key_value: keys.secretKey }),
+      });
+      
+      setKeysSaved(prev => ({ ...prev, [platform.name]: true }));
+      setExpandedPlatform(null);
+    } catch (err) {
+      console.error('Failed to save keys:', err);
+    } finally {
+      setSavingKeys(null);
+    }
+  };
 
   const handleNext = () => {
     if (isLastStep) {
@@ -300,35 +351,118 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           <div>
             <h3 className="text-xl font-semibold text-white mb-2 text-center">Connect Your Platforms</h3>
             <p className="text-gray-400 mb-6 text-center">
-              Create accounts on these platforms, then add your API keys in Settings → Secrets.
+              Sign up for these platforms and enter your API keys below, or skip and add later.
             </p>
 
             <div className="grid gap-4">
-              {PLATFORM_LINKS.map((platform) => (
-                <a
-                  key={platform.name}
-                  href={platform.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-4 p-4 bg-dark-bg/50 rounded-lg border border-dark-border hover:border-neon-green/30 transition-colors group"
-                >
-                  <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${platform.color} flex items-center justify-center text-2xl`}>
-                    {platform.icon}
+              {PLATFORM_LINKS.map((platform) => {
+                const isExpanded = expandedPlatform === platform.name;
+                const isSaved = keysSaved[platform.name];
+                const keys = platformKeys[platform.name] || { apiKey: '', secretKey: '' };
+                
+                return (
+                  <div
+                    key={platform.name}
+                    className={`bg-dark-bg/50 rounded-lg border transition-colors ${
+                      isSaved ? 'border-neon-green/50' : 'border-dark-border'
+                    }`}
+                  >
+                    {/* Platform Header */}
+                    <div className="flex items-center gap-4 p-4">
+                      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${platform.color} flex items-center justify-center text-2xl`}>
+                        {platform.icon}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-white flex items-center gap-2">
+                          {platform.name}
+                          {isSaved && <CheckCircle className="w-4 h-4 text-neon-green" />}
+                        </h4>
+                        <p className="text-sm text-gray-400">{platform.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={platform.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 text-gray-400 hover:text-white transition-colors"
+                          title="Sign up"
+                        >
+                          <ExternalLink className="w-5 h-5" />
+                        </a>
+                        {!isSaved && (
+                          <button
+                            onClick={() => setExpandedPlatform(isExpanded ? null : platform.name)}
+                            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                              isExpanded 
+                                ? 'bg-gray-600 text-white' 
+                                : 'bg-neon-green/20 text-neon-green hover:bg-neon-green/30'
+                            }`}
+                          >
+                            {isExpanded ? 'Cancel' : 'Add Keys'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Expanded API Key Entry */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-dark-border pt-4">
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-400 mb-1">{platform.apiKeyLabel}</label>
+                            <input
+                              type="text"
+                              placeholder={`Enter ${platform.apiKeyLabel.toLowerCase()}`}
+                              value={keys.apiKey}
+                              onChange={(e) => setPlatformKeys(prev => ({
+                                ...prev,
+                                [platform.name]: { ...keys, apiKey: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:border-neon-green focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-400 mb-1">{platform.secretKeyLabel}</label>
+                            <input
+                              type="password"
+                              placeholder={`Enter ${platform.secretKeyLabel.toLowerCase()}`}
+                              value={keys.secretKey}
+                              onChange={(e) => setPlatformKeys(prev => ({
+                                ...prev,
+                                [platform.name]: { ...keys, secretKey: e.target.value }
+                              }))}
+                              className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:border-neon-green focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <a
+                              href={platform.helpUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-neon-blue hover:underline flex items-center gap-1"
+                            >
+                              <HelpCircle className="w-3 h-3" />
+                              How to get API keys
+                            </a>
+                            <button
+                              onClick={() => savePlatformKeys(platform)}
+                              disabled={!keys.apiKey || !keys.secretKey || savingKeys === platform.name}
+                              className="px-4 py-2 bg-neon-green text-dark-bg font-medium rounded text-sm hover:bg-neon-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {savingKeys === platform.name ? 'Saving...' : 'Save Keys'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-white group-hover:text-neon-green transition-colors">
-                      {platform.name}
-                    </h4>
-                    <p className="text-sm text-gray-400">{platform.description}</p>
-                  </div>
-                  <ExternalLink className="w-5 h-5 text-gray-500 group-hover:text-neon-green transition-colors" />
-                </a>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-6 flex items-center justify-center gap-2 text-sm text-gray-400">
               <HelpCircle className="w-4 h-4" />
-              <span>You can skip this and add API keys later in</span>
+              <span>You can skip this step and add keys later in</span>
               <Link href="/secrets" className="text-neon-green hover:underline">Settings → Secrets</Link>
             </div>
           </div>
