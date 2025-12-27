@@ -163,13 +163,10 @@ export async function PATCH(request: NextRequest) {
 
       let profileResult;
       if (existingProfile) {
-        // Update existing profile
+        // Update existing profile (no updated_at column in this table)
         const { data, error } = await supabase
           .from('polybot_user_profiles')
-          .update({
-            ...profileUpdates,
-            updated_at: new Date().toISOString(),
-          })
+          .update(profileUpdates)
           .eq('id', userId)
           .select();
         
@@ -182,14 +179,13 @@ export async function PATCH(request: NextRequest) {
         }
         profileResult = data;
       } else {
-        // Insert new profile
+        // Insert new profile (no updated_at column in this table)
         const { data, error } = await supabase
           .from('polybot_user_profiles')
           .insert({
             id: userId,
             ...profileUpdates,
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
           })
           .select();
         

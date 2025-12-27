@@ -5,17 +5,16 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   BarChart3,
-  PieChart,
-  Trees,
-  Activity,
   TrendingUp,
   TrendingDown,
   Target,
+  DollarSign,
+  Activity,
   Zap,
-  Fish,
-  Landmark,
-  Brain,
-  DollarSign
+  Award,
+  PieChart,
+  LineChart as LineChartIcon,
+  RefreshCw,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import {
@@ -26,94 +25,278 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  PieChart as RePieChart,
-  Pie,
   Cell,
-  LineChart,
   Line,
-  AreaChart,
-  Area
+  Area,
+  ComposedChart,
 } from 'recharts';
 
-import { useSimulatedTrades, useOpportunities, useStrategyPerformance, useBotStatus, useBotConfig } from '@/lib/hooks';
+import { useSimulatedTrades, useStrategyPerformance, useBotConfig, usePnLHistory } from '@/lib/hooks';
 import { useTier } from '@/lib/useTier';
-import { formatCurrency, formatPercent, cn } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
-import { TradingModeToggle } from '@/components/TradingModeToggle';
 import { PageCTA } from '@/components/QuickStartGuide';
 
+// Platform colors
+const PLATFORM_COLORS: Record<string, string> = {
+  polymarket: '#8b5cf6',
+  kalshi: '#22c55e',
+  alpaca: '#f59e0b',
+  binance: '#f0b90b',
+  coinbase: '#0052ff',
+  ibkr: '#dc2626',
+};
+
 export default function AnalyticsPage() {
-  const [timeframe, setTimeframe] = useState(168); // 7 days default
+  const [timeframe, setTimeframe] = useState<number>(168); // 7 days default
+  const [viewMode, setViewMode] = useState<'all' | 'paper' | 'live'>('all'); // Default to showing ALL data
+
+  // Get user context
+  const { isAdmin } = useTier();
   
-  // Get current trading mode from user context
-  const { isSimulation: isUserSimMode } = useTier();
-  const tradingMode = isUserSimMode ? 'paper' : 'live';
+  // For data fetching, use viewMode instead of user's current mode
+  const tradingModeFilter = viewMode === 'all' ? undefined : viewMode;
   
-  const { data: serverStats, isLoading: statsLoading } = useStrategyPerformance(tradingMode);
-  const { data: botStatus } = useBotStatus();
+  const { data: serverStats, isLoading: statsLoading, refetch: refetchStats } = useStrategyPerformance(tradingModeFilter);
   const { data: config } = useBotConfig();
-  const { data: trades } = useSimulatedTrades(2000, tradingMode);
+  const { data: trades = [] } = useSimulatedTrades(5000, tradingModeFilter);
 
-  const isSimulation = botStatus?.mode !== 'live';
+  // Starting balance calculation
+  const startingBalance = useMemo(() => {
+    const polyStarting = config?.polymarket_starting_balance || 5000;
+    const kalshiStarting = config?.kalshi_starting_balance || 5000;
+    const binanceStarting = config?.binance_starting_balance || 5000;
+    const coinbaseStarting = config?.coinbase_starting_balance || 5000;
+    const alpacaStarting = config?.alpaca_starting_balance || 5000;
+    const ibkrStarting = config?.ibkr_starting_balance || 5000;
+    return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
+  }, [config]);
 
-  // === DATA PROCESSING ENGINE (Server-Side Sourced) ===
+  // === COMPREHENSIVE ANALYTICS ENGINE ===
   const analytics = useMemo(() => {
-    if (!serverStats) return null;
+    if (!serverStats || serverStats.length === 0) {
+      return null;
+    }
 
-    // Group raw strategy names into Display Categories
-    const strategies: Record<string, {
-      name: string;
-      pnl: number;
-      wins: number;
-      losses: number;
-      total: number;
-      volume: number;
-    }> = {};
+    // Filter trades by timeframe
+    const since = new Date();
+    since.setHours(since.getHours() - (timeframe || 8760));
+    const filteredTrades = trades.filter(t => 
+      t.outcome !== 'failed_execution' && 
+      new Date(t.created_at) >= since
+    );
 
-    serverStats.forEach(stat => {
-      // Improved Strategy Categorization Logic (Same as before, but on aggregated clumps)
-      let stratName = 'Arbitrage';
-      const s = (stat.strategy || '').toLowerCase();
+    // === OVERALL ACCOUNT METRICS ===
+    const totalPnl = serverStats.reduce((sum, s) => sum + (s.total_pnl || 0), 0);
+    const totalTrades = serverStats.reduce((sum, s) => sum + (s.total_trades || 0), 0);
+    const totalWins = serverStats.reduce((sum, s) => sum + (s.winning_trades || 0), 0);
+    const totalLosses = serverStats.reduce((sum, s) => sum + (s.losing_trades || 0), 0);
+    const totalVolume = filteredTrades.reduce((sum, t) => sum + (t.position_size_usd || 0), 0);
+    const resolvedTrades = totalWins + totalLosses;
+    const overallWinRate = resolvedTrades > 0 ? (totalWins / resolvedTrades) * 100 : 0;
+    const roi = (totalPnl / startingBalance) * 100;
+    const currentBalance = startingBalance + totalPnl;
+    
+    // Best and worst trades
+    const bestTrade = serverStats.reduce((best, s) => Math.max(best, s.best_trade || 0), 0);
+    const worstTrade = serverStats.reduce((worst, s) => Math.min(worst, s.worst_trade || 0), 0);
+    
+    // Average trade metrics
+    const avgTradeSize = totalVolume / (totalTrades || 1);
+    const avgProfit = totalPnl / (totalTrades || 1);
+    const avgWin = filteredTrades.filter(t => t.outcome === 'won').reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0) / (totalWins || 1);
+    const avgLoss = Math.abs(filteredTrades.filter(t => t.outcome === 'lost').reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0)) / (totalLosses || 1);
+    const profitFactor = avgLoss > 0 ? (avgWin * totalWins) / (avgLoss * totalLosses) : avgWin > 0 ? Infinity : 0;
 
-      if (s.includes('whale')) stratName = 'Whale Copy';
-      else if (s.includes('congress')) stratName = 'Congress Copy';
-      else if (s.includes('news')) stratName = 'News Trading';
-      else if (s.includes('single')) stratName = 'Scalping';
-      else if (s.includes('sentiment')) stratName = 'AI Sentiment';
+    // === STRATEGY BREAKDOWN ===
+    const strategyData = serverStats.map(stat => ({
+      name: formatStrategyName(stat.strategy || 'Unknown'),
+      rawName: stat.strategy,
+      pnl: stat.total_pnl || 0,
+      trades: stat.total_trades || 0,
+      wins: stat.winning_trades || 0,
+      losses: stat.losing_trades || 0,
+      winRate: stat.total_trades > 0 ? ((stat.winning_trades || 0) / stat.total_trades) * 100 : 0,
+      avgTrade: stat.total_trades > 0 ? (stat.total_pnl || 0) / stat.total_trades : 0,
+      bestTrade: stat.best_trade || 0,
+      worstTrade: stat.worst_trade || 0,
+    })).sort((a, b) => b.pnl - a.pnl);
 
-      if (!strategies[stratName]) {
-        strategies[stratName] = { name: stratName, pnl: 0, wins: 0, losses: 0, total: 0, volume: 0 };
+    // === PLATFORM BREAKDOWN ===
+    const platformStats: Record<string, { pnl: number; trades: number; wins: number; losses: number }> = {};
+    filteredTrades.forEach(trade => {
+      const platform = trade.polymarket_token_id ? 'polymarket' :
+        trade.kalshi_ticker ? 'kalshi' :
+        trade.alpaca_symbol ? 'alpaca' : 'other';
+      
+      if (!platformStats[platform]) {
+        platformStats[platform] = { pnl: 0, trades: 0, wins: 0, losses: 0 };
       }
-
-      // Aggregate the pre-aggregated chunks
-      strategies[stratName].pnl += Number(stat.total_pnl || 0);
-      strategies[stratName].total += Number(stat.total_trades || 0);
-      strategies[stratName].volume += Number(stat.total_volume || 0);
-      strategies[stratName].wins += Number(stat.winning_trades || 0);
-      strategies[stratName].losses += Number(stat.losing_trades || 0);
+      platformStats[platform].pnl += trade.actual_profit_usd || 0;
+      platformStats[platform].trades += 1;
+      if (trade.outcome === 'won') platformStats[platform].wins += 1;
+      if (trade.outcome === 'lost') platformStats[platform].losses += 1;
     });
 
-    // Convert back to array
-    const strategyData = Object.values(strategies)
-      .sort((a, b) => b.pnl - a.pnl);
+    const platformData = Object.entries(platformStats).map(([platform, stats]) => ({
+      name: platform.charAt(0).toUpperCase() + platform.slice(1),
+      pnl: stats.pnl,
+      trades: stats.trades,
+      wins: stats.wins,
+      losses: stats.losses,
+      winRate: stats.trades > 0 ? (stats.wins / stats.trades) * 100 : 0,
+      color: PLATFORM_COLORS[platform] || '#666',
+    })).sort((a, b) => b.pnl - a.pnl);
 
-    const winningStrats = strategyData.filter(s => s.pnl > 0);
-    const losingStrats = strategyData.filter(s => s.pnl < 0);
+    // === TIME-BASED ANALYSIS ===
+    const dailyPnl: Record<string, { pnl: number; trades: number }> = {};
+    
+    filteredTrades.forEach(trade => {
+      const date = new Date(trade.created_at);
+      const day = date.toISOString().split('T')[0];
+      
+      if (!dailyPnl[day]) dailyPnl[day] = { pnl: 0, trades: 0 };
+      dailyPnl[day].pnl += trade.actual_profit_usd || 0;
+      dailyPnl[day].trades += 1;
+    });
 
-    return { strategyData, winningStrats, losingStrats };
-  }, [serverStats]);
+    const dailyData = Object.entries(dailyPnl)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-30)
+      .map(([date, stats]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        pnl: stats.pnl,
+        trades: stats.trades,
+      }));
 
-  // Chart Colors (Neon Palette)
-  const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#f97316', '#eab308'];
+    // === WIN/LOSS DISTRIBUTION ===
+    const pnlRanges = [
+      { range: '< -$50', count: 0 },
+      { range: '-$50 to -$20', count: 0 },
+      { range: '-$20 to -$5', count: 0 },
+      { range: '-$5 to $0', count: 0 },
+      { range: '$0 to $5', count: 0 },
+      { range: '$5 to $20', count: 0 },
+      { range: '$20 to $50', count: 0 },
+      { range: '> $50', count: 0 },
+    ];
 
-  if (statsLoading || !analytics) {
-    return <div className="p-8 text-center text-gray-500 animate-pulse">Loading Analytics Engine...</div>;
+    filteredTrades.forEach(trade => {
+      const pnl = trade.actual_profit_usd || 0;
+      if (pnl < -50) pnlRanges[0].count++;
+      else if (pnl < -20) pnlRanges[1].count++;
+      else if (pnl < -5) pnlRanges[2].count++;
+      else if (pnl < 0) pnlRanges[3].count++;
+      else if (pnl < 5) pnlRanges[4].count++;
+      else if (pnl < 20) pnlRanges[5].count++;
+      else if (pnl < 50) pnlRanges[6].count++;
+      else pnlRanges[7].count++;
+    });
+
+    // === STREAKS & PATTERNS ===
+    let maxWinStreak = 0;
+    let maxLossStreak = 0;
+    let tempStreak = 0;
+    let lastOutcome: string | null = null;
+
+    filteredTrades
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .forEach(trade => {
+        if (trade.outcome === 'won' || trade.outcome === 'lost') {
+          if (trade.outcome === lastOutcome) {
+            tempStreak++;
+          } else {
+            tempStreak = 1;
+            lastOutcome = trade.outcome;
+          }
+          
+          if (trade.outcome === 'won') {
+            maxWinStreak = Math.max(maxWinStreak, tempStreak);
+          } else {
+            maxLossStreak = Math.max(maxLossStreak, tempStreak);
+          }
+        }
+      });
+
+    return {
+      // Overall metrics
+      totalPnl,
+      totalTrades,
+      totalWins,
+      totalLosses,
+      totalVolume,
+      overallWinRate,
+      roi,
+      currentBalance,
+      bestTrade,
+      worstTrade,
+      avgTradeSize,
+      avgProfit,
+      avgWin,
+      avgLoss,
+      profitFactor,
+      
+      // Breakdowns
+      strategyData,
+      platformData,
+      dailyData,
+      pnlRanges,
+      
+      // Patterns
+      maxWinStreak,
+      maxLossStreak,
+      
+      // Pending/failed
+      pendingTrades: filteredTrades.filter(t => t.outcome === 'pending').length,
+      failedTrades: trades.filter(t => t.outcome === 'failed_execution').length,
+    };
+  }, [serverStats, trades, timeframe, startingBalance]);
+
+  // Format strategy name for display
+  function formatStrategyName(name: string): string {
+    return name
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase())
+      .replace('Polymarket', 'PM')
+      .replace('Kalshi', 'K')
+      .replace('Single', 'Single-Platform')
+      .replace('Cross Platform', 'Cross-Platform');
+  }
+
+  if (statsLoading) {
+    return (
+      <div className="p-8 text-center">
+        <RefreshCw className="w-8 h-8 text-neon-blue animate-spin mx-auto mb-4" />
+        <p className="text-gray-400">Loading analytics...</p>
+      </div>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="card text-center py-12">
+          <BarChart3 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">No Trading Data Yet</h2>
+          <p className="text-gray-400 mb-6">
+            Start trading to see your performance analytics here.
+          </p>
+          <Link 
+            href="/strategies" 
+            className="inline-flex items-center gap-2 px-6 py-3 bg-neon-green text-dark-bg font-semibold rounded-lg hover:bg-neon-green/90 transition-colors"
+          >
+            <Zap className="w-5 h-5" />
+            Enable Strategies
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-8 max-w-[1600px] mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/" className="p-2 rounded-lg bg-dark-card border border-dark-border hover:bg-dark-border transition-colors">
             <ArrowLeft className="w-5 h-5 text-gray-400" />
@@ -123,89 +306,249 @@ export default function AnalyticsPage() {
               <BarChart3 className="w-8 h-8 text-neon-blue" />
               Performance Analytics
             </h1>
-            <p className="text-gray-400">Deep dive into strategy effectiveness</p>
+            <p className="text-gray-400">Comprehensive trading performance analysis</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          {[24, 168, 720].map((h) => (
-            <button
-              key={h}
-              onClick={() => setTimeframe(h)}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                timeframe === h
-                  ? "bg-neon-blue/20 text-neon-blue border border-neon-blue/30"
-                  : "bg-dark-card text-gray-400 border border-dark-border hover:text-white"
-              )}
-            >
-              {h === 24 ? '24H' : h === 168 ? '7D' : '30D'}
-            </button>
-          ))}
+        
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Trading Mode Filter */}
+          <div className="flex rounded-lg border border-dark-border overflow-hidden">
+            {(['all', 'paper', 'live'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium transition-colors",
+                  viewMode === mode
+                    ? "bg-neon-blue/20 text-neon-blue"
+                    : "bg-dark-card text-gray-400 hover:text-white"
+                )}
+              >
+                {mode === 'all' ? 'All Data' : mode === 'paper' ? 'Paper' : 'Live'}
+              </button>
+            ))}
+          </div>
+          
+          {/* Timeframe Filter */}
+          <div className="flex rounded-lg border border-dark-border overflow-hidden">
+            {[
+              { value: 24, label: '24H' },
+              { value: 168, label: '7D' },
+              { value: 720, label: '30D' },
+              { value: 0, label: 'All' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setTimeframe(value)}
+                className={cn(
+                  "px-4 py-2 text-sm font-medium transition-colors",
+                  timeframe === value
+                    ? "bg-neon-green/20 text-neon-green"
+                    : "bg-dark-card text-gray-400 hover:text-white"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          
+          <button
+            onClick={() => refetchStats()}
+            className="p-2 rounded-lg bg-dark-card border border-dark-border hover:bg-dark-border transition-colors"
+            title="Refresh data"
+          >
+            <RefreshCw className="w-5 h-5 text-gray-400" />
+          </button>
         </div>
       </div>
 
-      {/* Page CTA */}
-      <PageCTA page="analytics" />
-
-      {/* Top Level KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card bg-gradient-to-br from-dark-card to-green-900/10 border-green-500/20">
-          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Top Performer</h3>
-          <div className="text-2xl font-bold text-green-400 flex items-center gap-2">
-            {analytics.strategyData[0]?.name || 'N/A'}
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Generated {formatCurrency(analytics.strategyData[0]?.pnl || 0)} profit
-          </p>
-        </div>
-
-        <div className="card">
-          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Total Volume</h3>
-          <div className="text-2xl font-bold text-white">
-            {formatCurrency(analytics.strategyData.reduce((acc, s) => acc + s.volume, 0))}
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Across {trades?.length} trades
-          </p>
-        </div>
-
-        <div className="card bg-gradient-to-br from-dark-card to-red-900/10 border-red-500/20">
-          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Worst Performer</h3>
-          <div className="text-2xl font-bold text-red-400 flex items-center gap-2">
-            {analytics.strategyData[analytics.strategyData.length - 1]?.name || 'N/A'}
-            <TrendingDown className="w-5 h-5" />
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            Lost {formatCurrency(analytics.strategyData[analytics.strategyData.length - 1]?.pnl || 0)}
-          </p>
-        </div>
-      </div>
-
-      {/* Main Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-        {/* PnL by Strategy Bar Chart */}
+      {/* === MAIN KPI CARDS === */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {/* Total P&L */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="card min-h-[400px]"
+          className={cn(
+            "card border-l-4",
+            analytics.totalPnl >= 0 ? "border-l-green-500" : "border-l-red-500"
+          )}
         >
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-neon-green" />
-            Profit by Strategy
-          </h2>
-          <div className="h-[300px] w-full">
+          <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+            <DollarSign className="w-4 h-4" />
+            TOTAL P&L
+          </div>
+          <div className={cn(
+            "text-2xl font-bold",
+            analytics.totalPnl >= 0 ? "text-green-400" : "text-red-400"
+          )}>
+            {formatCurrency(analytics.totalPnl)}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {analytics.totalPnl >= 0 ? '+' : ''}{analytics.roi.toFixed(2)}% ROI
+          </div>
+        </motion.div>
+
+        {/* Win Rate */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="card border-l-4 border-l-blue-500"
+        >
+          <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+            <Target className="w-4 h-4" />
+            WIN RATE
+          </div>
+          <div className="text-2xl font-bold text-blue-400">
+            {analytics.overallWinRate.toFixed(1)}%
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {analytics.totalWins}W / {analytics.totalLosses}L
+          </div>
+        </motion.div>
+
+        {/* Total Trades */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card border-l-4 border-l-purple-500"
+        >
+          <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+            <Activity className="w-4 h-4" />
+            TOTAL TRADES
+          </div>
+          <div className="text-2xl font-bold text-purple-400">
+            {analytics.totalTrades}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {analytics.pendingTrades} pending
+          </div>
+        </motion.div>
+
+        {/* Avg Trade */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="card border-l-4 border-l-cyan-500"
+        >
+          <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+            <TrendingUp className="w-4 h-4" />
+            AVG PROFIT
+          </div>
+          <div className={cn(
+            "text-2xl font-bold",
+            analytics.avgProfit >= 0 ? "text-cyan-400" : "text-red-400"
+          )}>
+            {formatCurrency(analytics.avgProfit)}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            per trade
+          </div>
+        </motion.div>
+
+        {/* Profit Factor */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="card border-l-4 border-l-yellow-500"
+        >
+          <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+            <Award className="w-4 h-4" />
+            PROFIT FACTOR
+          </div>
+          <div className={cn(
+            "text-2xl font-bold",
+            analytics.profitFactor >= 1.5 ? "text-yellow-400" : analytics.profitFactor >= 1 ? "text-gray-300" : "text-red-400"
+          )}>
+            {analytics.profitFactor === Infinity ? '∞' : analytics.profitFactor.toFixed(2)}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {analytics.profitFactor >= 1.5 ? 'Excellent' : analytics.profitFactor >= 1 ? 'Breakeven' : 'Needs work'}
+          </div>
+        </motion.div>
+
+        {/* Current Balance */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="card border-l-4 border-l-emerald-500"
+        >
+          <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+            <DollarSign className="w-4 h-4" />
+            BALANCE
+          </div>
+          <div className="text-2xl font-bold text-emerald-400">
+            {formatCurrency(analytics.currentBalance)}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            from {formatCurrency(startingBalance)}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* === DETAILED METRICS ROW === */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Best Trade</div>
+          <div className="text-lg font-bold text-green-400">{formatCurrency(analytics.bestTrade)}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Worst Trade</div>
+          <div className="text-lg font-bold text-red-400">{formatCurrency(analytics.worstTrade)}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Avg Win</div>
+          <div className="text-lg font-bold text-green-400">{formatCurrency(analytics.avgWin)}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Avg Loss</div>
+          <div className="text-lg font-bold text-red-400">-{formatCurrency(analytics.avgLoss)}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Avg Size</div>
+          <div className="text-lg font-bold text-white">{formatCurrency(analytics.avgTradeSize)}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Total Volume</div>
+          <div className="text-lg font-bold text-white">{formatCurrency(analytics.totalVolume)}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Win Streak</div>
+          <div className="text-lg font-bold text-green-400">{analytics.maxWinStreak}</div>
+        </div>
+        <div className="card py-3">
+          <div className="text-xs text-gray-500 mb-1">Loss Streak</div>
+          <div className="text-lg font-bold text-red-400">{analytics.maxLossStreak}</div>
+        </div>
+      </div>
+
+      {/* === CHARTS ROW 1 === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* P&L by Strategy */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+        >
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-neon-green" />
+            P&L by Strategy
+          </h3>
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analytics.strategyData} layout="vertical" margin={{ left: 20 }}>
+              <BarChart data={analytics.strategyData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={false} />
                 <XAxis type="number" stroke="#666" tickFormatter={(v) => `$${v}`} />
-                <YAxis type="category" dataKey="name" stroke="#999" width={100} />
+                <YAxis type="category" dataKey="name" stroke="#999" width={140} tick={{ fontSize: 11 }} />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#111', borderColor: '#333' }}
-                  formatter={(value: number) => [formatCurrency(value), 'Profit']}
+                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
+                  formatter={(value: number) => [formatCurrency(value), 'P&L']}
                 />
-                <Bar dataKey="pnl" fill="#22c55e" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="pnl" radius={[0, 4, 4, 0]}>
                   {analytics.strategyData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} />
                   ))}
@@ -215,56 +558,150 @@ export default function AnalyticsPage() {
           </div>
         </motion.div>
 
-        {/* Win Rate Radar/Bar Chart */}
+        {/* Win Rate by Strategy */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="card min-h-[400px]"
+          className="card"
         >
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <Target className="w-5 h-5 text-neon-purple" />
-            Win Rate Efficiency
-          </h2>
-          <div className="h-[300px] w-full">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Target className="w-5 h-5 text-neon-blue" />
+            Win Rate by Strategy
+          </h3>
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analytics.strategyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                <XAxis dataKey="name" stroke="#666" tick={{ fontSize: 10 }} />
+                <XAxis dataKey="name" stroke="#666" fontSize={10} height={80} />
                 <YAxis stroke="#666" tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
                 <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#111', borderColor: '#333' }}
-                  formatter={(value: any, name: any, props: any) => {
-                    const winRate = Math.round((props.payload.wins / props.payload.total) * 100);
-                    return [`${winRate}% (${props.payload.wins}/${props.payload.total})`, 'Win Rate'];
-                  }}
+                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
+                  formatter={(value: number, name: string) => [
+                    name === 'winRate' ? `${value.toFixed(1)}%` : value,
+                    name === 'winRate' ? 'Win Rate' : 'Trades'
+                  ]}
                 />
-                <Bar dataKey="total" fill="#3b82f6" fillOpacity={0.2} radius={[4, 4, 0, 0]} name="Total Trades" />
-                <Bar dataKey="wins" fill="#a855f7" radius={[4, 4, 0, 0]} name="Wins" stackId="a" />
+                <Bar dataKey="winRate" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Win Rate" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </motion.div>
       </div>
 
-      {/* Strategy Leaderboard - The Single Source of Truth */}
-      {/* Strategy Leaderboard - The Single Source of Truth */}
-      <div className="card border-t-4 border-t-neon-blue">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Target className="w-6 h-6 text-neon-blue" />
-              Strategy Leaderboard
-            </h2>
-            <p className="text-gray-400 text-sm mt-1">Real-time performance ranking of all active strategies</p>
+      {/* === CHARTS ROW 2 === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Daily P&L Trend */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+        >
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <LineChartIcon className="w-5 h-5 text-neon-purple" />
+            Daily P&L Trend
+          </h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={analytics.dailyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis dataKey="date" stroke="#666" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="left" stroke="#666" tickFormatter={(v) => `$${v}`} />
+                <YAxis yAxisId="right" orientation="right" stroke="#666" />
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
+                />
+                <Area yAxisId="left" type="monotone" dataKey="pnl" fill="#22c55e" fillOpacity={0.2} stroke="#22c55e" name="P&L" />
+                <Line yAxisId="right" type="monotone" dataKey="trades" stroke="#a855f7" strokeWidth={2} dot={false} name="Trades" />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-        <StrategyPerformanceTable tradingMode={isSimulation ? 'paper' : 'live'} />
+        </motion.div>
+
+        {/* P&L Distribution */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card"
+        >
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <PieChart className="w-5 h-5 text-neon-yellow" />
+            Trade P&L Distribution
+          </h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analytics.pnlRanges}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                <XAxis dataKey="range" stroke="#666" tick={{ fontSize: 9 }} />
+                <YAxis stroke="#666" />
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {analytics.pnlRanges.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={index < 4 ? '#ef4444' : '#22c55e'} 
+                      fillOpacity={0.3 + (Math.abs(index - 3.5) / 4) * 0.7}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
       </div>
+
+      {/* === PLATFORM BREAKDOWN === */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="card"
+      >
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Zap className="w-5 h-5 text-neon-blue" />
+          Performance by Platform
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {analytics.platformData.map((platform) => (
+            <div 
+              key={platform.name}
+              className="bg-dark-bg/50 rounded-lg p-4 border border-dark-border"
+              style={{ borderLeftColor: platform.color, borderLeftWidth: '4px' }}
+            >
+              <div className="text-sm font-medium text-gray-300 mb-2">{platform.name}</div>
+              <div className={cn(
+                "text-xl font-bold mb-1",
+                platform.pnl >= 0 ? "text-green-400" : "text-red-400"
+              )}>
+                {formatCurrency(platform.pnl)}
+              </div>
+              <div className="text-xs text-gray-500">
+                {platform.trades} trades • {platform.winRate.toFixed(0)}% win rate
+              </div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* === STRATEGY LEADERBOARD === */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="card"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <Award className="w-5 h-5 text-neon-green" />
+            Strategy Leaderboard
+          </h3>
+        </div>
+        <StrategyPerformanceTable tradingMode={tradingModeFilter} />
+      </motion.div>
+
+      {/* Page CTA */}
+      <PageCTA page="analytics" />
     </div>
   );
-}
-
-function DollarSignIcon(props: any) {
-  return <DollarSign {...props} />
 }
