@@ -1,6 +1,39 @@
 # PolyBot To-Do List
 
-## Active Tasks (December 26, 2025)
+## 🎯 Active Sprint (December 27, 2025)
+
+### P0 - Must Complete Before Launch
+
+- [x] **Flash Fix** - Navigation/Header showing before auth ✅ FIXED
+- [x] **Missed Opportunities** - Filter to show only actionable misses ✅ FIXED  
+- [ ] **Strategy Marketplace** - User can browse/enable community strategies (P0 Marketing)
+- [ ] **Email System** - Welcome emails, trade alerts, daily digest
+- [ ] **Landing Page** - Public marketing site at polyparlay.io
+- [ ] **Admin Logs Page** - Built-in troubleshooting and bot logs viewer
+
+### P1 - Within 30 Days
+
+- [ ] **Referral Program** - Viral growth with tracking codes
+- [ ] **Backtesting UI** - Let users test strategies with historical data
+- [ ] **Better Mobile UX** - Responsive improvements
+- [ ] **Help Docs** - Knowledge base beyond `/docs` page
+- [ ] **Live Chat** - Intercom or Crisp integration
+
+### P2 - Growth Features
+
+- [ ] **Copy Trading** - Follow successful traders
+- [ ] **API for Developers** - Public API with rate limits
+- [ ] **Webhooks** - External integrations
+- [ ] **Mobile App** - Native iOS/Android
+
+### 🚫 Skipped/Deferred
+
+- ~~Free Trial Period~~ - Paper trading is always free, no trial needed
+- ~~External Monitoring (Sentry/LogRocket)~~ - Building admin logs page instead
+
+---
+
+## ✅ Previously Completed (December 26, 2025)
 
 ### 🔴 HIGH PRIORITY - SaaS Launch (PolyParlay.io)
 

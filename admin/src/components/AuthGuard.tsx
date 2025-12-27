@@ -2,6 +2,9 @@
 
 import { useAuth } from '@/lib/auth';
 import { LoginPage } from './LoginPage';
+import { AppShell } from './AppShell';
+import { Header } from './Header';
+import { CircuitBreakerStatus } from './CircuitBreakerStatus';
 import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
@@ -26,5 +29,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return <LoginPage />;
   }
 
-  return <>{children}</>;
+  // User is authenticated - show full app with navigation
+  return (
+    <AppShell>
+      <Header />
+      {children}
+      <CircuitBreakerStatus />
+    </AppShell>
+  );
 }

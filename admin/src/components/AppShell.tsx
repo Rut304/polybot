@@ -15,9 +15,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isLiveTrading = botStatus?.dry_run_mode === false;
 
   return (
-    <div className="min-h-screen bg-dark-bg">
+    <div className="min-h-screen bg-dark-bg flex">
       <Navigation />
-      <main className="pl-56 min-h-screen">
+      <main className="flex-1 ml-56 mt-14 transition-all duration-300">
         {/* Live Trading Warning Banner */}
         {isLiveTrading && (
           <div className="sticky top-0 z-40 bg-gradient-to-r from-red-600 to-red-500 text-white px-4 py-2 flex items-center justify-center gap-3 shadow-lg">

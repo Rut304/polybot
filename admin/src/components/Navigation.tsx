@@ -58,6 +58,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
   requiredTier?: SubscriptionTier; // 'free' | 'pro' | 'elite'
+  isNew?: boolean;
 }
 
 const navSections: NavSection[] = [
@@ -101,6 +102,7 @@ const navSections: NavSection[] = [
   {
     title: 'Automation',
     items: [
+      { href: '/marketplace', label: 'Marketplace', icon: Store, isNew: true },
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
       { href: '/strategy-history', label: 'Strategy History', icon: History, requiredTier: 'pro' },
       { href: '/strategy-builder', label: 'Strategy Builder', icon: Target, requiredTier: 'elite' },
@@ -247,7 +249,12 @@ export function Navigation() {
                       {!collapsed && (
                         <>
                           <span className={cn(!hasAccess && "opacity-50")}>{item.label}</span>
-                          {!hasAccess && TierIcon && (
+                          {item.isNew && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-500/20 text-green-400 rounded ml-auto">
+                              NEW
+                            </span>
+                          )}
+                          {!hasAccess && TierIcon && !item.isNew && (
                             <TierIcon className={cn(
                               "w-3 h-3 ml-auto",
                               item.requiredTier === 'pro' ? "text-neon-blue" : "text-yellow-400"

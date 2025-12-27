@@ -11,7 +11,10 @@ import {
   TrendingDown,
   BrainCircuit,
   LineChart,
-  Sliders
+  Sliders,
+  Filter,
+  Info,
+  XCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOpportunities, useBotConfig, useUpdateBotConfig } from '@/lib/hooks';
@@ -19,16 +22,68 @@ import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
 import { Tooltip } from '@/components/Tooltip';
 import { ProFeature } from '@/components/FeatureGate';
 
+// Define which skip reasons are "actionable" (could be tuned to capture)
+const ACTIONABLE_SKIP_REASONS = [
+  'below_min_profit',
+  'low_confidence',
+  'low_volume',
+  'high_volatility',
+  'position_limit',
+  'cooldown_active',
+  'daily_loss_limit',
+  'rsi_filter',
+];
+
+// Skip reasons that mean the opportunity didn't actually meet criteria
+const NON_ACTIONABLE_REASONS = [
+  'no_arbitrage',
+  'market_closed',
+  'insufficient_liquidity',
+  'price_moved',
+  'stale_data',
+  'invalid_market',
+  'expired',
+  'already_positioned',
+];
+
 function MissedOpportunitiesContent() {
   const [timeframeHours, setTimeframeHours] = useState(24);
+  const [showOnlyActionable, setShowOnlyActionable] = useState(true);
   const { data: opportunities, isLoading } = useOpportunities(1000, timeframeHours);
   const { data: config } = useBotConfig();
   const updateConfig = useUpdateBotConfig();
 
-  // Filter for missed opportunities
-  const missedOpps = useMemo(() =>
-    opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled') || [],
-    [opportunities]);
+  // Filter for missed opportunities with minimum criteria
+  const missedOpps = useMemo(() => {
+    const allMissed = opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled') || [];
+    
+    if (showOnlyActionable) {
+      // Only show opportunities that:
+      // 1. Had positive expected profit (> $0.50)
+      // 2. Were skipped for tunable reasons (not because they didn't meet basic criteria)
+      return allMissed.filter(o => {
+        const profit = o.total_profit || 0;
+        const reason = (o.skip_reason || '').toLowerCase();
+        
+        // Must have meaningful profit potential
+        if (profit < 0.50) return false;
+        
+        // Must be skipped for an actionable reason (not just "no opportunity")
+        const isActionable = ACTIONABLE_SKIP_REASONS.some(r => reason.includes(r)) ||
+          // Also include if it has a specific threshold-related reason
+          reason.includes('threshold') ||
+          reason.includes('limit') ||
+          reason.includes('filter');
+        
+        // Exclude non-actionable reasons
+        const isNonActionable = NON_ACTIONABLE_REASONS.some(r => reason.includes(r));
+        
+        return isActionable && !isNonActionable;
+      });
+    }
+    
+    return allMissed;
+  }, [opportunities, showOnlyActionable]);
 
   // === ANALYSIS ENGINE ===
   const analysis = useMemo(() => {
@@ -92,26 +147,66 @@ function MissedOpportunitiesContent() {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/"
-          className="p-2 rounded-lg bg-dark-card border border-dark-border text-gray-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3 text-white">
-            <AlertTriangle className="w-8 h-8 text-red-500" />
-            Missed Revenue Analysis
-          </h1>
-          <p className="text-gray-400 mt-1">
-            <b>{missedOpps.length}</b> opportunities skipped •
-            Total Value: <span className="text-red-400 font-mono font-bold">{formatCurrency(analysis.totalLost)}</span>
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/"
+            className="p-2 rounded-lg bg-dark-card border border-dark-border text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3 text-white">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+              Missed Revenue Analysis
+            </h1>
+            <p className="text-gray-400 mt-1">
+              <b>{missedOpps.length}</b> actionable opportunities •
+              Potential Value: <span className="text-red-400 font-mono font-bold">{formatCurrency(analysis.totalLost)}</span>
+            </p>
+          </div>
+        </div>
+        
+        {/* Filter Toggle */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowOnlyActionable(!showOnlyActionable)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all",
+              showOnlyActionable 
+                ? "bg-neon-blue/10 border-neon-blue text-neon-blue"
+                : "bg-dark-card border-dark-border text-gray-400 hover:text-white"
+            )}
+          >
+            <Filter className="w-4 h-4" />
+            {showOnlyActionable ? "Showing Actionable Only" : "Show All Misses"}
+          </button>
+          <Tooltip content="Actionable = opportunities that met criteria but were skipped due to tunable settings (profit threshold, confidence, etc)">
+            <Info className="w-5 h-5 text-gray-500 cursor-help" />
+          </Tooltip>
         </div>
       </div>
 
-      {/* AI Insights & Recommendations */}
+      {/* Empty State when no actionable opportunities */}
+      {missedOpps.length === 0 && showOnlyActionable && (
+        <div className="card border-dashed border-green-500/30 bg-green-500/5 p-8 text-center">
+          <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
+          <h3 className="text-xl font-bold text-white mb-2">No Actionable Misses!</h3>
+          <p className="text-gray-400 max-w-md mx-auto">
+            Your bot settings are well-tuned. There are no opportunities that met your criteria 
+            but were skipped due to adjustable thresholds.
+          </p>
+          <button
+            onClick={() => setShowOnlyActionable(false)}
+            className="mt-4 text-neon-blue hover:underline text-sm"
+          >
+            View all {opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled').length || 0} raw misses →
+          </button>
+        </div>
+      )}
+
+      {/* AI Insights & Recommendations - Only show if there are actionable misses */}
+      {missedOpps.length > 0 && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-6">
           <div className="flex items-center gap-2 mb-2">
@@ -121,7 +216,9 @@ function MissedOpportunitiesContent() {
 
           {analysis.recommendations.length === 0 ? (
             <div className="card border-dashed border-gray-700 p-8 text-center text-gray-500">
-              No specific tuning recommendations found. Your settings look optimal for current market conditions.
+              <Info className="w-8 h-8 mx-auto mb-3 opacity-50" />
+              <p>No specific tuning recommendations found.</p>
+              <p className="text-sm mt-2">Your settings look optimal for current market conditions.</p>
             </div>
           ) : (
             analysis.recommendations.map(rec => (
@@ -209,12 +306,15 @@ function MissedOpportunitiesContent() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Raw Log Table (Preserved from previous version) */}
+      {/* Raw Log Table - Only show if there are misses */}
+      {missedOpps.length > 0 && (
       <div className="card">
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
           <Sliders className="w-5 h-5 text-gray-400" />
-          Recent Misses
+          Recent {showOnlyActionable ? 'Actionable ' : ''}Misses
+          <span className="text-sm font-normal text-gray-500">({missedOpps.length} total)</span>
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -245,6 +345,7 @@ function MissedOpportunitiesContent() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }

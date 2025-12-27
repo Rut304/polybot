@@ -2,8 +2,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { Navigation } from '@/components/Navigation';
-import { Header } from '@/components/Header';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,18 +25,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className={inter.className}>
         <Providers>
-          <div className="min-h-screen bg-dark-bg flex">
-            <Navigation />
-            <Header />
-            <main className="flex-1 ml-56 mt-14 transition-all duration-300">
-              {children}
-            </main>
-            <CircuitBreakerStatus />
-          </div>
+          {children}
         </Providers>
       </body>
     </html>
   );
 }
-
-import { CircuitBreakerStatus } from '@/components/CircuitBreakerStatus';
