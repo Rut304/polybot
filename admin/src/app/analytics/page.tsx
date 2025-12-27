@@ -31,20 +31,25 @@ import {
   ComposedChart,
 } from 'recharts';
 
-import { useSimulatedTrades, useStrategyPerformance, useBotConfig, usePnLHistory } from '@/lib/hooks';
+import { useSimulatedTrades, useStrategyPerformance, useBotConfig, usePnLHistory, useConnectedPlatforms } from '@/lib/hooks';
 import { useTier } from '@/lib/useTier';
 import { formatCurrency, cn } from '@/lib/utils';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
 import { PageCTA } from '@/components/QuickStartGuide';
 
-// Platform colors
+// Platform colors - comprehensive list supporting all potential platforms
 const PLATFORM_COLORS: Record<string, string> = {
-  polymarket: '#8b5cf6',
-  kalshi: '#22c55e',
-  alpaca: '#f59e0b',
-  binance: '#f0b90b',
-  coinbase: '#0052ff',
-  ibkr: '#dc2626',
+  polymarket: '#8b5cf6',  // Purple
+  kalshi: '#22c55e',      // Green
+  alpaca: '#f59e0b',      // Amber
+  binance: '#f0b90b',     // Binance yellow
+  coinbase: '#0052ff',    // Coinbase blue
+  ibkr: '#dc2626',        // Red
+  kraken: '#5741d9',      // Kraken purple
+  kucoin: '#23af91',      // KuCoin teal
+  bybit: '#f7a600',       // Bybit orange
+  okx: '#121212',         // OKX dark
+  other: '#6b7280',       // Gray for unknown
 };
 
 export default function AnalyticsPage() {
@@ -54,6 +59,9 @@ export default function AnalyticsPage() {
   // Get user context
   const { isAdmin } = useTier();
   
+  // Get connected platforms dynamically from user's secrets
+  const { data: connectedPlatforms = [] } = useConnectedPlatforms();
+  
   // For data fetching, use viewMode instead of user's current mode
   const tradingModeFilter = viewMode === 'all' ? undefined : viewMode;
   
@@ -61,16 +69,35 @@ export default function AnalyticsPage() {
   const { data: config } = useBotConfig();
   const { data: trades = [] } = useSimulatedTrades(5000, tradingModeFilter);
 
-  // Starting balance calculation
+  // Starting balance calculation - dynamically include all connected platforms
   const startingBalance = useMemo(() => {
-    const polyStarting = config?.polymarket_starting_balance || 5000;
-    const kalshiStarting = config?.kalshi_starting_balance || 5000;
-    const binanceStarting = config?.binance_starting_balance || 5000;
-    const coinbaseStarting = config?.coinbase_starting_balance || 5000;
-    const alpacaStarting = config?.alpaca_starting_balance || 5000;
-    const ibkrStarting = config?.ibkr_starting_balance || 5000;
-    return polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
-  }, [config]);
+    let total = 0;
+    
+    // Get starting balance for each connected platform
+    const platformBalances: Record<string, number> = {
+      polymarket: config?.polymarket_starting_balance || 5000,
+      kalshi: config?.kalshi_starting_balance || 5000,
+      binance: config?.binance_starting_balance || 5000,
+      coinbase: config?.coinbase_starting_balance || 5000,
+      alpaca: config?.alpaca_starting_balance || 5000,
+      ibkr: config?.ibkr_starting_balance || 5000,
+      kraken: config?.kraken_starting_balance || 5000,
+      kucoin: config?.kucoin_starting_balance || 5000,
+      bybit: config?.bybit_starting_balance || 5000,
+      okx: config?.okx_starting_balance || 5000,
+    };
+    
+    // Only count platforms that are connected
+    connectedPlatforms.forEach(platform => {
+      const platformName = platform.name.toLowerCase();
+      if (platform.connected && platformBalances[platformName]) {
+        total += platformBalances[platformName];
+      }
+    });
+    
+    // If no platforms connected yet, use a default total
+    return total > 0 ? total : 30000;
+  }, [config, connectedPlatforms]);
 
   // === COMPREHENSIVE ANALYTICS ENGINE ===
   const analytics = useMemo(() => {
@@ -122,12 +149,46 @@ export default function AnalyticsPage() {
       worstTrade: stat.worst_trade || 0,
     })).sort((a, b) => b.pnl - a.pnl);
 
+    // === DYNAMIC PLATFORM DETECTION FROM TRADES ===
+    // Detect platform from trade data - supports any platform that trades on
+    const detectPlatform = (trade: any): string => {
+      // Check for explicit platform field first (if available in trade schema)
+      if (trade.platform) return trade.platform.toLowerCase();
+      
+      // Detect from token/ticker identifiers
+      if (trade.polymarket_token_id) return 'polymarket';
+      if (trade.kalshi_ticker) return 'kalshi';
+      if (trade.alpaca_symbol) return 'alpaca';
+      
+      // Detect from crypto symbols/exchanges
+      if (trade.binance_symbol || trade.exchange === 'binance') return 'binance';
+      if (trade.coinbase_symbol || trade.exchange === 'coinbase') return 'coinbase';
+      if (trade.kraken_symbol || trade.exchange === 'kraken') return 'kraken';
+      if (trade.kucoin_symbol || trade.exchange === 'kucoin') return 'kucoin';
+      if (trade.bybit_symbol || trade.exchange === 'bybit') return 'bybit';
+      if (trade.okx_symbol || trade.exchange === 'okx') return 'okx';
+      
+      // Detect from IBKR
+      if (trade.ibkr_contract_id || trade.ibkr_symbol) return 'ibkr';
+      
+      // Detect from strategy name pattern
+      const strategy = (trade.strategy || '').toLowerCase();
+      if (strategy.includes('polymarket')) return 'polymarket';
+      if (strategy.includes('kalshi')) return 'kalshi';
+      if (strategy.includes('binance')) return 'binance';
+      if (strategy.includes('coinbase')) return 'coinbase';
+      if (strategy.includes('alpaca')) return 'alpaca';
+      if (strategy.includes('ibkr') || strategy.includes('interactive')) return 'ibkr';
+      if (strategy.includes('kraken')) return 'kraken';
+      if (strategy.includes('kucoin')) return 'kucoin';
+      
+      return 'other';
+    };
+
     // === PLATFORM BREAKDOWN ===
     const platformStats: Record<string, { pnl: number; trades: number; wins: number; losses: number }> = {};
     filteredTrades.forEach(trade => {
-      const platform = trade.polymarket_token_id ? 'polymarket' :
-        trade.kalshi_ticker ? 'kalshi' :
-        trade.alpaca_symbol ? 'alpaca' : 'other';
+      const platform = detectPlatform(trade);
       
       if (!platformStats[platform]) {
         platformStats[platform] = { pnl: 0, trades: 0, wins: 0, losses: 0 };

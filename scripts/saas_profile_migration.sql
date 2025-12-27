@@ -263,12 +263,13 @@ ALTER TABLE polybot_profiles
 ADD COLUMN IF NOT EXISTS email TEXT;
 
 -- Update existing admin user to elite tier for testing
--- Use a subquery to find the user by auth.users email
+-- IMPORTANT: Keep is_simulation = TRUE to default to paper trading
+-- Users should explicitly enable live trading through the UI
 UPDATE polybot_profiles
 SET subscription_tier = 'elite',
     subscription_status = 'active',
     monthly_trades_limit = -1,
-    is_simulation = FALSE,
+    is_simulation = TRUE,  -- ALWAYS default to paper trading for safety
     onboarding_completed = TRUE
 WHERE id IN (
   SELECT id FROM auth.users WHERE email = 'rutrohd@gmail.com'
