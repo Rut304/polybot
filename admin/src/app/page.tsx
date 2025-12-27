@@ -54,18 +54,24 @@ const TIMEFRAME_OPTIONS = [
   { value: 0, label: 'All Time' },
 ];
 
+// Data view mode options
+type ViewMode = 'all' | 'paper' | 'live';
+
 export default function Dashboard() {
   // Global timeframe state - all components use this
   const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
+  // View mode - show all data by default to avoid $0.00 confusion
+  const [viewMode, setViewMode] = useState<ViewMode>('all');
 
   // Get current trading mode from user context
   const { isSimulation: isUserSimMode } = useTier();
-  const tradingMode = isUserSimMode ? 'paper' : 'live';
+  // Use viewMode for data filtering, fall back to user's current mode if 'all'
+  const tradingMode: 'paper' | 'live' | undefined = viewMode === 'all' ? undefined : viewMode;
 
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const isSimulation = botStatus?.mode !== 'live';
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
-  // Pass trading mode to get stats filtered by current mode
+  // Pass trading mode to get stats filtered by current mode (undefined = all)
   const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours, tradingMode);
   const { data: trades } = useSimulatedTrades(20, tradingMode);
   // Fetch all trades for accurate modal calculations
@@ -236,6 +242,22 @@ export default function Dashboard() {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
+          </div>
+          {/* View Mode Toggle - All/Paper/Live */}
+          <div className="flex items-center bg-dark-card border border-dark-border rounded-xl p-1">
+            {(['all', 'paper', 'live'] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
+                  viewMode === mode
+                    ? mode === 'live' ? 'bg-red-500/20 text-red-400' : mode === 'paper' ? 'bg-neon-green/20 text-neon-green' : 'bg-neon-blue/20 text-neon-blue'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {mode === 'all' ? 'All Data' : mode === 'paper' ? 'Paper' : 'Live'}
+              </button>
+            ))}
           </div>
         </div>
       </div>
