@@ -34,6 +34,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { ProFeature } from '@/components/FeatureGate';
+import { useTier } from '@/lib/useTier';
 
 interface LeaderboardTrader {
   rank: number;
@@ -865,9 +866,22 @@ function LeaderboardPageContent() {
 }
 
 export default function LeaderboardPage() {
-  return (
-    <ProFeature>
-      <LeaderboardPageContent />
-    </ProFeature>
-  );
+  const { isAdmin } = useTier();
+  
+  // Admin-only page
+  if (!isAdmin) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <Trophy className="w-16 h-16 text-gray-600 mx-auto" />
+          <h2 className="text-2xl font-bold text-gray-300">Admin Access Required</h2>
+          <p className="text-gray-500 max-w-md">
+            The Top Traders leaderboard is currently only available to administrators.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
+  return <LeaderboardPageContent />;
 }

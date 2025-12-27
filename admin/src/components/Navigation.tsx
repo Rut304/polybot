@@ -85,7 +85,7 @@ const navSections: NavSection[] = [
       { href: '/news', label: 'News Feed', icon: Newspaper },
       { href: '/insights', label: 'AI Insights', icon: Brain, requiredTier: 'pro' },
       { href: '/whales', label: 'Whale Tracker', icon: Fish, requiredTier: 'elite' },
-      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, requiredTier: 'pro' },
+      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, adminOnly: true },
       { href: '/congress', label: 'Congress Tracker', icon: Landmark, requiredTier: 'elite' },
     ],
   },
