@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
+import { usePathname } from 'next/navigation';
 import { LoginPage } from './LoginPage';
 import { AppShell } from './AppShell';
 import { Header } from './Header';
@@ -11,8 +12,29 @@ interface AuthGuardProps {
   children: React.ReactNode;
 }
 
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/landing',
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/pricing',
+  '/terms',
+  '/privacy',
+];
+
 export function AuthGuard({ children }: AuthGuardProps) {
   const { user, isLoading } = useAuth();
+  const pathname = usePathname();
+  
+  // Check if current route is public
+  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname?.startsWith(route));
+  
+  // Public routes bypass auth completely - no loading, no redirect
+  if (isPublicRoute) {
+    return <>{children}</>;
+  }
 
   if (isLoading) {
     return (
