@@ -17,6 +17,7 @@ This guide documents the migration from the **ib_insync + IB Gateway** approach 
 ## Architecture
 
 ### Old Architecture (ib_insync)
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │              AWS Lightsail (Micro)                  │
@@ -31,6 +32,7 @@ This guide documents the migration from the **ib_insync + IB Gateway** approach 
 ```
 
 ### New Architecture (Web API)
+
 ```
 ┌───────────────────────────────────────────────────────────┐
 │                  AWS Lightsail (Micro)                    │
@@ -55,27 +57,33 @@ This guide documents the migration from the **ib_insync + IB Gateway** approach 
 ## Files Changed
 
 ### New Files
+
 - `src/exchanges/ibkr_web_client.py` - Web API client with OAuth
 - `scripts/create_user_exchange_credentials.sql` - DB migration
 
 ### Modified Files  
+
 - `src/exchanges/__init__.py` - Export IBKRWebClient
 - `src/bot_runner.py` - (TODO) Use IBKRWebClient for multi-tenant
 
 ### Unchanged
+
 - `src/exchanges/ibkr_client.py` - Keep for local development with TWS
 
 ## OAuth Setup (Per User)
 
 ### 1. IBKR Developer Portal
-Users need to register an application at https://www.interactivebrokers.com/en/trading/web-api.php
+
+Users need to register an application at <https://www.interactivebrokers.com/en/trading/web-api.php>
 
 Requirements:
+
 - IBKR Pro account (not Lite)
 - Web API subscription enabled
 - Consumer Key obtained
 
 ### 2. OAuth Flow in Admin UI
+
 1. User clicks "Connect IBKR" in admin settings
 2. Redirect to IBKR OAuth authorization page
 3. User approves access
@@ -83,7 +91,9 @@ Requirements:
 5. Tokens auto-refresh
 
 ### 3. Token Storage
+
 Tokens stored per user in `user_exchange_credentials`:
+
 - `access_token` - Bearer token for API calls (encrypted)
 - `refresh_token` - For refreshing expired tokens (encrypted)
 - `token_expiry` - When token expires
@@ -92,6 +102,7 @@ Tokens stored per user in `user_exchange_credentials`:
 ## Implementation Status
 
 ### ✅ Completed
+
 - [x] IBKRWebClient class with multi-tenant support
 - [x] Per-user session management (IBKRUserSession)
 - [x] Token storage/retrieval from Supabase
@@ -104,6 +115,7 @@ Tokens stored per user in `user_exchange_credentials`:
 - [x] DB migration script
 
 ### 🔲 TODO
+
 - [ ] Admin UI OAuth flow (Connect IBKR button)
 - [ ] Update bot_runner.py to use IBKRWebClient
 - [ ] Update strategies to work with new client
@@ -132,13 +144,16 @@ Tokens stored per user in `user_exchange_credentials`:
 ## Testing
 
 ### Local Development
+
 For local testing, you can still use IB Gateway:
+
 ```python
 # Use gateway mode for local dev
 client = IBKRWebClient(use_gateway=True)  # Uses localhost:5000
 ```
 
 ### Production
+
 ```python
 # Production uses OAuth
 client = IBKRWebClient(user_id="user-uuid-here")
@@ -148,13 +163,16 @@ await client.initialize()  # Loads tokens from DB
 ## Migration Steps
 
 ### Database
+
 ```bash
 # Run migration
 psql $DATABASE_URL -f scripts/create_user_exchange_credentials.sql
 ```
 
 ### Bot Runner Update
+
 Update `src/bot_runner.py`:
+
 ```python
 # Old:
 from src.exchanges.ibkr_client import IBKRClient
@@ -166,7 +184,9 @@ from src.exchanges.ibkr_web_client import IBKRWebClient
 ```
 
 ### Strategy Update
+
 Strategies need to accept user_id and create per-user clients:
+
 ```python
 class IBKRStrategy:
     async def execute_for_user(self, user_id: str):
@@ -178,6 +198,7 @@ class IBKRStrategy:
 ## Rollback
 
 If needed, the old `IBKRClient` (ib_insync) is still available:
+
 ```python
 from src.exchanges.ibkr_client import IBKRClient
 ```

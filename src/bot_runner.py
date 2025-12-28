@@ -118,6 +118,7 @@ from src.strategies.high_conviction import HighConvictionStrategy, Signal
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.exchanges.ibkr_client import IBKRClient
+from src.exchanges.ibkr_web_client import IBKRWebClient
 from src.notifications import Notifier, NotificationConfig
 from src.logging_handler import setup_database_logging
 from src.services.balance_aggregator import BalanceAggregator
@@ -892,39 +893,60 @@ class PolybotRunner:
                 self.alpaca_client = None
         
         # Initialize IBKR Client (Interactive Brokers)
-        # IBKR requires IB Gateway/TWS running locally or in sidecar container
-        # In simulation mode, we gracefully skip if gateway is not available
+        # Uses IBKRWebClient for cloud deployment (no gateway container needed)
+        # Falls back to IBKRClient if user has local IB Gateway running
         if self.config.trading.enable_ibkr:
-            # Logic: Simulation = Paper Port (4002), Live = Live Port (4001)
-            ibkr_port = 4002 if self.simulation_mode else 4001
+            logger.info("Initializing IBKR integration...")
             
-            logger.info(f"Attempting IBKR connection ({'PAPER' if self.simulation_mode else 'LIVE'} port {ibkr_port})...")
-            self.ibkr_client = IBKRClient(
-                host='localhost', 
-                port=ibkr_port, 
-                sandbox=self.simulation_mode
-            )
-            
-            ibkr_initialized = await self.ibkr_client.initialize()
-            if ibkr_initialized:
-                logger.info(f"✓ IBKR Client initialized on port {ibkr_port}")
-            else:
-                if self.simulation_mode:
-                    # In simulation mode, gracefully continue without IBKR
-                    logger.info("⏸️ IBKR Gateway not available - continuing without IBKR in simulation mode")
-                    logger.info("   💡 To enable: Run IB Gateway Docker container on port 4002 (paper trading)")
-                else:
-                    # In LIVE mode, this is a critical error
-                    logger.error(f"❌ IBKR Client failed to connect to port {ibkr_port}")
-                    logger.error("  💡 CHECK: Is the IB Gateway container running?")
-                    logger.error(
-                        f"  💡 CHECK: Mode mismatch? You are in {'SIMULATION' if self.simulation_mode else 'LIVE'} "
-                        f"mode (expecting port {ibkr_port})."
+            # Try Web API first (works without gateway container)
+            try:
+                # For multi-tenant, we'd pass user_id here
+                # For now, use default/admin user
+                self.ibkr_client = IBKRWebClient(
+                    sandbox=self.simulation_mode
+                )
+                ibkr_initialized = await self.ibkr_client.initialize()
+                
+                if ibkr_initialized:
+                    logger.info(
+                        "✓ IBKR Web API Client initialized "
+                        f"({'PAPER' if self.simulation_mode else 'LIVE'} mode)"
                     )
-                    logger.error("  If IB Gateway is in a different mode, connection is REFUSED by design (Safety).")
+                else:
+                    # Web API not configured, try legacy gateway
+                    logger.info(
+                        "IBKR Web API not configured, "
+                        "trying legacy IB Gateway..."
+                    )
+                    ibkr_port = 4002 if self.simulation_mode else 4001
+                    self.ibkr_client = IBKRClient(
+                        host='localhost',
+                        port=ibkr_port,
+                        sandbox=self.simulation_mode
+                    )
+                    ibkr_initialized = await self.ibkr_client.initialize()
+                    
+                    if ibkr_initialized:
+                        logger.info(
+                            f"✓ IBKR Gateway Client on port {ibkr_port}"
+                        )
+                    else:
+                        if self.simulation_mode:
+                            logger.info(
+                                "⏸️ IBKR not available - "
+                                "continuing without IBKR in simulation mode"
+                            )
+                        else:
+                            logger.error(
+                                "❌ IBKR Client failed to initialize. "
+                                "Check Web API tokens or IB Gateway."
+                            )
+                        self.ibkr_client = None
+            except Exception as e:
+                logger.error(f"IBKR initialization failed: {e}")
                 self.ibkr_client = None
         else:
-             logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
+            logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
 
         # Initialize IBKR Futures Momentum
         ibkr_futures_enabled = getattr(self.config.trading, 'enable_ibkr_futures_momentum', False)

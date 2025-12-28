@@ -11,6 +11,46 @@
 - [ ] **Landing Page** - Public marketing site at polyparlay.io
 - [ ] **Admin Logs Page** - Built-in troubleshooting and bot logs viewer
 
+### P0.5 - IBKR Integration (In Progress)
+
+- [x] **IBKR Web API Client** - Created `ibkr_web_client.py` (no gateway needed) ✅
+- [x] **DB Migration Script** - `create_user_exchange_credentials.sql` ✅
+- [ ] **Run DB Migration** - Execute SQL in Supabase
+- [ ] **Admin UI OAuth Flow** - "Connect IBKR" button for users
+- [ ] **Update Bot Runner** - Use IBKRWebClient for multi-tenant
+- [ ] **Test IBKR Integration** - End-to-end with paper trading
+- **Note**: IBKR Lite users CAN use TWS API (free). Web API may have limitations.
+
+### P1 - New Exchange Integrations (Attract More Users)
+
+#### Easy OAuth Integrations (User-Friendly)
+
+- [ ] **Plaid** - Connect ANY bank account (read-only initially)
+- [ ] **Robinhood** - Unofficial API exists, massive user base
+- [ ] **Webull** - Popular with young traders, API available
+- [ ] **TD Ameritrade/Schwab** - OAuth API, large user base
+- [ ] **E*TRADE** - OAuth API, established platform
+
+#### Crypto (Already Supported via CCXT)
+
+- [x] **Binance.US** - ✅ Already supported
+- [x] **Coinbase** - ✅ Already supported  
+- [x] **Kraken** - ✅ Already supported
+- [x] **KuCoin** - ✅ Already supported
+- [ ] **Coinbase Advanced Trade** - Newer API, better for trading
+
+#### Aggregators (Multi-Platform)
+
+- [ ] **Plaid** - Bank account aggregation (read balances)
+- [ ] **Yodlee/Finicity** - Enterprise bank aggregation
+- [ ] **Vest** - Multi-broker API aggregator
+
+#### DeFi/Crypto Wallets
+
+- [ ] **WalletConnect** - Connect ANY EVM wallet (MetaMask, Rainbow, etc.)
+- [ ] **Phantom** - Solana wallet integration
+- [ ] **Uniswap/DEX** - Direct DEX trading via wallet
+
 ### P1 - Within 30 Days
 
 - [ ] **Referral Program** - Viral growth with tracking codes
@@ -30,6 +70,20 @@
 
 - ~~Free Trial Period~~ - Paper trading is always free, no trial needed
 - ~~External Monitoring (Sentry/LogRocket)~~ - Building admin logs page instead
+
+---
+
+## 📊 Integration Comparison
+
+| Platform | API Type | KYC | Ease of Setup | User Base |
+|----------|----------|-----|---------------|-----------|
+| **IBKR** | OAuth/TWS | Full | Complex (gateway) | Pro traders |
+| **Alpaca** | API Key | Moderate | Easy | Algo traders |
+| **Robinhood** | Unofficial | Full | Medium | Huge retail |
+| **Webull** | API Key | Full | Easy | Growing |
+| **Coinbase** | OAuth | Full | Easy | Massive crypto |
+| **Plaid** | OAuth | None (read) | Very Easy | Universal |
+| **WalletConnect** | Web3 | None | Easy | DeFi users |
 
 ---
 

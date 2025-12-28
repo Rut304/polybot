@@ -28,6 +28,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
+import { IBKRConnect } from '@/components/IBKRConnect';
 
 // Platform to category mapping for test connections
 const TESTABLE_PLATFORMS: Record<string, string[]> = {
@@ -939,6 +940,22 @@ export default function SecretsPage() {
                     )}
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* IBKR OAuth Connect - Only for stock_brokers category */}
+            {isExpanded && category === 'stock_brokers' && (
+              <div className="mt-4">
+                <IBKRConnect 
+                  onConnect={(accountId) => {
+                    setSuccess(`✓ IBKR account ${accountId} connected`);
+                    setTimeout(() => setSuccess(null), 5000);
+                  }}
+                  onDisconnect={() => {
+                    setSuccess('IBKR account disconnected');
+                    setTimeout(() => setSuccess(null), 3000);
+                  }}
+                />
               </div>
             )}
 
