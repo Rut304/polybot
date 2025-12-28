@@ -1,23 +1,61 @@
 # PolyBot To-Do List
 
+## 🔴 CRITICAL: Multi-Tenant User Isolation (P0)
+
+**Current State**: All users share the same API keys - MAJOR security/isolation problem!  
+**Target State**: Each user has their own API keys, data completely isolated.
+
+### Phase 1: Per-User API Key Architecture (MUST DO FIRST)
+
+- [x] **IBKR Web API Client** - Multi-tenant ready ✅ (`ibkr_web_client.py`)
+- [x] **user_exchange_credentials table** - Created and deployed ✅
+- [ ] **AlpacaClient Multi-Tenant** 🔴 CRITICAL
+  - Update to accept `user_id` parameter
+  - Load keys from `user_exchange_credentials` per user
+  - Follow IBKRWebClient pattern
+  - File: `/src/exchanges/alpaca_client.py`
+- [ ] **CCXTClient Multi-Tenant** 🔴 CRITICAL  
+  - Update to accept `user_id` parameter
+  - Load keys from `user_exchange_credentials` per user
+  - Support: Binance, Coinbase, Kraken, KuCoin per user
+  - File: `/src/exchanges/ccxt_client.py`
+- [ ] **Enable BotManager** 🔴 CRITICAL
+  - Uncomment/enable `manager.py`
+  - Spawns per-user bot instances
+  - Routes each user's trades to their own keys
+  - File: `/src/manager.py`
+- [ ] **Secrets Encryption at Rest**
+  - Encrypt API keys in database (AES-256)
+  - Decrypt only at runtime
+
+### Phase 2: Data Isolation
+
+- [ ] **Trade History by User** - Already has user_id, verify RLS
+- [ ] **Balances by User** - Already has user_id, verify RLS
+- [ ] **Strategy Settings by User** - Already has user_id, verify RLS
+- [ ] **Audit All RLS Policies** - Confirm no data leakage
+
+---
+
 ## 🎯 Active Sprint (December 27, 2025)
 
 ### P0 - Must Complete Before Launch
 
 - [x] **Flash Fix** - Navigation/Header showing before auth ✅ FIXED
 - [x] **Missed Opportunities** - Filter to show only actionable misses ✅ FIXED  
-- [ ] **Strategy Marketplace** - User can browse/enable community strategies (P0 Marketing)
+- [ ] **Per-User API Keys** - AlpacaClient + CCXTClient multi-tenant (SEE ABOVE)
 - [ ] **Email System** - Welcome emails, trade alerts, daily digest
 - [ ] **Landing Page** - Public marketing site at polyparlay.io
 - [ ] **Admin Logs Page** - Built-in troubleshooting and bot logs viewer
 
-### P0.5 - IBKR Integration (In Progress)
+### P0.5 - IBKR Integration (Mostly Complete)
 
 - [x] **IBKR Web API Client** - Created `ibkr_web_client.py` (no gateway needed) ✅
 - [x] **DB Migration Script** - `create_user_exchange_credentials.sql` ✅
-- [ ] **Run DB Migration** - Execute SQL in Supabase
-- [ ] **Admin UI OAuth Flow** - "Connect IBKR" button for users
-- [ ] **Update Bot Runner** - Use IBKRWebClient for multi-tenant
+- [x] **Run DB Migration** - Execute SQL in Supabase ✅
+- [x] **IBKRConnect UI Component** - OAuth button created ✅
+- [x] **OAuth API Endpoint** - `/api/ibkr/oauth/start` created ✅
+- [x] **Bot Runner Updated** - Uses IBKRWebClient with fallback ✅
 - [ ] **Test IBKR Integration** - End-to-end with paper trading
 - **Note**: IBKR Lite users CAN use TWS API (free). Web API may have limitations.
 
@@ -58,6 +96,81 @@
 - [ ] **Better Mobile UX** - Responsive improvements
 - [ ] **Help Docs** - Knowledge base beyond `/docs` page
 - [ ] **Live Chat** - Intercom or Crisp integration
+
+---
+
+## 🎲 Poly-Parlay Integration (Prediction Market Parlays)
+
+**Original poly-parlay codebase**: `/Users/rut/poly-parlay/` (Streamlit app, 12K+ lines)
+**Target**: Integrate parlay betting into PolyParlay.io as a feature module
+
+### What Poly-Parlay Has (Reusable)
+
+| Module | Lines | Functionality | Reusable? |
+|--------|-------|---------------|-----------|
+| `app.py` | 2,395 | Main UI, market browser, parlay builder | Extract logic ✅ |
+| `trade_execution.py` | 479 | Polymarket CLOB trading | ✅ Port to Python |
+| `advanced_analytics.py` | 270 | Kelly Criterion, Monte Carlo, EV calc | ✅ Already Python |
+| `market_analytics.py` | 620 | Market analysis, trending | ✅ Already Python |
+| `privy_auth.py` | 366 | Privy wallet auth | Already using ✅ |
+
+### Integration Plan
+
+#### Phase 1: Backend Integration (Week 1)
+
+- [ ] **Port Advanced Analytics** - Copy `advanced_analytics.py` functions
+  - `kelly_criterion()` - Optimal bet sizing
+  - `calculate_expected_value()` - EV calculation
+  - `simulate_parlay_outcomes()` - Monte Carlo simulation
+  - `detect_correlation()` - Parlay risk analysis
+- [ ] **Port Trade Execution** - Adapt `trade_execution.py`
+  - `PolyMarketTrader` class for CLOB API
+  - User wallet signing via Privy
+- [ ] **Create Parlay Service** - New `/src/services/parlay_service.py`
+  - `build_parlay(markets, user_id)` - Create parlay
+  - `execute_parlay(parlay_id, user_id)` - Execute via CLOB
+  - `get_parlay_status(parlay_id)` - Track results
+
+#### Phase 2: API Endpoints (Week 1-2)
+
+- [ ] **GET /api/polymarket/markets** - Fetch available markets
+- [ ] **POST /api/parlays/create** - Create new parlay
+- [ ] **POST /api/parlays/execute** - Execute parlay trades
+- [ ] **GET /api/parlays/user/{user_id}** - Get user's parlays
+- [ ] **GET /api/parlays/{id}/status** - Parlay status/results
+
+#### Phase 3: Admin UI (Week 2)
+
+- [ ] **Parlay Builder Page** - `/parlays` route in admin
+  - Market browser with search/filter
+  - Drag/drop parlay builder
+  - Real-time odds calculator
+  - Risk analysis display
+- [ ] **My Parlays Page** - User's active/completed parlays
+- [ ] **Hot Parlays Widget** - Trending parlays on dashboard
+
+#### Phase 4: Monetization (Week 3)
+
+- [ ] **Parlay Limits by Tier**
+  - Free: 3 parlays/day
+  - Pro: Unlimited parlays
+  - Elite: Unlimited + AI suggestions
+- [ ] **Premium Analytics**
+  - Kelly Criterion (Pro+)
+  - Monte Carlo simulation (Pro+)
+  - Arbitrage detection (Elite)
+
+### Key Differences from Original
+
+| Aspect | Poly-Parlay (Old) | PolyParlay.io (New) |
+|--------|-------------------|---------------------|
+| UI | Streamlit | Next.js + Tailwind |
+| Auth | Privy standalone | Privy integrated |
+| Database | Supabase (separate) | Supabase (shared) |
+| Trading | Polymarket only | Multi-platform (Alpaca, IBKR, etc.) |
+| Model | SaaS ($4.99-$19.99) | Tiered (Free/Pro/Elite) |
+
+---
 
 ### P2 - Growth Features
 
@@ -531,6 +644,92 @@
 
 - [ ] Collapsible strategy sections on dashboard
 - [ ] Better mobile responsiveness
+
+---
+
+## 🏗️ Infrastructure Scaling Plan
+
+**Current State**: AWS Lightsail MICRO tier ($7/mo), single container
+**Target**: Scale-ready architecture, potential AWS DB migration
+
+### Current Architecture
+
+| Component | Service | Cost | Status |
+|-----------|---------|------|--------|
+| Bot | Lightsail Container (MICRO) | $7/mo | ✅ Running |
+| Admin UI | Vercel (Free tier) | $0 | ✅ Running |
+| Database | Supabase (Free tier) | $0 | ✅ Running |
+| Domain | polyparlay.io | ~$12/yr | ✅ Active |
+
+### Scaling Milestones
+
+| Users | Bot Tier | Database | Monthly Cost |
+|-------|----------|----------|--------------|
+| 0-50 | Lightsail MICRO | Supabase Free | ~$7 |
+| 50-200 | Lightsail SMALL | Supabase Pro ($25) | ~$32 |
+| 200-500 | Lightsail MEDIUM | Supabase Pro | ~$65 |
+| 500-1K | Lightsail LARGE | AWS RDS | ~$150 |
+| 1K+ | Fargate/ECS | AWS RDS Multi-AZ | ~$300+ |
+
+### AWS Database Migration (When Ready)
+
+- [ ] **Create RDS PostgreSQL** - us-east-1
+- [ ] **Migrate Schema** - Export Supabase → Import RDS
+- [ ] **Update Connection Strings** - Bot + Admin UI
+- [ ] **Enable RLS Alternative** - Use application-level checks
+- [ ] **Set Up Backups** - Automated daily snapshots
+- [ ] **Monitoring** - CloudWatch alarms
+
+### Why Keep Supabase (For Now)
+
+1. **Free RLS** - Row-level security built-in
+2. **Free Auth** - Could use for backup auth
+3. **Realtime** - WebSocket subscriptions
+4. **Edge Functions** - Serverless compute
+5. **Storage** - File uploads if needed
+
+### Future Considerations
+
+- **Read Replicas** - For analytics queries
+- **Connection Pooling** - PgBouncer for high concurrency
+- **Caching** - Redis for frequently accessed data
+- **CDN** - CloudFront for static assets
+
+---
+
+## 📊 Strategic Priorities Summary
+
+### Week 1 (URGENT - Launch Blocker)
+
+1. ✅ ~~IBKR Web API~~ - Complete
+2. 🔴 **AlpacaClient Multi-Tenant** - Update for per-user keys
+3. 🔴 **CCXTClient Multi-Tenant** - Update for per-user keys
+4. 🔴 **Enable BotManager** - Per-user bot instances
+5. 📧 **Email System** - Resend.com integration
+
+### Week 2 (User Experience)
+
+1. 🌐 **Landing Page** - polyparlay.io public site
+2. 📋 **Admin Logs Page** - Bot troubleshooting
+3. 🎲 **Parlay Backend** - Port poly-parlay analytics
+
+### Week 3 (Growth)
+
+1. 🎲 **Parlay UI** - Parlay builder page
+2. 🔗 **Referral Program** - Viral growth
+3. 📊 **Backtesting UI** - Historical testing
+
+### Target Launch Criteria
+
+- [ ] Per-user API key isolation ✅
+- [ ] Email system working ✅
+- [ ] Landing page live ✅
+- [ ] At least 5 beta testers ✅
+- [ ] 0 critical bugs ✅
+
+---
+
+*Last Updated: December 27, 2025*
 
 ### 🟢 LOW PRIORITY - Nice to Have
 
