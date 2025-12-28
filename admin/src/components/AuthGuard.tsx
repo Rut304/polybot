@@ -7,6 +7,7 @@ import { LoginPage } from './LoginPage';
 import { AppShell } from './AppShell';
 import { Header } from './Header';
 import { CircuitBreakerStatus } from './CircuitBreakerStatus';
+import { ProfileProvider } from '@/lib/useTier';
 import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
@@ -24,6 +25,7 @@ const PUBLIC_ROUTES = [
   '/pricing',
   '/terms',
   '/privacy',
+  '/help',       // Help is public
 ];
 
 export function AuthGuard({ children }: AuthGuardProps) {
@@ -73,12 +75,19 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return <LoginPage />;
   }
 
-  // User is authenticated - show full app with navigation
+  // User is authenticated - wrap with ProfileProvider for tier context
   return (
-    <AppShell>
-      <Header />
-      {children}
-      <CircuitBreakerStatus />
-    </AppShell>
+    <ProfileProvider>
+      <AppShell>
+        <Header />
+        {children}
+        <CircuitBreakerStatus />
+      </AppShell>
+    </ProfileProvider>
   );
+}
+
+// Export a version that includes ProfileProvider for use in providers.tsx
+export function AuthGuardWithProfile({ children }: AuthGuardProps) {
+  return <AuthGuard>{children}</AuthGuard>;
 }

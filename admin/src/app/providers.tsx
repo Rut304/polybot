@@ -3,8 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AuthProvider } from '@/components/AuthProvider';
-import { AuthGuard } from '@/components/AuthGuard';
-import { ProfileProvider } from '@/lib/useTier';
+import { AuthGuardWithProfile } from '@/components/AuthGuard';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
 import { CrispChat } from '@/components/CrispChat';
 
@@ -24,14 +23,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AuthGuard>
-          <ProfileProvider>
-            <OnboardingCheck>
-              {children}
-              <CrispChat />
-            </OnboardingCheck>
-          </ProfileProvider>
-        </AuthGuard>
+        <AuthGuardWithProfile>
+          <OnboardingCheck>
+            {children}
+            <CrispChat />
+          </OnboardingCheck>
+        </AuthGuardWithProfile>
       </AuthProvider>
     </QueryClientProvider>
   );
