@@ -188,10 +188,30 @@ export function TierProvider({ children, userId }: { children: React.ReactNode; 
   );
 }
 
+// Default values for public pages (when not inside TierProvider)
+const defaultTierContext: TierContextType = {
+  profile: null,
+  isLoading: false,
+  tier: 'free' as SubscriptionTier,
+  isPro: false,
+  isElite: false,
+  isFree: true,
+  isAdmin: false,
+  hasFeature: () => false,
+  canDoTrade: () => ({ allowed: false, reason: 'Not authenticated' }),
+  tradesUsed: 0,
+  tradesLimit: 10,
+  tradesRemaining: 10,
+  isSimulation: true,
+  setTradingMode: async () => {},
+  refreshProfile: async () => {},
+};
+
 export function useTier() {
   const context = useContext(TierContext);
+  // Return default context for public pages (don't throw)
   if (context === undefined) {
-    throw new Error('useTier must be used within a TierProvider');
+    return defaultTierContext;
   }
   return context;
 }

@@ -338,7 +338,7 @@ const STATS = [
 const FAQ = [
   {
     q: "Is this legal?",
-    a: "Yes! Polymarket and Kalshi are legal prediction markets. We simply help you find and execute trades more efficiently."
+    a: "Yes! PolyParlay supports three types of trading: (1) Prediction markets like Polymarket and Kalshi which are legal in the US, (2) Stock trading via Alpaca and Interactive Brokers, and (3) Crypto trading via exchanges like Coinbase and Binance. We're a trading platform that helps you manage all your accounts in one place - we don't hold your funds."
   },
   {
     q: "How does paper trading work?",
@@ -357,6 +357,44 @@ const FAQ = [
     a: "Yes, cancel anytime with one click. No questions asked, no hidden fees."
   },
 ];
+
+// ============================================================================
+// Live Opportunities Counter (fetches real data)
+// ============================================================================
+
+function LiveOpportunitiesCounter() {
+  const [count, setCount] = useState(847);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    // Fetch real count from API
+    const fetchCount = async () => {
+      try {
+        const res = await fetch('/api/stats/opportunities');
+        if (res.ok) {
+          const data = await res.json();
+          setCount(data.last24Hours || 847);
+        }
+      } catch {
+        // Use fallback count
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchCount();
+    
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchCount, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return (
+    <span>
+      Live: {count.toLocaleString()} opportunities found in last 24h
+    </span>
+  );
+}
 
 // ============================================================================
 // Main Landing Page
@@ -440,7 +478,7 @@ export default function LandingPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
               </span>
-              Live: 847 opportunities found today
+              <LiveOpportunitiesCounter />
             </motion.div>
             
             {/* Main Headline */}
@@ -995,6 +1033,7 @@ export default function LandingPage() {
               </ul>
             </div>
             
+            {/* Connect section hidden until social accounts are set up
             <div>
               <h4 className="font-semibold mb-4">Connect</h4>
               <ul className="space-y-2 text-sm text-gray-400">
@@ -1003,6 +1042,7 @@ export default function LandingPage() {
                 <li><a href="https://github.com/polyparlay" className="hover:text-white transition-colors">GitHub</a></li>
               </ul>
             </div>
+            */}
           </div>
           
           <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">

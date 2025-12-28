@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -41,7 +41,17 @@ const CATEGORIES = [
   { id: 'faq', label: 'FAQ', icon: HelpCircle, color: 'text-pink-400' },
 ];
 
-export default function HelpPage() {
+// Loading fallback for Suspense
+function HelpLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-dark-bg p-8 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-brand-green border-t-transparent"></div>
+    </div>
+  );
+}
+
+// Main content component that uses useSearchParams
+function HelpPageContent() {
   const searchParams = useSearchParams();
   const articleSlug = searchParams.get('article');
   const categoryFilter = searchParams.get('category');
@@ -332,5 +342,14 @@ export default function HelpPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+// Exported component with Suspense boundary for useSearchParams
+export default function HelpPage() {
+  return (
+    <Suspense fallback={<HelpLoadingFallback />}>
+      <HelpPageContent />
+    </Suspense>
   );
 }
