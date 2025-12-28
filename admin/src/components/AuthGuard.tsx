@@ -1,7 +1,8 @@
 'use client';
 
 import { useAuth } from '@/lib/auth';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { LoginPage } from './LoginPage';
 import { AppShell } from './AppShell';
 import { Header } from './Header';
@@ -14,6 +15,7 @@ interface AuthGuardProps {
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = [
+  '/',           // Landing page is now root
   '/landing',
   '/login',
   '/signup',
@@ -27,13 +29,33 @@ const PUBLIC_ROUTES = [
 export function AuthGuard({ children }: AuthGuardProps) {
   const { user, isLoading } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   
-  // Check if current route is public
-  const isPublicRoute = PUBLIC_ROUTES.some(route => pathname?.startsWith(route));
+  // Check if current route is public (exact match for '/', prefix for others)
+  const isPublicRoute = pathname === '/' || PUBLIC_ROUTES.slice(1).some(route => pathname?.startsWith(route));
+  
+  // Redirect logged-in users from landing to dashboard
+  useEffect(() => {
+    if (!isLoading && user && pathname === '/') {
+      router.push('/dashboard');
+    }
+  }, [user, isLoading, pathname, router]);
   
   // Public routes bypass auth completely - no loading, no redirect
-  if (isPublicRoute) {
+  if (isPublicRoute && !user) {
     return <>{children}</>;
+  }
+  
+  // If on root and user exists, show loading while redirecting
+  if (pathname === '/' && user) {
+    return (
+      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-neon-blue animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Redirecting to dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
   if (isLoading) {
