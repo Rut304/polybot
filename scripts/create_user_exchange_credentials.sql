@@ -64,9 +64,9 @@ ON user_exchange_credentials
 FOR SELECT
 USING (
     EXISTS (
-        SELECT 1 FROM user_profiles 
-        WHERE user_profiles.user_id = auth.uid() 
-        AND user_profiles.role = 'admin'
+        SELECT 1 FROM polybot_user_profiles 
+        WHERE polybot_user_profiles.id = auth.uid() 
+        AND polybot_user_profiles.role = 'admin'
     )
 );
 
