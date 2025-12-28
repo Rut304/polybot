@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // Create Supabase admin client (bypasses RLS)
 const getSupabaseAdmin = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
   
   if (!supabaseUrl || !supabaseServiceKey) {
     return null;
