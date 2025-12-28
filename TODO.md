@@ -59,11 +59,15 @@
   - Track favorite politicians
   - Top traders leaderboard
 - [x] **Security Audit** ✅ COMPLETE - `/docs/SECURITY_AUDIT.md`
-- [ ] **RLS Security Fix** 🔴 IN PROGRESS - Run `scripts/security_fix_critical.sql`
-  - 5 tables have policies but RLS disabled
-  - 7 views using SECURITY DEFINER (should be INVOKER)
-  - ~20 tables missing RLS entirely
+- [x] **RLS Security Fix** ✅ COMPLETE - `scripts/security_fix_critical.sql` executed
+  - Enabled RLS on 17+ tables
+  - Created proper RLS policies (authenticated read + service_role write)
+  - Recreated 7 views with SECURITY INVOKER
+  - All 37 Security Advisor issues resolved
 - [ ] **Email System** - Welcome emails, trade alerts, daily digest
+  - Transactional emails (password reset, verification) via Supabase
+  - Marketing emails (weekly digest) via Resend/SendGrid
+  - Trade alert notifications
 - [ ] **Team Invitations** 👥 - Allow users to invite others to their tenant
   - Invite by email with role selection (Admin, Member, Viewer)
   - Invitee gets email with signup/accept link
