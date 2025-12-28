@@ -153,7 +153,7 @@
 - [ ] **Phantom** - Solana wallet integration
 - [ ] **Uniswap/DEX** - Direct DEX trading via wallet
 
-### P1 - Within 30 Days
+### P1 - Within 30 Days ✅ COMPLETE
 
 - [x] **Congressional Tracker UI** 🏛️ ✅ COMPLETE - `/congress` page
   - List all politicians with performance stats
@@ -162,13 +162,50 @@
   - View recent trades and P&L
   - API: `/api/congress` endpoint wired to UI
   
-- [ ] **Referral Program** - Viral growth with tracking codes
-- [ ] **Backtesting UI** - Let users test strategies with historical data
-- [ ] **Better Mobile UX** - Responsive improvements
-- [ ] **Help Docs** - Knowledge base beyond `/docs` page
-- [ ] **Live Chat** - Intercom or Crisp integration
+- [x] **Referral Program** 🎁 ✅ COMPLETE - `/referrals` page
+  - Unique referral codes per user (nanoid)
+  - Share buttons (Twitter, Email, Copy link)
+  - Track referrals, signups, conversions
+  - $25 credit per converted referral
+  - API: `/api/referrals` endpoint
+  - DB: `polybot_referrals`, `polybot_referral_clicks`, `polybot_referral_rewards`
+
+- [x] **Backtesting UI** 📊 ✅ COMPLETE - `/backtesting` page
+  - Historical data simulation
+  - Strategy selector (9+ strategies)
+  - Date range picker with presets
+  - Performance metrics (Sharpe, drawdown, win rate)
+  - Trade-by-trade breakdown
+  - API: `/api/backtests` endpoint
+  - DB: `polybot_backtests`, `polybot_backtest_trades`
+
+- [x] **Better Mobile UX** 📱 ✅ COMPLETE
+  - Bottom tab navigation (Dashboard, Markets, Bets, Settings)
+  - Hamburger menu with full navigation
+  - Safe area insets for notched phones
+  - Touch-friendly tap targets (44px min)
+  - Responsive CSS throughout
+  - Files: `MobileNavigation.tsx`, `globals.css` updates
+
+- [x] **Help Docs** 📚 ✅ COMPLETE - `/help` page
+  - Knowledge base with categories
+  - Getting Started, Trading, Strategies, API, Billing, Troubleshooting
+  - Search functionality
+  - Markdown rendering (react-markdown)
+  - Helpful/Not Helpful feedback
+  - Contact form
+  - API: `/api/help` endpoint
+  - Static fallback articles if DB unavailable
+
+- [x] **Live Chat** 💬 ✅ COMPLETE - Crisp integration
+  - `CrispChat.tsx` component
+  - Auto-populates user email
+  - Hides on public routes (landing, login, signup)
+  - Set `NEXT_PUBLIC_CRISP_WEBSITE_ID` env var to enable
 
 ---
+
+### P2 - Exchange Integrations (Attract More Users)
 
 ## 🎲 Poly-Parlay Integration (Prediction Market Parlays)
 
