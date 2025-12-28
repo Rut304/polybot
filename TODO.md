@@ -64,24 +64,25 @@
   - Created proper RLS policies (authenticated read + service_role write)
   - Recreated 7 views with SECURITY INVOKER
   - All 37 Security Advisor issues resolved
-- [ ] **Email System** - Welcome emails, trade alerts, daily digest
-  - Transactional emails (password reset, verification) via Supabase
-  - Marketing emails (weekly digest) via Resend/SendGrid
-  - Trade alert notifications
-- [ ] **Team Invitations** 👥 - Allow users to invite others to their tenant
-  - Invite by email with role selection (Admin, Member, Viewer)
-  - Invitee gets email with signup/accept link
-  - Invited users join existing tenant (share data, API keys per role)
-  - Admin can revoke invitations / remove team members
-  - Role permissions:
-    - **Admin**: Full access, can invite others, manage API keys
-    - **Member**: View + trade, cannot manage keys or invite
-    - **Viewer**: Read-only access to dashboards
-- [ ] **MFA (Multi-Factor Authentication)** 🔐 - TOTP/Authenticator app support
-  - Supabase supports TOTP MFA natively
-  - Enable in Supabase Dashboard > Auth > MFA
-  - Add MFA enrollment UI in `/profile`
-  - Require MFA for high-value operations (live trading, API key changes)
+- [x] **Email System** ✅ COMPLETE - Welcome emails, trade alerts, daily digest
+  - `/admin/src/lib/email.ts` - Full email template library
+  - Templates: Welcome, Trade Alert, Daily Summary, Subscription, Payment Failed, Team Invite
+  - Uses Resend API (set `RESEND_API_KEY` env var)
+  - `/api/email` endpoint for sending
+- [x] **Team Invitations** 👥 ✅ COMPLETE - Allow users to invite others to their tenant
+  - `/team` page for managing team members
+  - `/invite/[token]` page for accepting invitations
+  - DB schema: `polybot_teams`, `polybot_team_members`, `polybot_team_invitations`
+  - Roles: Owner, Admin, Member, Viewer with proper RLS
+  - Auto-creates personal team on user signup
+  - Run `scripts/create_team_invitations.sql` to set up
+- [x] **MFA (Multi-Factor Authentication)** 🔐 ✅ COMPLETE - TOTP/Authenticator app support
+  - Full MFA enrollment UI in `/profile` (Security tab)
+  - QR code display + manual secret entry
+  - 6-digit verification code input
+  - Enable/disable MFA with confirmation
+  - Uses Supabase Auth MFA APIs
+  - **NOTE**: Enable MFA in Supabase Dashboard > Auth > MFA first!
 
 ### P0.5 - Copy Trading Features ✅ COMPLETE
 

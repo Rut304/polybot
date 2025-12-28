@@ -629,3 +629,57 @@ export async function sendBatchEmails(
   const results = await Promise.all(emails.map(sendEmail));
   return results;
 }
+
+// ============================================================================
+// Team Invitation Email
+// ============================================================================
+
+export interface TeamInviteData {
+  teamName: string;
+  inviterName: string;
+  role: string;
+  inviteToken: string;
+}
+
+export async function sendTeamInviteEmail(
+  to: string,
+  data: TeamInviteData
+): Promise<EmailResult> {
+  const inviteLink = `https://app.polyparlay.io/invite/${data.inviteToken}`;
+  
+  const html = baseTemplate(`
+    <div class="card">
+      <h2 style="color: #00ff88; margin-top: 0;">You're Invited! 🎉</h2>
+      <p>
+        <strong>${data.inviterName}</strong> has invited you to join 
+        <strong>${data.teamName}</strong> on PolyBot.
+      </p>
+      <div style="background: #1a1a1a; border-radius: 8px; padding: 16px; margin: 20px 0;">
+        <p style="margin: 0; color: #888;">Your role:</p>
+        <p style="margin: 8px 0 0 0; font-size: 18px; color: #00ff88; font-weight: 600;">
+          ${data.role.charAt(0).toUpperCase() + data.role.slice(1)}
+        </p>
+      </div>
+      <p>As a team member, you'll be able to:</p>
+      <ul style="color: #ccc; line-height: 1.8;">
+        <li>Access shared trading strategies</li>
+        <li>View team performance analytics</li>
+        <li>Collaborate on market research</li>
+      </ul>
+      <a href="${inviteLink}" class="button">
+        Accept Invitation →
+      </a>
+      <p style="color: #666; font-size: 14px; margin-top: 24px;">
+        This invitation expires in 7 days. If you didn't expect this invitation, 
+        you can safely ignore this email.
+      </p>
+    </div>
+  `);
+
+  return sendEmail({
+    to,
+    subject: `🤝 You've been invited to join ${data.teamName} on PolyBot`,
+    html,
+    text: `You've been invited to join ${data.teamName} on PolyBot!\n\n${data.inviterName} has invited you as a ${data.role}.\n\nAccept the invitation: ${inviteLink}\n\nThis invitation expires in 7 days.`,
+  });
+}

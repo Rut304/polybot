@@ -124,6 +124,7 @@ const navSections: NavSection[] = [
     title: 'Settings',
     items: [
       { href: '/settings', label: 'Settings', icon: Settings },
+      { href: '/team', label: 'Team', icon: Users },
       { href: '/pricing', label: 'Pricing', icon: Store },
       { href: '/docs', label: 'Documentation', icon: BookOpen },
     ],
