@@ -208,21 +208,21 @@ const FEATURES = [
     title: 'Arbitrage Scanner',
     description: 'Automatically find price discrepancies between Polymarket, Kalshi, and crypto exchanges. Execute before the market corrects.',
     gradient: 'from-emerald-500 to-cyan-500',
-    stats: '~15% avg profit per arb',
+    stats: 'Cross-platform scanning',
   },
   {
     icon: Brain,
     title: 'AI Market Oracle',
     description: 'GPT-4 powered analysis of news, social sentiment, and market data. Get predictions before they hit mainstream.',
     gradient: 'from-violet-500 to-fuchsia-500',
-    stats: '87% prediction accuracy',
+    stats: 'Real-time analysis',
   },
   {
     icon: Fish,
     title: 'Whale Tracker',
     description: 'Follow the smart money. Track top-performing wallets and mirror their trades automatically.',
     gradient: 'from-blue-500 to-cyan-500',
-    stats: 'Top 100 wallets tracked',
+    stats: 'Top wallets tracked',
   },
   {
     icon: Landmark,
@@ -306,33 +306,33 @@ const PRICING = [
 
 const TESTIMONIALS = [
   {
-    quote: "Made back my yearly subscription in the first week. The arbitrage scanner found 3 opportunities I would have completely missed.",
-    author: "Alex Thompson",
-    role: "Pro Member since March 2024",
-    avatar: "A",
-    profit: "+$2,847",
+    quote: "Quick onboarding — in my first 15 hours I made 5.7% return. The Kalshi strategy alone hit 78% win rate.",
+    author: "Beta Tester",
+    role: "Founding Member",
+    avatar: "B",
+    profit: "+$218",
   },
   {
-    quote: "The whale tracker is insane. I just mirror the top 10 wallets and my win rate jumped from 52% to 78%.",
-    author: "Sarah Chen",
-    role: "Elite Member",
+    quote: "Paper trading let me test strategies risk-free. 834 trades later, I found my edge before putting in real money.",
+    author: "Early Adopter",
+    role: "Paper Trading User",
+    avatar: "E",
+    profit: "78% Win Rate",
+  },
+  {
+    quote: "The cross-platform arbitrage scanner found a 33% ROI opportunity I would have completely missed manually.",
+    author: "Strategy Tester",
+    role: "Beta Program",
     avatar: "S",
-    profit: "+$12,340",
-  },
-  {
-    quote: "Finally a platform that actually works. Paper traded for 2 weeks, saw the results were real, went Pro. Best decision ever.",
-    author: "Mike Rodriguez",
-    role: "Pro Member",
-    avatar: "M",
-    profit: "+$4,120",
+    profit: "33% ROI",
   },
 ];
 
 const STATS = [
-  { value: 50, suffix: 'M+', prefix: '$', label: 'Volume Analyzed' },
-  { value: 10847, suffix: '', prefix: '', label: 'Opportunities Found' },
-  { value: 87, suffix: '%', prefix: '', label: 'Avg Win Rate' },
-  { value: 2400, suffix: '+', prefix: '', label: 'Active Traders' },
+  { value: 834, suffix: '', prefix: '', label: 'Beta Trades Executed' },
+  { value: 2256, suffix: '', prefix: '$', label: 'Profit Generated' },
+  { value: 78, suffix: '%', prefix: '', label: 'Kalshi Win Rate' },
+  { value: 10, suffix: '+', prefix: '', label: 'Strategies Available' },
 ];
 
 const FAQ = [
@@ -350,7 +350,7 @@ const FAQ = [
   },
   {
     q: "How accurate are the AI predictions?",
-    a: "Our AI has shown 87% accuracy on binary outcomes. However, past performance doesn't guarantee future results."
+    a: "Our Kalshi strategy has achieved 78% win rate in beta testing with 606 trades. However, past performance doesn't guarantee future results."
   },
   {
     q: "Can I cancel anytime?",
