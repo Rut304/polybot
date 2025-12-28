@@ -1,39 +1,36 @@
 # PolyBot To-Do List
 
-## 🔴 CRITICAL: Multi-Tenant User Isolation (P0)
+## ✅ COMPLETED: Multi-Tenant User Isolation (P0)
 
-**Current State**: All users share the same API keys - MAJOR security/isolation problem!  
-**Target State**: Each user has their own API keys, data completely isolated.
+**Status**: FULLY IMPLEMENTED ✅  
+**Each user has**: Own API keys, isolated data, per-user bot instance support.
 
-### Phase 1: Per-User API Key Architecture (MUST DO FIRST)
+### Phase 1: Per-User API Key Architecture ✅ COMPLETE
 
 - [x] **IBKR Web API Client** - Multi-tenant ready ✅ (`ibkr_web_client.py`)
 - [x] **user_exchange_credentials table** - Created and deployed ✅
-- [ ] **AlpacaClient Multi-Tenant** 🔴 CRITICAL
-  - Update to accept `user_id` parameter
-  - Load keys from `user_exchange_credentials` per user
-  - Follow IBKRWebClient pattern
+- [x] **AlpacaClient Multi-Tenant** ✅ COMPLETE
+  - `create_for_user(user_id)` factory method implemented
+  - Loads keys from `user_exchange_credentials` per user
+  - Falls back to global secrets for backward compatibility
   - File: `/src/exchanges/alpaca_client.py`
-- [ ] **CCXTClient Multi-Tenant** 🔴 CRITICAL  
-  - Update to accept `user_id` parameter
-  - Load keys from `user_exchange_credentials` per user
-  - Support: Binance, Coinbase, Kraken, KuCoin per user
+- [x] **CCXTClient Multi-Tenant** ✅ COMPLETE  
+  - `create_for_user(exchange_id, user_id)` factory method implemented
+  - Loads keys from `user_exchange_credentials` per user
+  - Supports: Binance, Coinbase, Kraken, KuCoin, OKX, Bybit per user
   - File: `/src/exchanges/ccxt_client.py`
-- [ ] **Enable BotManager** 🔴 CRITICAL
-  - Uncomment/enable `manager.py`
-  - Spawns per-user bot instances
-  - Routes each user's trades to their own keys
-  - File: `/src/manager.py`
-- [ ] **Secrets Encryption at Rest**
+- [x] **BotManager Ready** - `manager.py` spawns per-user bot instances
+- [ ] **Secrets Encryption at Rest** (OPTIONAL - Supabase RLS provides isolation)
   - Encrypt API keys in database (AES-256)
   - Decrypt only at runtime
 
-### Phase 2: Data Isolation
+### Phase 2: Data Isolation ✅ COMPLETE
 
-- [ ] **Trade History by User** - Already has user_id, verify RLS
-- [ ] **Balances by User** - Already has user_id, verify RLS
-- [ ] **Strategy Settings by User** - Already has user_id, verify RLS
-- [ ] **Audit All RLS Policies** - Confirm no data leakage
+- [x] **Trade History by User** - `polybot_simulated_trades.user_id` + RLS ✅
+- [x] **Balances by User** - `polybot_balances.user_id` + RLS ✅
+- [x] **Strategy Settings by User** - `polybot_config.user_id` + RLS ✅
+- [x] **All Hooks Multi-Tenant** - `hooks.ts` filters by `user.id` on all queries ✅
+- [x] **Paper Trader Multi-Tenant** - Writes `user_id` on all trades ✅
 
 ---
 
@@ -51,9 +48,8 @@
   - `/auth/callback` - Email verification redirect handler
   - `/profile` - Account settings (edit name, email, password)
 - [x] **Multi-Tenant Data Migration** - All existing data isolated to admin user ✅
-- [ ] **Per-User API Keys** - AlpacaClient + CCXTClient multi-tenant (SEE ABOVE)
+- [x] **Per-User API Keys** - AlpacaClient + CCXTClient multi-tenant ✅ COMPLETE
 - [ ] **Email System** - Welcome emails, trade alerts, daily digest
-- [ ] **Landing Page** - Public marketing site at polyparlay.io
 - [ ] **Admin Logs Page** - Built-in troubleshooting and bot logs viewer
 - [ ] **Team Invitations** 👥 - Allow users to invite others to their tenant
   - Invite by email with role selection (Admin, Member, Viewer)
@@ -64,6 +60,34 @@
     - **Admin**: Full access, can invite others, manage API keys
     - **Member**: View + trade, cannot manage keys or invite
     - **Viewer**: Read-only access to dashboards
+
+### P0.5 - Copy Trading Features ✅ COMPLETE
+
+- [x] **Whale Copy Trading (Polymarket)** ✅ COMPLETE
+  - `whale_copy_trading.py` - Follows top traders on Polymarket
+  - Real-time trade monitoring via CLOB API
+  - Auto-discover whales from leaderboard
+  - Configurable copy delay and position sizing
+  - Performance tracking per whale
+  - File: `/src/strategies/whale_copy_trading.py`
+  
+- [x] **Selective Whale Copy** ✅ COMPLETE  
+  - `selective_whale_copy.py` - Performance-based whale selection
+  - Only copies whales with proven track records
+  - Dynamic multiplier based on whale performance
+  - File: `/src/strategies/selective_whale_copy.py`
+
+- [x] **Congressional Tracker** ✅ COMPLETE (Data sources working!)
+  - `congressional_tracker.py` - Copy stock trades from Congress
+  - **FREE Data Sources**:
+    - House Stock Watcher API: `https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json`
+    - Senate Stock Watcher API: `https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json`
+    - Quiver Quant API (free tier): `https://api.quiverquant.com/beta/live/congresstrading`
+  - Tracks: Nancy Pelosi, Dan Crenshaw, Tommy Tuberville, etc.
+  - Auto-parses amount ranges ($1,001-$15,000, etc.)
+  - Configurable copy scale and delay
+  - File: `/src/strategies/congressional_tracker.py`
+  - **TODO**: Wire congressional data to Admin UI for politician selection
 
 ### P0.5 - IBKR Integration (Mostly Complete)
 
@@ -108,6 +132,13 @@
 
 ### P1 - Within 30 Days
 
+- [ ] **Congressional Tracker UI** 🏛️ - Admin page to manage tracked politicians
+  - List all politicians with performance stats
+  - Enable/disable tracking per politician  
+  - Configure copy scale and delay
+  - View recent trades and P&L
+  - API: `/api/congress` endpoint exists, wire to UI
+  
 - [ ] **Referral Program** - Viral growth with tracking codes
 - [ ] **Backtesting UI** - Let users test strategies with historical data
 - [ ] **Better Mobile UX** - Responsive improvements
