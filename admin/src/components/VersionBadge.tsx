@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Check, AlertTriangle, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTier } from '@/lib/useTier';
 
 interface VersionInfo {
   uiVersion: string;
@@ -15,6 +16,7 @@ interface VersionInfo {
 export const UI_VERSION = 'v1.3.1';
 
 export function VersionBadge() {
+  const { isAdmin } = useTier();
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({
     uiVersion: UI_VERSION,
     botVersion: null,
@@ -24,6 +26,12 @@ export function VersionBadge() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Only fetch if admin
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+    
     const fetchBotVersion = async () => {
       try {
         const response = await fetch('/api/bot/status');
@@ -68,7 +76,12 @@ export function VersionBadge() {
     // Refresh every 30 seconds
     const interval = setInterval(fetchBotVersion, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAdmin]);
+
+  // Only show version badges to admins
+  if (!isAdmin) {
+    return null;
+  }
 
   const getBadgeColor = (isLatest: boolean, status: string) => {
     if (status === 'auth_required') return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30 cursor-pointer';

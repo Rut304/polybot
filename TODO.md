@@ -205,6 +205,115 @@
 
 ---
 
+## 🚨 URGENT FIXES (December 28, 2025)
+
+### Admin/Security
+
+- [x] **Hide Version Badge from Non-Admins** ✅ - Only show UI/Bot version to admins
+- [ ] **Encrypt Secrets at Rest** - API keys stored in DB must be AES-256 encrypted
+- [ ] **Admin Settings Page** - Toggle per-user and global settings
+  - Per-user: simulation mode, feature flags, subscription status
+  - Global: maintenance mode, feature rollout, rate limits
+
+### Missed Money Rethink
+
+- [ ] **Rethink Missed Money Page** - Current implementation is misleading
+  - Problem: Shows $2.1M "missed" but none were valid for user's strategies
+  - Actual missed money = only FAILED trades (API errors, insufficient funds, timeout)
+  - Show: Failed trades with reasons, retry options, fix suggestions
+  - Remove: Opportunities that didn't match user's active strategies
+  - Add: "Why this trade failed" + "1-click retry" buttons
+
+### Diagnostics & Monitoring Overhaul
+
+- [ ] **Enhanced Diagnostics Page** - Full admin control panel
+  - Real-time performance metrics
+  - Error monitoring with stack traces
+  - API health checks (all exchanges, Supabase, Stripe)
+  - Queue status and processing times
+  - Memory/CPU usage if on dedicated infra
+
+- [ ] **AI Root Cause Analysis** - Gemini integration
+  - Auto-analyze errors and suggest fixes
+  - "1-click fix" buttons for common issues
+  - Pattern detection (recurring errors)
+
+- [ ] **Customer Support Event System**
+  - Email-triggered events in UI
+  - AI-suggested responses
+  - 1-click response templates
+  - Conversation history tracking
+
+---
+
+## 🧪 COMPREHENSIVE TEST PLAN
+
+### Testing Strategy
+
+We need E2E testing for:
+1. **Auth Flows** - Signup, Login, Logout, Password Reset, MFA
+2. **Data Integrity** - All metrics use same data sources
+3. **API Endpoints** - All routes return expected data
+4. **UI Components** - All pages render without errors
+5. **Trading Workflows** - Paper/Live trade execution
+
+### Recommended Testing Stack (Free/Open Source)
+
+| Tool | Purpose | Status |
+|------|---------|--------|
+| **Playwright** | E2E browser testing | ⬜ Setup needed |
+| **Jest** | Unit tests | ⬜ Setup needed |
+| **React Testing Library** | Component tests | ⬜ Setup needed |
+| **MSW** | API mocking | ⬜ Setup needed |
+| **Checkly** | Synthetic monitoring (free tier) | ⬜ Evaluate |
+
+### Test Categories
+
+#### Auth Tests
+- [ ] Signup creates user + profile + team
+- [ ] Login works with valid credentials
+- [ ] Login fails with invalid credentials
+- [ ] Password reset flow works end-to-end
+- [ ] MFA enrollment and verification
+- [ ] Session persistence across page refreshes
+- [ ] Logout clears session properly
+
+#### Dashboard Tests
+- [ ] Paper Balance matches Supabase data
+- [ ] Net P&L calculation is correct
+- [ ] Win Rate = wins / total trades
+- [ ] Opportunities count matches scan results
+- [ ] P&L chart data matches trade history
+- [ ] Opportunity Distribution chart is accurate
+
+#### Data Consistency Tests
+- [ ] Dashboard metrics = Analytics metrics
+- [ ] Trade History count = Dashboard trade count
+- [ ] Balance API = Balance UI display
+- [ ] All timestamps in correct timezone
+
+#### Strategy Tests
+- [ ] Each strategy can be enabled/disabled
+- [ ] Strategy settings persist on save
+- [ ] Backtest runs and returns results
+- [ ] Strategy performance metrics are accurate
+
+#### API Tests
+- [ ] All GET endpoints return 200
+- [ ] All POST endpoints validate input
+- [ ] Auth required endpoints return 401 without token
+- [ ] Rate limiting works correctly
+
+### Test Execution Plan
+
+1. **Phase 1**: Setup Playwright + basic smoke tests
+2. **Phase 2**: Auth flow tests
+3. **Phase 3**: Data consistency tests
+4. **Phase 4**: Full regression suite
+5. **Phase 5**: CI/CD integration
+
+---
+
 ### P2 - Exchange Integrations (Attract More Users)
 
 ## 🎲 Poly-Parlay Integration (Prediction Market Parlays)
