@@ -1,6 +1,7 @@
 'use client';
 
 import { Navigation } from '@/components/Navigation';
+import { MobileNavigation } from '@/components/MobileNavigation';
 import { useBotStatus } from '@/lib/hooks';
 import { isRecent } from '@/lib/utils';
 import { AlertTriangle, DollarSign } from 'lucide-react';
@@ -16,13 +17,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-dark-bg flex">
-      <Navigation />
-      <main className="flex-1 ml-56 mt-14 transition-all duration-300">
+      {/* Desktop Navigation */}
+      <div className="hidden md:block">
+        <Navigation />
+      </div>
+      
+      {/* Mobile Navigation */}
+      <MobileNavigation />
+      
+      {/* Main Content */}
+      <main className="flex-1 md:ml-56 mt-14 pb-20 md:pb-0 transition-all duration-300">
         {/* Live Trading Warning Banner */}
         {isLiveTrading && (
-          <div className="sticky top-0 z-40 bg-gradient-to-r from-red-600 to-red-500 text-white px-4 py-2 flex items-center justify-center gap-3 shadow-lg">
+          <div className="sticky top-14 md:top-0 z-40 bg-gradient-to-r from-red-600 to-red-500 text-white px-4 py-2 flex items-center justify-center gap-3 shadow-lg">
             <AlertTriangle className="w-5 h-5 animate-pulse" />
-            <span className="font-semibold">
+            <span className="font-semibold text-sm md:text-base">
               🔴 LIVE TRADING MODE - Real money at risk
             </span>
             <DollarSign className="w-5 h-5" />

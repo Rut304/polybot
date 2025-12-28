@@ -104,6 +104,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/marketplace', label: 'Marketplace', icon: Store, isNew: true },
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
+      { href: '/backtesting', label: 'Backtesting', icon: History, isNew: true },
       { href: '/strategy-history', label: 'Strategy History', icon: History, requiredTier: 'pro' },
       { href: '/strategy-builder', label: 'Strategy Builder', icon: Target, requiredTier: 'elite' },
     ],
@@ -125,11 +126,14 @@ const navSections: NavSection[] = [
     items: [
       { href: '/settings', label: 'Settings', icon: Settings },
       { href: '/team', label: 'Team', icon: Users },
+      { href: '/referrals', label: 'Referrals', icon: Users, isNew: true },
       { href: '/pricing', label: 'Pricing', icon: Store },
-      { href: '/docs', label: 'Documentation', icon: BookOpen },
+      { href: '/help', label: 'Help Center', icon: BookOpen },
+      { href: '/docs', label: 'API Docs', icon: BookOpen },
     ],
   },
 ];
+
 
 export function Navigation() {
   const pathname = usePathname();

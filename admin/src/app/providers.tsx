@@ -6,6 +6,7 @@ import { AuthProvider } from '@/components/AuthProvider';
 import { AuthGuard } from '@/components/AuthGuard';
 import { ProfileProvider } from '@/lib/useTier';
 import { OnboardingCheck } from '@/components/OnboardingCheck';
+import { CrispChat } from '@/components/CrispChat';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -27,6 +28,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <ProfileProvider>
             <OnboardingCheck>
               {children}
+              <CrispChat />
             </OnboardingCheck>
           </ProfileProvider>
         </AuthGuard>
