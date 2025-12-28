@@ -49,8 +49,21 @@
   - `/profile` - Account settings (edit name, email, password)
 - [x] **Multi-Tenant Data Migration** - All existing data isolated to admin user ✅
 - [x] **Per-User API Keys** - AlpacaClient + CCXTClient multi-tenant ✅ COMPLETE
+- [x] **Admin Logs Page** ✅ COMPLETE - Bot Logs, Supabase Logs, Security Events
+  - `/logs` - Bot activity logs with filtering
+  - Supabase Dashboard links for detailed logs
+  - Security event tab for auth/error monitoring
+- [x] **Congressional Tracker UI** ✅ COMPLETE
+  - `/congress` - Full politician trade tracking UI
+  - View trades, filter by chamber/party/type
+  - Track favorite politicians
+  - Top traders leaderboard
+- [x] **Security Audit** ✅ COMPLETE - `/docs/SECURITY_AUDIT.md`
+- [ ] **RLS Security Fix** 🔴 IN PROGRESS - Run `scripts/security_fix_critical.sql`
+  - 5 tables have policies but RLS disabled
+  - 7 views using SECURITY DEFINER (should be INVOKER)
+  - ~20 tables missing RLS entirely
 - [ ] **Email System** - Welcome emails, trade alerts, daily digest
-- [ ] **Admin Logs Page** - Built-in troubleshooting and bot logs viewer
 - [ ] **Team Invitations** 👥 - Allow users to invite others to their tenant
   - Invite by email with role selection (Admin, Member, Viewer)
   - Invitee gets email with signup/accept link
@@ -60,6 +73,11 @@
     - **Admin**: Full access, can invite others, manage API keys
     - **Member**: View + trade, cannot manage keys or invite
     - **Viewer**: Read-only access to dashboards
+- [ ] **MFA (Multi-Factor Authentication)** 🔐 - TOTP/Authenticator app support
+  - Supabase supports TOTP MFA natively
+  - Enable in Supabase Dashboard > Auth > MFA
+  - Add MFA enrollment UI in `/profile`
+  - Require MFA for high-value operations (live trading, API key changes)
 
 ### P0.5 - Copy Trading Features ✅ COMPLETE
 
@@ -132,12 +150,12 @@
 
 ### P1 - Within 30 Days
 
-- [ ] **Congressional Tracker UI** 🏛️ - Admin page to manage tracked politicians
+- [x] **Congressional Tracker UI** 🏛️ ✅ COMPLETE - `/congress` page
   - List all politicians with performance stats
   - Enable/disable tracking per politician  
   - Configure copy scale and delay
   - View recent trades and P&L
-  - API: `/api/congress` endpoint exists, wire to UI
+  - API: `/api/congress` endpoint wired to UI
   
 - [ ] **Referral Program** - Viral growth with tracking codes
 - [ ] **Backtesting UI** - Let users test strategies with historical data

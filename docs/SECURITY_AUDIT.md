@@ -1,4 +1,5 @@
 # PolyBot Security Audit Report
+
 **Date:** December 27, 2025  
 **Auditor:** Automated Security Review
 
@@ -7,6 +8,7 @@
 ## Executive Summary
 
 This document reviews the security posture of the PolyBot trading platform, focusing on:
+
 - Database security (RLS policies, encryption)
 - Authentication & Authorization
 - API key management
@@ -63,6 +65,7 @@ User exchange API keys are encrypted using:
 ```
 
 **Encryption Status:**
+
 - ✅ API keys encrypted at rest
 - ✅ Secrets never logged
 - ✅ Master key stored separately from data
@@ -100,6 +103,7 @@ CREATE TABLE user_secrets_encrypted (
 ### ⚠️ Recommendations
 
 1. **Enable MFA for Financial Accounts**
+
    ```typescript
    // In profile settings
    await supabase.auth.mfa.enroll({
@@ -187,6 +191,7 @@ FROM polybot_positions;
 ### ✅ Current Indexes
 
 All user_id columns have indexes for efficient queries:
+
 - `idx_simulated_trades_user_id`
 - `idx_opportunities_user_id`
 - `idx_positions_user_id`
@@ -284,6 +289,7 @@ CREATE POLICY "Service role only" ON polybot_security_alerts
 ### PCI-DSS Considerations
 
 Since we don't store payment card data directly (using Stripe):
+
 - ✅ No PAN storage
 - ✅ Stripe handles PCI compliance
 - ✅ We only store Stripe customer IDs
