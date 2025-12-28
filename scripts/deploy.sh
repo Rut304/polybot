@@ -108,7 +108,9 @@ if ! grep -q "COPY BUILD" Dockerfile; then
 fi
 echo "  ✓ Dockerfile includes VERSION and BUILD files"
 
-docker buildx build --platform linux/amd64 -t "$IMAGE_TAG" --load .
+# IMPORTANT: Use --no-cache to prevent stale dependency layers
+# This ensures all pip packages are freshly installed each build
+docker buildx build --platform linux/amd64 --no-cache -t "$IMAGE_TAG" --load .
 echo "  ✓ Docker image built: $IMAGE_TAG"
 
 # Step 5: Push to Lightsail
