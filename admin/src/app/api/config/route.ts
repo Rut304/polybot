@@ -10,16 +10,27 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-    }
+    let userId = searchParams.get('userId');
 
     const supabaseAdmin = getSupabaseAdmin();
-
     if (!supabaseAdmin) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    }
+
+    // If no userId, try to get from auth token
+    if (!userId) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+        if (user && !error) {
+          userId = user.id;
+        }
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing userId or valid auth token' }, { status: 400 });
     }
 
     const { data, error } = await supabaseAdmin
@@ -86,6 +97,55 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Config POST Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// PATCH - Update config with auth token support
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    let userId = body.user_id;
+
+    const supabaseAdmin = getSupabaseAdmin();
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    }
+
+    // If no userId in body, try to get from auth token
+    if (!userId) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+        if (user && !error) {
+          userId = user.id;
+        }
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Missing user_id or valid auth token' }, { status: 400 });
+    }
+
+    // Remove user_id from updates
+    const { user_id: _, ...updates } = body;
+
+    const { data, error } = await supabaseAdmin
+      .from('polybot_config')
+      .update(updates)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Config PATCH Error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
+  } catch (error: any) {
+    console.error('Config PATCH Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

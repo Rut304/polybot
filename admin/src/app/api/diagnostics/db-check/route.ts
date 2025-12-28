@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Admin client with service key
-let supabaseAdmin: SupabaseClient | null = null;
+// Create fresh admin client each request
 function getSupabaseAdmin(): SupabaseClient | null {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
-  if (!supabaseAdmin && process.env.NEXT_PUBLIC_SUPABASE_URL && serviceKey) {
-    supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      serviceKey
-    );
-  }
-  return supabaseAdmin;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  if (!url || !serviceKey) return null;
+  
+  // Simple initialization - SDK handles auth headers properly
+  return createClient(url, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -60,7 +62,8 @@ export async function GET(request: NextRequest) {
     // 4. Check polybot_teams (if exists)
     const { data: teams, error: teamsError } = await supabase
       .from('polybot_teams')
-      .select('*');
+      .select('*')
+      .limit(100);
     results.polybot_teams = {
       count: teams?.length || 0,
       data: teams,
@@ -70,7 +73,8 @@ export async function GET(request: NextRequest) {
     // 5. Check polybot_team_members (if exists)
     const { data: teamMembers, error: membersError } = await supabase
       .from('polybot_team_members')
-      .select('*');
+      .select('*')
+      .limit(100);
     results.polybot_team_members = {
       count: teamMembers?.length || 0,
       data: teamMembers,

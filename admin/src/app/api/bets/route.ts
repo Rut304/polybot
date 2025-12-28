@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Create Supabase admin client (bypasses RLS)
+export const dynamic = 'force-dynamic';
+
 const getSupabaseAdmin = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
@@ -13,7 +14,7 @@ const getSupabaseAdmin = () => {
   return createClient(supabaseUrl, supabaseServiceKey);
 };
 
-// GET - Get current user's role by email or auth token
+// GET - Get user's bets
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
@@ -25,68 +26,59 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to get user from auth token first
+    // Get user from auth token
     const authHeader = request.headers.get('Authorization');
-    let email = request.nextUrl.searchParams.get('email');
+    let userId: string | null = null;
     
-    if (!email && authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      // Verify token and get user
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
       if (user && !authError) {
-        email = user.email || null;
+        userId = user.id;
       }
     }
     
-    if (!email) {
+    // Also support query param for backwards compatibility
+    if (!userId) {
+      userId = request.nextUrl.searchParams.get('userId');
+    }
+    
+    if (!userId) {
       return NextResponse.json(
-        { error: 'Email or valid auth token required' },
+        { error: 'Valid auth token or userId required' },
         { status: 400 }
       );
     }
 
-    // Fetch user profile by email
-    const { data: profile, error } = await supabase
-      .from('polybot_user_profiles')
-      .select('id, role, display_name')
-      .eq('id', (
-        await supabase.auth.admin.listUsers()
-      ).data.users.find(u => u.email === email)?.id || '')
-      .single();
+    // Check if polybot_bets table exists by trying to query it
+    const { data: bets, error } = await supabase
+      .from('polybot_bets')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(100);
 
-    if (error || !profile) {
-      // Check auth.users table directly
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const authUser = authUsers?.users?.find(u => u.email === email);
-      
-      if (authUser) {
-        // Check if there's a profile for this user
-        const { data: userProfile } = await supabase
-          .from('polybot_user_profiles')
-          .select('role')
-          .eq('id', authUser.id)
-          .single();
-        
+    if (error) {
+      // Table might not exist, return empty array
+      if (error.code === '42P01' || error.message.includes('does not exist') || error.code === 'PGRST205') {
         return NextResponse.json({
-          id: authUser.id,
-          email: authUser.email,
-          role: userProfile?.role || 'viewer',
+          bets: [],
+          message: 'Bets table not configured yet'
         });
       }
-      
+      console.error('Bets fetch error:', error);
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        { error: error.message },
+        { status: 500 }
       );
     }
 
     return NextResponse.json({
-      id: profile.id,
-      role: profile.role,
-      display_name: profile.display_name,
+      bets: bets || [],
+      count: bets?.length || 0
     });
   } catch (error) {
-    console.error('Error in users/me API:', error);
+    console.error('Error in bets API:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -94,8 +86,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PATCH - Update user profile
-export async function PATCH(request: NextRequest) {
+// POST - Create a new bet
+export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     
@@ -126,25 +118,32 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { display_name } = body;
-
-    if (!display_name) {
+    
+    // Validate required fields
+    if (!body.market_id || !body.amount || !body.outcome) {
       return NextResponse.json(
-        { error: 'display_name is required' },
+        { error: 'market_id, amount, and outcome are required' },
         { status: 400 }
       );
     }
 
-    // Update profile
-    const { data, error } = await supabase
-      .from('polybot_user_profiles')
-      .update({ display_name })
-      .eq('id', userId)
+    // Insert bet
+    const { data: bet, error } = await supabase
+      .from('polybot_bets')
+      .insert([{
+        user_id: userId,
+        market_id: body.market_id,
+        amount: body.amount,
+        outcome: body.outcome,
+        odds: body.odds || null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+      }])
       .select()
       .single();
 
     if (error) {
-      console.error('Profile update error:', error);
+      console.error('Bet create error:', error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
@@ -152,12 +151,11 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json({
-      id: data.id,
-      role: data.role,
-      display_name: data.display_name,
+      bet,
+      message: 'Bet created successfully'
     });
   } catch (error) {
-    console.error('Error in users/me PATCH:', error);
+    console.error('Error in bets POST:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
