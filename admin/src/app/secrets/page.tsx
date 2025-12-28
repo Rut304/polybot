@@ -29,6 +29,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { IBKRConnect } from '@/components/IBKRConnect';
+import { ExchangeConnectionList } from '@/components/ExchangeConnect';
 
 // Platform to category mapping for test connections
 const TESTABLE_PLATFORMS: Record<string, string[]> = {
@@ -166,6 +167,9 @@ export default function SecretsPage() {
     notifications: false,
     data_feeds: false,
   });
+  
+  // Tab state: 'my-connections' for users, 'admin-secrets' for admins
+  const [activeTab, setActiveTab] = useState<'my-connections' | 'admin-secrets'>('my-connections');
 
   // Re-authentication state for sensitive operations
   const [isReauthenticated, setIsReauthenticated] = useState(false);
@@ -723,8 +727,46 @@ export default function SecretsPage() {
             <span>Verified session active</span>
           </div>
         )}
+
+        {/* Tab Buttons */}
+        <div className="mt-6 flex gap-2 border-b border-gray-700">
+          <button
+            onClick={() => setActiveTab('my-connections')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              activeTab === 'my-connections'
+                ? 'text-neon-green border-b-2 border-neon-green'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            🔗 My Exchange Connections
+          </button>
+          <button
+            onClick={() => setActiveTab('admin-secrets')}
+            className={`px-4 py-2 font-medium transition-colors ${
+              activeTab === 'admin-secrets'
+                ? 'text-neon-green border-b-2 border-neon-green'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            🔐 Admin Secrets
+          </button>
+        </div>
       </motion.div>
 
+      {/* My Exchange Connections Tab */}
+      {activeTab === 'my-connections' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mb-8"
+        >
+          <ExchangeConnectionList />
+        </motion.div>
+      )}
+
+      {/* Admin Secrets Tab */}
+      {activeTab === 'admin-secrets' && (
+        <>
       {/* Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <motion.div
@@ -1130,6 +1172,8 @@ export default function SecretsPage() {
           </p>
         </div>
       </motion.div>
+        </>
+      )}
     </div>
   );
 }

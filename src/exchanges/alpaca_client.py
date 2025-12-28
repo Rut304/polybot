@@ -7,10 +7,15 @@ Features:
 - Paper trading support
 - REST + WebSocket API
 - Fractional shares
+- Multi-tenant support (per-user credentials)
 
 Usage:
+    # Direct initialization with keys
     client = AlpacaClient(api_key, api_secret, paper=True)
     await client.initialize()
+    
+    # Multi-tenant: Create from user's stored credentials
+    client = await AlpacaClient.create_for_user(user_id="uuid-here")
     
     # Get stock prices
     ticker = await client.get_ticker('AAPL')
@@ -55,11 +60,13 @@ class AlpacaClient(BaseExchange):
     - Paper trading mode
     - Fractional shares
     - REST API
+    - Multi-tenant support via create_for_user()
     """
     
     def __init__(self, api_key: Optional[str] = None,
                  api_secret: Optional[str] = None,
-                 paper: bool = True):
+                 paper: bool = True,
+                 user_id: Optional[str] = None):
         """
         Initialize Alpaca client.
         
@@ -67,6 +74,7 @@ class AlpacaClient(BaseExchange):
             api_key: Alpaca API key
             api_secret: Alpaca API secret
             paper: Use paper trading (sandbox) mode
+            user_id: User UUID for multi-tenant tracking
         """
         super().__init__(api_key, api_secret, paper)
         
@@ -74,9 +82,64 @@ class AlpacaClient(BaseExchange):
             raise ImportError("aiohttp is not installed. Run: pip install aiohttp")
         
         self.paper = paper
+        self.user_id = user_id
         self.base_url = ALPACA_PAPER_URL if paper else ALPACA_LIVE_URL
         self.data_url = ALPACA_DATA_URL
         self.session: Optional[aiohttp.ClientSession] = None
+    
+    @classmethod
+    async def create_for_user(
+        cls,
+        user_id: str,
+        paper: bool = True,
+        db_client=None
+    ) -> Optional['AlpacaClient']:
+        """
+        Factory method to create AlpacaClient from user's stored credentials.
+        
+        Multi-tenant design: Each user has their own API keys stored in
+        user_exchange_credentials table.
+        
+        Args:
+            user_id: User UUID
+            paper: Use paper trading mode
+            db_client: Optional Database instance (creates one if not provided)
+            
+        Returns:
+            Initialized AlpacaClient or None if no credentials found
+        """
+        try:
+            # Get database client
+            if db_client is None:
+                from src.database.client import Database
+                db_client = Database(user_id=user_id)
+            
+            # Try to get user-specific credentials
+            creds = db_client.get_alpaca_credentials_for_user(user_id, is_paper=paper)
+            
+            if not creds.get('api_key') or not creds.get('api_secret'):
+                logger.debug(f"No Alpaca credentials for user {user_id}")
+                return None
+            
+            # Create and initialize client
+            client = cls(
+                api_key=creds['api_key'],
+                api_secret=creds['api_secret'],
+                paper=creds.get('is_paper', paper),
+                user_id=user_id
+            )
+            
+            initialized = await client.initialize()
+            if initialized:
+                logger.info(f"✅ AlpacaClient created for user {user_id}")
+                return client
+            else:
+                logger.warning(f"❌ AlpacaClient init failed for user {user_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to create AlpacaClient for user {user_id}: {e}")
+            return None
     
     def _get_headers(self) -> Dict[str, str]:
         """Get API request headers."""

@@ -683,37 +683,61 @@ class PolybotRunner:
             
             if enabled_exchanges:
                 # Try each enabled exchange until one works
-                # Some exchanges may be geoblocked (Binance/Bybit from AWS)
-                logger.info(f"🔍 Checking credentials for exchanges: {enabled_exchanges}")
+                # Multi-tenant: per-user credentials first, then global fallback
+                logger.info(
+                    f"🔍 Checking credentials for exchanges: {enabled_exchanges}"
+                )
                 
-                # First pass: try exchanges with credentials
+                # First pass: try exchanges with per-user credentials
                 for exchange in enabled_exchanges:
-                    creds = self.db.get_exchange_credentials(exchange)
-                    has_key = bool(creds.get('api_key'))
-                    has_secret = bool(creds.get('api_secret'))
-                    logger.info(f"  {exchange}: api_key={'✓' if has_key else '✗'}, api_secret={'✓' if has_secret else '✗'}")
-                    
-                    if has_key and has_secret:
-                        # Try to initialize this exchange
-                        logger.info(f"  Attempting to connect to {exchange}...")
-                        self.ccxt_client = CCXTClient(
+                    # Multi-tenant approach
+                    if self.user_id:
+                        self.ccxt_client = await CCXTClient.create_for_user(
                             exchange_id=exchange,
-                            api_key=creds.get('api_key'),
-                            api_secret=creds.get('api_secret'),
-                            password=creds.get('password'),
-                            sandbox=False,  # Production API (testnets often geoblocked)
+                            user_id=self.user_id,
+                            sandbox=False,
+                            db_client=self.db
                         )
-                        ccxt_initialized = await self.ccxt_client.initialize()
-                        if ccxt_initialized:
+                        if self.ccxt_client:
                             logger.info(
-                                f"✓ CCXT Client initialized with {exchange}"
+                                f"✓ CCXT Client initialized with {exchange} "
+                                f"(per-user credentials)"
                             )
                             break  # Success!
-                        else:
-                            logger.warning(f"  ⚠️ {exchange} failed to connect (may be geoblocked)")
-                            self.ccxt_client = None
+                    
+                    # Fall back to global credentials
+                    if not self.ccxt_client:
+                        creds = self.db.get_exchange_credentials(exchange)
+                        has_key = bool(creds.get('api_key'))
+                        has_secret = bool(creds.get('api_secret'))
+                        logger.info(
+                            f"  {exchange}: api_key={'✓' if has_key else '✗'}, "
+                            f"api_secret={'✓' if has_secret else '✗'}"
+                        )
+                        
+                        if has_key and has_secret:
+                            logger.info(f"  Attempting to connect to {exchange}...")
+                            self.ccxt_client = CCXTClient(
+                                exchange_id=exchange,
+                                api_key=creds.get('api_key'),
+                                api_secret=creds.get('api_secret'),
+                                password=creds.get('password'),
+                                sandbox=False,
+                                user_id=self.user_id,
+                            )
+                            ccxt_initialized = await self.ccxt_client.initialize()
+                            if ccxt_initialized:
+                                logger.info(
+                                    f"✓ CCXT Client initialized with {exchange}"
+                                )
+                                break  # Success!
+                            else:
+                                logger.warning(
+                                    f"  ⚠️ {exchange} failed to connect"
+                                )
+                                self.ccxt_client = None
                 
-                # Second pass (simulation mode only): try without credentials for read-only data
+                # Second pass (simulation mode only): try without credentials
                 if not self.ccxt_client and self.simulation_mode:
                     logger.info("  Trying exchanges without credentials (simulation mode)...")
                     # Exchanges known to work without auth for public data
@@ -865,32 +889,53 @@ class PolybotRunner:
         
         # =====================================================================
         # STOCK STRATEGIES (Alpaca)
-        # Uses centralized secrets from Supabase polybot_secrets table
+        # Multi-tenant: Per-user credentials from user_exchange_credentials
+        # Falls back to global secrets if no per-user credentials
         # =====================================================================
         
-        # Get Alpaca credentials from centralized secrets manager
-        # Automatically picks paper vs live keys based on simulation_mode
-        alpaca_creds = self.db.get_alpaca_credentials(is_paper=self.simulation_mode)
-        alpaca_api_key = alpaca_creds.get('api_key')
-        alpaca_api_secret = alpaca_creds.get('api_secret')
-        
-        if self.config.trading.enable_alpaca and alpaca_api_key and alpaca_api_secret:
-            self.alpaca_client = AlpacaClient(
-                api_key=alpaca_api_key,
-                api_secret=alpaca_api_secret,
-                paper=self.simulation_mode,
-            )
-            # CRITICAL: Must call async initialize() to verify credentials!
-            alpaca_initialized = await self.alpaca_client.initialize()
-            if alpaca_initialized:
-                mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
-                logger.info(f"✓ Alpaca client initialized ({mode_str}) - keys from Supabase")
-            else:
-                logger.error(
-                    f"❌ Alpaca client failed to initialize - "
-                    f"stock strategies will not work"
+        if self.config.trading.enable_alpaca:
+            # Try multi-tenant approach first (per-user credentials)
+            if self.user_id:
+                self.alpaca_client = await AlpacaClient.create_for_user(
+                    user_id=self.user_id,
+                    paper=self.simulation_mode,
+                    db_client=self.db
                 )
-                self.alpaca_client = None
+                if self.alpaca_client:
+                    mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
+                    logger.info(
+                        f"✓ Alpaca client initialized ({mode_str}) "
+                        f"- per-user credentials for {self.user_id}"
+                    )
+            
+            # Fall back to global credentials (legacy behavior)
+            if not self.alpaca_client:
+                alpaca_creds = self.db.get_alpaca_credentials(
+                    is_paper=self.simulation_mode
+                )
+                alpaca_api_key = alpaca_creds.get('api_key')
+                alpaca_api_secret = alpaca_creds.get('api_secret')
+                
+                if alpaca_api_key and alpaca_api_secret:
+                    self.alpaca_client = AlpacaClient(
+                        api_key=alpaca_api_key,
+                        api_secret=alpaca_api_secret,
+                        paper=self.simulation_mode,
+                        user_id=self.user_id,
+                    )
+                    alpaca_initialized = await self.alpaca_client.initialize()
+                    if alpaca_initialized:
+                        mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
+                        logger.info(
+                            f"✓ Alpaca client initialized ({mode_str}) "
+                            f"- global credentials"
+                        )
+                    else:
+                        logger.error(
+                            "❌ Alpaca client failed to initialize - "
+                            "stock strategies will not work"
+                        )
+                        self.alpaca_client = None
         
         # Initialize IBKR Client (Interactive Brokers)
         # Uses IBKRWebClient for cloud deployment (no gateway container needed)

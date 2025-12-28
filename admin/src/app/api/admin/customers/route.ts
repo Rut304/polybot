@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Admin client with service key for full access
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy-initialized admin client with service key for full access
+let supabaseAdmin: SupabaseClient | null = null;
+function getSupabaseAdmin(): SupabaseClient | null {
+  if (!supabaseAdmin && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabaseAdmin;
+}
 
 export async function GET(request: NextRequest) {
   try {
     // Verify admin auth (you should add proper auth check here)
     const authHeader = request.headers.get('authorization');
     
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+    
     // Fetch all customer profiles
-    const { data: customers, error } = await supabaseAdmin
+    const { data: customers, error } = await supabase
       .from('polybot_profiles')
       .select('*')
       .order('created_at', { ascending: false });
@@ -39,8 +50,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'userId and updates required' }, { status: 400 });
     }
 
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
     // Update customer profile
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('polybot_profiles')
       .update({
         ...updates,
@@ -57,7 +73,7 @@ export async function PATCH(request: NextRequest) {
 
     // Log admin action for audit (ignore errors if table doesn't exist)
     try {
-      await supabaseAdmin.from('polybot_admin_audit_log').insert({
+      await supabase.from('polybot_admin_audit_log').insert({
         action: 'customer_update',
         target_user_id: userId,
         changes: updates,

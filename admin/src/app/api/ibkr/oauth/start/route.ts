@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * IBKR OAuth Start Endpoint
@@ -17,11 +17,17 @@ import { createClient } from '@supabase/supabase-js';
  * - OAuth redirect URI configured
  */
 
-// Initialize Supabase admin client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy-initialize Supabase admin client
+let supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient | null {
+  if (!supabase && process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabase;
+}
 
 // IBKR OAuth Configuration
 // These would be obtained from IBKR's Developer Portal
@@ -78,8 +84,16 @@ export async function POST(request: NextRequest) {
 
     // Store the pending auth state
     const stateToken = crypto.randomUUID();
+    
+    const supabaseClient = getSupabase();
+    if (!supabaseClient) {
+      return NextResponse.json(
+        { error: 'Database not configured' },
+        { status: 500 }
+      );
+    }
 
-    await supabase
+    await supabaseClient
       .from('oauth_states')
       .insert({
         state: stateToken,

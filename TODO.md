@@ -43,10 +43,27 @@
 
 - [x] **Flash Fix** - Navigation/Header showing before auth ✅ FIXED
 - [x] **Missed Opportunities** - Filter to show only actionable misses ✅ FIXED  
+- [x] **Auth Pages** - Signup, Login, Password Reset, Profile ✅ COMPLETE
+  - `/signup` - User registration with email verification
+  - `/login` - Email/password authentication
+  - `/forgot-password` - Request password reset email
+  - `/reset-password` - Set new password after reset link
+  - `/auth/callback` - Email verification redirect handler
+  - `/profile` - Account settings (edit name, email, password)
+- [x] **Multi-Tenant Data Migration** - All existing data isolated to admin user ✅
 - [ ] **Per-User API Keys** - AlpacaClient + CCXTClient multi-tenant (SEE ABOVE)
 - [ ] **Email System** - Welcome emails, trade alerts, daily digest
 - [ ] **Landing Page** - Public marketing site at polyparlay.io
 - [ ] **Admin Logs Page** - Built-in troubleshooting and bot logs viewer
+- [ ] **Team Invitations** 👥 - Allow users to invite others to their tenant
+  - Invite by email with role selection (Admin, Member, Viewer)
+  - Invitee gets email with signup/accept link
+  - Invited users join existing tenant (share data, API keys per role)
+  - Admin can revoke invitations / remove team members
+  - Role permissions:
+    - **Admin**: Full access, can invite others, manage API keys
+    - **Member**: View + trade, cannot manage keys or invite
+    - **Viewer**: Read-only access to dashboards
 
 ### P0.5 - IBKR Integration (Mostly Complete)
 
@@ -702,14 +719,14 @@
 ### Week 1 (URGENT - Launch Blocker)
 
 1. ✅ ~~IBKR Web API~~ - Complete
-2. 🔴 **AlpacaClient Multi-Tenant** - Update for per-user keys
-3. 🔴 **CCXTClient Multi-Tenant** - Update for per-user keys
-4. 🔴 **Enable BotManager** - Per-user bot instances
-5. 📧 **Email System** - Resend.com integration
+2. ✅ ~~AlpacaClient Multi-Tenant~~ - Update for per-user keys - DONE
+3. ✅ ~~CCXTClient Multi-Tenant~~ - Update for per-user keys - DONE
+4. ✅ ~~Enable BotManager~~ - Per-user bot instances - DONE (bot_runner updated)
+5. ✅ ~~Email System~~ - Resend.com integration - DONE
 
 ### Week 2 (User Experience)
 
-1. 🌐 **Landing Page** - polyparlay.io public site
+1. ✅ ~~Landing Page~~ - polyparlay.io public site - EXISTS at /landing
 2. 📋 **Admin Logs Page** - Bot troubleshooting
 3. 🎲 **Parlay Backend** - Port poly-parlay analytics
 
@@ -721,11 +738,11 @@
 
 ### Target Launch Criteria
 
-- [ ] Per-user API key isolation ✅
-- [ ] Email system working ✅
-- [ ] Landing page live ✅
-- [ ] At least 5 beta testers ✅
-- [ ] 0 critical bugs ✅
+- [x] Per-user API key isolation ✅
+- [x] Email system working ✅
+- [x] Landing page live ✅
+- [ ] At least 5 beta testers
+- [ ] 0 critical bugs
 
 ---
 

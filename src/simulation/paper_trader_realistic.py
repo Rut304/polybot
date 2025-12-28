@@ -1268,6 +1268,10 @@ class RealisticPaperTrader:
                 "platform": trade.platform_a,
                 "session_label": "simulation_v1",  # Session tracking for continuous data
             }
+            
+            # Multi-tenant: Add user_id if database has it
+            if self.db and hasattr(self.db, 'user_id') and self.db.user_id:
+                extended_data["user_id"] = self.db.user_id
 
             # Try multiple ways to save to database
             saved = False
@@ -1284,7 +1288,11 @@ class RealisticPaperTrader:
                     # If extended fields fail, try with core data only
                     if "column" in str(e).lower() and "does not exist" in str(e).lower():
                         try:
-                            self.db._client.table("polybot_simulated_trades").insert(data).execute()
+                            # Still try to include user_id even in core fields
+                            core_data = data.copy()
+                            if self.db and hasattr(self.db, 'user_id') and self.db.user_id:
+                                core_data["user_id"] = self.db.user_id
+                            self.db._client.table("polybot_simulated_trades").insert(core_data).execute()
                             logger.info(f"📝 DB TRADE: {trade.id} saved (core fields only)")
                             saved = True
                         except Exception as e2:
@@ -1295,7 +1303,11 @@ class RealisticPaperTrader:
             # Method 2: Direct _client check
             if not saved and self.db and hasattr(self.db, '_client') and self.db._client:
                 try:
-                    self.db._client.table("polybot_simulated_trades").insert(data).execute()
+                    # Include user_id
+                    insert_data = data.copy()
+                    if self.db and hasattr(self.db, 'user_id') and self.db.user_id:
+                        insert_data["user_id"] = self.db.user_id
+                    self.db._client.table("polybot_simulated_trades").insert(insert_data).execute()
                     logger.info(f"📝 DB TRADE: {trade.id} saved (method 2)")
                     saved = True
                 except Exception as e:

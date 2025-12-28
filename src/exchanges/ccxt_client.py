@@ -90,6 +90,7 @@ class CCXTClient(BaseExchange):
     CCXT-based exchange client for crypto trading.
     
     Supports 106+ exchanges with a unified API.
+    Multi-tenant support via create_for_user() factory method.
     """
     
     def __init__(self, exchange_id: str = 'binance',
@@ -97,7 +98,8 @@ class CCXTClient(BaseExchange):
                  api_secret: Optional[str] = None,
                  password: Optional[str] = None,
                  sandbox: bool = False,
-                 default_type: Optional[str] = None):
+                 default_type: Optional[str] = None,
+                 user_id: Optional[str] = None):
         """
         Initialize CCXT client.
         
@@ -108,6 +110,7 @@ class CCXTClient(BaseExchange):
             password: API password (for exchanges that require it)
             sandbox: Use testnet/sandbox mode
             default_type: Default market type ('spot', 'future', 'swap', etc.)
+            user_id: User UUID for multi-tenant tracking
         """
         super().__init__(api_key, api_secret, sandbox)
         
@@ -118,8 +121,79 @@ class CCXTClient(BaseExchange):
         self.exchange_id = EXCHANGE_MAPPING.get(exchange_id.lower(), exchange_id)
         self.password = password
         self.default_type = default_type
+        self.user_id = user_id
         self.exchange: Optional[ccxt.Exchange] = None
         self._session = None  # aiohttp session for IPv4 connections
+    
+    @classmethod
+    async def create_for_user(
+        cls,
+        exchange_id: str,
+        user_id: str,
+        sandbox: bool = False,
+        default_type: Optional[str] = None,
+        db_client=None
+    ) -> Optional['CCXTClient']:
+        """
+        Factory method to create CCXTClient from user's stored credentials.
+        
+        Multi-tenant design: Each user has their own API keys stored in
+        user_exchange_credentials table.
+        
+        Args:
+            exchange_id: Exchange name (binance, bybit, okx, etc.)
+            user_id: User UUID
+            sandbox: Use sandbox/testnet mode
+            default_type: Market type (spot, future, swap)
+            db_client: Optional Database instance
+            
+        Returns:
+            Initialized CCXTClient or None if no credentials found
+        """
+        try:
+            # Get database client
+            if db_client is None:
+                from src.database.client import Database
+                db_client = Database(user_id=user_id)
+            
+            # Try to get user-specific credentials
+            creds = db_client.get_ccxt_credentials_for_user(exchange_id, user_id)
+            
+            if not creds.get('api_key'):
+                logger.debug(
+                    f"No {exchange_id} credentials for user {user_id}"
+                )
+                return None
+            
+            # Create and initialize client
+            client = cls(
+                exchange_id=exchange_id,
+                api_key=creds['api_key'],
+                api_secret=creds.get('api_secret'),
+                password=creds.get('password'),
+                sandbox=creds.get('sandbox', sandbox),
+                default_type=default_type,
+                user_id=user_id
+            )
+            
+            initialized = await client.initialize()
+            if initialized:
+                logger.info(
+                    f"✅ CCXTClient({exchange_id}) created for user {user_id}"
+                )
+                return client
+            else:
+                logger.warning(
+                    f"❌ CCXTClient({exchange_id}) init failed for user {user_id}"
+                )
+                return None
+                
+        except Exception as e:
+            logger.error(
+                f"Failed to create CCXTClient({exchange_id}) "
+                f"for user {user_id}: {e}"
+            )
+            return None
         
     async def initialize(self) -> bool:
         """Initialize connection to exchange."""

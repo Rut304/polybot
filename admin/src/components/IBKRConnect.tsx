@@ -43,7 +43,7 @@ interface IBKRConnectProps {
  * in the user_exchange_credentials table.
  */
 export function IBKRConnect({ onConnect, onDisconnect, className }: IBKRConnectProps) {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [status, setStatus] = useState<IBKRConnectionStatus>({ connected: false });
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);

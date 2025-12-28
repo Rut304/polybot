@@ -294,6 +294,171 @@ class Database:
         """Force refresh secrets from database."""
         return self.load_secrets(force_refresh=True)
 
+    # ==================== Multi-Tenant Credentials ====================
+    # Per-user API credentials stored in user_exchange_credentials table
+    # These take precedence over global secrets when user_id is set
+    
+    def get_user_exchange_credentials(
+        self, 
+        exchange: str, 
+        user_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get per-user exchange credentials from user_exchange_credentials table.
+        
+        This is the preferred method for multi-tenant operation.
+        
+        Args:
+            exchange: Exchange name (alpaca, binance, coinbase, etc.)
+            user_id: User UUID (defaults to self.user_id)
+            
+        Returns:
+            Dict with api_key, api_secret, and other exchange-specific fields
+            Returns None if no credentials found
+        """
+        uid = user_id or self.user_id
+        if not uid or not self._client:
+            return None
+            
+        try:
+            result = self._client.table(
+                'user_exchange_credentials'
+            ).select('*').eq(
+                'user_id', uid
+            ).eq(
+                'exchange', exchange.lower()
+            ).single().execute()
+            
+            if result.data:
+                data = result.data
+                # Map common fields - credentials stored in access_token/refresh_token columns
+                # This matches the OAuth-style storage we use for IBKR
+                return {
+                    'api_key': data.get('access_token'),  # API key stored here
+                    'api_secret': data.get('refresh_token'),  # API secret stored here
+                    'password': data.get('consumer_key'),  # Passphrase for exchanges that need it
+                    'account_id': data.get('account_id'),
+                    'is_paper': data.get('is_paper', True),
+                    'token_expiry': data.get('token_expiry'),
+                    'last_authenticated': data.get('last_authenticated'),
+                }
+            return None
+            
+        except Exception as e:
+            # Single() throws if no match - that's expected for unconfigured exchanges
+            if 'PGRST116' in str(e):  # No rows returned
+                return None
+            logger.debug(f"No {exchange} credentials for user {uid}: {e}")
+            return None
+    
+    async def save_user_exchange_credentials(
+        self,
+        exchange: str,
+        api_key: str,
+        api_secret: str,
+        user_id: Optional[str] = None,
+        password: Optional[str] = None,
+        account_id: Optional[str] = None,
+        is_paper: bool = True
+    ) -> bool:
+        """
+        Save per-user exchange credentials.
+        
+        Args:
+            exchange: Exchange name (alpaca, binance, etc.)
+            api_key: API key
+            api_secret: API secret
+            user_id: User UUID (defaults to self.user_id)
+            password: Passphrase (for OKX, KuCoin, etc.)
+            account_id: Exchange account ID
+            is_paper: Whether this is for paper trading
+            
+        Returns:
+            True if saved successfully
+        """
+        uid = user_id or self.user_id
+        if not uid or not self._client:
+            logger.error("Cannot save credentials: no user_id or database client")
+            return False
+            
+        try:
+            data = {
+                'user_id': uid,
+                'exchange': exchange.lower(),
+                'access_token': api_key,  # Store API key here
+                'refresh_token': api_secret,  # Store API secret here
+                'consumer_key': password,  # Store passphrase here
+                'account_id': account_id,
+                'is_paper': is_paper,
+                'last_authenticated': datetime.now(timezone.utc).isoformat(),
+                'updated_at': datetime.now(timezone.utc).isoformat()
+            }
+            
+            self._client.table('user_exchange_credentials').upsert(
+                data, on_conflict='user_id,exchange'
+            ).execute()
+            
+            logger.info(f"✓ Saved {exchange} credentials for user {uid}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to save {exchange} credentials: {e}")
+            return False
+    
+    def get_alpaca_credentials_for_user(
+        self, 
+        user_id: Optional[str] = None,
+        is_paper: bool = True
+    ) -> Dict[str, Optional[str]]:
+        """
+        Get Alpaca credentials - tries per-user first, falls back to global.
+        
+        Multi-tenant priority:
+        1. user_exchange_credentials table (per-user)
+        2. polybot_key_vault (per-user encrypted)
+        3. polybot_secrets (global fallback)
+        4. Environment variables (last resort)
+        """
+        # Try per-user credentials first
+        user_creds = self.get_user_exchange_credentials('alpaca', user_id)
+        if user_creds and user_creds.get('api_key'):
+            return {
+                'api_key': user_creds['api_key'],
+                'api_secret': user_creds['api_secret'],
+                'is_paper': user_creds.get('is_paper', is_paper),
+                'base_url': (
+                    'https://paper-api.alpaca.markets' 
+                    if user_creds.get('is_paper', is_paper)
+                    else 'https://api.alpaca.markets'
+                ),
+            }
+        
+        # Fall back to global credentials (legacy behavior)
+        return self.get_alpaca_credentials(is_paper)
+    
+    def get_ccxt_credentials_for_user(
+        self, 
+        exchange: str,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Optional[str]]:
+        """
+        Get CCXT exchange credentials - tries per-user first, falls back to global.
+        
+        Supports: binance, bybit, okx, kraken, coinbase, kucoin
+        """
+        # Try per-user credentials first
+        user_creds = self.get_user_exchange_credentials(exchange, user_id)
+        if user_creds and user_creds.get('api_key'):
+            return {
+                'api_key': user_creds['api_key'],
+                'api_secret': user_creds['api_secret'],
+                'password': user_creds.get('password'),  # For OKX, KuCoin
+                'sandbox': user_creds.get('is_paper', False),
+            }
+        
+        # Fall back to global credentials
+        return self.get_exchange_credentials(exchange)
+
     # ==================== Configuration ====================
     # Settings that can be changed via Admin UI (not secrets)
     # The polybot_config table uses a single-row structure with id=1
@@ -797,6 +962,7 @@ class Database:
     async def insert(self, table: str, data: Dict[str, Any]) -> Optional[Dict]:
         """
         Insert a row into a table (async-compatible wrapper).
+        Automatically adds user_id for multi-tenant tables.
         
         Args:
             table: Table name
@@ -810,7 +976,25 @@ class Database:
             return None
         
         try:
-            result = self._client.table(table).insert(data).execute()
+            # Multi-tenant tables should include user_id
+            MULTI_TENANT_TABLES = {
+                'polybot_simulated_trades',
+                'polybot_opportunities', 
+                'polybot_positions',
+                'polybot_manual_trades',
+                'polybot_disabled_markets',
+                'polybot_simulation_stats',
+                'polybot_tracked_traders',
+                'polybot_copy_signals',
+                'polybot_market_alerts',
+                'polybot_overlap_opportunities',
+            }
+            
+            insert_data = data.copy()
+            if self.user_id and table in MULTI_TENANT_TABLES and 'user_id' not in insert_data:
+                insert_data['user_id'] = self.user_id
+            
+            result = self._client.table(table).insert(insert_data).execute()
             if result.data:
                 return result.data[0]
             return None
