@@ -120,6 +120,7 @@ const navSections: NavSection[] = [
       { href: '/strategies', label: 'Strategies', icon: Target, adminOnly: true },
       { href: '/secrets', label: 'API Keys', icon: Key, adminOnly: true },
       { href: '/users', label: 'Users', icon: Users, adminOnly: true },
+      { href: '/admin/guide', label: 'Admin Guide', icon: BookOpen, adminOnly: true },
     ],
   },
   {

@@ -20,6 +20,9 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Bug,
+  Terminal,
+  BookOpen,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -117,6 +120,11 @@ export default function DiagnosticsPage() {
   const [isRunning, setIsRunning] = useState(false);
   const [lastRun, setLastRun] = useState<string | null>(null);
   const [overallStatus, setOverallStatus] = useState<'idle' | 'running' | 'success' | 'warning' | 'error'>('idle');
+  
+  // E2E Testing state
+  const [e2eStatus, setE2eStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [e2eResults, setE2eResults] = useState<{ passed: number; failed: number; total: number; output: string } | null>(null);
+  const [e2eRunning, setE2eRunning] = useState(false);
 
   const updateTest = (categoryIndex: number, testIndex: number, updates: Partial<TestResult>) => {
     setCategories(prev => {
@@ -1071,10 +1079,179 @@ export default function DiagnosticsPage() {
         })}
       </div>
 
+      {/* E2E Testing Section */}
+      <div className="card overflow-hidden">
+        <div className="p-4 border-b border-gray-800">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-500/20 rounded-lg">
+                <Bug className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-medium">E2E Testing (Playwright)</h3>
+                <p className="text-sm text-gray-500">80 automated tests for UI and API validation</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {e2eResults && (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-green-400">{e2eResults.passed} passed</span>
+                  {e2eResults.failed > 0 && (
+                    <span className="text-red-400">{e2eResults.failed} failed</span>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={async () => {
+                  setE2eRunning(true);
+                  setE2eStatus('running');
+                  setE2eResults(null);
+                  try {
+                    const res = await fetch('/api/diagnostics/e2e-test', { method: 'POST' });
+                    const data = await res.json();
+                    if (res.ok) {
+                      setE2eResults(data);
+                      setE2eStatus(data.failed === 0 ? 'success' : 'error');
+                    } else {
+                      setE2eStatus('error');
+                      setE2eResults({ passed: 0, failed: 0, total: 0, output: data.error || 'Test execution failed' });
+                    }
+                  } catch (err) {
+                    setE2eStatus('error');
+                    setE2eResults({ passed: 0, failed: 0, total: 0, output: 'Failed to run tests' });
+                  } finally {
+                    setE2eRunning(false);
+                  }
+                }}
+                disabled={e2eRunning}
+                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all ${
+                  e2eRunning
+                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+              >
+                {e2eRunning ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Run E2E Tests
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* E2E Test Status/Results */}
+        <div className="p-4 space-y-4">
+          {e2eStatus === 'idle' && (
+            <div className="flex items-center gap-3 text-gray-400">
+              <Terminal className="w-5 h-5" />
+              <span>Click &quot;Run E2E Tests&quot; to execute Playwright test suite</span>
+            </div>
+          )}
+          
+          {e2eStatus === 'running' && (
+            <div className="flex items-center gap-3 text-blue-400">
+              <RefreshCw className="w-5 h-5 animate-spin" />
+              <span>Running E2E tests... This may take 30-60 seconds.</span>
+            </div>
+          )}
+          
+          {e2eStatus === 'success' && e2eResults && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-400" />
+                <div>
+                  <p className="font-medium text-green-400">All tests passed!</p>
+                  <p className="text-sm text-gray-400">
+                    {e2eResults.passed} of {e2eResults.total} tests passed
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {e2eStatus === 'error' && e2eResults && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <XCircle className="w-5 h-5 text-red-400" />
+                <div>
+                  <p className="font-medium text-red-400">Some tests failed</p>
+                  <p className="text-sm text-gray-400">
+                    {e2eResults.passed} passed, {e2eResults.failed} failed of {e2eResults.total} tests
+                  </p>
+                </div>
+              </div>
+              {e2eResults.output && (
+                <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
+                  <pre className="text-xs text-gray-400 whitespace-pre-wrap">{e2eResults.output}</pre>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Test file list */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4">
+            {[
+              { file: 'navigation.spec.ts', count: 12 },
+              { file: 'dashboard.spec.ts', count: 14 },
+              { file: 'api.spec.ts', count: 10 },
+              { file: 'failed-trades.spec.ts', count: 14 },
+              { file: 'ai-insights.spec.ts', count: 12 },
+              { file: 'feature-flags.spec.ts', count: 10 },
+              { file: 'auth.spec.ts', count: 12 },
+              { file: 'settings.spec.ts', count: 20 },
+              { file: 'trading.spec.ts', count: 26 },
+              { file: 'mobile.spec.ts', count: 16 },
+              { file: 'accessibility.spec.ts', count: 24 },
+            ].map(({ file, count }) => (
+              <div key={file} className="flex items-center justify-between p-2 bg-gray-800/50 rounded text-sm">
+                <span className="text-gray-400">{file}</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${count > 0 ? 'bg-green-500/20 text-green-400' : 'bg-gray-700 text-gray-500'}`}>
+                  {count > 0 ? `${count} tests` : 'pending'}
+                </span>
+              </div>
+            ))}
+          </div>
+          
+          {/* Links */}
+          <div className="flex gap-2 pt-2">
+            <a
+              href="/admin/guide#e2e-testing"
+              className="px-3 py-1.5 bg-gray-800 rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              <BookOpen className="w-4 h-4" />
+              Testing Guide
+            </a>
+            <a
+              href="https://playwright.dev/docs/intro"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-1.5 bg-gray-800 rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Playwright Docs
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* Quick Actions */}
       <div className="card p-4">
         <h3 className="text-sm font-medium text-gray-400 mb-3">Quick Actions</h3>
         <div className="flex flex-wrap gap-2">
+          <a
+            href="/admin/guide"
+            className="px-4 py-2 bg-blue-600 rounded-lg text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <BookOpen className="w-4 h-4" />
+            Admin Guide
+          </a>
           <a
             href="/settings"
             className="px-4 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
