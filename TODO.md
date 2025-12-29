@@ -260,10 +260,10 @@ When adding a new exchange/broker integration, complete ALL of these:
 
 ### P0 - BLOCKING ISSUES
 
-- [ ] **Settings Save Error** 🚨 - "SAVE FAILED (Debug Mode)" when saving settings
-  - RSI enable fails with this error
-  - Likely RLS policy issue on `polybot_config` table
-  - Need to check Supabase RLS policies
+- [x] **Settings Save Error** 🚨 ✅ FIXED
+  - RSI enable was failing with "SAVE FAILED (Debug Mode)"
+  - Fixed: API route now uses service role key to bypass RLS
+  - File: `/admin/src/app/api/config/route.ts`
   
 - [ ] **Bot Stopped Running** 🚨 - No trades since Dec 28
   - Need to investigate why bot stopped
@@ -271,29 +271,38 @@ When adding a new exchange/broker integration, complete ALL of these:
   - Add auto-restart capability (systemd/PM2)
   - Consider Uptime Robot or similar for external monitoring
   
-- [ ] **Version Badge Not Showing for Admin**
-  - Admin (<rutrohd@gmail.com>) should see version but doesn't
-  - Check `isAdmin` logic in Header component
+- [x] **Version Badge Not Showing for Admin** ✅ FIXED
+  - Changed from `useTier` to `useAuth` for admin detection
+  - Admin email check: `session?.user?.email === 'rutrohd@gmail.com'`
+  - File: `/admin/src/components/Header.tsx`
   
-- [ ] **Dashboard Defaults to "All Data"**
-  - Should default to current session (Paper or Live), not combined
-  - Never land on combined - confusing UX
-  - Each user session should show only that mode's data
+- [x] **Dashboard Defaults to "All Data"** ✅ FIXED
+  - Now defaults to user's current session mode (Paper/Live)
+  - Reads from `polybot_config.is_live_trading` via useConfig hook
+  - Persists filter selection to localStorage
+  - File: `/admin/src/app/dashboard/page.tsx`
   
-- [ ] **Analytics Charts Need Redesign**
-  - Top 2 charts are hard to read
-  - Change to line graphs with different colored lines per strategy
-  - Trending lines for selected timeframe
-  - Need to be readable at a glance
+- [x] **Analytics Charts Redesigned** ✅ COMPLETE
+  - Replaced with professional TradingView-style charts
+  - Uses lightweight-charts v5 library
+  - CumulativePnLChart: Multi-colored lines per strategy over time
+  - DailyPnLChart: Baseline chart showing daily gains/losses (green/red)
+  - Interactive legend with hover highlighting
+  - File: `/admin/src/components/TradingViewChart.tsx`
 
-### P0.5 - IBKR Real-Time Pricing
+### P0.5 - IBKR Real-Time Pricing ✅ COMPLETE
 
-- [ ] **Show Real-Time IBKR Prices**
-  - If IBKR connected: Show IBKR prices (bid/ask)
-  - If Alpaca only: Show Alpaca prices
-  - If both connected: Show both, IBKR prioritized
-  - Trade modal must fetch live IBKR quote before placing order
-  - Support limit orders with IBKR bid/ask spread
+- [x] **Show Real-Time IBKR Prices** ✅ COMPLETE
+  - If IBKR connected: Shows IBKR prices (bid/ask)
+  - If Alpaca only: Shows Alpaca prices
+  - If both connected: Shows both, IBKR prioritized
+  - Trade modal fetches live quotes before placing order
+  - Support for market and limit orders
+  - Files:
+    - `/admin/src/app/api/ibkr/quote/route.ts` - Quote endpoint
+    - `/admin/src/components/StockTradeModal.tsx` - Trade modal
+    - `/admin/src/app/api/trades/stock/route.ts` - Trade execution
+    - `/admin/src/app/markets/page.tsx` - Updated markets page
 
 ### Bot Reliability & Monitoring
 

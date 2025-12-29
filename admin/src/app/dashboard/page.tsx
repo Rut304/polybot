@@ -43,6 +43,7 @@ import { MoneyStatsWidget } from '@/components/MoneyStatsWidget';
 import { useTier } from '@/lib/useTier';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
 import { WelcomeBanner, QuickStartFAB, PageCTA } from '@/components/QuickStartGuide';
+import { BotHealthIndicator } from '@/components/BotHealthIndicator';
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -368,6 +369,16 @@ export default function Dashboard() {
         <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
       </div>
       */}
+
+      {/* Bot Health Indicator */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12 }}
+        className="mb-8"
+      >
+        <BotHealthIndicator className="bg-dark-card" />
+      </motion.div>
 
       {/* Strategy Performance */}
       <motion.div
