@@ -344,10 +344,11 @@ export default function Dashboard() {
         </motion.div>
       </div>
 
-      {/* Money Stats Widget (Missed Money & Efficiency) */}
+      {/* Money Stats Widget - DISABLED: Needs real failed trade data with pricing
       <div className="mb-8">
         <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
       </div>
+      */}
 
       {/* Strategy Performance */}
       <motion.div
