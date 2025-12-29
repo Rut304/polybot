@@ -237,22 +237,44 @@
 
 ### Missed Money Rethink
 
-- [x] **Rethink Missed Money Page** ✅ COMPLETE → "Trading Optimizations"
-  - **Renamed** in navigation from "Missed Money" to "Optimizations"
-  - **Two Clear Tabs**:
-    1. **Failed Trades** - Actual execution failures, losses, timeouts
-       - Grouped by failure reason
-       - 1-click retry buttons for retriable failures
-       - Shows actual P&L impact
-    2. **Optimization Insights** - Data-driven suggestions
-       - Win rate analysis
-       - Slippage detection
-       - Timing optimization
-       - Position sizing recommendations
-  - **Removed** misleading "missed revenue" framing
-  - **Empty States** show positive messages when no issues
+- [x] **Rethink Missed Money Page** ✅ COMPLETE → "Failed Trades"
+  - **Simplified**: Removed duplicate optimization tab (AI Insights covers this)
+  - **Focused**: Only shows actual failed trades with retry functionality
+  - **Risk Explanations**: Each trade shows risk impact if retried
+    - Low Risk (green): Safe to retry
+    - Medium Risk (yellow): Review before retrying  
+    - High Risk (red): Caution advised
+  - **AI Insights Banner**: Links to `/insights` for strategy tuning
+  - **Renamed** in navigation from "Optimizations" to "Failed Trades"
   - **Feature-gated** behind Pro tier
   - File: `/admin/src/app/missed-opportunities/page.tsx`
+
+- [x] **Risk Impact on Recommendations** ✅ COMPLETE
+  - Added to AI Insights tuning cards
+  - Shows: Risk ↑ (increases), Risk ↓ (decreases), Risk → (neutral)
+  - Color-coded: red/green/gray backgrounds
+  - Explanations for each impact type
+  - File: `/admin/src/app/insights/page.tsx`
+
+### E2E Testing Setup
+
+- [x] **Playwright E2E Testing** ✅ COMPLETE
+  - Installed `@playwright/test` with Chromium browser
+  - Created `playwright.config.ts` with desktop + mobile projects
+  - **80 tests passing** across 6 test files:
+    - `navigation.spec.ts` - Core navigation and routing
+    - `dashboard.spec.ts` - Main dashboard functionality  
+    - `api.spec.ts` - API endpoint integration tests
+    - `failed-trades.spec.ts` - Failed trades page tests
+    - `ai-insights.spec.ts` - AI insights page tests
+    - `feature-flags.spec.ts` - Admin feature control tests
+  - Tests handle auth-gated content gracefully
+  - **npm scripts**:
+    - `npm run test:e2e` - Run all tests
+    - `npm run test:e2e:ui` - Interactive UI mode
+    - `npm run test:e2e:headed` - See browser
+    - `npm run test:e2e:debug` - Debug mode
+  - Files: `/admin/e2e/**`, `/admin/playwright.config.ts`
 
 ### Diagnostics & Monitoring Overhaul
 
