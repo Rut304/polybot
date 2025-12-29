@@ -211,36 +211,48 @@
 
 - [x] **Hide Version Badge from Non-Admins** ✅ - Only show UI/Bot version to admins
 - [ ] **Encrypt Secrets at Rest** - API keys stored in DB must be AES-256 encrypted
-- [ ] **Admin Feature Control Panel** 🎛️ - Full admin control over features/users
+- [x] **Admin Feature Control Panel** 🎛️ ✅ COMPLETE
+  - **Files Created**:
+    - `/admin/src/app/admin/features/page.tsx` - Full feature control UI
+    - `/admin/src/app/api/admin/features/route.ts` - API for flag management
+    - `/admin/src/app/api/admin/features/overrides/route.ts` - User override API
+    - `/admin/src/lib/useFeatureFlags.tsx` - Hook for checking flags in components
+    - `/scripts/create_feature_flags_table.sql` - Database schema (RUN THIS)
   - **Global Settings**:
-    - Maintenance mode (disable all trading)
-    - Feature flags (enable/disable features globally)
-    - Rate limits configuration
-    - Default simulation parameters
+    - ✅ Maintenance mode (disable all trading)
+    - ✅ Feature flags (enable/disable features globally)
+    - ✅ Rollout percentages (gradual feature rollout)
+    - ✅ Category grouping (trading, ui, beta, maintenance)
   - **Per-User Settings**:
-    - Override subscription tier
-    - Enable/disable specific strategies
-    - Beta feature access (opt-in users for testing)
-    - Simulation/Live mode override
-    - Custom rate limits
+    - ✅ User-specific feature overrides
+    - ✅ Override expiration dates
+    - ✅ Reason tracking for audit
+    - ✅ Beta tester tracking table
   - **Beta Testing Support**:
-    - Mark features as "beta"
-    - Whitelist users for beta features
-    - Gradual rollout (% of users)
-  - UI: New `/admin/feature-control` page
+    - ✅ Mark features as "beta" category
+    - ✅ Whitelist users with overrides
+    - ✅ Gradual rollout (% of users)
+  - **UI**: `/admin/features` - Create, edit, toggle feature flags
+  - **IMPORTANT**: Run `scripts/create_feature_flags_table.sql` in Supabase!
 
 ### Missed Money Rethink
 
-- [ ] **Rethink Missed Money Page** - Current implementation is misleading
-  - Problem: Shows $2.1M "missed" but none were valid for user's strategies
-  - **NEW APPROACH**: Show "Optimization Opportunities"
-    - "If you adjusted X strategy setting, you could have caught Y opportunities"
-    - Show specific parameter tweaks with estimated impact
-    - Show actually FAILED trades (API errors, insufficient funds, timeout)
-  - Show: Failed trades with reasons, retry options, fix suggestions
-  - Remove: Opportunities that didn't match user's active strategies
-  - Add: "Why this trade failed" + "1-click retry" buttons
-  - **FALLBACK**: If no value-add possible, hide behind feature flag for beta users only
+- [x] **Rethink Missed Money Page** ✅ COMPLETE → "Trading Optimizations"
+  - **Renamed** in navigation from "Missed Money" to "Optimizations"
+  - **Two Clear Tabs**:
+    1. **Failed Trades** - Actual execution failures, losses, timeouts
+       - Grouped by failure reason
+       - 1-click retry buttons for retriable failures
+       - Shows actual P&L impact
+    2. **Optimization Insights** - Data-driven suggestions
+       - Win rate analysis
+       - Slippage detection
+       - Timing optimization
+       - Position sizing recommendations
+  - **Removed** misleading "missed revenue" framing
+  - **Empty States** show positive messages when no issues
+  - **Feature-gated** behind Pro tier
+  - File: `/admin/src/app/missed-opportunities/page.tsx`
 
 ### Diagnostics & Monitoring Overhaul
 
