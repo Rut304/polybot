@@ -29,6 +29,8 @@ import {
   Line,
   Area,
   ComposedChart,
+  LineChart,
+  Legend,
 } from 'recharts';
 
 import { useSimulatedTrades, useStrategyPerformance, useBotConfig, usePnLHistory, useConnectedPlatforms } from '@/lib/hooks';
@@ -36,6 +38,7 @@ import { useTier } from '@/lib/useTier';
 import { formatCurrency, cn } from '@/lib/utils';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
 import { PageCTA } from '@/components/QuickStartGuide';
+import { CumulativePnLChart, DailyPnLChart, STRATEGY_COLORS } from '@/components/TradingViewChart';
 
 // Platform colors - comprehensive list supporting all potential platforms
 const PLATFORM_COLORS: Record<string, string> = {
@@ -279,6 +282,78 @@ export default function AnalyticsPage() {
         }
       });
 
+    // === CUMULATIVE P&L PER STRATEGY OVER TIME ===
+    // Get unique strategies from trades
+    const uniqueStrategies = [...new Set(filteredTrades.map(t => t.strategy).filter(Boolean))];
+    
+    // Colors for different strategies
+    const strategyColors: Record<string, string> = {
+      'cross_platform_arb': '#22c55e',        // Green
+      'polymarket_single_platform': '#8b5cf6', // Purple
+      'kalshi_single_platform': '#3b82f6',    // Blue
+      'rsi_strategy': '#f59e0b',              // Amber
+      'mean_reversion': '#ec4899',            // Pink
+      'momentum': '#06b6d4',                  // Cyan
+      'dividend_growth': '#84cc16',           // Lime
+      'whale_copy_trading': '#f97316',        // Orange
+      'congressional_tracker': '#14b8a6',     // Teal
+      'stock_mean_reversion': '#a855f7',      // Violet
+    };
+    
+    // Build cumulative P&L data per day per strategy
+    const cumulativePnlByDay: Record<string, Record<string, number>> = {};
+    const runningTotals: Record<string, number> = {};
+    
+    // Initialize running totals
+    uniqueStrategies.forEach(s => { runningTotals[s] = 0; });
+    
+    // Sort trades by date and build cumulative data
+    [...filteredTrades]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .forEach(trade => {
+        const date = new Date(trade.created_at).toISOString().split('T')[0];
+        const strategy = trade.strategy || 'unknown';
+        const pnl = trade.actual_profit_usd || 0;
+        
+        runningTotals[strategy] = (runningTotals[strategy] || 0) + pnl;
+        
+        if (!cumulativePnlByDay[date]) {
+          cumulativePnlByDay[date] = { ...runningTotals };
+        } else {
+          cumulativePnlByDay[date] = { ...runningTotals };
+        }
+      });
+    
+    // Convert to chart-friendly format
+    const cumulativeStrategyData = Object.entries(cumulativePnlByDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-30)
+      .map(([date, strategies]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        fullDate: date,
+        ...strategies,
+      }));
+    
+    // Daily P&L per strategy (not cumulative)
+    const dailyStrategyPnl: Record<string, Record<string, number>> = {};
+    filteredTrades.forEach(trade => {
+      const date = new Date(trade.created_at).toISOString().split('T')[0];
+      const strategy = trade.strategy || 'unknown';
+      const pnl = trade.actual_profit_usd || 0;
+      
+      if (!dailyStrategyPnl[date]) dailyStrategyPnl[date] = {};
+      dailyStrategyPnl[date][strategy] = (dailyStrategyPnl[date][strategy] || 0) + pnl;
+    });
+    
+    const dailyStrategyData = Object.entries(dailyStrategyPnl)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-30)
+      .map(([date, strategies]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        fullDate: date,
+        ...strategies,
+      }));
+
     return {
       // Overall metrics
       totalPnl,
@@ -302,6 +377,12 @@ export default function AnalyticsPage() {
       platformData,
       dailyData,
       pnlRanges,
+      
+      // NEW: Strategy line chart data
+      cumulativeStrategyData,
+      dailyStrategyData,
+      uniqueStrategies,
+      strategyColors,
       
       // Patterns
       maxWinStreak,
@@ -587,7 +668,71 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* === CHARTS ROW 1 === */}
+      {/* === NEW: TRADINGVIEW-STYLE CUMULATIVE P&L CHART === */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="card"
+      >
+        <CumulativePnLChart
+          trades={trades}
+          height={400}
+          showByStrategy={true}
+          className="w-full"
+        />
+      </motion.div>
+
+      {/* === CHARTS ROW 1: Daily P&L + Distribution === */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Daily P&L - TradingView Style */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card"
+        >
+          <DailyPnLChart
+            trades={trades}
+            height={300}
+            className="w-full"
+          />
+        </motion.div>
+
+        {/* P&L Distribution - Keep Recharts for histogram */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card"
+        >
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <PieChart className="w-5 h-5 text-neon-yellow" />
+            Trade P&L Distribution
+          </h3>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analytics.pnlRanges}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                <XAxis dataKey="range" stroke="#666" tick={{ fontSize: 9 }} />
+                <YAxis stroke="#666" />
+                <RechartsTooltip
+                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                  {analytics.pnlRanges.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={index < 4 ? '#ef4444' : '#22c55e'} 
+                      fillOpacity={0.3 + (Math.abs(index - 3.5) / 4) * 0.7}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* === CHARTS ROW 2: Strategy P&L + Win Rate === */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* P&L by Strategy */}
         <motion.div
@@ -644,70 +789,6 @@ export default function AnalyticsPage() {
                   ]}
                 />
                 <Bar dataKey="winRate" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Win Rate" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* === CHARTS ROW 2 === */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Daily P&L Trend */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-        >
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <LineChartIcon className="w-5 h-5 text-neon-purple" />
-            Daily P&L Trend
-          </h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={analytics.dailyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="date" stroke="#666" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="left" stroke="#666" tickFormatter={(v) => `$${v}`} />
-                <YAxis yAxisId="right" orientation="right" stroke="#666" />
-                <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
-                />
-                <Area yAxisId="left" type="monotone" dataKey="pnl" fill="#22c55e" fillOpacity={0.2} stroke="#22c55e" name="P&L" />
-                <Line yAxisId="right" type="monotone" dataKey="trades" stroke="#a855f7" strokeWidth={2} dot={false} name="Trades" />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </motion.div>
-
-        {/* P&L Distribution */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card"
-        >
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <PieChart className="w-5 h-5 text-neon-yellow" />
-            Trade P&L Distribution
-          </h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={analytics.pnlRanges}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                <XAxis dataKey="range" stroke="#666" tick={{ fontSize: 9 }} />
-                <YAxis stroke="#666" />
-                <RechartsTooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', borderColor: '#333', borderRadius: '8px' }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {analytics.pnlRanges.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={index < 4 ? '#ef4444' : '#22c55e'} 
-                      fillOpacity={0.3 + (Math.abs(index - 3.5) / 4) * 0.7}
-                    />
-                  ))}
-                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency, cn, timeAgo } from '@/lib/utils';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
+import { StockTradeModal } from '@/components/StockTradeModal';
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/lib/hooks';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 
@@ -703,13 +704,28 @@ export default function MarketsPage() {
         />
       )}
 
-      {/* Crypto/Stock Trade Modal - For non-prediction markets */}
-      {selectedMarket && showTradeModal && selectedMarket.platform !== 'polymarket' && selectedMarket.platform !== 'kalshi' && (
+      {/* Stock Trade Modal with Real-Time IBKR/Alpaca Quotes */}
+      {selectedMarket && showTradeModal && selectedMarket.asset_type === 'stock' && selectedMarket.platform !== 'polymarket' && selectedMarket.platform !== 'kalshi' && (
+        <StockTradeModal
+          isOpen={showTradeModal}
+          onClose={() => {
+            setShowTradeModal(false);
+            setSelectedMarket(null);
+          }}
+          symbol={selectedMarket.symbol || ''}
+          name={selectedMarket.description || selectedMarket.question}
+          initialPrice={selectedMarket.yes_price}
+          initialChange={selectedMarket.change_pct}
+        />
+      )}
+
+      {/* Crypto Trade Modal - For crypto markets (keeps existing behavior with external links) */}
+      {selectedMarket && showTradeModal && selectedMarket.asset_type === 'crypto' && selectedMarket.platform !== 'polymarket' && selectedMarket.platform !== 'kalshi' && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-dark-card border border-dark-border rounded-2xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">
-                {selectedMarket.asset_type === 'crypto' ? '🪙 Trade Crypto' : '📈 Trade Stock'}
+                🪙 Trade Crypto
               </h2>
               <button
                 onClick={() => {
