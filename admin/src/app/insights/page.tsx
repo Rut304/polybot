@@ -55,7 +55,28 @@ interface TuningRecommendation {
   impact: 'increase_trades' | 'increase_profit' | 'reduce_risk' | 'balance';
   confidence: 'high' | 'medium' | 'low';
   priority: number; // 1-10, higher = more important
+  riskImpact?: 'increases' | 'decreases' | 'neutral'; // How this affects overall risk
 }
+
+// Risk impact explanations for tuning recommendations
+const riskImpactMessages: Record<TuningRecommendation['impact'], { riskEffect: TuningRecommendation['riskImpact']; explanation: string }> = {
+  increase_trades: {
+    riskEffect: 'increases',
+    explanation: 'More trades = higher exposure. Monitor position sizes closely.',
+  },
+  increase_profit: {
+    riskEffect: 'increases',
+    explanation: 'Higher profit targets may require larger positions or longer hold times.',
+  },
+  reduce_risk: {
+    riskEffect: 'decreases',
+    explanation: 'Conservative adjustments that protect capital at the cost of some upside.',
+  },
+  balance: {
+    riskEffect: 'neutral',
+    explanation: 'Optimizes trade-offs without significantly changing overall risk profile.',
+  },
+};
 
 interface Insight {
   id: string;
@@ -265,6 +286,32 @@ function TuningCard({ recommendation, index, onApply }: {
             <span>{impactLabels[recommendation.impact]}</span>
             <span className="text-gray-600">•</span>
             <span>Priority: {recommendation.priority}/10</span>
+          </div>
+
+          {/* Risk Impact Explanation */}
+          <div className={cn(
+            "mt-3 p-2 rounded-lg text-xs flex items-start gap-2",
+            riskImpactMessages[recommendation.impact].riskEffect === 'increases' && "bg-red-500/10 border border-red-500/20",
+            riskImpactMessages[recommendation.impact].riskEffect === 'decreases' && "bg-green-500/10 border border-green-500/20",
+            riskImpactMessages[recommendation.impact].riskEffect === 'neutral' && "bg-gray-500/10 border border-gray-500/20",
+          )}>
+            <AlertTriangle className={cn(
+              "w-3 h-3 mt-0.5 flex-shrink-0",
+              riskImpactMessages[recommendation.impact].riskEffect === 'increases' && "text-red-400",
+              riskImpactMessages[recommendation.impact].riskEffect === 'decreases' && "text-green-400",
+              riskImpactMessages[recommendation.impact].riskEffect === 'neutral' && "text-gray-400",
+            )} />
+            <div>
+              <span className={cn(
+                "font-medium",
+                riskImpactMessages[recommendation.impact].riskEffect === 'increases' && "text-red-400",
+                riskImpactMessages[recommendation.impact].riskEffect === 'decreases' && "text-green-400",
+                riskImpactMessages[recommendation.impact].riskEffect === 'neutral' && "text-gray-400",
+              )}>
+                Risk {riskImpactMessages[recommendation.impact].riskEffect === 'increases' ? '↑' : riskImpactMessages[recommendation.impact].riskEffect === 'decreases' ? '↓' : '→'}
+              </span>
+              <span className="text-gray-400 ml-1">{riskImpactMessages[recommendation.impact].explanation}</span>
+            </div>
           </div>
         </div>
       </div>
