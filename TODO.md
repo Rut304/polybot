@@ -211,18 +211,36 @@
 
 - [x] **Hide Version Badge from Non-Admins** ✅ - Only show UI/Bot version to admins
 - [ ] **Encrypt Secrets at Rest** - API keys stored in DB must be AES-256 encrypted
-- [ ] **Admin Settings Page** - Toggle per-user and global settings
-  - Per-user: simulation mode, feature flags, subscription status
-  - Global: maintenance mode, feature rollout, rate limits
+- [ ] **Admin Feature Control Panel** 🎛️ - Full admin control over features/users
+  - **Global Settings**:
+    - Maintenance mode (disable all trading)
+    - Feature flags (enable/disable features globally)
+    - Rate limits configuration
+    - Default simulation parameters
+  - **Per-User Settings**:
+    - Override subscription tier
+    - Enable/disable specific strategies
+    - Beta feature access (opt-in users for testing)
+    - Simulation/Live mode override
+    - Custom rate limits
+  - **Beta Testing Support**:
+    - Mark features as "beta"
+    - Whitelist users for beta features
+    - Gradual rollout (% of users)
+  - UI: New `/admin/feature-control` page
 
 ### Missed Money Rethink
 
 - [ ] **Rethink Missed Money Page** - Current implementation is misleading
   - Problem: Shows $2.1M "missed" but none were valid for user's strategies
-  - Actual missed money = only FAILED trades (API errors, insufficient funds, timeout)
+  - **NEW APPROACH**: Show "Optimization Opportunities"
+    - "If you adjusted X strategy setting, you could have caught Y opportunities"
+    - Show specific parameter tweaks with estimated impact
+    - Show actually FAILED trades (API errors, insufficient funds, timeout)
   - Show: Failed trades with reasons, retry options, fix suggestions
   - Remove: Opportunities that didn't match user's active strategies
   - Add: "Why this trade failed" + "1-click retry" buttons
+  - **FALLBACK**: If no value-add possible, hide behind feature flag for beta users only
 
 ### Diagnostics & Monitoring Overhaul
 
@@ -251,6 +269,7 @@
 ### Testing Strategy
 
 We need E2E testing for:
+
 1. **Auth Flows** - Signup, Login, Logout, Password Reset, MFA
 2. **Data Integrity** - All metrics use same data sources
 3. **API Endpoints** - All routes return expected data
@@ -270,6 +289,7 @@ We need E2E testing for:
 ### Test Categories
 
 #### Auth Tests
+
 - [ ] Signup creates user + profile + team
 - [ ] Login works with valid credentials
 - [ ] Login fails with invalid credentials
@@ -279,6 +299,7 @@ We need E2E testing for:
 - [ ] Logout clears session properly
 
 #### Dashboard Tests
+
 - [ ] Paper Balance matches Supabase data
 - [ ] Net P&L calculation is correct
 - [ ] Win Rate = wins / total trades
@@ -287,18 +308,21 @@ We need E2E testing for:
 - [ ] Opportunity Distribution chart is accurate
 
 #### Data Consistency Tests
+
 - [ ] Dashboard metrics = Analytics metrics
 - [ ] Trade History count = Dashboard trade count
 - [ ] Balance API = Balance UI display
 - [ ] All timestamps in correct timezone
 
 #### Strategy Tests
+
 - [ ] Each strategy can be enabled/disabled
 - [ ] Strategy settings persist on save
 - [ ] Backtest runs and returns results
 - [ ] Strategy performance metrics are accurate
 
 #### API Tests
+
 - [ ] All GET endpoints return 200
 - [ ] All POST endpoints validate input
 - [ ] Auth required endpoints return 401 without token
