@@ -49,7 +49,7 @@ const KNOWLEDGE_BASE = {
       },
     },
     billing: 'Monthly billing via Stripe. Cancel anytime. Prorated refunds available.',
-    trials: '7-day free trial available for Pro tier. No credit card required.',
+    paperTrading: 'Free paper trading available to everyone with unlimited practice. Upgrade anytime to go live.',
   },
   features: {
     simulation: 'Paper trading mode lets you test strategies with fake money. All tiers have unlimited simulation.',
@@ -65,7 +65,7 @@ const KNOWLEDGE_BASE = {
   support: {
     contact: 'support@polyparlay.io',
     response: 'Email support responds within 24 hours. Elite users get priority.',
-    refunds: 'Full refund within 7 days. Prorated after that.',
+    refunds: 'Prorated refunds available for subscription cancellations.',
   },
   troubleshooting: {
     'cant login': 'Clear browser cache, try incognito mode, or reset password at login page.',
@@ -91,19 +91,18 @@ function generateResponse(question: string): string {
   if (q.includes('cancel') || q.includes('refund')) {
     return `**Cancellation & Refunds:**\n\n` +
       `• Cancel anytime from Settings → Subscription\n` +
-      `• Full refund within 7 days of purchase\n` +
-      `• Prorated refund after 7 days\n` +
+      `• Prorated refund available for unused time\n` +
       `• Access continues until end of billing period\n\n` +
       `To process a refund, go to Admin → Customers → Find user → Cancel Sub`;
   }
   
-  if (q.includes('trial')) {
-    return `**Free Trial:**\n\n` +
-      `• 7-day free trial available for Pro tier\n` +
-      `• No credit card required to start\n` +
-      `• Full access to Pro features during trial\n` +
-      `• Auto-downgrades to Free if not upgraded\n\n` +
-      `To give a user a trial: Admin → Customers → User → Give 7-Day Trial`;
+  if (q.includes('trial') || q.includes('free') || q.includes('paper')) {
+    return `**Free Paper Trading:**\n\n` +
+      `• Free paper trading available to all users\n` +
+      `• No credit card required\n` +
+      `• Unlimited practice trades\n` +
+      `• Test any strategy risk-free\n\n` +
+      `To upgrade a user: Admin → Customers → User → Change Tier`;
   }
   
   if (q.includes('upgrade') || q.includes('tier') || q.includes('plan')) {
@@ -204,9 +203,9 @@ function generateResponse(question: string): string {
   
   // Default response
   return `I can help you with:\n\n` +
-    `**Subscriptions:** pricing, upgrades, cancellations, refunds, trials\n` +
+    `**Subscriptions:** pricing, upgrades, cancellations, refunds\n` +
     `**Features:** simulation, live trading, strategies, platforms\n` +
-    `**Admin Actions:** reset trades, change tiers, give trials\n` +
+    `**Admin Actions:** reset trades, change tiers, upgrade users\n` +
     `**Troubleshooting:** login issues, trades not working, connection problems\n\n` +
     `What would you like to know more about?`;
 }
@@ -215,7 +214,7 @@ function generateResponse(question: string): string {
 const QUICK_ACTIONS = [
   { label: 'Pricing Overview', query: 'What are the pricing tiers?' },
   { label: 'Reset Trade Count', query: 'How do I reset a user\'s trade count?' },
-  { label: 'Give Free Trial', query: 'How do I give someone a free trial?' },
+  { label: 'Free Paper Trading', query: 'How does free paper trading work?' },
   { label: 'Cancel Subscription', query: 'How do I handle cancellation and refunds?' },
   { label: 'Simulation vs Live', query: 'Explain simulation vs live trading' },
   { label: 'Troubleshooting', query: 'User has an error, what should I check?' },

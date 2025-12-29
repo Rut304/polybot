@@ -229,7 +229,7 @@ export default function UpgradeModal({
 
         {/* Footer */}
         <div className="p-4 border-t border-dark-border text-center text-sm text-gray-500">
-          Cancel anytime. 7-day free trial for new Pro subscribers.
+          Cancel anytime. Start with free paper trading to learn the platform.
         </div>
       </div>
     </div>

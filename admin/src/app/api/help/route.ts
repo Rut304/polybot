@@ -267,7 +267,7 @@ Monthly on the day you subscribed.
 Credit/debit cards via Stripe.
 
 **Do you offer refunds?**
-Yes, within 7 days of purchase.`,
+Prorated refunds available for subscription cancellations.`,
     view_count: 0,
   },
 ];

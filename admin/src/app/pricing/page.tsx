@@ -71,7 +71,7 @@ export default function PricingPage() {
           {/* FAQ or Trust Signals */}
           <div className="mt-16 text-center">
             <p className="text-gray-500 text-sm">
-              All plans include 14-day money-back guarantee. Cancel anytime.
+              Free accounts include unlimited paper trading. Upgrade when you&apos;re ready to go live. Cancel anytime.
             </p>
             <div className="flex items-center justify-center gap-6 mt-4">
               <div className="flex items-center gap-2 text-gray-400 text-sm">

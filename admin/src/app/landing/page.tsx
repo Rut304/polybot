@@ -280,7 +280,7 @@ const PRICING = [
       { text: 'Email support', included: true },
       { text: 'Whale tracker', included: false },
     ],
-    cta: 'Start 7-Day Free Trial',
+    cta: 'Start Pro',
     popular: true,
     gradient: 'from-emerald-500 to-cyan-500',
   },
@@ -806,7 +806,7 @@ export default function LandingPage() {
           </div>
           
           <p className="text-center text-gray-500 text-sm mt-8">
-            All plans include a 30-day money-back guarantee. No questions asked.
+            Start free with unlimited paper trading. Upgrade anytime when you&apos;re ready to go live.
           </p>
         </div>
       </section>
