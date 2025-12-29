@@ -9,10 +9,10 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // 1. Check polybot_status for running status
+    // 1. Check polybot_status for running status and heartbeat
     const { data: statusData, error: statusError } = await supabase
       .from('polybot_status')
-      .select('is_running, last_started_at, started_by')
+      .select('is_running, last_started_at, started_by, last_heartbeat_at, version')
       .limit(1)
       .single();
 
@@ -52,26 +52,23 @@ export async function GET() {
       .order('timestamp', { ascending: false })
       .limit(5);
 
-    // 5. Check bot heartbeat (if we add a heartbeat table)
-    const { data: heartbeat, error: heartbeatError } = await supabase
-      .from('polybot_heartbeat')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(1)
-      .single();
+    // 5. Check bot heartbeat from polybot_status.last_heartbeat_at
+    // This is updated every 30 seconds by the bot
+    const lastHeartbeatFromStatus = statusData?.last_heartbeat_at;
+    const botVersion = statusData?.version;
 
     // Calculate health status
     const isRunning = statusData?.is_running || false;
     const lastStarted = statusData?.last_started_at;
     const lastTradeAt = lastTrade?.created_at;
-    const lastHeartbeat = heartbeat?.timestamp;
+    const lastHeartbeat = lastHeartbeatFromStatus;
     
     // Bot is considered healthy if:
     // 1. Status shows running
-    // 2. Had a trade in last 24 hours OR has a heartbeat in last 5 minutes
+    // 2. Had a trade in last 24 hours OR has a heartbeat in last 2 minutes
     const hasRecentActivity = recentTradeCount && recentTradeCount > 0;
     const hasRecentHeartbeat = lastHeartbeat && 
-      new Date(lastHeartbeat).getTime() > Date.now() - 5 * 60 * 1000;
+      new Date(lastHeartbeat).getTime() > Date.now() - 2 * 60 * 1000;
     
     let healthStatus: 'healthy' | 'warning' | 'critical' | 'offline' = 'offline';
     let healthMessage = 'Bot is offline';
@@ -134,6 +131,7 @@ export async function GET() {
         lastStarted,
         startedBy: statusData?.started_by,
         endpoint: botEndpointStatus,
+        version: botVersion,
       },
       activity: {
         tradesLast24h: recentTradeCount || 0,
@@ -141,10 +139,9 @@ export async function GET() {
         lastTradeStrategy: lastTrade?.strategy,
         lastTradePlatform: lastTrade?.platform,
       },
-      heartbeat: heartbeat ? {
+      heartbeat: lastHeartbeat ? {
         timestamp: lastHeartbeat,
-        scanCount: heartbeat.scan_count,
-        activeStrategies: heartbeat.active_strategies,
+        version: botVersion,
       } : null,
       recentLogs: recentLogs?.slice(0, 3) || [],
       timestamp: new Date().toISOString(),
