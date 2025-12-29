@@ -5,144 +5,252 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   AlertTriangle,
-  Zap,
   Settings,
   CheckCircle2,
   TrendingDown,
   BrainCircuit,
-  LineChart,
   Sliders,
-  Filter,
   Info,
   XCircle,
+  RotateCcw,
+  Clock,
+  DollarSign,
+  Target,
+  Lightbulb,
+  ChevronRight,
+  Shield,
+  RefreshCw,
+  AlertCircle,
+  TrendingUp,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useOpportunities, useBotConfig, useUpdateBotConfig } from '@/lib/hooks';
-import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatCurrency, timeAgo, cn } from '@/lib/utils';
 import { Tooltip } from '@/components/Tooltip';
 import { ProFeature } from '@/components/FeatureGate';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth';
 
-// Define which skip reasons are "actionable" (could be tuned to capture)
-const ACTIONABLE_SKIP_REASONS = [
-  'below_min_profit',
-  'low_confidence',
-  'low_volume',
-  'high_volatility',
-  'position_limit',
-  'cooldown_active',
-  'daily_loss_limit',
-  'rsi_filter',
-];
-
-// Skip reasons that mean the opportunity didn't actually meet criteria
-const NON_ACTIONABLE_REASONS = [
-  'no_arbitrage',
-  'market_closed',
-  'insufficient_liquidity',
-  'price_moved',
-  'stale_data',
-  'invalid_market',
+// Failed trade reasons - these are actual losses/failures
+const FAILED_TRADE_STATUSES = [
+  'execution_failed',
+  'timeout',
+  'slippage_exceeded',
+  'insufficient_balance',
+  'api_error',
+  'rejected',
+  'canceled',
   'expired',
-  'already_positioned',
+  'failed_execution',
+  'lost',
 ];
 
-function MissedOpportunitiesContent() {
+interface FailedTrade {
+  id: number;
+  created_at: string;
+  platform: string;
+  market_title: string;
+  outcome: string;
+  expected_profit_usd: number;
+  actual_profit_usd: number;
+  position_size_usd: number;
+  skip_reason?: string;
+  error_message?: string;
+  strategy_type?: string;
+  can_retry?: boolean;
+}
+
+interface OptimizationOpportunity {
+  id: string;
+  type: 'config_tuning' | 'strategy_suggestion' | 'risk_management';
+  title: string;
+  description: string;
+  potential_impact: number;
+  confidence: 'high' | 'medium' | 'low';
+  actionPath?: string;
+  autoFix?: Record<string, unknown>;
+}
+
+function TradingOptimizationsContent() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'failed' | 'optimization'>('failed');
   const [timeframeHours, setTimeframeHours] = useState(24);
-  const [showOnlyActionable, setShowOnlyActionable] = useState(true);
-  const { data: opportunities, isLoading } = useOpportunities(1000, timeframeHours);
-  const { data: config } = useBotConfig();
-  const updateConfig = useUpdateBotConfig();
 
-  // Filter for missed opportunities with minimum criteria
-  const missedOpps = useMemo(() => {
-    const allMissed = opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled') || [];
-    
-    if (showOnlyActionable) {
-      // Only show opportunities that:
-      // 1. Had positive expected profit (> $0.50)
-      // 2. Were skipped for tunable reasons (not because they didn't meet basic criteria)
-      return allMissed.filter(o => {
-        const profit = o.total_profit || 0;
-        const reason = (o.skip_reason || '').toLowerCase();
-        
-        // Must have meaningful profit potential
-        if (profit < 0.50) return false;
-        
-        // Must be skipped for an actionable reason (not just "no opportunity")
-        const isActionable = ACTIONABLE_SKIP_REASONS.some(r => reason.includes(r)) ||
-          // Also include if it has a specific threshold-related reason
-          reason.includes('threshold') ||
-          reason.includes('limit') ||
-          reason.includes('filter');
-        
-        // Exclude non-actionable reasons
-        const isNonActionable = NON_ACTIONABLE_REASONS.some(r => reason.includes(r));
-        
-        return isActionable && !isNonActionable;
-      });
-    }
-    
-    return allMissed;
-  }, [opportunities, showOnlyActionable]);
-
-  // === ANALYSIS ENGINE ===
-  const analysis = useMemo(() => {
-    const totalLost = missedOpps.reduce((sum, o) => sum + (o.total_profit || 0), 0);
-
-    // Group by Reason
-    const reasonCounts: Record<string, { count: number, profit: number }> = {};
-    missedOpps.forEach(o => {
-      const r = o.skip_reason || 'Unknown';
-      if (!reasonCounts[r]) reasonCounts[r] = { count: 0, profit: 0 };
-      reasonCounts[r].count++;
-      reasonCounts[r].profit += (o.total_profit || 0);
-    });
-
-    // Generate Recommendations
-    const recommendations: Recommendation[] = [];
-
-    // 1. Min Profit Threshold Analysis
-    const profitskips = Object.entries(reasonCounts).find(([r]) => r.toLowerCase().includes('profit'));
-    if (profitskips) {
-      recommendations.push({
-        id: 'tune_min_profit',
-        title: 'Lower Profit Threshold',
-        description: `You missed ${formatCurrency(profitskips[1].profit)} because targets were below your ${config?.min_profit_percent || 2}% threshold.`,
-        impact: 'High',
-        risk: 'Medium',
-        actionLabel: `Lower to 1.5%`,
-        configUpdate: { min_profit_percent: 1.5 },
-        icon: TrendingDown
-      });
-    }
-
-    // 2. Confidence/AI Analysis
-    const confSkips = Object.entries(reasonCounts).find(([r]) => r.toLowerCase().includes('confidence'));
-    if (confSkips) {
-      recommendations.push({
-        id: 'tune_confidence',
-        title: 'Optimize AI Confidence',
-        description: `${confSkips[1].count} trades skipped due to low confidence. Your strict settings are ignoring valid signals.`,
-        impact: 'Medium',
-        risk: 'Low',
-        actionLabel: 'Enable AI Superforecasting',
-        configUpdate: { enable_ai_superforecasting: true, ai_min_confidence: 0.60 },
-        icon: BrainCircuit
-      });
-    }
-
-    return { totalLost, recommendations, reasonCounts };
-  }, [missedOpps, config]);
-
-  const [appliedRecs, setAppliedRecs] = useState<string[]>([]);
-
-  const handleApply = (rec: Recommendation) => {
-    updateConfig.mutate(rec.configUpdate, {
-      onSuccess: () => {
-        setAppliedRecs([...appliedRecs, rec.id]);
+  // Fetch failed trades from the database
+  const { data: failedTrades = [], isLoading: loadingTrades, refetch: refetchTrades } = useQuery({
+    queryKey: ['failed-trades', user?.id, timeframeHours],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const since = new Date(Date.now() - timeframeHours * 60 * 60 * 1000).toISOString();
+      
+      const { data, error } = await supabase
+        .from('polybot_trades')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('outcome', FAILED_TRADE_STATUSES)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (error) {
+        console.error('Error fetching failed trades:', error);
+        return [];
       }
+      
+      return (data || []).map(trade => ({
+        ...trade,
+        can_retry: ['execution_failed', 'timeout', 'api_error'].includes(trade.outcome),
+      }));
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30000, // Refresh every 30s
+  });
+
+  // Fetch optimization suggestions based on trade history analysis
+  const { data: optimizations = [], isLoading: loadingOpts } = useQuery({
+    queryKey: ['optimization-suggestions', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      // Analyze recent trades to generate optimization suggestions
+      const { data: recentTrades } = await supabase
+        .from('polybot_trades')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        .limit(100);
+      
+      const { data: config } = await supabase
+        .from('polybot_config')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      const suggestions: OptimizationOpportunity[] = [];
+      
+      if (!recentTrades || recentTrades.length === 0) {
+        suggestions.push({
+          id: 'no-data',
+          type: 'strategy_suggestion',
+          title: 'Start Trading to Get Insights',
+          description: 'Run some trades in simulation mode to get personalized optimization suggestions based on your trading patterns.',
+          potential_impact: 0,
+          confidence: 'medium',
+          actionPath: '/settings',
+        });
+        return suggestions;
+      }
+      
+      // Analyze win rate
+      const wins = recentTrades.filter(t => t.outcome === 'won').length;
+      const total = recentTrades.length;
+      const winRate = total > 0 ? (wins / total) * 100 : 0;
+      
+      if (winRate < 50 && total >= 10) {
+        suggestions.push({
+          id: 'low-win-rate',
+          type: 'config_tuning',
+          title: 'Win Rate Below Target',
+          description: `Your win rate is ${winRate.toFixed(1)}% over the last ${total} trades. Consider tightening entry criteria or adjusting position sizing.`,
+          potential_impact: (50 - winRate) * 10,
+          confidence: 'high',
+          actionPath: '/strategies',
+        });
+      }
+      
+      // Analyze slippage
+      const slippageTrades = recentTrades.filter(t => t.slippage_pct && t.slippage_pct > 1);
+      if (slippageTrades.length > total * 0.2) {
+        suggestions.push({
+          id: 'high-slippage',
+          type: 'risk_management',
+          title: 'High Slippage Detected',
+          description: `${slippageTrades.length} trades had slippage >1%. Consider using limit orders or smaller position sizes.`,
+          potential_impact: slippageTrades.reduce((sum, t) => sum + (t.slippage_pct || 0), 0),
+          confidence: 'high',
+          actionPath: '/settings',
+        });
+      }
+      
+      // Analyze timing
+      const hourCounts: Record<number, { wins: number; total: number }> = {};
+      recentTrades.forEach(t => {
+        const hour = new Date(t.created_at).getHours();
+        if (!hourCounts[hour]) hourCounts[hour] = { wins: 0, total: 0 };
+        hourCounts[hour].total++;
+        if (t.outcome === 'won') hourCounts[hour].wins++;
+      });
+      
+      const bestHours = Object.entries(hourCounts)
+        .filter(([, v]) => v.total >= 3 && v.wins / v.total > 0.6)
+        .map(([h]) => parseInt(h));
+      
+      if (bestHours.length > 0) {
+        suggestions.push({
+          id: 'timing-optimization',
+          type: 'strategy_suggestion',
+          title: 'Optimal Trading Hours',
+          description: `Your best trading hours are ${bestHours.slice(0, 3).join(', ')} UTC. Consider focusing trading during these windows.`,
+          potential_impact: 15,
+          confidence: 'medium',
+        });
+      }
+      
+      // Position sizing check
+      if (config?.max_position_pct && config.max_position_pct > 5) {
+        suggestions.push({
+          id: 'position-sizing',
+          type: 'risk_management',
+          title: 'Consider Smaller Positions',
+          description: `Your max position is ${config.max_position_pct}% of balance. Reducing to 3-5% can improve risk-adjusted returns.`,
+          potential_impact: 10,
+          confidence: 'medium',
+          autoFix: { max_position_pct: 5 },
+        });
+      }
+      
+      return suggestions;
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Retry a failed trade
+  const retryTrade = useMutation({
+    mutationFn: async (tradeId: number) => {
+      // This would call the bot API to retry the trade
+      const response = await fetch('/api/trades/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tradeId }),
+      });
+      if (!response.ok) throw new Error('Failed to retry trade');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['failed-trades'] });
+    },
+  });
+
+  // Calculate total lost from failed trades
+  const totalLost = useMemo(() => {
+    return failedTrades.reduce((sum, t) => sum + Math.abs(t.actual_profit_usd || 0), 0);
+  }, [failedTrades]);
+
+  // Group failed trades by reason
+  const failuresByReason = useMemo(() => {
+    const groups: Record<string, FailedTrade[]> = {};
+    failedTrades.forEach(t => {
+      const reason = t.outcome || 'unknown';
+      if (!groups[reason]) groups[reason] = [];
+      groups[reason].push(t);
     });
-  };
+    return groups;
+  }, [failedTrades]);
+
+  const isLoading = loadingTrades || loadingOpts;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -157,194 +265,263 @@ function MissedOpportunitiesContent() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3 text-white">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
-              Missed Revenue Analysis
+              <Target className="w-8 h-8 text-neon-blue" />
+              Trading Optimizations
             </h1>
             <p className="text-gray-400 mt-1">
-              <b>{missedOpps.length}</b> actionable opportunities •
-              Potential Value: <span className="text-red-400 font-mono font-bold">{formatCurrency(analysis.totalLost)}</span>
+              Review failed trades and get optimization suggestions
             </p>
           </div>
         </div>
         
-        {/* Filter Toggle */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setShowOnlyActionable(!showOnlyActionable)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg border transition-all",
-              showOnlyActionable 
-                ? "bg-neon-blue/10 border-neon-blue text-neon-blue"
-                : "bg-dark-card border-dark-border text-gray-400 hover:text-white"
-            )}
+        <div className="flex items-center gap-3">
+          <select
+            value={timeframeHours}
+            onChange={(e) => setTimeframeHours(parseInt(e.target.value))}
+            className="px-3 py-2 bg-dark-card border border-dark-border rounded-lg text-sm"
+            aria-label="Timeframe selection"
           >
-            <Filter className="w-4 h-4" />
-            {showOnlyActionable ? "Showing Actionable Only" : "Show All Misses"}
+            <option value={24}>Last 24h</option>
+            <option value={72}>Last 3 days</option>
+            <option value={168}>Last 7 days</option>
+            <option value={720}>Last 30 days</option>
+          </select>
+          <button
+            onClick={() => refetchTrades()}
+            disabled={isLoading}
+            className="p-2 bg-dark-card border border-dark-border rounded-lg hover:bg-dark-border transition-colors"
+            title="Refresh data"
+          >
+            <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </button>
-          <Tooltip content="Actionable = opportunities that met criteria but were skipped due to tunable settings (profit threshold, confidence, etc)">
-            <Info className="w-5 h-5 text-gray-500 cursor-help" />
-          </Tooltip>
         </div>
       </div>
 
-      {/* Empty State when no actionable opportunities */}
-      {missedOpps.length === 0 && showOnlyActionable && (
-        <div className="card border-dashed border-green-500/30 bg-green-500/5 p-8 text-center">
-          <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">No Actionable Misses!</h3>
-          <p className="text-gray-400 max-w-md mx-auto">
-            Your bot settings are well-tuned. There are no opportunities that met your criteria 
-            but were skipped due to adjustable thresholds.
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-dark-border pb-4">
+        <button
+          onClick={() => setActiveTab('failed')}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-lg transition-all",
+            activeTab === 'failed' 
+              ? "bg-red-500/20 border border-red-500/50 text-red-400"
+              : "bg-dark-card border border-dark-border text-gray-400 hover:text-white"
+          )}
+        >
+          <AlertTriangle className="w-4 h-4" />
+          Failed Trades
+          {failedTrades.length > 0 && (
+            <span className="ml-1 px-2 py-0.5 text-xs bg-red-500/30 rounded-full">{failedTrades.length}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('optimization')}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-lg transition-all",
+            activeTab === 'optimization' 
+              ? "bg-neon-blue/20 border border-neon-blue/50 text-neon-blue"
+              : "bg-dark-card border border-dark-border text-gray-400 hover:text-white"
+          )}
+        >
+          <Lightbulb className="w-4 h-4" />
+          Optimization Insights
+          {optimizations.length > 0 && (
+            <span className="ml-1 px-2 py-0.5 text-xs bg-neon-blue/30 rounded-full">{optimizations.length}</span>
+          )}
+        </button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card py-4">
+          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Failed Trades
           </p>
-          <button
-            onClick={() => setShowOnlyActionable(false)}
-            className="mt-4 text-neon-blue hover:underline text-sm"
-          >
-            View all {opportunities?.filter(o => o.status !== 'executed' && o.status !== 'filled').length || 0} raw misses →
-          </button>
+          <p className={cn("text-2xl font-bold", failedTrades.length > 0 ? "text-red-400" : "text-gray-500")}>
+            {failedTrades.length}
+          </p>
+        </div>
+        <div className="card py-4">
+          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+            <DollarSign className="w-3 h-3" />
+            Total Impact
+          </p>
+          <p className={cn("text-2xl font-bold", totalLost > 0 ? "text-red-400" : "text-gray-500")}>
+            {formatCurrency(totalLost)}
+          </p>
+        </div>
+        <div className="card py-4">
+          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+            <Lightbulb className="w-3 h-3" />
+            Suggestions
+          </p>
+          <p className="text-2xl font-bold text-neon-blue">{optimizations.length}</p>
+        </div>
+        <div className="card py-4">
+          <p className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+            <RotateCcw className="w-3 h-3" />
+            Retriable
+          </p>
+          <p className="text-2xl font-bold text-yellow-400">
+            {failedTrades.filter(t => t.can_retry).length}
+          </p>
+        </div>
+      </div>
+
+      {/* Failed Trades Tab Content */}
+      {activeTab === 'failed' && (
+        <div className="space-y-6">
+          {failedTrades.length === 0 ? (
+            <div className="card border-dashed border-green-500/30 bg-green-500/5 p-8 text-center">
+              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">No Failed Trades!</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                All your trades in the selected timeframe executed successfully. 
+                Your bot is running smoothly.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Failed Trades by Reason */}
+              {Object.entries(failuresByReason).map(([reason, trades]) => (
+                <div key={reason} className="card">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <XCircle className="w-5 h-5 text-red-400" />
+                      <span className="capitalize">{reason.replace('_', ' ')}</span>
+                      <span className="text-gray-500 font-normal">({trades.length})</span>
+                    </h3>
+                    {trades.some(t => t.can_retry) && (
+                      <button
+                        onClick={() => trades.filter(t => t.can_retry).forEach(t => retryTrade.mutate(t.id))}
+                        disabled={retryTrade.isPending}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg hover:bg-yellow-500/30 transition-colors text-sm"
+                      >
+                        <RotateCcw className={cn("w-4 h-4", retryTrade.isPending && "animate-spin")} />
+                        Retry All
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {trades.slice(0, 5).map(trade => (
+                      <div 
+                        key={trade.id}
+                        className="flex items-center justify-between p-3 bg-dark-bg/50 rounded-lg"
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium text-white truncate max-w-[300px]">
+                            {trade.market_title}
+                          </p>
+                          <p className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                            <Clock className="w-3 h-3" />
+                            {timeAgo(trade.created_at)}
+                            <span className="text-gray-600">•</span>
+                            {trade.platform}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-red-400 font-mono">
+                              {formatCurrency(Math.abs(trade.actual_profit_usd || 0))}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              expected {formatCurrency(trade.expected_profit_usd || 0)}
+                            </p>
+                          </div>
+                          {trade.can_retry && (
+                            <button
+                              onClick={() => retryTrade.mutate(trade.id)}
+                              disabled={retryTrade.isPending}
+                              className="p-2 text-yellow-400 hover:bg-yellow-500/20 rounded-lg transition-colors"
+                              title="Retry this trade"
+                            >
+                              <RotateCcw className={cn("w-4 h-4", retryTrade.isPending && "animate-spin")} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {trades.length > 5 && (
+                      <p className="text-xs text-gray-500 text-center py-2">
+                        + {trades.length - 5} more trades
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       )}
 
-      {/* AI Insights & Recommendations - Only show if there are actionable misses */}
-      {missedOpps.length > 0 && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 mb-2">
-            <BrainCircuit className="w-5 h-5 text-neon-purple" />
-            <h2 className="text-xl font-bold text-white">AI Tuning Insights</h2>
-          </div>
-
-          {analysis.recommendations.length === 0 ? (
-            <div className="card border-dashed border-gray-700 p-8 text-center text-gray-500">
-              <Info className="w-8 h-8 mx-auto mb-3 opacity-50" />
-              <p>No specific tuning recommendations found.</p>
-              <p className="text-sm mt-2">Your settings look optimal for current market conditions.</p>
+      {/* Optimization Tab Content */}
+      {activeTab === 'optimization' && (
+        <div className="space-y-4">
+          {optimizations.length === 0 ? (
+            <div className="card border-dashed border-green-500/30 bg-green-500/5 p-8 text-center">
+              <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-white mb-2">Looking Good!</h3>
+              <p className="text-gray-400 max-w-md mx-auto">
+                No optimization suggestions at this time. Your trading parameters appear well-tuned.
+              </p>
             </div>
           ) : (
-            analysis.recommendations.map(rec => (
+            optimizations.map(opt => (
               <motion.div
-                key={rec.id}
+                key={opt.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="card border-l-4 border-l-neon-blue relative overflow-hidden group"
+                className={cn(
+                  "card border-l-4 relative overflow-hidden",
+                  opt.type === 'config_tuning' && "border-l-neon-blue",
+                  opt.type === 'strategy_suggestion' && "border-l-neon-purple",
+                  opt.type === 'risk_management' && "border-l-yellow-500"
+                )}
               >
                 <div className="flex justify-between items-start gap-4">
                   <div className="flex-1">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      <rec.icon className="w-5 h-5 text-neon-blue" />
-                      {rec.title}
-                    </h3>
-                    <p className="text-sm text-gray-400 mt-2 mb-4 leading-relaxed">
-                      {rec.description}
-                    </p>
-                    <div className="flex gap-4 text-xs font-mono uppercase tracking-wider">
-                      <span className="text-green-400">Impact: {rec.impact}</span>
-                      <span className="text-yellow-400">Risk: {rec.risk}</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      {opt.type === 'config_tuning' && <Settings className="w-4 h-4 text-neon-blue" />}
+                      {opt.type === 'strategy_suggestion' && <BrainCircuit className="w-4 h-4 text-neon-purple" />}
+                      {opt.type === 'risk_management' && <Shield className="w-4 h-4 text-yellow-500" />}
+                      <h3 className="text-lg font-bold text-white">{opt.title}</h3>
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded-full",
+                        opt.confidence === 'high' && "bg-green-500/20 text-green-400",
+                        opt.confidence === 'medium' && "bg-yellow-500/20 text-yellow-400",
+                        opt.confidence === 'low' && "bg-gray-500/20 text-gray-400"
+                      )}>
+                        {opt.confidence} confidence
+                      </span>
                     </div>
+                    <p className="text-sm text-gray-400 leading-relaxed">
+                      {opt.description}
+                    </p>
+                    {opt.potential_impact > 0 && (
+                      <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        Potential improvement: ~{opt.potential_impact.toFixed(0)}%
+                      </p>
+                    )}
                   </div>
 
-                  <div className="shrink-0 flex flex-col items-end gap-2">
-                    {appliedRecs.includes(rec.id) ? (
-                      <div className="flex items-center gap-2 text-green-500 font-bold px-4 py-2 bg-green-500/10 rounded-lg">
-                        <CheckCircle2 className="w-5 h-5" />
-                        Applied
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleApply(rec)}
-                        disabled={updateConfig.isPending}
-                        className="flex items-center gap-2 bg-neon-blue text-black font-bold px-4 py-2 rounded-lg hover:bg-neon-blue/90 transition-transform active:scale-95 disabled:opacity-50 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse"
+                  <div className="shrink-0">
+                    {opt.actionPath && (
+                      <Link
+                        href={opt.actionPath}
+                        className="flex items-center gap-2 px-4 py-2 bg-dark-bg border border-dark-border rounded-lg hover:border-neon-blue transition-colors text-sm"
                       >
-                        <Zap className="w-4 h-4 fill-current" />
-                        {rec.actionLabel}
-                      </button>
+                        View Details
+                        <ChevronRight className="w-4 h-4" />
+                      </Link>
                     )}
-                    <span className="text-[10px] text-gray-500 mt-1">One-click update</span>
                   </div>
                 </div>
               </motion.div>
             ))
           )}
         </div>
-
-        {/* Technical Indicators / RSI Preview */}
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 mb-2">
-            <LineChart className="w-5 h-5 text-neon-green" />
-            <h2 className="text-xl font-bold text-white">Technical Factors</h2>
-          </div>
-
-          <div className="card">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">RSI & Momentum</h3>
-            <div className="space-y-4">
-              <div className="p-4 bg-dark-bg/50 rounded-lg flex justify-between items-center">
-                <div>
-                  <span className="block text-white font-medium">RSI (14) Mean Reversion</span>
-                  <span className="text-xs text-gray-500">Avg RSI of missed trades: 32.5 (Oversold)</span>
-                </div>
-                <div className="text-right">
-                  <span className="block text-neon-green font-mono">Bullish Div</span>
-                  <Link href="/insights" className="text-xs text-neon-blue hover:text-white">AI Tuning &rarr;</Link>
-                </div>
-              </div>
-
-              <div className="p-4 bg-dark-bg/50 rounded-lg flex justify-between items-center">
-                <div>
-                  <span className="block text-white font-medium">Funding Rates</span>
-                  <span className="text-xs text-gray-500">Avg APR missed: 15.2%</span>
-                </div>
-                <div className="text-right">
-                  <span className="block text-yellow-400 font-mono">Neutral</span>
-                  <Link href="/insights" className="text-xs text-neon-blue hover:text-white">View AI Insights &rarr;</Link>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 p-3 bg-blue-500/5 border border-blue-500/10 rounded text-xs text-blue-300">
-              ℹ️ <b>Note:</b> Detailed RSI logs are currently disabled. To see per-trade RSI values, enable &quot;Extended Logging&quot; in Diagnostics.
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* Raw Log Table - Only show if there are misses */}
-      {missedOpps.length > 0 && (
-      <div className="card">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <Sliders className="w-5 h-5 text-gray-400" />
-          Recent {showOnlyActionable ? 'Actionable ' : ''}Misses
-          <span className="text-sm font-normal text-gray-500">({missedOpps.length} total)</span>
-        </h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-500 uppercase bg-dark-bg/50">
-              <tr>
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3">Market</th>
-                <th className="px-4 py-3 text-right">Potential Profit</th>
-                <th className="px-4 py-3">Key Blocker</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-dark-border">
-              {missedOpps.slice(0, 8).map((opp) => (
-                <tr key={opp.id} className="hover:bg-dark-bg/30">
-                  <td className="px-4 py-3 text-gray-400 whitespace-nowrap">{timeAgo(opp.detected_at)}</td>
-                  <td className="px-4 py-3 font-medium text-white truncate max-w-[200px]">{opp.buy_market_name}</td>
-                  <td className="px-4 py-3 text-right font-mono text-red-300">
-                    {formatCurrency(opp.total_profit || 0)} <span className="text-gray-600">({formatPercent(opp.profit_percent)})</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-1 rounded-full bg-dark-bg border border-dark-border text-xs text-gray-300">
-                      {opp.skip_reason}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
       )}
     </div>
   );
@@ -354,18 +531,7 @@ function MissedOpportunitiesContent() {
 export default function MissedOpportunitiesPage() {
   return (
     <ProFeature>
-      <MissedOpportunitiesContent />
+      <TradingOptimizationsContent />
     </ProFeature>
   );
-}
-
-interface Recommendation {
-  id: string;
-  title: string;
-  description: string;
-  impact: 'High' | 'Medium' | 'Low';
-  risk: 'High' | 'Medium' | 'Low';
-  actionLabel: string;
-  configUpdate: Record<string, any>;
-  icon: any;
 }

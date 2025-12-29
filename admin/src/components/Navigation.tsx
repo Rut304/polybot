@@ -67,7 +67,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/analytics', label: 'Analytics', icon: TrendingUp },
-      { href: '/missed-opportunities', label: 'Missed Money', icon: AlertTriangle, requiredTier: 'pro' },
+      { href: '/missed-opportunities', label: 'Optimizations', icon: AlertTriangle, requiredTier: 'pro' },
       { href: '/notifications', label: 'Notifications', icon: Bell },
     ],
   },
