@@ -123,6 +123,51 @@
 - [ ] **Test IBKR Integration** - End-to-end with paper trading
 - **Note**: IBKR Lite users CAN use TWS API (free). Web API may have limitations.
 
+---
+
+## 🔧 NEW INTEGRATION CHECKLIST
+
+When adding a new exchange/broker integration, complete ALL of these:
+
+### Backend (Python)
+- [ ] Create client in `/src/exchanges/` (extend `BaseExchange`)
+- [ ] Add `create_for_user(user_id)` factory method for multi-tenancy
+- [ ] Add to `bot_runner.py` initialization
+- [ ] Add to strategies that can use this exchange
+- [ ] Write unit tests in `/tests/`
+
+### Database
+- [ ] Add credential fields to `user_exchange_credentials` table
+- [ ] Add RLS policies for user isolation
+- [ ] Create migration SQL script in `/scripts/`
+
+### Admin UI (Next.js)
+- [ ] Add OAuth/API key connection in `/secrets` page
+- [ ] Add to `/balances` page (show connected account)
+- [ ] Add to `/positions` page (show positions)
+- [ ] Add platform filter in `/markets` page
+- [ ] Add to strategy requirements display
+- [ ] Create connection status component
+
+### API Routes
+- [ ] Create `/api/[exchange]/` routes for data
+- [ ] Add webhook endpoints if needed
+- [ ] Add to `/api/markets` aggregation
+
+### Documentation
+- [ ] Update `README.md` with setup instructions
+- [ ] Add to `SETUP_INSTRUCTIONS.md`
+- [ ] Document in `TODO.md` (this file)
+- [ ] Add help article in `/help` page
+
+### Testing
+- [ ] E2E test for connection flow
+- [ ] E2E test for data display
+- [ ] API route tests
+- [ ] Integration test with bot
+
+---
+
 ### P1 - New Exchange Integrations (Attract More Users)
 
 #### Easy OAuth Integrations (User-Friendly)
