@@ -253,7 +253,7 @@ function TradingOptimizationsContent() {
   const isLoading = loadingTrades || loadingOpts;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-dark-bg p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
