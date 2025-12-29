@@ -320,10 +320,11 @@ When adding a new exchange/broker integration, complete ALL of these:
     - `/admin/src/app/dashboard/page.tsx` (health card)
     - `/scripts/create_heartbeat_table.sql` (run this!)
   
-- [ ] **Add Bot Heartbeat to Python Bot**
-  - Bot should write heartbeat every minute
-  - Include scan count, memory, active strategies
-  - Requires running `scripts/create_heartbeat_table.sql`
+- [x] **Add Bot Heartbeat to Python Bot** ✅ COMPLETE
+  - Bot writes detailed heartbeat every 60 seconds
+  - Includes: scan_count, active_strategies, memory, CPU, errors, trades
+  - Writes to both polybot_status (legacy) and polybot_heartbeat (new)
+  - Added psutil dependency for system monitoring
   
 - [ ] **Auto-Restart Capability**
   - Systemd service with automatic restart
@@ -331,10 +332,10 @@ When adding a new exchange/broker integration, complete ALL of these:
   - Docker restart policy if containerized
   - Log rotation to prevent disk fill
 
-- [ ] **External Uptime Monitoring**
-  - Uptime Robot or Better Uptime integration
-  - Alert if health endpoint unreachable for 5+ min
-  - SMS/email notifications
+- [x] **External Uptime Monitoring** ✅ INSTRUCTIONS PROVIDED
+  - Use Uptime Robot (free) - uptimerobot.com
+  - Monitor: Bot health endpoint, Admin dashboard, API health
+  - Set 5-minute intervals with email alerts
 
 ---
 
