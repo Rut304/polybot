@@ -1209,6 +1209,8 @@ export default function DiagnosticsPage() {
               { file: 'trading.spec.ts', count: 26 },
               { file: 'mobile.spec.ts', count: 16 },
               { file: 'accessibility.spec.ts', count: 24 },
+              { file: 'workflows.spec.ts', count: 28 },
+              { file: 'pages-coverage.spec.ts', count: 33 },
             ].map(({ file, count }) => (
               <div key={file} className="flex items-center justify-between p-2 bg-gray-800/50 rounded text-sm">
                 <span className="text-gray-400">{file}</span>
