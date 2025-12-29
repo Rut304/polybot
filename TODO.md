@@ -304,19 +304,37 @@ When adding a new exchange/broker integration, complete ALL of these:
     - `/admin/src/app/api/trades/stock/route.ts` - Trade execution
     - `/admin/src/app/markets/page.tsx` - Updated markets page
 
-### Bot Reliability & Monitoring
+### Bot Reliability & Monitoring ✅ COMPLETE
 
-- [ ] **Add Bot Health Monitoring**
-  - External uptime monitoring (Uptime Robot, Better Uptime)
-  - Heartbeat endpoint that checks bot is actively scanning
-  - Alert if no scans in 5+ minutes
-  - Dashboard indicator for bot health
+- [x] **Bot Health Monitoring** ✅ COMPLETE
+  - `/api/bot/health` endpoint checks bot status
+  - `BotHealthIndicator` component shows detailed status
+  - `BotHealthBadge` in header for quick status view
+  - Dashboard shows bot health card
+  - Checks: trades/24h, last trade, connection, logs
+  - Auto-refreshes every 30 seconds
+  - Files:
+    - `/admin/src/app/api/bot/health/route.ts`
+    - `/admin/src/components/BotHealthIndicator.tsx`
+    - `/admin/src/components/Header.tsx` (badge)
+    - `/admin/src/app/dashboard/page.tsx` (health card)
+    - `/scripts/create_heartbeat_table.sql` (run this!)
+  
+- [ ] **Add Bot Heartbeat to Python Bot**
+  - Bot should write heartbeat every minute
+  - Include scan count, memory, active strategies
+  - Requires running `scripts/create_heartbeat_table.sql`
   
 - [ ] **Auto-Restart Capability**
   - Systemd service with automatic restart
   - PM2 process manager alternative
   - Docker restart policy if containerized
   - Log rotation to prevent disk fill
+
+- [ ] **External Uptime Monitoring**
+  - Uptime Robot or Better Uptime integration
+  - Alert if health endpoint unreachable for 5+ min
+  - SMS/email notifications
 
 ---
 
