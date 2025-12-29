@@ -159,6 +159,13 @@ export default function AdminDashboardPage() {
         </div>
         <div className="flex gap-2">
           <Link 
+            href="/admin/features"
+            className="px-4 py-2 bg-purple-500/20 border border-purple-500/50 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors flex items-center gap-2"
+          >
+            <Activity className="w-4 h-4" />
+            Feature Control
+          </Link>
+          <Link 
             href="/admin/subscriptions"
             className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-dark-border transition-colors flex items-center gap-2"
           >

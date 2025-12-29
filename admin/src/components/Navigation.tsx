@@ -113,6 +113,7 @@ const navSections: NavSection[] = [
     title: 'Admin',
     items: [
       { href: '/admin', label: 'Admin Dashboard', icon: Shield, adminOnly: true },
+      { href: '/admin/features', label: 'Feature Control', icon: Zap, adminOnly: true },
       { href: '/admin/subscriptions', label: 'Subscriptions', icon: Coins, adminOnly: true },
       { href: '/admin/support', label: 'AI Support', icon: Brain, adminOnly: true },
       { href: '/diagnostics', label: 'Diagnostics', icon: Activity, adminOnly: true },
