@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { RefreshCw, Check, AlertTriangle, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTier } from '@/lib/useTier';
+import { useAuth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/privy';
 
 interface VersionInfo {
   uiVersion: string;
@@ -13,10 +14,14 @@ interface VersionInfo {
 }
 
 // Current UI version - update this when deploying
-export const UI_VERSION = 'v1.3.1';
+export const UI_VERSION = 'v1.3.2';
 
 export function VersionBadge() {
-  const { isAdmin } = useTier();
+  // Use auth context for more reliable admin check
+  const { user, isAdmin: authIsAdmin } = useAuth();
+  // Also check email directly for admin status
+  const isAdmin = authIsAdmin || (user?.email ? isAdminEmail(user.email) : false);
+  
   const [versionInfo, setVersionInfo] = useState<VersionInfo>({
     uiVersion: UI_VERSION,
     botVersion: null,

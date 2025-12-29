@@ -130,6 +130,7 @@
 When adding a new exchange/broker integration, complete ALL of these:
 
 ### Backend (Python)
+
 - [ ] Create client in `/src/exchanges/` (extend `BaseExchange`)
 - [ ] Add `create_for_user(user_id)` factory method for multi-tenancy
 - [ ] Add to `bot_runner.py` initialization
@@ -137,11 +138,13 @@ When adding a new exchange/broker integration, complete ALL of these:
 - [ ] Write unit tests in `/tests/`
 
 ### Database
+
 - [ ] Add credential fields to `user_exchange_credentials` table
 - [ ] Add RLS policies for user isolation
 - [ ] Create migration SQL script in `/scripts/`
 
 ### Admin UI (Next.js)
+
 - [ ] Add OAuth/API key connection in `/secrets` page
 - [ ] Add to `/balances` page (show connected account)
 - [ ] Add to `/positions` page (show positions)
@@ -150,17 +153,20 @@ When adding a new exchange/broker integration, complete ALL of these:
 - [ ] Create connection status component
 
 ### API Routes
+
 - [ ] Create `/api/[exchange]/` routes for data
 - [ ] Add webhook endpoints if needed
 - [ ] Add to `/api/markets` aggregation
 
 ### Documentation
+
 - [ ] Update `README.md` with setup instructions
 - [ ] Add to `SETUP_INSTRUCTIONS.md`
 - [ ] Document in `TODO.md` (this file)
 - [ ] Add help article in `/help` page
 
 ### Testing
+
 - [ ] E2E test for connection flow
 - [ ] E2E test for data display
 - [ ] API route tests
@@ -247,6 +253,61 @@ When adding a new exchange/broker integration, complete ALL of these:
   - Auto-populates user email
   - Hides on public routes (landing, login, signup)
   - Set `NEXT_PUBLIC_CRISP_WEBSITE_ID` env var to enable
+
+---
+
+## 🔥 CRITICAL ISSUES (December 29, 2025)
+
+### P0 - BLOCKING ISSUES
+
+- [ ] **Settings Save Error** 🚨 - "SAVE FAILED (Debug Mode)" when saving settings
+  - RSI enable fails with this error
+  - Likely RLS policy issue on `polybot_config` table
+  - Need to check Supabase RLS policies
+  
+- [ ] **Bot Stopped Running** 🚨 - No trades since Dec 28
+  - Need to investigate why bot stopped
+  - Add monitoring/alerting for bot health
+  - Add auto-restart capability (systemd/PM2)
+  - Consider Uptime Robot or similar for external monitoring
+  
+- [ ] **Version Badge Not Showing for Admin**
+  - Admin (<rutrohd@gmail.com>) should see version but doesn't
+  - Check `isAdmin` logic in Header component
+  
+- [ ] **Dashboard Defaults to "All Data"**
+  - Should default to current session (Paper or Live), not combined
+  - Never land on combined - confusing UX
+  - Each user session should show only that mode's data
+  
+- [ ] **Analytics Charts Need Redesign**
+  - Top 2 charts are hard to read
+  - Change to line graphs with different colored lines per strategy
+  - Trending lines for selected timeframe
+  - Need to be readable at a glance
+
+### P0.5 - IBKR Real-Time Pricing
+
+- [ ] **Show Real-Time IBKR Prices**
+  - If IBKR connected: Show IBKR prices (bid/ask)
+  - If Alpaca only: Show Alpaca prices
+  - If both connected: Show both, IBKR prioritized
+  - Trade modal must fetch live IBKR quote before placing order
+  - Support limit orders with IBKR bid/ask spread
+
+### Bot Reliability & Monitoring
+
+- [ ] **Add Bot Health Monitoring**
+  - External uptime monitoring (Uptime Robot, Better Uptime)
+  - Heartbeat endpoint that checks bot is actively scanning
+  - Alert if no scans in 5+ minutes
+  - Dashboard indicator for bot health
+  
+- [ ] **Auto-Restart Capability**
+  - Systemd service with automatic restart
+  - PM2 process manager alternative
+  - Docker restart policy if containerized
+  - Log rotation to prevent disk fill
 
 ---
 

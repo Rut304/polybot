@@ -60,15 +60,31 @@ type ViewMode = 'all' | 'paper' | 'live';
 export default function Dashboard() {
   // Global timeframe state - all components use this
   const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
-  // View mode - show all data by default to avoid $0.00 confusion
-  const [viewMode, setViewMode] = useState<ViewMode>('all');
+  
+  // Get current trading mode from bot status first
+  const { data: botStatus, isLoading: statusLoading } = useBotStatus();
+  const botIsLive = botStatus?.dry_run_mode === false;
+  
+  // Default view mode to current bot mode (paper or live), NOT "all"
+  // This prevents confusing combined data on first load
+  const [viewMode, setViewMode] = useState<ViewMode>('paper');
+  
+  // Update view mode when bot status loads (if not already changed by user)
+  const [hasUserSelectedMode, setHasUserSelectedMode] = useState(false);
+  
+  // Auto-set to bot's current mode on first load
+  if (!statusLoading && botStatus && !hasUserSelectedMode) {
+    const currentMode = botIsLive ? 'live' : 'paper';
+    if (viewMode !== currentMode) {
+      setViewMode(currentMode);
+    }
+  }
 
   // Get current trading mode from user context
   const { isSimulation: isUserSimMode } = useTier();
   // Use viewMode for data filtering, fall back to user's current mode if 'all'
   const tradingMode: 'paper' | 'live' | undefined = viewMode === 'all' ? undefined : viewMode;
 
-  const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const isSimulation = botStatus?.mode !== 'live';
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
   // Pass trading mode to get stats filtered by current mode (undefined = all)
@@ -248,7 +264,10 @@ export default function Dashboard() {
             {(['all', 'paper', 'live'] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
-                onClick={() => setViewMode(mode)}
+                onClick={() => {
+                  setViewMode(mode);
+                  setHasUserSelectedMode(true); // User explicitly chose a mode
+                }}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
                   viewMode === mode
                     ? mode === 'live' ? 'bg-red-500/20 text-red-400' : mode === 'paper' ? 'bg-neon-green/20 text-neon-green' : 'bg-neon-blue/20 text-neon-blue'

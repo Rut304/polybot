@@ -886,17 +886,22 @@ export function useUpdateBotConfig() {
       // Sanitize config - remove system fields that shouldn't be manually upserted
       const { id, created_at, updated_at, user_id: _, ...cleanConfig } = config;
 
-      console.log('useUpdateBotConfig: Sending upsert to Supabase:', { cleanConfig });
+      console.log('useUpdateBotConfig: Sending to API:', { cleanConfig });
 
-      const { error } = await supabase
-        .from('polybot_config')
-        .upsert({ 
+      // Use API route which has service role access (bypasses RLS issues)
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
           user_id: user.id, 
-          ...cleanConfig, 
-          updated_at: new Date().toISOString() 
-        }, { onConflict: 'user_id' });
+          ...cleanConfig 
+        }),
+      });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Failed to save config: ${response.status}`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['botConfig'] });
