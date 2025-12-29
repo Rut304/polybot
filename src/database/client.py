@@ -881,12 +881,26 @@ class Database:
             logger.error(f"Failed to get bot status: {e}")
             return None
     
-    def heartbeat(self, version: str = None):
-        """Update heartbeat timestamp and optionally version."""
+    def heartbeat(
+        self, 
+        version: str = None,
+        scan_count: int = 0,
+        active_strategies: list = None,
+        is_dry_run: bool = True,
+        errors_last_hour: int = 0,
+        trades_last_hour: int = 0,
+        user_id: str = None,
+        metadata: dict = None
+    ):
+        """
+        Update heartbeat timestamp and detailed metrics.
+        Writes to both polybot_status (legacy) and polybot_heartbeat (new detailed table).
+        """
         if not self._client:
             return
 
         try:
+            # Legacy: Update polybot_status table
             update_data = {
                 "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
                 "last_updated": datetime.now(timezone.utc).isoformat(),
@@ -900,6 +914,34 @@ class Database:
                 self._client.table("polybot_status").update(
                     update_data
                 ).eq("id", result.data[0]["id"]).execute()
+            
+            # New: Write detailed heartbeat to polybot_heartbeat table
+            try:
+                import psutil
+                memory_mb = psutil.Process().memory_info().rss / 1024 / 1024
+                cpu_percent = psutil.cpu_percent(interval=None)
+            except Exception:
+                memory_mb = None
+                cpu_percent = None
+            
+            heartbeat_data = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "version": version,
+                "scan_count": scan_count,
+                "active_strategies": active_strategies or [],
+                "memory_usage_mb": memory_mb,
+                "cpu_percent": cpu_percent,
+                "is_dry_run": is_dry_run,
+                "errors_last_hour": errors_last_hour,
+                "trades_last_hour": trades_last_hour,
+                "metadata": metadata or {}
+            }
+            
+            # Only add user_id if provided (for multi-tenant)
+            if user_id:
+                heartbeat_data["user_id"] = user_id
+            
+            self._client.table("polybot_heartbeat").insert(heartbeat_data).execute()
             
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")

@@ -3078,18 +3078,74 @@ class PolybotRunner:
 
     async def run_heartbeat(self):
         """
-        Periodically update heartbeat in polybot_status table.
-        This allows the Admin UI to know the bot is alive.
-        Updates every 30 seconds.
+        Periodically update heartbeat in polybot_status and polybot_heartbeat tables.
+        This allows the Admin UI to know the bot is alive and monitor detailed metrics.
+        Updates every 60 seconds.
         """
         version = get_version()
+        scan_count = 0
+        errors_last_hour = 0
+        
         while self._running:
             try:
-                self.db.heartbeat(version=version)
+                # Count active strategies
+                active_strategies = []
+                if self.enable_copy_trading and self.copy_trading:
+                    active_strategies.append("copy_trading")
+                if self.enable_arb_detection and self.arb_detector:
+                    active_strategies.append("arb_detection")
+                if getattr(self, 'cross_platform_scanner', None):
+                    active_strategies.append("cross_platform_arb")
+                if getattr(self, 'single_platform_scanner', None):
+                    active_strategies.append("single_platform_arb")
+                if getattr(self, 'market_maker', None):
+                    active_strategies.append("market_making")
+                if getattr(self, 'news_arbitrage', None):
+                    active_strategies.append("news_arbitrage")
+                if getattr(self, 'funding_rate_arb', None):
+                    active_strategies.append("funding_rate_arb")
+                if getattr(self, 'grid_trading', None):
+                    active_strategies.append("grid_trading")
+                if getattr(self, 'pairs_trading', None):
+                    active_strategies.append("pairs_trading")
+                if getattr(self, 'stock_mean_reversion', None):
+                    active_strategies.append("stock_mean_reversion")
+                if getattr(self, 'stock_momentum', None):
+                    active_strategies.append("stock_momentum")
+                if getattr(self, 'whale_copy_trading', None):
+                    active_strategies.append("whale_copy_trading")
+                if getattr(self, 'congressional_tracker', None):
+                    active_strategies.append("congressional_tracker")
+                if getattr(self, 'spike_hunter', None):
+                    active_strategies.append("spike_hunter")
+                
+                # Get trades in last hour from paper trader
+                trades_last_hour = 0
+                if self.paper_trader and hasattr(self.paper_trader, 'stats'):
+                    trades_last_hour = getattr(self.paper_trader.stats, 'opportunities_traded', 0)
+                
+                # Get scan count from analytics
+                if self.analytics:
+                    scan_count = getattr(self.analytics, 'total_opportunities', 0)
+                
+                self.db.heartbeat(
+                    version=version,
+                    scan_count=scan_count,
+                    active_strategies=active_strategies,
+                    is_dry_run=self.simulation_mode,
+                    errors_last_hour=errors_last_hour,
+                    trades_last_hour=trades_last_hour,
+                    user_id=getattr(self, 'user_id', None),
+                    metadata={
+                        "simulation_mode": self.simulation_mode,
+                        "paper_balance": getattr(self.paper_trader.stats, 'current_balance', 0) if self.paper_trader else 0,
+                    }
+                )
                 logger.debug("💓 Heartbeat sent")
             except Exception as e:
                 logger.warning(f"Heartbeat failed: {e}")
-            await asyncio.sleep(30)  # Update every 30 seconds
+                errors_last_hour += 1
+            await asyncio.sleep(60)  # Update every 60 seconds
 
     async def run_paper_trading_stats(self):
         """Periodically save paper trading stats and print summary."""
