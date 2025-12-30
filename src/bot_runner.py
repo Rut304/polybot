@@ -3566,10 +3566,13 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
     
+    # Global reference to bot runner for health server
+    global_runner = {'instance': None}
+    
     # CRITICAL: Start health server FIRST before anything else
     # This ensures Lightsail health checks pass even if bot init crashes
     logger.info("🏥 Starting health server FIRST for deployment health checks...")
-    health_task = asyncio.create_task(start_health_server(bot_runner=None))
+    health_task = asyncio.create_task(start_health_server(bot_runner=None, runner_ref=global_runner))
     # Give health server time to start
     await asyncio.sleep(2)
     logger.info("✅ Health server started, proceeding with bot initialization...")
@@ -3611,6 +3614,9 @@ async def main():
             enable_news_sentiment=True,
             simulation_mode=simulation_mode,
         )
+        # Update global reference so health server can access it
+        global_runner['instance'] = runner
+        logger.info("✅ PolybotRunner initialized successfully!")
     except Exception as e:
         logger.error(f"❌ CRITICAL: Failed to create PolybotRunner: {e}")
         import traceback
@@ -3676,13 +3682,27 @@ def get_build_number():
     return 17  # Default to current deployment version
 
 
-async def start_health_server(port: int = 8080, bot_runner=None):
-    """Start a simple HTTP health check server for Lightsail."""
+async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None):
+    """Start a simple HTTP health check server for Lightsail.
+    
+    Args:
+        port: Port to listen on
+        bot_runner: Direct reference to PolybotRunner (legacy)
+        runner_ref: Dict with 'instance' key that gets updated after init
+    """
     from aiohttp import web
     import os
     
     version = get_version()
     build = get_build_number()
+    
+    def get_runner():
+        """Get bot runner from direct ref or runner_ref dict."""
+        if bot_runner:
+            return bot_runner
+        if runner_ref and runner_ref.get('instance'):
+            return runner_ref['instance']
+        return None
     
     async def health_handler(request):
         return web.Response(text="OK", status=200)
@@ -3698,10 +3718,11 @@ async def start_health_server(port: int = 8080, bot_runner=None):
     
     async def debug_secrets_handler(request):
         """Debug endpoint to check if secrets are being loaded."""
-        if not bot_runner or not bot_runner.db:
+        runner = get_runner()
+        if not runner or not runner.db:
             return web.json_response({"error": "Bot not initialized"}, status=500)
         
-        db = bot_runner.db
+        db = runner.db
         
         # Check which secrets are loaded (show key names only, not values!)
         secrets_status = {}
@@ -3713,15 +3734,15 @@ async def start_health_server(port: int = 8080, bot_runner=None):
         # Check CCXT client - show which exchange is connected
         ccxt_status = "❌ Not initialized"
         ccxt_details = {}
-        if bot_runner.ccxt_client:
+        if runner.ccxt_client:
             ccxt_status = "✅ Initialized"
             ccxt_details = {
-                "exchange_id": getattr(bot_runner.ccxt_client, 'exchange_id', 'unknown'),
+                "exchange_id": getattr(runner.ccxt_client, 'exchange_id', 'unknown'),
                 "has_futures": "unknown",
                 "markets_loaded": 0,
             }
-            if bot_runner.ccxt_client.exchange:
-                ex = bot_runner.ccxt_client.exchange
+            if runner.ccxt_client.exchange:
+                ex = runner.ccxt_client.exchange
                 ccxt_details["exchange_id"] = ex.id
                 ccxt_details["markets_loaded"] = len(ex.markets) if ex.markets else 0
                 ccxt_details["has_futures"] = ex.has.get('fetchFundingRate', False)
@@ -3729,32 +3750,32 @@ async def start_health_server(port: int = 8080, bot_runner=None):
                 ccxt_details["sandbox"] = getattr(ex, 'sandbox', False)
         
         # Check Alpaca client  
-        alpaca_status = "✅ Initialized" if bot_runner.alpaca_client else "❌ Not initialized"
+        alpaca_status = "✅ Initialized" if runner.alpaca_client else "❌ Not initialized"
         
         # News source configuration
         news_config = {
-            "finnhub_api_key": "✅ Set" if bot_runner.finnhub_api_key else "❌ Missing",
-            "twitter_bearer_token": "✅ Set" if bot_runner.twitter_bearer_token else "❌ Missing",
-            "news_api_key": "✅ Set" if bot_runner.news_api_key else "❌ Missing",
-            "news_engine_active": "✅ Active" if bot_runner.news_engine else "❌ Disabled",
+            "finnhub_api_key": "✅ Set" if runner.finnhub_api_key else "❌ Missing",
+            "twitter_bearer_token": "✅ Set" if runner.twitter_bearer_token else "❌ Missing",
+            "news_api_key": "✅ Set" if runner.news_api_key else "❌ Missing",
+            "news_engine_active": "✅ Active" if runner.news_engine else "❌ Disabled",
         }
         
         # Check strategy status
         strategies = {
-            "funding_rate_arb": "✅ Active" if bot_runner.funding_rate_arb else "❌ Disabled",
-            "grid_trading": "✅ Active" if bot_runner.grid_trading else "❌ Disabled",
-            "pairs_trading": "✅ Active" if bot_runner.pairs_trading else "❌ Disabled",
-            "stock_mean_reversion": "✅ Active" if bot_runner.stock_mean_reversion else "❌ Disabled",
-            "stock_momentum": "✅ Active" if bot_runner.stock_momentum else "❌ Disabled",
+            "funding_rate_arb": "✅ Active" if runner.funding_rate_arb else "❌ Disabled",
+            "grid_trading": "✅ Active" if runner.grid_trading else "❌ Disabled",
+            "pairs_trading": "✅ Active" if runner.pairs_trading else "❌ Disabled",
+            "stock_mean_reversion": "✅ Active" if runner.stock_mean_reversion else "❌ Disabled",
+            "stock_momentum": "✅ Active" if runner.stock_momentum else "❌ Disabled",
         }
         
         # Check config
         config_status = {
-            "enable_binance": getattr(bot_runner.config.trading, 'enable_binance', False),
-            "enable_alpaca": getattr(bot_runner.config.trading, 'enable_alpaca', False),
-            "enable_funding_rate_arb": getattr(bot_runner.config.trading, 'enable_funding_rate_arb', False),
-            "enable_grid_trading": getattr(bot_runner.config.trading, 'enable_grid_trading', False),
-            "enable_pairs_trading": getattr(bot_runner.config.trading, 'enable_pairs_trading', False),
+            "enable_binance": getattr(runner.config.trading, 'enable_binance', False),
+            "enable_alpaca": getattr(runner.config.trading, 'enable_alpaca', False),
+            "enable_funding_rate_arb": getattr(runner.config.trading, 'enable_funding_rate_arb', False),
+            "enable_grid_trading": getattr(runner.config.trading, 'enable_grid_trading', False),
+            "enable_pairs_trading": getattr(runner.config.trading, 'enable_pairs_trading', False),
         }
         
         # Check if using service_role key by decoding JWT payload
