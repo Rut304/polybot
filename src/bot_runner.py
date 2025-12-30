@@ -3735,104 +3735,129 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
     
     async def debug_secrets_handler(request):
         """Debug endpoint to check if secrets are being loaded."""
-        runner = get_runner()
-        if not runner or not runner.db:
-            return web.json_response({"error": "Bot not initialized"}, status=500)
-        
-        db = runner.db
-        
-        # Check which secrets are loaded (show key names only, not values!)
-        secrets_status = {}
-        for key in ['BINANCE_API_KEY', 'BINANCE_API_SECRET', 'ALPACA_PAPER_API_KEY', 
-                    'ALPACA_PAPER_API_SECRET', 'POLYMARKET_API_KEY', 'KALSHI_API_KEY']:
-            val = db.get_secret(key)
-            secrets_status[key] = "✅ Set" if val else "❌ Missing"
-        
-        # Check CCXT client - show which exchange is connected
-        ccxt_status = "❌ Not initialized"
-        ccxt_details = {}
-        if runner.ccxt_client:
-            ccxt_status = "✅ Initialized"
-            ccxt_details = {
-                "exchange_id": getattr(runner.ccxt_client, 'exchange_id', 'unknown'),
-                "has_futures": "unknown",
-                "markets_loaded": 0,
+        try:
+            runner = get_runner()
+            # Debug info
+            debug_info = {
+                "bot_runner_direct": bot_runner is not None,
+                "runner_ref_exists": runner_ref is not None,
+                "runner_ref_has_instance": (runner_ref.get('instance') is not None 
+                                           if runner_ref else False),
+                "get_runner_result": runner is not None,
             }
-            if runner.ccxt_client.exchange:
-                ex = runner.ccxt_client.exchange
-                ccxt_details["exchange_id"] = ex.id
-                ccxt_details["markets_loaded"] = len(ex.markets) if ex.markets else 0
-                ccxt_details["has_futures"] = ex.has.get('fetchFundingRate', False)
-                ccxt_details["has_spot"] = ex.has.get('fetchTicker', False)
-                ccxt_details["sandbox"] = getattr(ex, 'sandbox', False)
-        
-        # Check Alpaca client  
-        alpaca_status = "✅ Initialized" if runner.alpaca_client else "❌ Not initialized"
-        
-        # News source configuration
-        news_config = {
-            "finnhub_api_key": "✅ Set" if runner.finnhub_api_key else "❌ Missing",
-            "twitter_bearer_token": "✅ Set" if runner.twitter_bearer_token else "❌ Missing",
-            "news_api_key": "✅ Set" if runner.news_api_key else "❌ Missing",
-            "news_engine_active": "✅ Active" if runner.news_engine else "❌ Disabled",
-        }
-        
-        # Check strategy status
-        strategies = {
-            "funding_rate_arb": "✅ Active" if runner.funding_rate_arb else "❌ Disabled",
-            "grid_trading": "✅ Active" if runner.grid_trading else "❌ Disabled",
-            "pairs_trading": "✅ Active" if runner.pairs_trading else "❌ Disabled",
-            "stock_mean_reversion": "✅ Active" if runner.stock_mean_reversion else "❌ Disabled",
-            "stock_momentum": "✅ Active" if runner.stock_momentum else "❌ Disabled",
-        }
-        
-        # Check config
-        config_status = {
-            "enable_binance": getattr(runner.config.trading, 'enable_binance', False),
-            "enable_alpaca": getattr(runner.config.trading, 'enable_alpaca', False),
-            "enable_funding_rate_arb": getattr(runner.config.trading, 'enable_funding_rate_arb', False),
-            "enable_grid_trading": getattr(runner.config.trading, 'enable_grid_trading', False),
-            "enable_pairs_trading": getattr(runner.config.trading, 'enable_pairs_trading', False),
-        }
-        
-        # Check if using service_role key by decoding JWT payload
-        key_type = "unknown"
-        if db.key:
-            try:
-                import base64
-                # JWT has 3 parts: header.payload.signature
-                payload = db.key.split('.')[1]
-                # Add padding if needed
-                payload += '=' * (4 - len(payload) % 4)
-                decoded = base64.b64decode(payload).decode('utf-8')
-                key_type = "service_role" if '"role":"service_role"' in decoded else "anon"
-            except:
-                key_type = "parse_error"
-        
-        # Check exchange credentials loading
-        exchange_creds_check = {}
-        for ex in ['binance', 'coinbase']:
-            creds = db.get_exchange_credentials(ex)
-            has_key = bool(creds.get('api_key'))
-            has_secret = bool(creds.get('api_secret'))
-            exchange_creds_check[ex] = f"key={has_key},secret={has_secret}"
-        
-        return web.json_response({
-            "secrets": secrets_status,
-            "ccxt_client": ccxt_status,
-            "ccxt_details": ccxt_details,
-            "alpaca_client": alpaca_status,
-            "strategies": strategies,
-            "config": config_status,
-            "db_key_type": key_type,
-            "enabled_exchanges": [ex for ex in ['binance', 'coinbase'] if getattr(bot_runner.config.trading, f'enable_{ex}', False)],
-            "exchange_credentials": exchange_creds_check,
-            "news_sources": news_config,
-            "stock_config": {
-                "enable_stock_mean_reversion": getattr(bot_runner.config.trading, 'enable_stock_mean_reversion', False),
-                "enable_stock_momentum": getattr(bot_runner.config.trading, 'enable_stock_momentum', False),
-            },
-        })
+            if not runner:
+                return web.json_response({
+                    "error": "Bot not initialized - runner is None",
+                    "debug": debug_info
+                }, status=500)
+            if not runner.db:
+                return web.json_response({
+                    "error": "Bot has no database connection",
+                    "debug": debug_info
+                }, status=500)
+            
+            db = runner.db
+            
+            # Check which secrets are loaded (show key names only, not values!)
+            secrets_status = {}
+            for key in ['BINANCE_API_KEY', 'BINANCE_API_SECRET', 
+                        'ALPACA_PAPER_API_KEY', 'ALPACA_PAPER_API_SECRET', 
+                        'POLYMARKET_API_KEY', 'KALSHI_API_KEY']:
+                val = db.get_secret(key)
+                secrets_status[key] = "✅ Set" if val else "❌ Missing"
+            
+            # Check CCXT client - show which exchange is connected
+            ccxt_status = "❌ Not initialized"
+            ccxt_details = {}
+            if runner.ccxt_client:
+                ccxt_status = "✅ Initialized"
+                ccxt_details = {
+                    "exchange_id": getattr(runner.ccxt_client, 'exchange_id', 'unknown'),
+                    "has_futures": "unknown",
+                    "markets_loaded": 0,
+                }
+                if runner.ccxt_client.exchange:
+                    ex = runner.ccxt_client.exchange
+                    ccxt_details["exchange_id"] = ex.id
+                    ccxt_details["markets_loaded"] = len(ex.markets) if ex.markets else 0
+                    ccxt_details["has_futures"] = ex.has.get('fetchFundingRate', False)
+                    ccxt_details["has_spot"] = ex.has.get('fetchTicker', False)
+                    ccxt_details["sandbox"] = getattr(ex, 'sandbox', False)
+            
+            # Check Alpaca client  
+            alpaca_status = "✅ Initialized" if runner.alpaca_client else "❌ Not initialized"
+            
+            # News source configuration
+            news_config = {
+                "finnhub_api_key": "✅ Set" if runner.finnhub_api_key else "❌ Missing",
+                "twitter_bearer_token": "✅ Set" if runner.twitter_bearer_token else "❌ Missing",
+                "news_api_key": "✅ Set" if runner.news_api_key else "❌ Missing",
+                "news_engine_active": "✅ Active" if runner.news_engine else "❌ Disabled",
+            }
+            
+            # Check strategy status
+            strategies = {
+                "funding_rate_arb": "✅ Active" if runner.funding_rate_arb else "❌ Disabled",
+                "grid_trading": "✅ Active" if runner.grid_trading else "❌ Disabled",
+                "pairs_trading": "✅ Active" if runner.pairs_trading else "❌ Disabled",
+                "stock_mean_reversion": "✅ Active" if runner.stock_mean_reversion else "❌ Disabled",
+                "stock_momentum": "✅ Active" if runner.stock_momentum else "❌ Disabled",
+            }
+            
+            # Check config
+            config_status = {
+                "enable_binance": getattr(runner.config.trading, 'enable_binance', False),
+                "enable_alpaca": getattr(runner.config.trading, 'enable_alpaca', False),
+                "enable_funding_rate_arb": getattr(runner.config.trading, 'enable_funding_rate_arb', False),
+                "enable_grid_trading": getattr(runner.config.trading, 'enable_grid_trading', False),
+                "enable_pairs_trading": getattr(runner.config.trading, 'enable_pairs_trading', False),
+            }
+            
+            # Check if using service_role key by decoding JWT payload
+            key_type = "unknown"
+            if db.key:
+                try:
+                    import base64
+                    # JWT has 3 parts: header.payload.signature
+                    payload = db.key.split('.')[1]
+                    # Add padding if needed
+                    payload += '=' * (4 - len(payload) % 4)
+                    decoded = base64.b64decode(payload).decode('utf-8')
+                    key_type = "service_role" if '"role":"service_role"' in decoded else "anon"
+                except:
+                    key_type = "parse_error"
+            
+            # Check exchange credentials loading
+            exchange_creds_check = {}
+            for ex in ['binance', 'coinbase']:
+                creds = db.get_exchange_credentials(ex)
+                has_key = bool(creds.get('api_key'))
+                has_secret = bool(creds.get('api_secret'))
+                exchange_creds_check[ex] = f"key={has_key},secret={has_secret}"
+            
+            return web.json_response({
+                "secrets": secrets_status,
+                "ccxt_client": ccxt_status,
+                "ccxt_details": ccxt_details,
+                "alpaca_client": alpaca_status,
+                "strategies": strategies,
+                "config": config_status,
+                "db_key_type": key_type,
+                "enabled_exchanges": [ex for ex in ['binance', 'coinbase'] if getattr(runner.config.trading, f'enable_{ex}', False)],
+                "exchange_credentials": exchange_creds_check,
+                "news_sources": news_config,
+                "stock_config": {
+                    "enable_stock_mean_reversion": getattr(runner.config.trading, 'enable_stock_mean_reversion', False),
+                    "enable_stock_momentum": getattr(runner.config.trading, 'enable_stock_momentum', False),
+                },
+            })
+        except Exception as e:
+            import traceback
+            return web.json_response({
+                "error": f"Handler exception: {str(e)}",
+                "type": type(e).__name__,
+                "traceback": traceback.format_exc()[:500],
+            }, status=500)
     
     app = web.Application()
     app.router.add_get('/health', health_handler)
