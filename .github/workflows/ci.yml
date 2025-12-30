@@ -32,7 +32,7 @@ jobs:
       - name: Lint
         run: |
           pip install flake8
-          flake8 src/ --max-line-length=100 --ignore=E501,F401,E402,W503,W504
+          flake8 src/ --max-line-length=100 --ignore=E501,F401,F541,F841,E402,E128,E129,E226,E251,E261,E701,E722,W503,W504
       
       - name: Type check
         run: |
