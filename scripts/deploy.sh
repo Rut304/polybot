@@ -254,11 +254,10 @@ read_secret() {
     grep "^$1=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2-
 }
 
-IBKR_USER=$(read_secret "IBKR_USERNAME")
-IBKR_PASS=$(read_secret "IBKR_PASSWORD")
-IBKR_MODE=$(read_secret "IBKR_TRADING_MODE")
+# Note: IB Gateway sidecar removed - we use IBKRWebClient (REST API) now
+# which doesn't require a separate container. See docs/IBKR_WEB_API_MIGRATION.md
 
-# Create deployment config
+# Create deployment config (polybot only - no sidecar containers needed)
 DEPLOY_CONFIG=$(cat <<EOF
 {
     "serviceName": "$SERVICE_NAME",
@@ -269,20 +268,6 @@ DEPLOY_CONFIG=$(cat <<EOF
             "environment": $CURRENT_ENV,
             "ports": {
                 "8080": "HTTP"
-            }
-        },
-        "ib-gateway": {
-            "image": "ghcr.io/extralabs/ib-gateway:latest",
-            "environment": {
-                "TWS_USERID": "$IBKR_USER",
-                "TWS_PASSWORD": "$IBKR_PASS",
-                "TRADING_MODE": "${IBKR_MODE:-paper}",
-                "VNC_SERVER_PASSWORD": "password",
-                "TWOFA_TIMEOUT_ACTION": "exit"
-            },
-            "ports": {
-                "4001": "TCP",
-                "4002": "TCP"
             }
         }
     },
