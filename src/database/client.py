@@ -54,6 +54,11 @@ class Database:
         NOTE: Always uses SERVICE_ROLE_KEY for full database access.
         The anon key (SUPABASE_KEY) is NOT supported as it causes RLS issues.
         """
+        # Initialize secrets cache FIRST (before any early returns)
+        # This prevents AttributeError when get_secret() is called without DB connection
+        self._secrets_cache: Dict[str, str] = {}
+        self._secrets_loaded = False
+        
         # Get credentials - prefer params, fallback to env vars
         self.url = url or os.getenv("SUPABASE_URL", "")
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -70,10 +75,6 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to initialize Supabase client: {e}")
             self._client = None
-        
-        # Secrets cache (loaded once, refreshed on demand)
-        self._secrets_cache: Dict[str, str] = {}
-        self._secrets_loaded = False
     
     @property
     def is_connected(self) -> bool:
