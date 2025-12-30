@@ -13,20 +13,23 @@
 **NEVER** run `vercel` or `vercel --prod` from the CLI. This creates orphan projects!
 
 ### Correct Deployment Method
+
 ```bash
 # ALWAYS use Git push - Vercel auto-deploys from main branch
 git push origin main
 ```
 
 ### Why This Matters
+
 - The admin folder is linked to `admin-app` project (polyparlay.io)
 - Running `vercel` CLI can create duplicate projects
 - Git push triggers the correct auto-deploy
 
 ### If You Need to Force Redeploy
+
 1. Make a trivial commit (whitespace, comment)
 2. `git push origin main`
-3. OR use the redeploy button in /admin page (requires deploy hook setup)
+3. OR use the redeploy button in /admin page (deploy hook configured ✅)
 
 ---
 
@@ -427,7 +430,7 @@ I'm taking over as the lead engineer for PolyBot - an automated prediction marke
 - **Goal**: Automated algo trading on prediction markets (Polymarket, Kalshi) and traditional markets (Alpaca, IBKR)
 - **Tech Stack**: Python bot (AWS Lightsail), Next.js 14 admin (Vercel), Supabase PostgreSQL
 - **Current State**: Bot running v1.1.25 (Build #98), deployment v29 ACTIVE, simulation mode
-- **Admin URL**: https://polyparlay.io
+- **Admin URL**: <https://polyparlay.io>
 - **35+ trading strategies** implemented and configurable
 
 ## Critical Rules
