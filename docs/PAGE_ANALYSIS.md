@@ -57,53 +57,63 @@
 ## 🎯 RECOMMENDED CONSOLIDATIONS
 
 ### 1. **MERGE: Analytics → Dashboard**
+
 - Move detailed charts/metrics to a "Detailed Analytics" tab on Dashboard
 - **Impact**: Remove 1 page, simplify navigation
 - **Effort**: Medium (2-4 hours)
 
 ### 2. **MERGE: Bets + History → "Trades"**
+
 - Combine into single `/trades` page with tabs: "Open", "Closed", "All"
 - History's AI analysis becomes a panel in the Trades page
 - **Impact**: Remove 1 page, clearer mental model
 - **Effort**: High (4-8 hours)
 
 ### 3. **MERGE: Whales + Leaderboard → "Leaderboard"**
+
 - Single page with tabs: "Top Whales", "User Rankings"
 - **Impact**: Remove 1 page
 - **Effort**: Low (1-2 hours)
 
 ### 4. **MERGE: Logs + Diagnostics → "System"**
+
 - Single admin page with tabs: "Logs", "Health", "Debug"
 - **Impact**: Remove 1 page
 - **Effort**: Low (1-2 hours)
 
 ### 5. **MERGE: Help + Docs → "Help Center"**
+
 - Single page: FAQ, Strategy Docs, API Docs, Contact
 - **Impact**: Remove 1 page
 - **Effort**: Low (1-2 hours)
 
 ### 6. **MERGE: Insights + Dashboard**
+
 - Add "AI Insights" card to Dashboard
 - **Impact**: Remove 1 page
 - **Effort**: Medium (2-3 hours)
 
 ### 7. **MERGE: Balances → Dashboard**
+
 - Balance breakdown is a Dashboard card/widget
 - **Impact**: Remove 1 page
 - **Effort**: Low (1-2 hours)
 
 ### 8. **MERGE: Strategy Builder → Strategies**
+
 - Add "Create Custom" button to Strategies page
 - Opens modal or expands inline
 - **Impact**: Remove 1 page
 - **Effort**: Medium (2-4 hours)
 
 ### 9. **MERGE: Strategy History → Strategies**
+
 - Add "Change History" accordion/section to Strategies
 - **Impact**: Remove 1 page
 - **Effort**: Low (1-2 hours)
 
 ### 10. **MERGE: Missed Opportunities → Trades (History tab)**
+
 - Failed trades are a filter option in trade history
 - **Impact**: Remove 1 page
 - **Effort**: Low (1-2 hours)
@@ -124,6 +134,7 @@
 ## ✅ SIMPLIFIED NAVIGATION (AFTER CONSOLIDATION)
 
 ### Primary (Sidebar)
+
 1. **Dashboard** - Overview + Analytics + Balances + AI Insights
 2. **Trades** - Open Positions + Trade History + Failed Trades
 3. **Markets** - Browse + Watchlist
@@ -131,6 +142,7 @@
 5. **Settings** - Bot Config + Profile + Notifications
 
 ### Secondary (Sidebar - Collapsed)
+
 6. **Congress** - Congressional Tracker
 7. **Leaderboard** - Whales + User Rankings
 8. **Backtesting** - Strategy Testing
@@ -138,6 +150,7 @@
 10. **Help Center** - Docs + FAQ + Contact
 
 ### Admin Only (Admin menu)
+
 - Admin Dashboard
 - Feature Control
 - Subscriptions
@@ -146,6 +159,7 @@
 - Support Chat
 
 ### Footer/Hidden
+
 - Pricing, Terms, Privacy, Landing, Referrals
 
 ---
@@ -164,18 +178,21 @@
 ## 🔄 IMPLEMENTATION PRIORITY
 
 ### Phase 1 (Quick Wins - 1 day)
+
 1. Remove `/workflows`, `/marketplace`, `/news`
 2. Move `/business` to admin-only
 3. Merge Whales + Leaderboard
 4. Merge Help + Docs
 
 ### Phase 2 (Medium Effort - 2-3 days)
+
 1. Merge Analytics → Dashboard
 2. Merge Balances → Dashboard
 3. Merge Insights → Dashboard
 4. Merge Logs + Diagnostics
 
 ### Phase 3 (Higher Effort - 1 week)
+
 1. Merge Bets + History → Trades
 2. Merge Strategy Builder → Strategies
 3. Merge Strategy History → Strategies
