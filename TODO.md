@@ -1,8 +1,138 @@
 # PolyBot To-Do List
 
+## 🚨 CRITICAL: Full Multi-Tenant Platform Integration (December 30, 2025)
+
+**Status**: PARTIALLY IMPLEMENTED - Major Gaps Identified  
+**Goal**: When a user connects an exchange, ALL data flows through the entire platform
+
+### 🔴 BLOCKING ISSUES DISCOVERED
+
+1. **Bot Only Initializes ONE Exchange** - Even if user connects Kucoin AND Bybit, only one is used
+   - Location: `bot_runner.py` lines 690-735
+   - Problem: `break` after first successful exchange connection
+   - Impact: User connects 3 exchanges but only gets data from 1
+
+2. **Trades API Has No User Filter** - Shows ALL users' trades
+   - Location: `/admin/src/app/api/trades/route.ts`
+   - Problem: No `.eq('user_id', authResult.user_id)` filter
+   - Impact: Multi-tenant data leak
+
+3. **10 Strategy Configs Were Missing from Python** - FIXED Dec 30
+   - Added: sector_rotation, dividend_growth, earnings_momentum, covered_calls, etc.
+   - Also fixed 8 marketplace configKey mismatches
+
+4. **7 Strategies Completely Disconnected** - UI exists, backend ignores
+   - Sector Rotation, Dividend Growth, Earnings Momentum
+   - Covered Calls, Cash Secured Puts, Iron Condor, Wheel Strategy
+
+5. **No Exchange Discovery for UI** - UI doesn't know which exchanges user connected
+   - Need: API endpoint `/api/user-exchanges` that returns connected platforms
+   - Impact: Market data, charts, opportunities don't filter by user's exchanges
+
+### 🎯 MULTI-TENANT PLATFORM INTEGRATION PHASES
+
+#### Phase A: Fix Data Flow (CRITICAL - Day 1-2)
+
+- [ ] **A1. Multi-Exchange Bot Runner** - Initialize ALL connected exchanges
+  ```python
+  # Change from: self.ccxt_client = single_client
+  # To: self.ccxt_clients: Dict[str, CCXTClient] = {}
+  ```
+  - File: `/src/bot_runner.py`
+  - Remove the `break` statement that stops after first exchange
+  - Store all connected exchanges in a dict
+
+- [ ] **A2. Add User Filtering to Trades API**
+  - File: `/admin/src/app/api/trades/route.ts`
+  - Add: `query = query.eq('user_id', authResult.user_id)`
+  - Also need to update: balances, opportunities, positions APIs
+
+- [ ] **A3. Create Exchange Discovery API**
+  - Create: `/admin/src/app/api/user-exchanges/route.ts`
+  - Returns: List of exchanges user has connected with status
+  - Used by: Market data, charts, opportunities to know what to show
+
+#### Phase B: Platform-Aware UI (Day 2-3)
+
+- [ ] **B1. Market Data by Connected Exchange**
+  - When user connects Kucoin → show Kucoin prices
+  - When user connects Bybit → show Bybit prices
+  - File: `/admin/src/app/markets/page.tsx`
+  - Currently hardcoded to Alpaca/Yahoo Finance
+
+- [ ] **B2. Opportunities Filter by User's Exchanges**
+  - Only show arbitrage opportunities for exchanges user can trade on
+  - Don't show Binance opps if user only has Coinbase
+  - File: Components showing opportunities
+
+- [ ] **B3. Balance Aggregation Across All Connected**
+  - `/balances` page should aggregate from ALL user's exchanges
+  - Not just first connected exchange
+  - Already has `BalanceAggregator` - needs to use all clients
+
+- [ ] **B4. Trade History Shows Exchange/Platform**
+  - Each trade shows which exchange it was on
+  - Filter by exchange in trade history
+  - Already has `buy_platform`/`sell_platform` fields
+
+#### Phase C: Dynamic Platform Enable/Disable (Day 3-4)
+
+- [ ] **C1. Exchange Connection Triggers Data Flow**
+  - When user adds Kucoin API keys:
+    1. Store in `user_exchange_credentials` ✅ (exists)
+    2. Update `polybot_config.enable_kucoin = true` for user
+    3. Bot picks up new exchange on next cycle
+    4. UI starts showing Kucoin data
+
+- [ ] **C2. Exchange Disconnection Stops Data**
+  - When user removes API keys:
+    1. Delete from `user_exchange_credentials`
+    2. Set `polybot_config.enable_kucoin = false`
+    3. Stop showing that exchange's data in UI
+    4. Close any open positions warning
+
+- [ ] **C3. Real-Time Exchange Status**
+  - Show connection status per exchange
+  - Green = connected + working
+  - Yellow = connected + API error
+  - Red = not connected
+  - File: `/admin/src/app/secrets/page.tsx` (partial exists)
+
+#### Phase D: Wire Disconnected Strategies (Day 4-5)
+
+- [ ] **D1. Add Backend Checks for Stock Strategies**
+  - Sector Rotation - needs Alpaca + sector ETFs
+  - Dividend Growth - needs Alpaca + dividend data
+  - Earnings Momentum - needs Alpaca + earnings calendar
+  - File: `/src/bot_runner.py` strategy initialization section
+
+- [ ] **D2. Add Backend Checks for Options Strategies**
+  - Covered Calls, Cash Secured Puts, Iron Condor, Wheel
+  - Requires IBKR integration (options not on Alpaca)
+  - File: Create `/src/strategies/options_strategies.py`
+
+- [ ] **D3. Connect Strategy UI to Backend Status**
+  - Show "Requires IBKR" badge on options strategies
+  - Show "Requires Alpaca" badge on stock strategies
+  - Disable toggle if required exchange not connected
+
+#### Phase E: Testing & Validation (Day 5)
+
+- [ ] **E1. Run New E2E Tests**
+  - `strategy-wiring.spec.ts` - validates config mappings
+  - `exchange-data-flow.spec.ts` - validates data flow
+  - `api-consistency.spec.ts` - validates API consistency
+
+- [ ] **E2. Manual Multi-Exchange Test**
+  - Connect 2+ exchanges as test user
+  - Verify data from BOTH exchanges appears
+  - Verify trades filter correctly
+
+---
+
 ## ✅ COMPLETED: Multi-Tenant User Isolation (P0)
 
-**Status**: FULLY IMPLEMENTED ✅  
+**Status**: FOUNDATION IMPLEMENTED ✅  
 **Each user has**: Own API keys, isolated data, per-user bot instance support.
 
 ### Phase 1: Per-User API Key Architecture ✅ COMPLETE
