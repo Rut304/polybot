@@ -1,0 +1,172 @@
+name: Deploy Bot to Lightsail
+# =============================================================================
+# PolyBot Bot Deployment - GitHub Actions CI/CD
+# =============================================================================
+#
+# This workflow replaces the need to run ./scripts/deploy.sh from a local laptop.
+# Triggered manually or on push to main branch.
+#
+# Required GitHub Secrets:
+#   - AWS_ACCESS_KEY_ID
+#   - AWS_SECRET_ACCESS_KEY
+#   - All secrets from .env file (see REQUIRED_SECRETS below)
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if no changes'
+        required: false
+        default: 'false'
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - 'requirements.txt'
+      - 'VERSION'
+      - '.github/workflows/deploy-bot.yml'
+
+env:
+  SERVICE_NAME: polyparlay
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Install AWS Lightsail Plugin
+        run: |
+          curl "https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl" -o /usr/local/bin/lightsailctl
+          chmod +x /usr/local/bin/lightsailctl
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION=$(cat VERSION)
+          BUILD=$(cat BUILD)
+          NEW_BUILD=$((BUILD + 1))
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BUILD=$NEW_BUILD" >> $GITHUB_OUTPUT
+          echo "$NEW_BUILD" > BUILD
+          echo "Building v${VERSION} (Build #${NEW_BUILD})"
+          
+      - name: Build Docker image
+        run: |
+          IMAGE_TAG="polybot:v${{ steps.version.outputs.VERSION }}-b${{ steps.version.outputs.BUILD }}"
+          docker build --platform linux/amd64 -t "$IMAGE_TAG" .
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          
+      - name: Push image to Lightsail
+        id: push
+        run: |
+          CLEAN_VERSION=$(echo "${{ steps.version.outputs.VERSION }}" | tr '.' '-')
+          PUSH_RESULT=$(aws lightsail push-container-image \
+            --service-name "$SERVICE_NAME" \
+            --label "v${CLEAN_VERSION}-b${{ steps.version.outputs.BUILD }}" \
+            --image "$IMAGE_TAG" \
+            --region "$AWS_REGION" 2>&1)
+          
+          IMAGE_REF=$(echo "$PUSH_RESULT" | grep 'Refer to this image as' | cut -d'"' -f2)
+          if [ -z "$IMAGE_REF" ]; then
+            IMAGE_REF=$(echo "$PUSH_RESULT" | grep -o ":$SERVICE_NAME\.[a-zA-Z0-9.-]*" | head -1)
+          fi
+          
+          echo "IMAGE_REF=$IMAGE_REF" >> $GITHUB_OUTPUT
+          echo "Pushed image: $IMAGE_REF"
+          
+      - name: Deploy to Lightsail
+        run: |
+          cat > deployment.json << 'EOF'
+          {
+            "serviceName": "${{ env.SERVICE_NAME }}",
+            "containers": {
+              "polybot": {
+                "image": "${{ steps.push.outputs.IMAGE_REF }}",
+                "environment": {
+                  "BOT_VERSION": "${{ steps.version.outputs.VERSION }}",
+                  "BUILD_NUMBER": "${{ steps.version.outputs.BUILD }}",
+                  "LOG_LEVEL": "INFO",
+                  "SIMULATION_MODE": "true",
+                  "SUPABASE_URL": "${{ secrets.SUPABASE_URL }}",
+                  "SUPABASE_SERVICE_ROLE_KEY": "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}",
+                  "POLYMARKET_API_KEY": "${{ secrets.POLYMARKET_API_KEY }}",
+                  "POLYMARKET_SECRET": "${{ secrets.POLYMARKET_SECRET }}",
+                  "KALSHI_API_KEY": "${{ secrets.KALSHI_API_KEY }}",
+                  "IBKR_USERNAME": "${{ secrets.IBKR_USERNAME }}",
+                  "IBKR_PASSWORD": "${{ secrets.IBKR_PASSWORD }}",
+                  "IBKR_TRADING_MODE": "paper",
+                  "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}",
+                  "X_BEARER_TOKEN": "${{ secrets.X_BEARER_TOKEN }}",
+                  "X_API_KEY": "${{ secrets.X_API_KEY }}",
+                  "X_API_KEY_SECRET": "${{ secrets.X_API_KEY_SECRET }}"
+                },
+                "ports": {
+                  "8080": "HTTP"
+                }
+              }
+            },
+            "publicEndpoint": {
+              "containerName": "polybot",
+              "containerPort": 8080,
+              "healthCheck": {
+                "healthyThreshold": 2,
+                "unhealthyThreshold": 2,
+                "timeoutSeconds": 5,
+                "intervalSeconds": 10,
+                "path": "/status",
+                "successCodes": "200"
+              }
+            }
+          }
+          EOF
+          
+          aws lightsail create-container-service-deployment \
+            --cli-input-json file://deployment.json \
+            --region "$AWS_REGION"
+            
+      - name: Update BUILD file
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add BUILD
+          git commit -m "Bump build to #${{ steps.version.outputs.BUILD }} [skip ci]"
+          git push
+          
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for deployment to complete..."
+          for i in {1..30}; do
+            STATE=$(aws lightsail get-container-services \
+              --service-name "$SERVICE_NAME" \
+              --region "$AWS_REGION" \
+              --query 'containerServices[0].state' \
+              --output text)
+            
+            if [ "$STATE" = "RUNNING" ]; then
+              echo "✅ Deployment successful! State: $STATE"
+              exit 0
+            fi
+            
+            echo "State: $STATE (attempt $i/30)"
+            sleep 20
+          done
+          
+          echo "⚠️ Deployment may still be in progress"
+          
+      - name: Verify deployment
+        run: |
+          curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .

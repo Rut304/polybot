@@ -68,7 +68,8 @@ venv.bak/
 
 # Logs
 *.log
-logs/
+/logs/
+!/admin/src/app/logs/
 
 # Local config
 .env.local
