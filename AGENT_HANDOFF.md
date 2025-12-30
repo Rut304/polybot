@@ -1,10 +1,32 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 29, 2025  
+**Last Updated:** December 30, 2025  
 **Current Version:** v1.1.25 (Build #98)  
 **Bot Deployment:** v29 ACTIVE on AWS Lightsail (us-east-1)  
 **Admin UI:** Auto-deploys from GitHub to Vercel (admin-app → polyparlay.io)  
 **Status:** 🟢 RUNNING - Simulation Mode
+
+---
+
+## ⚠️ CRITICAL: VERCEL DEPLOYMENT RULES
+
+**NEVER** run `vercel` or `vercel --prod` from the CLI. This creates orphan projects!
+
+### Correct Deployment Method
+```bash
+# ALWAYS use Git push - Vercel auto-deploys from main branch
+git push origin main
+```
+
+### Why This Matters
+- The admin folder is linked to `admin-app` project (polyparlay.io)
+- Running `vercel` CLI can create duplicate projects
+- Git push triggers the correct auto-deploy
+
+### If You Need to Force Redeploy
+1. Make a trivial commit (whitespace, comment)
+2. `git push origin main`
+3. OR use the redeploy button in /admin page (requires deploy hook setup)
 
 ---
 
@@ -387,105 +409,89 @@ aws lightsail get-container-service-deployments --service-name polyparlay --regi
 
 ## 🚀 NEXT AGENT PROMPT
 
-Copy this comprehensive prompt to onboard the next engineer:
+**Copy everything below this line and paste as your first message:**
 
 ---
 
-**PROMPT FOR NEXT ENGINEER**
+I'm taking over as the lead engineer for PolyBot - an automated prediction market trading platform targeting production launch. Before I start any work, I need to fully understand this project.
 
-You are taking over as the CTO/CPO/Architect/Developer/QA for PolyBot.io - an automated prediction market trading platform. This is a real product with real users coming soon.
+## My First Actions
 
-### Quick Start (5 minutes)
+1. **Read the handoff document**: `cat /Users/rut/polybot/AGENT_HANDOFF.md`
+2. **Check bot health**: `curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .`
+3. **Run E2E tests**: `cd /Users/rut/polybot/admin && npx playwright test --reporter=line`
+4. **Review TODO.md** for priorities
+
+## What I Know About PolyBot
+
+- **Goal**: Automated algo trading on prediction markets (Polymarket, Kalshi) and traditional markets (Alpaca, IBKR)
+- **Tech Stack**: Python bot (AWS Lightsail), Next.js 14 admin (Vercel), Supabase PostgreSQL
+- **Current State**: Bot running v1.1.25 (Build #98), deployment v29 ACTIVE, simulation mode
+- **Admin URL**: https://polyparlay.io
+- **35+ trading strategies** implemented and configurable
+
+## Critical Rules
+
+1. **NEVER run `vercel` or `vercel --prod` CLI** - always use `git push origin main` for deployments
+2. **Check AGENT_HANDOFF.md first** before making any significant changes
+3. **Run E2E tests before and after changes**
+4. **The #1 priority is PERFECT ACCURACY** - all metrics, calculations, P&L must be 100% correct
+
+## Key Architecture
+
+```
+Admin Dashboard (Next.js) ←→ Supabase (PostgreSQL + RLS) ←→ Bot Engine (Python)
+        ↓                            ↓                            ↓
+    Vercel                      Database                     Lightsail
+  polyparlay.io              User data, trades,           35+ strategies
+                           config, positions               Multi-exchange
+```
+
+## Files I Should Read
+
+1. `AGENT_HANDOFF.md` - Complete project context (this gets updated each session)
+2. `TODO.md` - Prioritized task list  
+3. `src/bot_runner.py` - Main bot orchestrator (3800+ lines)
+4. `admin/e2e/metrics-accuracy.spec.ts` - Critical accuracy tests
+5. `docs/PAGE_ANALYSIS.md` - 42-page UI analysis
+
+## What Was Done Last Session (Dec 29-30)
+
+- ✅ Removed IB Gateway sidecar (was causing deploy failures)
+- ✅ Fixed Vercel deployment errors
+- ✅ Fixed E2E test failures (114 tests passing)
+- ✅ Deleted orphan "admin" Vercel project
+- ✅ Added Lightsail status widget to diagnostics
+- ✅ Created redeploy button (needs deploy hook setup)
+
+## What Needs To Happen Next
+
+1. **Perfect Metrics Accuracy** - P&L, win rate, ROI must match database exactly
+2. **E2E Test Completeness** - Tests should verify mathematical correctness
+3. **Data Consistency** - Same number should appear the same across all pages
+4. **User needs to create Vercel Deploy Hook** - for admin redeploy button
+
+## Commands I'll Use
 
 ```bash
-# 1. Clone and understand the project
-cd /Users/rut/polybot
-cat AGENT_HANDOFF.md  # This file - read it first!
-cat TODO.md           # Current priorities
-cat docs/STATUS_DEC29.md  # Latest status
-
-# 2. Check current status
+# Check bot status
 curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
 
-# 3. Run tests to verify everything works
-cd admin && npx playwright test --reporter=line
-
-# 4. Start local development
-npm run dev  # Admin at http://localhost:3000
-```
-
-### Your Mission
-
-The #1 goal is **PERFECT ACCURACY**. Every number, metric, and calculation must be 100% correct. Without this, we're just another SaaS bot that disappears.
-
-### Key Files to Read
-
-1. `AGENT_HANDOFF.md` - This file (complete project context)
-2. `TODO.md` - Prioritized task list
-3. `docs/PAGE_ANALYSIS.md` - UI consolidation recommendations
-4. `src/bot_runner.py` - Main bot logic (3800 lines)
-5. `admin/e2e/metrics-accuracy.spec.ts` - Critical accuracy tests
-6. `admin/e2e/data-verification.spec.ts` - Data consistency tests
-
-### Current Infrastructure
-
-- **Bot**: AWS Lightsail container (v1.1.25, Build #98)
-- **Admin**: Vercel (auto-deploys from GitHub main branch)
-- **Database**: Supabase (PostgreSQL with RLS)
-- **Monitoring**: Vercel Speed Insights, Lightsail Console
-
-### Trading Strategy Research
-
-- Read `docs/TRADING_STRATEGIES.md` for strategy explanations
-- Read `PROFITABLE_STRATEGIES.md` for confidence ratings
-- Check `ALGO_TRADING_DEEP_RESEARCH.md` for market analysis
-
-### Competition Analysis
-
-- Polymarket.com - largest prediction market
-- Kalshi.com - regulated US prediction market
-- Various GitHub bots - see ARBITRAGE_STRATEGY.md for analysis
-
-### What Success Looks Like
-
-1. All E2E tests pass (especially metrics-accuracy and data-verification)
-2. Dashboard numbers match database reality exactly
-3. Zero calculation errors in P&L, win rate, ROI
-4. Users trust the platform because numbers are always right
-5. Bot successfully executes profitable trades
-
-### Immediate Tasks
-
-1. Run `npx playwright test` and fix any failures
-2. Review TODO.md and prioritize
-3. Verify metrics accuracy across pages
-4. Test the deployed bot at polyparlay.io
-5. Check Vercel logs for any remaining errors
-
-### Commands You'll Use Often
-
-```bash
-# Deploy bot
+# Deploy bot to Lightsail
 ./scripts/deploy.sh
 
-# Build admin
-cd admin && npm run build
+# Deploy admin (via Git push)
+git push origin main
 
-# Run tests
+# Run E2E tests
 cd admin && npx playwright test
 
-# Check bot status
-curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status"
-
-# Check Lightsail deployment
+# Check Lightsail deployments
 aws lightsail get-container-service-deployments --service-name polyparlay --region us-east-1
-
-# Push to deploy admin
-git push origin main  # Auto-deploys to Vercel
 ```
 
-Good luck! Make this the trading platform that actually works.
+Please start by telling me the current state of the project - run the health check and E2E tests, then summarize what's working and what needs attention.
 
 ---
 
-**End of Agent Handoff Document**
+**END OF NEXT AGENT PROMPT**
