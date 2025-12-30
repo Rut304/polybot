@@ -126,10 +126,9 @@ from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
-# Set up database logging (writes to Supabase for admin UI)
-# Note: Actual user_id binding happens inside runner if needed, 
-# but we can setup global handler here for legacy support
-db_log_handler = setup_database_logging()
+# NOTE: Database logging (setup_database_logging) is now called AFTER
+# logging.basicConfig() in main() to ensure stdout logging works first.
+# Previously this was called at module import time which broke stdout logs.
 
 
 class PolybotRunner:
@@ -3559,12 +3558,30 @@ def setup_signal_handlers(runner: PolybotRunner, loop: asyncio.AbstractEventLoop
 
 async def main():
     """Main entry point."""
-    # Configure logging
+    # Configure logging with force=True to override module-level handlers
+    # The DatabaseLogHandler added at import time prevents basicConfig from
+    # adding a StreamHandler to stdout, so we use force=True (Python 3.8+)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        force=True,  # CRITICAL: Override pre-existing handlers
     )
+    
+    # Also ensure we have stdout logging for container logs
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+    logging.getLogger().addHandler(console_handler)
+    
+    # NOW add database logging (after stdout is configured)
+    # This writes logs to Supabase for the admin UI
+    setup_database_logging()
+    
+    logger.info("🚀 PolyBot starting up...")
     
     # Global reference to bot runner for health server
     global_runner = {'instance': None}
