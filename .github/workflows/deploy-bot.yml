@@ -41,6 +41,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         
+      # CRITICAL: Validate required secrets BEFORE any deployment
+      # This prevents deploying with missing environment variables
+      - name: Validate required secrets
+        run: |
+          echo "Validating required secrets..."
+          MISSING=""
+          
+          # Check SUPABASE - bot cannot function without these
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            MISSING="$MISSING SUPABASE_URL"
+          fi
+          if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            MISSING="$MISSING SUPABASE_SERVICE_ROLE_KEY"
+          fi
+          
+          # Check AWS credentials
+          if [ -z "${{ secrets.AMAZON_ACCESS_KEY_ID }}" ]; then
+            MISSING="$MISSING AMAZON_ACCESS_KEY_ID"
+          fi
+          if [ -z "${{ secrets.AMAZON_SECRET_ACCESS_KEY }}" ]; then
+            MISSING="$MISSING AMAZON_SECRET_ACCESS_KEY"
+          fi
+          
+          if [ -n "$MISSING" ]; then
+            echo "::error::DEPLOYMENT BLOCKED - Missing required secrets:$MISSING"
+            echo "Add these secrets in GitHub Settings > Secrets > Actions"
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are configured"
+        
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -139,12 +170,13 @@ jobs:
             --region "$AWS_REGION"
             
       - name: Update BUILD file
+        continue-on-error: true
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add BUILD
-          git commit -m "Bump build to #${{ steps.version.outputs.BUILD }} [skip ci]"
-          git push
+          git commit -m "Bump build to #${{ steps.version.outputs.BUILD }} [skip ci]" || true
+          git push || echo "Could not push BUILD update (may need workflow permissions)"
           
       - name: Wait for deployment
         run: |
@@ -158,15 +190,31 @@ jobs:
             
             if [ "$STATE" = "RUNNING" ]; then
               echo "✅ Deployment successful! State: $STATE"
-              exit 0
+              break
             fi
             
             echo "State: $STATE (attempt $i/30)"
             sleep 20
           done
           
-          echo "⚠️ Deployment may still be in progress"
-          
-      - name: Verify deployment
+      - name: Verify bot is actually working
         run: |
-          curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
+          echo "Verifying bot is functional..."
+          sleep 30  # Give bot time to initialize
+          
+          # Check status endpoint
+          STATUS=$(curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status")
+          echo "Status: $STATUS"
+          
+          # Check debug endpoint - this will tell us if bot_runner initialized
+          DEBUG=$(curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/debug/secrets")
+          echo "Debug: $DEBUG"
+          
+          # If debug returns "Bot not initialized", deployment failed
+          if echo "$DEBUG" | grep -q "Bot not initialized"; then
+            echo "::error::❌ DEPLOYMENT FAILED - Bot did not initialize properly!"
+            echo "Check Lightsail logs: aws lightsail get-container-log --service-name polyparlay --container-name polybot --region us-east-1"
+            exit 1
+          fi
+          
+          echo "✅ Bot verified - deployment successful!"
