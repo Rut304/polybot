@@ -441,6 +441,31 @@ class TradingConfig:
     whale_balance_proportional: bool = True        # Size based on balance ratio
     whale_max_balance_pct: float = 10.0            # Max % of balance per copy
 
+    # =========================================================================
+    # STOCK STRATEGIES (Advanced - UI Toggles Exist)
+    # These have UI toggles and DB columns but were missing here
+    # =========================================================================
+    enable_sector_rotation: bool = False      # Sector rotation ETF
+    enable_dividend_growth: bool = False      # Dividend growth picks
+    enable_earnings_momentum: bool = False    # Earnings momentum
+
+    # =========================================================================
+    # OPTIONS STRATEGIES (IBKR Required)
+    # These require IBKR integration for options trading
+    # =========================================================================
+    enable_covered_calls: bool = False        # Covered call writing
+    enable_cash_secured_puts: bool = False    # Cash-secured puts
+    enable_iron_condor: bool = False          # Iron condor spreads
+    enable_wheel_strategy: bool = False       # Wheel (CSP + CC)
+
+    # =========================================================================
+    # ADDITIONAL CRYPTO/LIQUIDATION STRATEGIES
+    # Cross-exchange and liquidation strategies
+    # =========================================================================
+    enable_cross_exchange_arb: bool = False   # Cross-exchange arb
+    enable_polymarket_liquidation: bool = False  # Liquidation hunting
+    enable_ibkr_futures_momentum: bool = False  # IBKR futures mom
+
 
 @dataclass
 class PolymarketConfig:

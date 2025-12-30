@@ -86,7 +86,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 234,
     rating: 4.8,
     reviewCount: 127,
-    configKey: 'single_platform_arb_enabled',
+    configKey: 'enable_polymarket_single_arb',
   },
   {
     id: 'crypto_15min_scalping',
@@ -111,7 +111,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 189,
     rating: 4.5,
     reviewCount: 89,
-    configKey: 'crypto_15min_scalping_enabled',
+    configKey: 'enable_15min_crypto_scalping',
   },
   {
     id: 'news_arbitrage',
@@ -136,7 +136,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 145,
     rating: 4.3,
     reviewCount: 56,
-    configKey: 'news_arbitrage_enabled',
+    configKey: 'enable_news_arbitrage',
   },
   {
     id: 'cross_platform_arb',
@@ -161,7 +161,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 98,
     rating: 4.7,
     reviewCount: 43,
-    configKey: 'cross_platform_arb_enabled',
+    configKey: 'enable_cross_platform_arb',
   },
   {
     id: 'ai_superforecasting',
@@ -211,7 +211,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 156,
     rating: 4.4,
     reviewCount: 67,
-    configKey: 'congressional_trading_enabled',
+    configKey: 'enable_congressional_tracker',
   },
   {
     id: 'market_making',
@@ -236,7 +236,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 89,
     rating: 4.2,
     reviewCount: 34,
-    configKey: 'market_making_enabled',
+    configKey: 'enable_market_making',
   },
   {
     id: 'btc_bracket_arb',
@@ -261,7 +261,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 34,
     rating: 4.9,
     reviewCount: 12,
-    configKey: 'btc_bracket_arb_enabled',
+    configKey: 'enable_btc_bracket_arb',
   },
   {
     id: 'whale_copy',
@@ -286,7 +286,7 @@ const MARKETPLACE_STRATEGIES: MarketplaceStrategy[] = [
     usersActive: 23,
     rating: 4.7,
     reviewCount: 8,
-    configKey: 'whale_copy_enabled',
+    configKey: 'enable_whale_copy_trading',
   },
 ];
 
