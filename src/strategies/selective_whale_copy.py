@@ -521,7 +521,7 @@ class SelectiveWhaleCopyStrategy:
         total_pnl = sum(w.copy_pnl for w in selected)
         total_copies = sum(w.copy_trades for w in selected)
         total_wins = sum(w.copy_wins for w in selected)
-        
+
         return {
             "enabled": self.enabled,
             "tracked_whales": len(self.tracked_whales),
@@ -543,3 +543,11 @@ class SelectiveWhaleCopyStrategy:
                 "max_days_inactive": self.max_days_inactive,
             },
         }
+
+    def stop(self):
+        """Stop the strategy and clean up resources."""
+        logger.info("SelectiveWhaleCopyStrategy stopping...")
+        self.enabled = False
+        self.pending_copies.clear()
+        self.active_copies.clear()
+        logger.info("SelectiveWhaleCopyStrategy stopped")

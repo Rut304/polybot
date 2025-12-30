@@ -491,3 +491,11 @@ class HighConvictionStrategy:
                 self.last_trade_at.isoformat() if self.last_trade_at else None
             ),
         }
+
+    def stop(self):
+        """Stop the strategy and clean up resources."""
+        logger.info("HighConvictionStrategy stopping...")
+        self.enabled = False
+        self.active_opportunities.clear()
+        self.pending_signals.clear()
+        logger.info("HighConvictionStrategy stopped")
