@@ -1283,6 +1283,51 @@ export default function DiagnosticsPage() {
             Logs
           </a>
         </div>
+        
+        {/* External Monitoring Links */}
+        <h3 className="text-sm font-medium text-gray-400 mb-3 mt-6">External Monitoring</h3>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="https://vercel.com/rut304s-projects/admin-app/speed-insights"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-purple-600/20 border border-purple-500/50 rounded-lg text-sm text-purple-400 hover:bg-purple-600/30 transition-colors flex items-center gap-2"
+          >
+            <Zap className="w-4 h-4" />
+            Vercel Speed Insights
+            <ExternalLink className="w-3 h-3" />
+          </a>
+          <a
+            href="https://vercel.com/rut304s-projects/admin-app/logs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
+          >
+            <Terminal className="w-4 h-4" />
+            Vercel Logs
+            <ExternalLink className="w-3 h-3" />
+          </a>
+          <a
+            href="https://lightsail.aws.amazon.com/ls/webapp/us-east-1/container-services/polyparlay/deployments"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-orange-600/20 border border-orange-500/50 rounded-lg text-sm text-orange-400 hover:bg-orange-600/30 transition-colors flex items-center gap-2"
+          >
+            <Server className="w-4 h-4" />
+            AWS Lightsail Bot
+            <ExternalLink className="w-3 h-3" />
+          </a>
+          <a
+            href="https://supabase.com/dashboard/project/sjezgpczpcdaegfajsqd"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-green-600/20 border border-green-500/50 rounded-lg text-sm text-green-400 hover:bg-green-600/30 transition-colors flex items-center gap-2"
+          >
+            <Database className="w-4 h-4" />
+            Supabase Dashboard
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
       </div>
     </div>
   );
