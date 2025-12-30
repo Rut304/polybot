@@ -37,10 +37,18 @@ test.describe('P&L Calculation Verification', () => {
       const trades = tradesData.trades || tradesData || [];
       
       if (Array.isArray(trades) && trades.length > 0) {
-        // Calculate P&L from trades
+        // Calculate P&L from trades (excluding failed executions)
         let calculatedPnL = 0;
         for (const trade of trades) {
-          const profit = parseFloat(trade.profit || trade.pnl || trade.realized_pnl || 0);
+          // Support multiple field names for profit
+          const profit = parseFloat(
+            trade.actual_profit_usd || trade.profit || trade.pnl || trade.realized_pnl || 0
+          );
+          const outcome = trade.outcome || trade.status || '';
+          
+          // Skip failed executions in calculation
+          if (outcome === 'failed_execution') continue;
+          
           if (!isNaN(profit)) {
             calculatedPnL += profit;
           }
@@ -109,19 +117,21 @@ test.describe('Win Rate Calculation Verification', () => {
       const trades = tradesData.trades || tradesData || [];
       
       if (Array.isArray(trades) && trades.length > 0) {
-        // Count wins and total
+        // Count wins and total (excluding failed executions and pending)
         let wins = 0;
         let total = 0;
         
         for (const trade of trades) {
-          const status = trade.status || trade.result || '';
-          const profit = parseFloat(trade.profit || trade.pnl || 0);
+          const outcome = trade.outcome || trade.status || trade.result || '';
+          const profit = parseFloat(
+            trade.actual_profit_usd || trade.profit || trade.pnl || 0
+          );
           
-          // Skip pending trades
-          if (status === 'pending' || status === 'open') continue;
+          // Skip pending and failed execution trades
+          if (outcome === 'pending' || outcome === 'open' || outcome === 'failed_execution') continue;
           
           total++;
-          if (profit > 0 || status === 'won' || status === 'win') {
+          if (profit > 0 || outcome === 'won' || outcome === 'win') {
             wins++;
           }
         }
