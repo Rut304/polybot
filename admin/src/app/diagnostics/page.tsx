@@ -125,6 +125,39 @@ export default function DiagnosticsPage() {
   const [e2eStatus, setE2eStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
   const [e2eResults, setE2eResults] = useState<{ passed: number; failed: number; total: number; output: string } | null>(null);
   const [e2eRunning, setE2eRunning] = useState(false);
+  
+  // Lightsail container status
+  interface ContainerStatus {
+    health: string;
+    status: string;
+    version: string;
+    build: number | string;
+    fullVersion: string;
+    url: string;
+    checkedAt: string;
+  }
+  const [containerStatus, setContainerStatus] = useState<ContainerStatus | null>(null);
+  const [containerLoading, setContainerLoading] = useState(false);
+
+  // Fetch container status on mount and provide refresh function
+  const fetchContainerStatus = async () => {
+    setContainerLoading(true);
+    try {
+      const response = await fetch('/api/admin/lightsail');
+      const data = await response.json();
+      if (data.success && data.container) {
+        setContainerStatus(data.container);
+      }
+    } catch (error) {
+      console.error('Failed to fetch container status:', error);
+    } finally {
+      setContainerLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContainerStatus();
+  }, []);
 
   const updateTest = (categoryIndex: number, testIndex: number, updates: Partial<TestResult>) => {
     setCategories(prev => {
@@ -1241,6 +1274,67 @@ export default function DiagnosticsPage() {
             </a>
           </div>
         </div>
+      </div>
+
+      {/* Bot Container Status */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-400">Bot Container Status</h3>
+          <button
+            onClick={fetchContainerStatus}
+            disabled={containerLoading}
+            className="p-1 hover:bg-gray-700 rounded transition-colors"
+            title="Refresh status"
+          >
+            <RefreshCw className={`w-4 h-4 ${containerLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+        {containerStatus ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-3 h-3 rounded-full ${containerStatus.health === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-lg font-semibold">
+                {containerStatus.health === 'healthy' ? 'Running' : 'Issues Detected'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-gray-400">Version</p>
+                <p className="font-mono">{containerStatus.fullVersion || containerStatus.version}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Build</p>
+                <p className="font-mono">#{containerStatus.build}</p>
+              </div>
+              <div>
+                <p className="text-gray-400">Status</p>
+                <p className={containerStatus.status === 'running' ? 'text-green-400' : 'text-yellow-400'}>
+                  {containerStatus.status}
+                </p>
+              </div>
+              <div>
+                <p className="text-gray-400">Last Checked</p>
+                <p className="text-xs">{new Date(containerStatus.checkedAt).toLocaleTimeString()}</p>
+              </div>
+            </div>
+            <a
+              href={containerStatus.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+            >
+              <Globe className="w-3 h-3" />
+              {containerStatus.url.replace('https://', '').split('/')[0]}
+            </a>
+          </div>
+        ) : containerLoading ? (
+          <div className="flex items-center gap-2 text-gray-400">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            Loading container status...
+          </div>
+        ) : (
+          <p className="text-gray-500">Unable to fetch container status</p>
+        )}
       </div>
 
       {/* Quick Actions */}
