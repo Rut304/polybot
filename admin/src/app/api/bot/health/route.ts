@@ -22,7 +22,7 @@ export async function GET() {
     // 1. Check polybot_status for running status and heartbeat
     const { data: statusData, error: statusError } = await supabase
       .from('polybot_status')
-      .select('is_running, last_started_at, started_by, last_heartbeat_at, version')
+      .select('is_running, last_started_at, last_heartbeat_at, version')
       .limit(1)
       .single();
 
@@ -139,7 +139,6 @@ export async function GET() {
       bot: {
         isRunning,
         lastStarted,
-        startedBy: statusData?.started_by,
         endpoint: botEndpointStatus,
         version: botVersion,
       },
