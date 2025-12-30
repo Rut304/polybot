@@ -342,6 +342,7 @@ export default function UsersPage() {
                   className="flex-1 bg-dark-border border border-dark-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <option value="admin">Admin</option>
+                  <option value="user">Standard User</option>
                   <option value="viewer">Read Only</option>
                 </select>
                 {user.id !== currentUser?.id && (

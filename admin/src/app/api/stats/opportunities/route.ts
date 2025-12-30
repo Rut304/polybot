@@ -6,13 +6,20 @@ import { createClient } from '@supabase/supabase-js';
 // Returns count of opportunities found in the last 24 hours
 // ============================================================================
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const getSupabase = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+};
 
 export async function GET() {
   try {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return NextResponse.json({ opportunities: 0, error: 'Not configured' });
+    }
+
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     

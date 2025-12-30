@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Gift,
   Trash2,
+  Rocket,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -74,6 +75,35 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedUser, setSelectedUser] = useState<CustomerProfile | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [isRedeploying, setIsRedeploying] = useState(false);
+  const [redeployMessage, setRedeployMessage] = useState<string | null>(null);
+
+  // Redeploy dashboard handler
+  const handleRedeploy = async () => {
+    if (!confirm('Are you sure you want to redeploy the admin dashboard? This will take 1-2 minutes.')) {
+      return;
+    }
+    
+    setIsRedeploying(true);
+    setRedeployMessage(null);
+    
+    try {
+      const response = await fetch('/api/admin/redeploy', { method: 'POST' });
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to trigger deployment');
+      }
+      
+      setRedeployMessage('✓ Deployment triggered! Site will update in 1-2 minutes.');
+      setTimeout(() => setRedeployMessage(null), 10000);
+    } catch (err: any) {
+      setRedeployMessage(`✗ ${err.message}`);
+      setTimeout(() => setRedeployMessage(null), 10000);
+    } finally {
+      setIsRedeploying(false);
+    }
+  };
 
   // Fetch all customers
   const { data: customers = [], isLoading, refetch } = useQuery<CustomerProfile[]>({
@@ -180,14 +210,34 @@ export default function AdminDashboardPage() {
             Support Chat
           </Link>
           <button
+            onClick={handleRedeploy}
+            disabled={isRedeploying}
+            title="Redeploy Admin Dashboard"
+            className="px-4 py-2 bg-orange-500/20 border border-orange-500/50 text-orange-400 rounded-lg hover:bg-orange-500/30 transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <Rocket className={cn("w-4 h-4", isRedeploying && "animate-pulse")} />
+            {isRedeploying ? 'Deploying...' : 'Redeploy'}
+          </button>
+          <button
             onClick={() => refetch()}
             disabled={isLoading}
+            title="Refresh customer data"
             className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-dark-border transition-colors"
           >
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
           </button>
         </div>
       </div>
+
+      {/* Redeploy Message */}
+      {redeployMessage && (
+        <div className={cn(
+          "px-4 py-3 rounded-lg",
+          redeployMessage.startsWith('✓') ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
+        )}>
+          {redeployMessage}
+        </div>
+      )}
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">

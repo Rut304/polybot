@@ -1,14 +1,24 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Use service role key for reading bot status
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Create supabase client lazily to avoid build-time errors
+const getSupabase = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key);
+};
 
 export async function GET() {
   try {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return NextResponse.json({ 
+        healthy: false, 
+        error: 'Database not configured' 
+      }, { status: 500 });
+    }
+
     // 1. Check polybot_status for running status and heartbeat
     const { data: statusData, error: statusError } = await supabase
       .from('polybot_status')

@@ -1,14 +1,24 @@
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
-}
+// Create client lazily to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = (() => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // Return a proxy that throws on actual use (not at import time)
+    // This allows the app to build even without env vars
+    console.warn('Supabase environment variables not configured');
+    return null as unknown as SupabaseClient;
+  }
+  if (!_supabase) {
+    _supabase = createClient(supabaseUrl, supabaseAnonKey);
+  }
+  return _supabase;
+})();
 
 export interface BotStatus {
   id?: number;

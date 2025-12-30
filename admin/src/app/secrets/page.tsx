@@ -227,6 +227,66 @@ export default function SecretsPage() {
     fetchSecrets();
   }, []);
 
+  // Auto-test connections for configured platforms on initial load
+  useEffect(() => {
+    let cancelled = false;
+    const testedPlatforms = new Set<string>();
+    
+    const autoTestConnections = async () => {
+      // Wait until secrets are loaded
+      if (loading || secrets.length === 0) return;
+      
+      // Get all testable platforms
+      const allPlatforms = Object.values(TESTABLE_PLATFORMS).flat();
+      
+      // Check which platforms have credentials configured
+      for (const platform of allPlatforms) {
+        if (cancelled || testedPlatforms.has(platform)) continue;
+        
+        // Check if any secret for this platform is configured
+        const platformSecrets = secrets.filter(s => 
+          s.key_name.toLowerCase().includes(platform.toLowerCase()) && 
+          s.is_configured
+        );
+        
+        if (platformSecrets.length > 0) {
+          testedPlatforms.add(platform);
+          
+          // Test this platform's connection
+          try {
+            const response = await fetch('/api/test-connection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ platform }),
+            });
+            
+            if (cancelled) return;
+            
+            const result = await response.json();
+            
+            setConnectionStatus(prev => ({
+              ...prev,
+              [platform]: {
+                connected: result.connected,
+                balance: result.balance,
+                error: result.error,
+                details: result.details,
+                lastChecked: new Date(),
+              },
+            }));
+          } catch (err) {
+            // Silently fail - user can manually test if needed
+            console.log(`Auto-test for ${platform} failed:`, err);
+          }
+        }
+      }
+    };
+    
+    autoTestConnections();
+    
+    return () => { cancelled = true; };
+  }, [secrets, loading]); // Re-run when secrets finish loading
+
   // Auto-expire reauth session
   useEffect(() => {
     if (reauthTime) {
@@ -943,9 +1003,22 @@ export default function SecretsPage() {
                 {/* Connection Status Indicators */}
                 {TESTABLE_PLATFORMS[category]?.map(platform => {
                   const status = connectionStatus[platform];
+                  const isCurrentlyTesting = testingConnection === platform;
+                  
+                  // Check if this platform has credentials configured
+                  const hasCredentials = secrets.some(s => 
+                    s.key_name.toLowerCase().includes(platform.toLowerCase()) && 
+                    s.is_configured
+                  );
+                  
                   return (
                     <div key={platform} className="flex items-center gap-1">
-                      {status && (
+                      {isCurrentlyTesting ? (
+                        <span className="text-xs px-2 py-1 rounded-lg flex items-center gap-1 bg-blue-500/20 text-blue-400 animate-pulse">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          {platform}
+                        </span>
+                      ) : status ? (
                         <span className={`text-xs px-2 py-1 rounded-lg flex items-center gap-1 ${
                           status.connected 
                             ? 'bg-green-500/20 text-green-400' 
@@ -954,7 +1027,12 @@ export default function SecretsPage() {
                           {status.connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
                           {platform}
                         </span>
-                      )}
+                      ) : hasCredentials ? (
+                        <span className="text-xs px-2 py-1 rounded-lg flex items-center gap-1 bg-yellow-500/20 text-yellow-400">
+                          <Key className="w-3 h-3" />
+                          {platform} (configured)
+                        </span>
+                      ) : null}
                     </div>
                   );
                 })}
