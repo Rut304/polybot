@@ -1,351 +1,491 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** $(date +%Y-%m-%d)  
-**Current Version:** v1.2.0 (Build #81)  
-**Deployment:** v5 on AWS Lightsail  
-**Status:** 🟢 RUNNING - Simulation Mode with ULTRA AGGRESSIVE settings
+**Last Updated:** December 29, 2025  
+**Current Version:** v1.1.25 (Build #98)  
+**Bot Deployment:** v29 ACTIVE on AWS Lightsail (us-east-1)  
+**Admin UI:** Auto-deploys from GitHub to Vercel (admin-app → polyparlay.io)  
+**Status:** 🟢 RUNNING - Simulation Mode
 
 ---
 
-## 🆕 LATEST UPDATES (Session: Admin UI Enhancement)
+## 🎯 MISSION CRITICAL: THE PATH TO PRODUCTION
 
-### Strategies Page Overhaul
+### Why This Project Matters
 
-The strategies page has been completely redesigned with:
+PolyBot aims to be **THE** automated prediction market trading platform - not another "SaaS bot that disappears." The key differentiator is **PERFECT ACCURACY** in all metrics, calculations, and data consistency.
 
-- **Strategy Detail Modals** - Click any strategy to see full details including:
-  - Platforms supported
-  - Key points and rationale
-  - Step-by-step workflow
-  - Requirements
-  - All configurable settings
-- **Strategy Toggles** - Enable/disable each strategy directly
-- **Inline Settings** - Configure strategy parameters without leaving the page
-- **All 35+ strategies** now have complete details with keyPoints, platforms, and workflow arrays
+### Current Phase: Pre-Production Validation
 
-### Settings Page Cleanup
+We are in the final stretch before accepting paying customers. The critical path is:
 
-The settings page has been streamlined:
-
-- **Removed duplicate strategy controls** - All strategy toggles and settings moved to dedicated Strategies page
-- **Added redirect card** - Points users to Strategies page for strategy configuration
-- **Reduced from 6000+ lines to ~2500 lines** - Cleaner, more focused settings page
-- **Kept essential settings:**
-  - Master Controls (Bot status, Dry Run mode)
-  - Platform Connections (Polymarket, Kalshi)
-  - Starting Balances
-  - Trading Parameters
-  - Exchange Connections
-  - Simulation Realism
-  - Danger Zone (reset)
-
-### Analytics Page Enhancements
-
-Added "world-class" visualizations:
-
-- **High-Performance Strategy Cards** - Special cards for new strategies (15-Min Scalping, AI Superforecasting)
-- **Strategy Leaderboard** - Top 10 strategies ranked by score (win_rate × avg_profit)
-- **Live Trade Feed** - Last 10 trades with real-time styling
-- **Advanced Risk Metrics** - VaR 95%, Calmar Ratio, Recovery Factor, Kelly Fraction
-
-### Workflows Page Updates
-
-Added new strategy workflows:
-
-- `crypto_15min_scalping` workflow with full step-by-step visualization
-- `ai_superforecasting` workflow with reasoning chain details
+1. ✅ **Core Infrastructure** - AWS Lightsail + Supabase + Vercel (COMPLETE)
+2. ✅ **35+ Trading Strategies** - All implemented and configurable (COMPLETE)
+3. ✅ **Admin Dashboard** - 42 pages, full control (COMPLETE)
+4. 🔄 **E2E Testing Suite** - 261+ tests, needs data verification (IN PROGRESS)
+5. ⚠️ **Perfect Accuracy** - Metrics must match reality 100% (CRITICAL)
+6. ⏳ **Live Trading** - Enable real money after validation (PENDING)
 
 ---
 
-## 🆕 PREVIOUS SESSION: New Strategies Implementation
+## 🆕 SESSION COMPLETED: December 29, 2025
 
-### New Strategies Added (HIGH PRIORITY)
+### Major Accomplishments
 
-Two powerful new strategies were implemented based on Twitter research and GitHub bot analysis:
+#### 1. Bot Deployment Fixed (v29 ACTIVE)
 
-#### 1. 15-Minute Crypto Scalping (90% CONFIDENCE)
+- **Root Cause**: IB Gateway sidecar container was still in deploy.sh after Web API migration
+- **Fix**: Removed IB Gateway container - bot now uses IBKRWebClient (REST API) only
+- **Result**: Deployment v29 successful - bot running Build #98
 
-**File:** `src/strategies/crypto_15min_scalping.py`
+#### 2. Vercel Deployment Errors Fixed
 
-Based on documented Twitter success ($956 → $208K):
+- Added `export const dynamic = 'force-dynamic'` to `/api/ibkr/quote` route
+- Removed `started_by` column reference (doesn't exist in polybot_status table)
+- Build succeeds locally and on Vercel
 
-- Targets 15-minute BTC/ETH binary options on Polymarket
-- Entry when YES price < 45¢ (configurable)
-- Uses Kelly Criterion position sizing (quarter-Kelly default)
-- Ultra-fast 2-second scan intervals
-- Tracks trades in `polybot_scalp_trades` Supabase table
+#### 3. E2E Tests Fixed & Passing
 
-**Config Keys:**
+- Fixed timeout issues in metrics-accuracy.spec.ts
+- Fixed navigation errors in data-verification.spec.ts
+- All 114 metrics/data tests now pass
 
-- `enable_15min_crypto_scalping` (bool, default: false)
-- `crypto_scalp_entry_threshold` (float, default: 0.45)
-- `crypto_scalp_max_position_usd` (float, default: 100.0)
-- `crypto_scalp_scan_interval_sec` (int, default: 2)
-- `crypto_scalp_kelly_fraction` (float, default: 0.25)
+#### 4. Diagnostics Page Enhanced
 
-#### 2. AI Superforecasting (85% CONFIDENCE)
+- Added Lightsail container status widget (live health check)
+- Added external monitoring links (Vercel Speed Insights, Lightsail Console, Supabase)
+- Created `/api/admin/lightsail` endpoint
 
-**File:** `src/strategies/ai_superforecasting.py`
+#### 5. Redeploy Button Added
 
-Gemini-powered market analysis based on BlackSky bot architecture:
+- Added "Redeploy Dashboard" button to /admin page
+- Requires `VERCEL_DEPLOY_HOOK_URL` environment variable
 
-- Uses Google Gemini API to estimate market probabilities
-- Trades when AI estimate diverges >10% from market consensus
-- Calibrated prompts for superforecaster-style reasoning
-- Caches forecasts in `polybot_ai_forecasts` Supabase table
+#### 6. IB Gateway Investigation & Removal
 
-**Config Keys:**
-
-- `enable_ai_superforecasting` (bool, default: false)
-- `ai_model` (str, default: "gemini-1.5-flash")
-- `ai_min_divergence_pct` (float, default: 10.0)
-- `ai_min_confidence` (float, default: 0.65)
-- `ai_max_position_usd` (float, default: 100.0)
-
-**Required:** `GEMINI_API_KEY` in `.env` (already added)
-
-### Strategy Enhancements
-
-#### Whale Copy Trading - Slippage Protection (NEW)
-
-**File:** `src/strategies/whale_copy_trading.py`
-
-Added slippage protection to prevent copying into moved markets:
-
-- `whale_slippage_enabled` (bool, default: true)
-- `whale_max_slippage_pct` (float, default: 5.0) - Skip if price moved >5%
-- `whale_balance_proportional` (bool, default: true)
-- `whale_max_balance_pct` (float, default: 10.0) - Cap at 10% of balance
-
-### Faster Polling Intervals (UPDATED)
-
-Based on Twitter research, faster scanning catches more opportunities:
-
-- **BTC Bracket Arb:** 15s → 2s (7.5x faster)
-- **Cross-Platform Arb:** 10s → 3s (3.3x faster)
-
-### Admin UI Updates
-
-Added new strategy cards and documentation:
-
-- `admin/src/app/strategies/page.tsx` - Added 15-Min Crypto Scalping and AI Superforecasting cards
-- `admin/src/app/docs/page.tsx` - Added comprehensive documentation for both new strategies
+- **What**: Heavyweight Docker container running IBKR Trader Workstation headlessly
+- **Problem**: Too resource-intensive for Lightsail micro tier, caused deployment failures
+- **Solution**: Already migrated to IBKRWebClient (REST API) - just needed cleanup
+- **Commit**: `cbd0b0f` - Removed from deploy.sh
 
 ---
 
-## 📁 FILES CREATED
+## 📊 CURRENT STATUS MATRIX
 
-| File | Purpose |
-|------|---------|
-| `src/strategies/crypto_15min_scalping.py` | 15-min BTC/ETH binary scalping strategy |
-| `src/strategies/ai_superforecasting.py` | Gemini AI probability estimation |
-| `IMPLEMENTATION_TRACKER.md` | Implementation progress tracking |
-
-## 📝 FILES MODIFIED
-
-| File | Changes |
-|------|---------|
-| `src/config.py` | Added new strategy config options |
-| `src/bot_runner.py` | Wired up new strategies |
-| `src/strategies/whale_copy_trading.py` | Added slippage protection |
-| `.env` | Added GEMINI_API_KEY |
-| `admin/src/app/strategies/page.tsx` | **Major overhaul:** Added detail modals, full strategy info (keyPoints, platforms, workflow), toggles, inline settings for all 35+ strategies |
-| `admin/src/app/settings/page.tsx` | **Streamlined:** Removed duplicate strategy sections (~3500 lines removed), added redirect card to Strategies page |
-| `admin/src/app/analytics/page.tsx` | Added world-class visualizations: strategy leaderboard, live trade feed, advanced risk metrics |
-| `admin/src/app/workflows/page.tsx` | Added new strategy workflows |
-| `admin/src/app/docs/page.tsx` | Added new strategy documentation |
+| Component | Status | Version | Notes |
+|-----------|--------|---------|-------|
+| Bot (Lightsail) | 🟢 RUNNING | v1.1.25 (Build #98) | Deployment v29 ACTIVE |
+| Admin UI (Vercel) | 🟢 LIVE | Auto-deploy | polyparlay.io |
+| Supabase | 🟢 HEALTHY | N/A | RLS enabled |
+| E2E Tests | 🟡 261 tests | 16 spec files | Some need data validation |
+| Metrics Accuracy | ⚠️ NEEDS VALIDATION | N/A | Critical for production |
+| Live Trading | ⏸️ DISABLED | Simulation only | Enable after validation |
 
 ---
 
-## 🔑 API KEYS ADDED
+## 🏗️ ARCHITECTURE OVERVIEW
 
-| Key | Location | Status |
-|-----|----------|--------|
-| `GEMINI_API_KEY` | `.env` | ✅ Added |
-| `TWITTER_BEARER_TOKEN` | `.env` | ✅ Existing (rate limited) |
-| `TWITTER_API_KEY` | `.env` | ✅ Existing |
-| `TWITTER_API_SECRET` | `.env` | ✅ Existing |
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              POLYBOT ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌─────────────────────┐         ┌─────────────────────────────────────┐   │
+│   │   ADMIN DASHBOARD   │         │         BOT ENGINE (Python)          │   │
+│   │   (Next.js 14)      │         │         AWS Lightsail                │   │
+│   │                     │         │                                       │   │
+│   │  • 42 pages         │  HTTP   │  • 35+ trading strategies            │   │
+│   │  • Vercel hosted    │ ◄─────► │  • Multi-exchange support            │   │
+│   │  • polyparlay.io    │         │  • Heartbeat monitoring              │   │
+│   └─────────────────────┘         │  • Simulation & Live modes           │   │
+│            │                       └─────────────────────────────────────┘   │
+│            │                                        │                        │
+│            ▼                                        ▼                        │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                         SUPABASE (PostgreSQL)                        │   │
+│   │                                                                       │   │
+│   │  • polybot_config          - Bot configuration                       │   │
+│   │  • polybot_simulated_trades - All trade history                      │   │
+│   │  • polybot_positions       - Current positions                       │   │
+│   │  • polybot_status          - Bot health/heartbeat                    │   │
+│   │  • polybot_profiles        - User management                         │   │
+│   │  • polybot_secrets         - API keys (encrypted columns ready)      │   │
+│   │  • polybot_teams           - Team/collaboration                      │   │
+│   │  • user_exchange_credentials - Per-user exchange OAuth               │   │
+│   │                                                                       │   │
+│   │  RLS ENABLED ✓                                                       │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                           EXCHANGES                                   │   │
+│   │                                                                       │   │
+│   │  • Polymarket (CLOB + Gamma API)    • Kalshi                         │   │
+│   │  • Alpaca (Stocks)                  • IBKR (Web API - OAuth)         │   │
+│   │                                                                       │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 🗄️ DATABASE TABLES (User Created in Supabase)
+## 📁 KEY FILES & DIRECTORIES
 
-The following tables need to exist in Supabase for the new strategies:
+### Python Bot (`/Users/rut/polybot/src/`)
+
+```
+src/
+├── bot_runner.py           # Main orchestrator (3800+ lines)
+├── config.py               # All configuration (1500+ lines)
+├── exchanges/
+│   ├── polymarket_client.py   # Polymarket CLOB integration
+│   ├── kalshi_client.py       # Kalshi API integration
+│   ├── alpaca_client.py       # Stock trading via Alpaca
+│   ├── ibkr_web_client.py     # IBKR REST API (OAuth) - PREFERRED
+│   └── ibkr_client.py         # Legacy ib_insync (local only)
+└── strategies/
+    ├── arbitrage_*.py         # Arbitrage strategies
+    ├── whale_copy_trading.py  # Whale following
+    ├── momentum_*.py          # Momentum strategies
+    ├── ai_superforecasting.py # Gemini AI predictions
+    ├── crypto_15min_scalping.py # High-frequency scalping
+    └── ... (35+ total)
+```
+
+### Admin Dashboard (`/Users/rut/polybot/admin/`)
+
+```
+admin/
+├── src/app/
+│   ├── page.tsx              # Dashboard (main landing)
+│   ├── admin/page.tsx        # Admin controls & redeploy
+│   ├── strategies/page.tsx   # Strategy configuration
+│   ├── settings/page.tsx     # Bot settings
+│   ├── analytics/page.tsx    # Performance charts
+│   ├── diagnostics/page.tsx  # System health
+│   ├── secrets/page.tsx      # API key management
+│   └── api/                   # API routes
+│       ├── bot/              # Bot control endpoints
+│       ├── admin/            # Admin-only endpoints
+│       └── ibkr/             # IBKR quote API
+├── e2e/                       # Playwright E2E tests (16 spec files)
+│   ├── metrics-accuracy.spec.ts
+│   ├── data-verification.spec.ts
+│   ├── trading.spec.ts
+│   └── ...
+└── playwright.config.ts       # Test configuration
+```
+
+### Scripts (`/Users/rut/polybot/scripts/`)
+
+```
+scripts/
+├── deploy.sh                 # Bot deployment (Lightsail) - FIXED
+├── bump-version.sh           # Version management
+├── fix_user_management.sql   # DB migrations
+└── create_*.sql              # Various DB setup scripts
+```
+
+---
+
+## 🧪 E2E TESTING GUIDE
+
+### Running Tests
+
+```bash
+# Run all tests
+cd /Users/rut/polybot/admin && npx playwright test
+
+# Run specific test file
+npx playwright test metrics-accuracy.spec.ts
+
+# Run with UI
+npx playwright test --ui
+
+# Run single test
+npx playwright test -g "should display paper balance"
+```
+
+### Test Coverage (261+ tests across 16 files)
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `navigation.spec.ts` | 12 | Page navigation |
+| `auth.spec.ts` | 12 | Authentication flows |
+| `dashboard.spec.ts` | 14 | Dashboard rendering |
+| `trading.spec.ts` | 26 | Trading workflows |
+| `settings.spec.ts` | 20 | Settings persistence |
+| `metrics-accuracy.spec.ts` | 57 | **CRITICAL**: Number accuracy |
+| `data-verification.spec.ts` | 57 | **CRITICAL**: Data consistency |
+| `workflows.spec.ts` | 28 | User workflows |
+| `pages-coverage.spec.ts` | 33 | All pages render |
+| `accessibility.spec.ts` | 24 | WCAG compliance |
+
+### Adding New Tests
+
+```typescript
+// e2e/your-new-test.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Your Feature', () => {
+  test('should do something correctly', async ({ page }) => {
+    await page.goto('/your-page');
+    await page.waitForLoadState('networkidle');
+    
+    // Use expect() for assertions
+    const element = page.locator('[data-testid="your-element"]');
+    await expect(element).toBeVisible();
+    
+    // For API verification
+    const response = await page.request.get('/api/your-endpoint');
+    expect(response.ok()).toBeTruthy();
+    const data = await response.json();
+    expect(data.value).toBe(expectedValue);
+  });
+});
+```
+
+---
+
+## 💰 TRADING STRATEGIES (35+)
+
+### High-Confidence Strategies (>85%)
+
+| Strategy | Confidence | Expected APY | Risk |
+|----------|-----------|--------------|------|
+| Single-Platform Arbitrage | 95% | 50-200% | Low |
+| Cross-Platform Arbitrage | 90% | 30-100% | Low |
+| 15-Min Crypto Scalping | 90% | 50-200% | Medium |
+| BTC Bracket Arbitrage | 85% | 20-50% | Low |
+| AI Superforecasting | 85% | 30-60% | Medium |
+| Funding Rate Arbitrage | 85% | 15-50% | Low |
+
+### Strategy Configuration
+
+All strategies are configured in Supabase `polybot_config` table:
 
 ```sql
--- For AI Superforecasting
-CREATE TABLE IF NOT EXISTS polybot_ai_forecasts (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    market_id TEXT NOT NULL,
-    market_title TEXT,
-    ai_probability DECIMAL(5,4),
-    market_probability DECIMAL(5,4),
-    divergence_pct DECIMAL(5,2),
-    confidence DECIMAL(5,4),
-    factors JSONB,
-    reasoning TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- For 15-Min Crypto Scalping
-CREATE TABLE IF NOT EXISTS polybot_scalp_trades (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    market_id TEXT NOT NULL,
-    market_title TEXT,
-    symbol TEXT,
-    direction TEXT,
-    entry_price DECIMAL(10,4),
-    position_size_usd DECIMAL(10,2),
-    outcome TEXT DEFAULT 'pending',
-    exit_price DECIMAL(10,4),
-    profit_usd DECIMAL(10,2),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    resolved_at TIMESTAMPTZ
-);
+-- Enable a strategy
+UPDATE polybot_config SET 
+  enable_arbitrage = true,
+  enable_whale_copy_trading = true,
+  enable_15min_crypto_scalping = false  -- Enable when ready
+WHERE id = 1;
 ```
 
 ---
 
-## 📊 ARCHITECTURE OVERVIEW
+## 🔧 ENVIRONMENT SETUP
 
+### Required Environment Variables
+
+#### Bot (.env at project root)
+
+```bash
+# Supabase
+SUPABASE_URL=https://ytaltvltxkkfczlvjgad.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...  # Service role, not anon!
+
+# Exchanges
+POLYMARKET_API_KEY=...
+POLYMARKET_SECRET=...
+KALSHI_API_KEY=...
+IBKR_USERNAME=...
+IBKR_PASSWORD=...
+
+# Optional
+GEMINI_API_KEY=...  # For AI Superforecasting
+ALPACA_API_KEY=...
+ALPACA_API_SECRET=...
 ```
-PolyBot v1.2.0
-├── src/
-│   ├── strategies/
-│   │   ├── crypto_15min_scalping.py  (NEW - 90% conf)
-│   │   ├── ai_superforecasting.py     (NEW - 85% conf)
-│   │   ├── whale_copy_trading.py      (ENHANCED - slippage)
-│   │   └── ... (30+ other strategies)
-│   ├── config.py                      (UPDATED - new options)
-│   └── bot_runner.py                  (UPDATED - wiring)
-├── admin/                             (Next.js Admin UI)
-│   └── src/app/
-│       ├── strategies/page.tsx        (UPDATED - new cards)
-│       └── docs/page.tsx              (UPDATED - new docs)
-└── .env                               (UPDATED - GEMINI_API_KEY)
+
+#### Admin UI (Vercel Environment Variables)
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+BOT_URL=https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com
+VERCEL_DEPLOY_HOOK_URL=...  # Optional, for redeploy button
 ```
+
+### Useful Commands
+
+```bash
+# Deploy bot to Lightsail
+./scripts/deploy.sh
+
+# Check bot status
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
+
+# Build admin locally
+cd admin && npm run build
+
+# Run E2E tests
+cd admin && npx playwright test
+
+# Check Lightsail deployments
+aws lightsail get-container-service-deployments --service-name polyparlay --region us-east-1 --query 'deployments[0].{version:version,state:state}'
+```
+
+---
+
+## 📋 TODO LIST (By Priority)
+
+### 🔴 CRITICAL (Must Complete Before Production)
+
+1. **Perfect Metrics Accuracy**
+   - [ ] Verify P&L calculations match trade history exactly
+   - [ ] Verify win rate calculations across all pages
+   - [ ] Verify balance calculations (Polymarket + Kalshi + Simulation)
+   - [ ] Ensure data consistency between dashboard, analytics, history pages
+
+2. **Complete E2E Test Coverage**
+   - [x] Fix failing metrics tests (DONE)
+   - [ ] Add tests that verify mathematical accuracy of calculations
+   - [ ] Add tests that compare data across pages
+   - [ ] Add tests for edge cases (zero trades, negative P&L, etc.)
+
+3. **Database Schema Cleanup**
+   - [ ] Add `started_by` column to `polybot_status` if needed
+   - [x] Run `fix_user_management.sql` (user reported done)
+   - [ ] Verify all RLS policies work correctly
+
+### 🟡 HIGH (Before Launch)
+
+4. **User Actions Required**
+   - [ ] Delete orphan "admin" Vercel project (keep "admin-app")
+   - [ ] Create Deploy Hook at Vercel for redeploy button
+   - [ ] Add `VERCEL_DEPLOY_HOOK_URL` to Vercel env vars
+
+5. **Page Consolidation** (per docs/PAGE_ANALYSIS.md)
+   - [ ] Remove 4 orphan/unused pages
+   - [ ] Merge 10 page pairs for simplification
+   - [ ] Target: 33% fewer pages
+
+6. **Live Trading Prep**
+   - [ ] Create live trading checklist
+   - [ ] Set up paper trading validation period
+   - [ ] Configure risk limits and position caps
+
+### 🟢 MEDIUM (Post-Launch Enhancements)
+
+7. **Data Encryption**
+   - [ ] Implement actual encryption for API keys (columns exist)
+   - [ ] pgcrypto functions for encrypt/decrypt
+
+8. **Monitoring & Alerting**
+   - [ ] Set up CloudWatch alarms for bot health
+   - [ ] Configure Discord webhook notifications
+   - [ ] Add email alerts for critical events
+
+9. **Performance Optimization**
+   - [ ] Optimize slow queries
+   - [ ] Add database indexes
+   - [ ] Review bundle size
 
 ---
 
 ## 🚀 NEXT AGENT PROMPT
 
-Copy this prompt to continue the implementation:
+Copy this comprehensive prompt to onboard the next engineer:
 
 ---
 
-**System Context:** You are working on PolyBot, an automated trading bot for prediction markets and crypto. The previous agent implemented two new strategies (15-Min Crypto Scalping, AI Superforecasting) and enhanced whale copy trading with slippage protection.
+**PROMPT FOR NEXT ENGINEER**
 
-**Current State:**
+You are taking over as the CTO/CPO/Architect/Developer/QA for PolyBot.io - an automated prediction market trading platform. This is a real product with real users coming soon.
 
-- ✅ New strategy files created and working
-- ✅ Config options added
-- ✅ Bot runner wiring complete
-- ✅ Admin UI strategy cards added
-- ✅ Admin UI documentation added
-- ✅ All imports verified working
-
-**Remaining Tasks:**
-
-1. **Enable strategies in Supabase:** Set `enable_15min_crypto_scalping` and `enable_ai_superforecasting` to `true` in the `polybot_config` table to activate them
-2. **Analytics Dashboard Enhancement:** The `/analytics` page should be made "world-class" - add more visualizations, strategy-specific metrics, and real-time data
-3. **Workflow Page Update:** Add workflow diagrams for the new strategies to `/workflows`
-4. **Live Testing:** Deploy to Lightsail and verify new strategies initialize correctly
-5. **Performance Monitoring:** Track the new strategies' performance over time
-
-**Key Files:**
-
-- `src/strategies/crypto_15min_scalping.py` - 15-min scalping (597 lines)
-- `src/strategies/ai_superforecasting.py` - AI forecasting (579 lines)
-- `src/config.py` - All trading config (1455 lines)
-- `src/bot_runner.py` - Main orchestrator (2672 lines)
-- `admin/src/app/analytics/page.tsx` - Analytics dashboard (1120 lines)
-
-**Tech Stack:**
-
-- Python 3.11, asyncio, aiohttp
-- Supabase (PostgreSQL + Auth)
-- Next.js 14, React 18, TailwindCSS
-- Recharts for visualizations
-- Google Gemini API (gemini-1.5-flash)
-
----
-
-## 🔍 VERIFICATION COMMANDS
+### Quick Start (5 minutes)
 
 ```bash
-# Test new strategy imports
-cd /Users/rut/polybot && python -c "
-from src.strategies.crypto_15min_scalping import Crypto15MinScalpingStrategy
-from src.strategies.ai_superforecasting import AISuperforecastingStrategy
-print('✅ All new strategies import correctly')
-"
+# 1. Clone and understand the project
+cd /Users/rut/polybot
+cat AGENT_HANDOFF.md  # This file - read it first!
+cat TODO.md           # Current priorities
+cat docs/STATUS_DEC29.md  # Latest status
 
-# Check config fields
-cd /Users/rut/polybot && python -c "
-from src.config import TradingConfig
-tc = TradingConfig()
-print(f'15min_scalping: {tc.enable_15min_crypto_scalping}')
-print(f'ai_superforecasting: {tc.enable_ai_superforecasting}')
-print(f'whale_slippage: {tc.whale_slippage_enabled}')
-"
-
-# Check bot status on Lightsail
+# 2. Check current status
 curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
+
+# 3. Run tests to verify everything works
+cd admin && npx playwright test --reporter=line
+
+# 4. Start local development
+npm run dev  # Admin at http://localhost:3000
 ```
 
----
+### Your Mission
 
-## 📈 STRATEGY CONFIDENCE MATRIX
+The #1 goal is **PERFECT ACCURACY**. Every number, metric, and calculation must be 100% correct. Without this, we're just another SaaS bot that disappears.
 
-| Strategy | Confidence | Expected Return | Risk | Status |
-|----------|-----------|-----------------|------|--------|
-| 15-Min Crypto Scalping | 90% | 50-200% APY | Medium | ✅ NEW |
-| AI Superforecasting | 85% | 30-60% APY | Medium | ✅ NEW |
-| Single-Platform Arb | 95% | 50-200% APY | Low | ✅ Active |
-| Cross-Platform Arb | 90% | 30-100% APY | Low | ✅ Active |
-| BTC Bracket Arb | 85% | 20-50% APY | Low | ✅ Active |
-| Whale Copy Trading | 80% | 25-50% APY | Medium | ✅ Enhanced |
-| Funding Rate Arb | 85% | 15-50% APY | Low | ⏸️ Disabled |
+### Key Files to Read
+
+1. `AGENT_HANDOFF.md` - This file (complete project context)
+2. `TODO.md` - Prioritized task list
+3. `docs/PAGE_ANALYSIS.md` - UI consolidation recommendations
+4. `src/bot_runner.py` - Main bot logic (3800 lines)
+5. `admin/e2e/metrics-accuracy.spec.ts` - Critical accuracy tests
+6. `admin/e2e/data-verification.spec.ts` - Data consistency tests
+
+### Current Infrastructure
+
+- **Bot**: AWS Lightsail container (v1.1.25, Build #98)
+- **Admin**: Vercel (auto-deploys from GitHub main branch)
+- **Database**: Supabase (PostgreSQL with RLS)
+- **Monitoring**: Vercel Speed Insights, Lightsail Console
+
+### Trading Strategy Research
+
+- Read `docs/TRADING_STRATEGIES.md` for strategy explanations
+- Read `PROFITABLE_STRATEGIES.md` for confidence ratings
+- Check `ALGO_TRADING_DEEP_RESEARCH.md` for market analysis
+
+### Competition Analysis
+
+- Polymarket.com - largest prediction market
+- Kalshi.com - regulated US prediction market
+- Various GitHub bots - see ARBITRAGE_STRATEGY.md for analysis
+
+### What Success Looks Like
+
+1. All E2E tests pass (especially metrics-accuracy and data-verification)
+2. Dashboard numbers match database reality exactly
+3. Zero calculation errors in P&L, win rate, ROI
+4. Users trust the platform because numbers are always right
+5. Bot successfully executes profitable trades
+
+### Immediate Tasks
+
+1. Run `npx playwright test` and fix any failures
+2. Review TODO.md and prioritize
+3. Verify metrics accuracy across pages
+4. Test the deployed bot at polyparlay.io
+5. Check Vercel logs for any remaining errors
+
+### Commands You'll Use Often
+
+```bash
+# Deploy bot
+./scripts/deploy.sh
+
+# Build admin
+cd admin && npm run build
+
+# Run tests
+cd admin && npx playwright test
+
+# Check bot status
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status"
+
+# Check Lightsail deployment
+aws lightsail get-container-service-deployments --service-name polyparlay --region us-east-1
+
+# Push to deploy admin
+git push origin main  # Auto-deploys to Vercel
+```
+
+Good luck! Make this the trading platform that actually works.
 
 ---
 
 **End of Agent Handoff Document**
-
----
-
-## 📊 Analytics Dashboard Enhancement (COMPLETED)
-
-### New Features Added
-
-1. **High-Performance Strategies Dashboard** - Dedicated cards for:
-   - ⚡ 15-Min Crypto Scalping (with live metrics)
-   - 🧠 AI Superforecasting (with Gemini model indicator)
-
-2. **Strategy Leaderboard** - Top 10 strategies ranked by:
-   - Win rate (40% weight)
-   - Profitability (30% weight)
-   - Trade volume (30% weight)
-   - Shows medals 🥇🥈🥉 for top 3
-
-3. **Live Trade Feed** - Real-time trade activity:
-   - Color-coded by outcome (green/red/yellow)
-   - Shows strategy, P&L, position size, time
-   - Auto-scrolling with max height
-
-4. **Advanced Risk Metrics Section**:
-   - VaR (95%) - Value at Risk
-   - Calmar Ratio - Return / Max Drawdown
-   - Recovery Factor - Profit / Max Drawdown
-   - Kelly Fraction - Optimal position sizing
-   - Annualized Risk-Adjusted Return
-
-### Files Modified
-
-- `admin/src/app/analytics/page.tsx` - Added ~300 lines of new visualizations
-
-### New Strategy List
-
-Added to ALL_STRATEGIES array:
-
-- `crypto_15min_scalping`
-- `ai_superforecasting`
