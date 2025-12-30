@@ -12,7 +12,7 @@ from .arbitrage_analytics import (
 
 __all__ = [
     "ArbitrageAnalytics",
-    "ArbitrageType", 
+    "ArbitrageType",
     "StrategyStats",
     "get_analytics",
     "reset_analytics",

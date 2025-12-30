@@ -16,7 +16,7 @@ TRADING FLOWS AND STRATEGY ISOLATION:
    - Cross-platform arbitrage: Exploits price differences between Poly and Kalshi
    - Market making: Places limit orders on both sides, earns spread
    - News arbitrage: React to news faster than the market
-   
+
    * These operate on DIFFERENT ASSET CLASSES than crypto strategies
    * No conflict possible between prediction markets and crypto
 
@@ -24,12 +24,12 @@ TRADING FLOWS AND STRATEGY ISOLATION:
    - Funding Rate Arb (85%): Delta-neutral BTC/ETH perp shorts collecting funding
    - Grid Trading (75%): Places buy/sell grid orders on sideways assets
    - Pairs Trading (65%): Long/short correlated pairs when spread widens
-   
+
    POTENTIAL CONFLICTS (same symbol traded by multiple strategies):
    - Funding Rate Arb trades: BTC/USDT:USDT, ETH/USDT:USDT perpetuals
    - Grid Trading trades: BTC/USDT, ETH/USDT, SOL/USDT spot
    - Pairs Trading trades: BTC/USDT vs ETH/USDT (both legs)
-   
+
    CONFLICT MITIGATION:
    - Each strategy tracks its OWN positions separately
    - Strategies use different order types/purposes
@@ -66,7 +66,7 @@ from src.clients.kalshi_client import KalshiClient
 from src.simulation.paper_trader_realistic import RealisticPaperTrader
 from src.arbitrage.detector import ArbitrageDetector, CrossPlatformScanner, Opportunity
 from src.arbitrage.single_platform_scanner import (
-    SinglePlatformScanner, 
+    SinglePlatformScanner,
     SinglePlatformOpportunity,
     ArbitrageType,
 )
@@ -76,7 +76,7 @@ from src.analytics.arbitrage_analytics import (
     reset_analytics,
 )
 from src.strategies import (
-    MarketMakerStrategy, 
+    MarketMakerStrategy,
     NewsArbitrageStrategy,
     FundingRateArbStrategy,
     GridTradingStrategy,
@@ -135,7 +135,7 @@ class PolybotRunner:
     """
     Unified runner that orchestrates all bot features.
     """
-    
+
     def __init__(
         self,
         wallet_address: Optional[str] = None,
@@ -153,43 +153,43 @@ class PolybotRunner:
     ):
         self.simulation_mode = simulation_mode
         self.user_id = user_id
-        
+
         # Feature flags
         self.enable_copy_trading = enable_copy_trading
         self.enable_arb_detection = enable_arb_detection
         self.enable_position_manager = enable_position_manager
         self.enable_news_sentiment = enable_news_sentiment
-        
+
         # Initialize database FIRST (needed for secrets)
         self.db = Database(user_id=self.user_id)
-        
+
         # Load secrets from centralized Supabase store
         # This allows key rotation without code changes
         self.wallet_address = wallet_address or self.db.get_secret("POLYMARKET_WALLET_ADDRESS") or os.getenv("WALLET_ADDRESS", "")
         self.private_key = private_key or self.db.get_secret("POLYMARKET_PRIVATE_KEY") or os.getenv("PRIVATE_KEY")
         self.kalshi_api_key = kalshi_api_key or self.db.get_secret("KALSHI_API_KEY") or os.getenv("KALSHI_API_KEY")
         self.kalshi_private_key = kalshi_private_key or self.db.get_secret("KALSHI_PRIVATE_KEY") or os.getenv("KALSHI_PRIVATE_KEY")
-        
+
         # News API keys - each source is independent for graceful degradation
         self.finnhub_api_key = self.db.get_secret("FINNHUB_API_KEY") or os.getenv("FINNHUB_API_KEY")
         self.twitter_bearer_token = self.db.get_secret("TWITTER_BEARER_TOKEN") or os.getenv("TWITTER_BEARER_TOKEN")
         self.news_api_key = news_api_key or self.db.get_secret("NEWS_API_KEY") or os.getenv("NEWS_API_KEY")
-        
+
         # Load config from Supabase for autonomous operation
         # This allows config changes without redeployment
         from src.config import Config
         self.config = Config(db_client=self.db)
-        
+
         # Blacklisted markets (fetched from Supabase)
         self.blacklisted_markets: set = set()
-        
+
         # Initialize API clients for balance tracking
         self.polymarket_client = PolymarketClient()
         self.kalshi_client = KalshiClient(
             api_key=self.kalshi_api_key,
             private_key=self.kalshi_private_key,
         )
-        
+
         # Initialize feature engines
         self.copy_trading: Optional[CopyTradingEngine] = None
         self.arb_detector: Optional[OverlappingArbDetector] = None
@@ -198,120 +198,120 @@ class PolybotRunner:
         self.cross_platform_detector: Optional[ArbitrageDetector] = None
         self.cross_platform_scanner: Optional[CrossPlatformScanner] = None
         self.single_platform_scanner: Optional[SinglePlatformScanner] = None
-        
+
         # NEW: Advanced strategies
         self.market_maker: Optional[MarketMakerStrategy] = None
         self.news_arbitrage: Optional[NewsArbitrageStrategy] = None
-        
+
         # NEW: High-priority crypto strategies
         self.funding_rate_arb: Optional[FundingRateArbStrategy] = None
         self.grid_trading: Optional[GridTradingStrategy] = None
         self.pairs_trading: Optional[PairsTradingStrategy] = None
-        
+
         # NEW: Stock trading strategies (Alpaca)
         self.stock_mean_reversion: Optional[StockMeanReversionStrategy] = None
         self.stock_momentum: Optional[StockMomentumStrategy] = None
         self.alpaca_client: Optional[AlpacaClient] = None
         self.ibkr_client: Optional[IBKRClient] = None
 
-        
+
         # ==============================================
         # TWITTER-DERIVED STRATEGIES (2024)
         # ==============================================
         # High-conviction strategies from analyzing top traders on X
-        
+
         # BTC Bracket Arb - YES+NO < $1.00 arbitrage
         self.btc_bracket_arb: Optional[BTCBracketArbStrategy] = None
-        
+
         # Bracket Compression - mean reversion on stretched brackets
         self.bracket_compression: Optional[BracketCompressionStrategy] = None
-        
+
         # Kalshi Mention Snipe - fast execution on resolved markets
         self.kalshi_mention_sniper: Optional[KalshiMentionSnipeStrategy] = None
-        
+
         # Whale Copy Trading - follow profitable wallets
         self.whale_copy_trading: Optional[WhaleCopyTradingStrategy] = None
-        
+
         # Congressional Tracker - copy stock trades from Congress
         self.congressional_tracker: Optional[CongressionalTrackerStrategy] = None
-        
+
         # Macro Board - weighted macro event exposure
         self.macro_board: Optional[MacroBoardStrategy] = None
-        
+
         # Fear Premium Contrarian - trade against extreme sentiment
         self.fear_premium_contrarian: Optional[FearPremiumContrarianStrategy] = None
-        
+
         # ==============================================
         # NEW STRATEGIES (2025)
         # ==============================================
-        
+
         # Political Event Strategy - high-conviction political events
         self.political_event_strategy: Optional[PoliticalEventStrategy] = None
-        
+
         # High Conviction Strategy - fewer, higher-confidence trades
         self.high_conviction_strategy: Optional[HighConvictionStrategy] = None
-        
+
         # Selective Whale Copy - performance-based whale selection
         self.selective_whale_copy: Optional[SelectiveWhaleCopyStrategy] = None
-        
+
         # 15-Minute Crypto Scalping - Twitter-derived high-frequency scalping
         self.crypto_15min_scalping: Optional[Crypto15MinScalpingStrategy] = None
-        
+
         # AI Superforecasting - Gemini-powered market analysis
         self.ai_superforecasting: Optional[AISuperforecastingStrategy] = None
-        
+
         # ==============================================
         # ADVANCED FRAMEWORK MODULES (Phase 1)
         # ==============================================
         # These enhance ALL strategies with better risk management
-        
+
         # Kelly Criterion Position Sizer - optimal bet sizing
         self.kelly_sizer: Optional[KellyPositionSizer] = None
-        
+
         # Market Regime Detector - adapts strategies to market conditions
         self.regime_detector: Optional[RegimeDetector] = None
-        
+
         # Circuit Breaker - stops trading on excessive drawdown
         self.circuit_breaker: Optional[CircuitBreaker] = None
-        
+
         # ==============================================
         # STRATEGY ENHANCEMENTS (Phase 2)
         # ==============================================
-        
+
         # Time Decay Analyzer - prediction market theta analysis
         self.time_decay_analyzer: Optional[TimeDecayAnalyzer] = None
-        
+
         # Depeg Detector - stablecoin depeg arbitrage
         self.depeg_detector: Optional[DepegDetector] = None
-        
+
         # Correlation Tracker - position limit enforcement
         self.correlation_tracker: Optional[CorrelationTracker] = None
-        
+
         # CCXT client for crypto exchange access
         self.ccxt_client: Optional[CCXTClient] = None
-        
+
         # Balance aggregator for multi-platform balance tracking
         self.balance_aggregator: Optional[BalanceAggregator] = None
-        
+
         # Analytics tracker for per-strategy performance
         self.analytics: ArbitrageAnalytics = reset_analytics()
-        
+
         # Paper trading simulator (for simulation mode)
         self.paper_trader: Optional[RealisticPaperTrader] = None
-        
+
         # Notification handler for alerts
         self.notifier: Notifier = Notifier()
-        
+
         # Default tracked traders (can be updated from Supabase)
         self.tracked_traders = tracked_traders or []
-        
+
         self._running = False
         self._tasks = []
 
     async def _resilient_task(self, task_name: str, coro_func, *args, **kwargs):
         """
         Wrapper that makes any async task resilient by auto-restarting on failure.
-        
+
         Args:
             task_name: Name for logging
             coro_func: The coroutine function to run
@@ -319,7 +319,7 @@ class PolybotRunner:
         """
         restart_delay = 30  # Start with 30 second delay
         max_delay = 300  # Max 5 minutes between restarts
-        
+
         while self._running:
             try:
                 logger.info(f"🚀 Starting task: {task_name}")
@@ -336,7 +336,7 @@ class PolybotRunner:
                     await asyncio.sleep(restart_delay)
                     # Exponential backoff
                     restart_delay = min(restart_delay * 2, max_delay)
-    
+
     async def fetch_balances(self) -> dict:
         """Fetch balances from both Polymarket and Kalshi."""
         balances = {
@@ -344,7 +344,7 @@ class PolybotRunner:
             "kalshi": {"total_value": 0.0, "positions": []},
             "combined_total": 0.0,
         }
-        
+
         # Fetch Polymarket balance
         if self.wallet_address:
             try:
@@ -356,7 +356,7 @@ class PolybotRunner:
                 )
             except Exception as e:
                 logger.error(f"Failed to fetch Polymarket balance: {e}")
-        
+
         # Fetch Kalshi balance
         if self.kalshi_client.is_authenticated:
             try:
@@ -369,14 +369,14 @@ class PolybotRunner:
                 )
             except Exception as e:
                 logger.error(f"Failed to fetch Kalshi balance: {e}")
-        
+
         # Calculate combined total
         pm_total = balances["polymarket"].get("total_value", 0) or 0
         k_total = balances["kalshi"].get("total_value", 0) or 0
         balances["combined_total"] = pm_total + k_total
-        
+
         logger.info(f"💎 Combined Portfolio Value: ${balances['combined_total']:.2f}")
-        
+
         return balances
 
     async def refresh_blacklist(self):
@@ -402,14 +402,14 @@ class PolybotRunner:
         # Simple check against cached set
         if market_id in self.blacklisted_markets:
             return True
-            
+
         # Check title against keywords (only if we have keyword-style entries)
         title_lower = title.lower()
         for entry in self.blacklisted_markets:
             # Only do keyword matching for non-UUID entries (keywords are shorter)
             if len(entry) < 30 and entry in title_lower and len(entry) > 3:
                 return True
-                
+
         return False
 
     async def check_subscription(self) -> bool:
@@ -419,25 +419,25 @@ class PolybotRunner:
         """
         if not self.user_id:
             return True # Legacy/Global mode is always active
-            
+
         try:
             # Query polybot_profiles
             response = self.db._client.table("polybot_profiles").select(
                 "subscription_status"
             ).eq("user_id", self.user_id).single().execute()
-            
+
             if not response.data:
                 logger.warning(f"No profile found for user {self.user_id}")
                 return False
-                
+
             status = response.data.get("subscription_status", "inactive")
-            
+
             if status in ["active", "trial"]:
                 return True
             else:
                 logger.warning(f"Subscription status '{status}' is not valid for trading.")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Error checking subscription: {e}")
             return False
@@ -456,7 +456,7 @@ class PolybotRunner:
             confidence=forecast.ai_confidence,
             model=forecast.model_used,
         )
-        
+
         # Add to strategy
         # Use market_id or question hash as key
         market_id = getattr(forecast, 'market_id', forecast.question)
@@ -467,45 +467,45 @@ class PolybotRunner:
         if not self.high_conviction_strategy or not self.high_conviction_strategy.enabled:
             return
 
-        # Create signal directly? Accessing helper might be cleaner if exposed, 
+        # Create signal directly? Accessing helper might be cleaner if exposed,
         # but we can create Signal directly here or add helper to strategy.
         # HighConvictionStrategy has `create_signal_from_news`.
-        
+
         signal = self.high_conviction_strategy.create_signal_from_news(
             sentiment=opp.confidence if opp.direction.startswith('buy') else -opp.confidence,
             headline=opp.event.headline,
         )
-        
+
         # Use topic/market identifier
         # NewsArbOpportunity usually has 'topic' or we use the headline/keywords
         market_id = f"news_{opp.event.keywords[0] if opp.event.keywords else 'unknown'}"
-        
+
         self.high_conviction_strategy.add_signal(market_id, signal)
 
     async def initialize(self):
         """Initialize all enabled features."""
         logger.info(f"Initializing PolyBot features (User: {self.user_id or 'Global'})...")
-        
+
         # Setup per-instance logging context if user_id is present
         if self.user_id:
             # We add a specific handler for this user context if needed,
             # or rely on the fact that existing logging might be global.
             # ideally, we'd want per-user logs.
             pass
-        
+
         # Fetch initial balances
         logger.info("Fetching wallet balances...")
         await self.fetch_balances()
-        
+
         # Fetch blacklisted markets
         await self.refresh_blacklist()
-        
+
         # Check subscription status (Multi-tenant)
         if self.user_id:
             if not await self.check_subscription():
                 logger.error(f"❌ Subscription check failed for user {self.user_id}. Stopping initialization.")
                 return
-        
+
         if self.enable_copy_trading:
             self.copy_trading = CopyTradingEngine(
                 max_copy_size=100.0,
@@ -523,7 +523,7 @@ class PolybotRunner:
                 else:
                     self.copy_trading.add_trader(trader, 'Trader', 0.1)
             logger.info("✓ Copy Trading Engine initialized")
-        
+
         if self.enable_arb_detection:
             self.arb_detector = OverlappingArbDetector(
                 min_liquidity=10000,  # Increased from 5000
@@ -532,7 +532,7 @@ class PolybotRunner:
             )
             logger.info("✓ Overlapping Arbitrage Detector initialized (tuned)")
             logger.info("  📊 min_deviation=5%, min_liquidity=$10K, confidence>=0.6")
-        
+
         if self.enable_position_manager and self.wallet_address:
             self.position_manager = PositionManager(
                 wallet_address=self.wallet_address,
@@ -541,7 +541,7 @@ class PolybotRunner:
                 check_interval=300,
             )
             logger.info("✓ Position Manager initialized")
-        
+
         if self.enable_news_sentiment:
             self.news_engine = NewsSentimentEngine(
                 news_api_key=self.news_api_key,
@@ -551,14 +551,14 @@ class PolybotRunner:
                 db_client=self.db,  # Save news to polybot_news_items
             )
             logger.info("✓ News/Sentiment Engine initialized (saves to DB)")
-        
+
         # Initialize cross-platform arbitrage detector
         self.cross_platform_detector = ArbitrageDetector(
             min_profit_percent=0.5,  # 0.5% minimum profit to consider
             min_confidence=0.3,
         )
         logger.info("✓ Cross-Platform Arbitrage Detector initialized")
-        
+
         # Initialize cross-platform scanner (the REAL arbitrage finder)
         self.cross_platform_scanner = CrossPlatformScanner(
             min_profit_percent=3.0,  # 3% minimum for Poly buy, 5% for Kalshi buy
@@ -567,7 +567,7 @@ class PolybotRunner:
         )
         logger.info("✓ Cross-Platform Scanner initialized (Polymarket↔Kalshi)")
         logger.info("  📝 Logging ALL cross-platform scans to polybot_market_scans")
-        
+
         # Initialize single-platform scanner (where the REAL money is!)
         # Academic research shows $40M extracted from Polymarket in 1 year
         # Pass db_client so ALL scans get logged (not just qualifying ones)
@@ -591,7 +591,7 @@ class PolybotRunner:
             f"  📊 Poly min: {self.config.trading.poly_single_min_profit_pct}% | "
             f"Kalshi min: {self.config.trading.kalshi_single_min_profit_pct}%"
         )
-        
+
         # Log arbitrage strategy configuration (from Supabase)
         poly_single = self.config.trading.enable_polymarket_single_arb
         kalshi_single = self.config.trading.enable_kalshi_single_arb
@@ -602,11 +602,11 @@ class PolybotRunner:
             f"Kalshi-Single={'ON' if kalshi_single else 'OFF'} | "
             f"Cross-Platform={'ON' if cross_plat else 'OFF'}"
         )
-        
+
         # =====================================================================
         # ADVANCED STRATEGIES: Market Making & News Arbitrage
         # =====================================================================
-        
+
         # Initialize Market Making Strategy (if enabled)
         if self.config.trading.enable_market_making:
             self.market_maker = MarketMakerStrategy(
@@ -629,13 +629,13 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Market Making DISABLED")
-        
+
         # Initialize News Arbitrage Strategy (if enabled)
         if self.config.trading.enable_news_arbitrage:
             # Parse keywords from comma-separated string
             keywords_str = self.config.trading.news_keywords
             keywords = set(k.strip().lower() for k in keywords_str.split(","))
-            
+
             self.news_arbitrage = NewsArbitrageStrategy(
                 polymarket_client=self.polymarket_client,
                 kalshi_client=self.kalshi_client,
@@ -651,11 +651,11 @@ class PolybotRunner:
             logger.info(f"  🔑 Keywords: {keywords_str[:50]}...")
         else:
             logger.info("⏸️ News Arbitrage DISABLED")
-        
+
         # =====================================================================
         # HIGH-PRIORITY CRYPTO STRATEGIES: Funding Rate, Grid, Pairs Trading
         # =====================================================================
-        
+
         # Initialize CCXT client for crypto exchange access
         # Used by all crypto strategies
         any_crypto_enabled = (
@@ -663,7 +663,7 @@ class PolybotRunner:
             self.config.trading.enable_grid_trading or
             self.config.trading.enable_pairs_trading
         )
-        
+
         if any_crypto_enabled:
             # Check which exchanges are enabled
             enabled_exchanges = []
@@ -679,14 +679,14 @@ class PolybotRunner:
                 enabled_exchanges.append("coinbase")
             if self.config.trading.enable_kucoin:
                 enabled_exchanges.append("kucoin")
-            
+
             if enabled_exchanges:
                 # Try each enabled exchange until one works
                 # Multi-tenant: per-user credentials first, then global fallback
                 logger.info(
                     f"🔍 Checking credentials for exchanges: {enabled_exchanges}"
                 )
-                
+
                 # First pass: try exchanges with per-user credentials
                 for exchange in enabled_exchanges:
                     # Multi-tenant approach
@@ -703,7 +703,7 @@ class PolybotRunner:
                                 f"(per-user credentials)"
                             )
                             break  # Success!
-                    
+
                     # Fall back to global credentials
                     if not self.ccxt_client:
                         creds = self.db.get_exchange_credentials(exchange)
@@ -713,7 +713,7 @@ class PolybotRunner:
                             f"  {exchange}: api_key={'✓' if has_key else '✗'}, "
                             f"api_secret={'✓' if has_secret else '✗'}"
                         )
-                        
+
                         if has_key and has_secret:
                             logger.info(f"  Attempting to connect to {exchange}...")
                             self.ccxt_client = CCXTClient(
@@ -735,7 +735,7 @@ class PolybotRunner:
                                     f"  ⚠️ {exchange} failed to connect"
                                 )
                                 self.ccxt_client = None
-                
+
                 # Second pass (simulation mode only): try without credentials
                 if not self.ccxt_client and self.simulation_mode:
                     logger.info("  Trying exchanges without credentials (simulation mode)...")
@@ -761,7 +761,7 @@ class PolybotRunner:
                                 break
                             else:
                                 self.ccxt_client = None
-                
+
                 if not self.ccxt_client:
                     logger.error(
                         "❌ All CCXT exchanges failed - crypto strategies disabled"
@@ -773,13 +773,13 @@ class PolybotRunner:
                 logger.warning(
                     "⚠️ Crypto strategies enabled but no exchanges enabled!"
                 )
-        
+
         # Initialize Funding Rate Arbitrage Strategy (85% CONFIDENCE - 15-50% APY)
         # NOTE: Requires exchange with futures support (Binance US does NOT have futures)
         has_futures = False
         if self.ccxt_client and hasattr(self.ccxt_client, 'exchange') and self.ccxt_client.exchange:
             has_futures = self.ccxt_client.exchange.has.get('fetchFundingRate', False)
-        
+
         if self.config.trading.enable_funding_rate_arb and self.ccxt_client and has_futures:
             self.funding_rate_arb = FundingRateArbStrategy(
                 ccxt_client=self.ccxt_client,
@@ -804,7 +804,7 @@ class PolybotRunner:
             logger.info("⏸️ Funding Rate Arb DISABLED (no CCXT client)")
         else:
             logger.info("⏸️ Funding Rate Arb DISABLED")
-        
+
         # Initialize Grid Trading Strategy (75% CONFIDENCE - 20-60% APY)
         if self.config.trading.enable_grid_trading and self.ccxt_client:
             self.grid_trading = GridTradingStrategy(
@@ -827,13 +827,13 @@ class PolybotRunner:
             logger.info("⏸️ Grid Trading DISABLED (no CCXT client)")
         else:
             logger.info("⏸️ Grid Trading DISABLED")
-        
+
         # Initialize Pairs Trading Strategy (65% CONFIDENCE - 10-25% APY)
         if self.config.trading.enable_pairs_trading and self.ccxt_client:
             # Detect exchange to use correct symbol format
             exchange_id = getattr(self.ccxt_client, 'exchange_id', 'binance')
             is_us_exchange = 'us' in exchange_id.lower()
-            
+
             # Choose pairs based on exchange
             if is_us_exchange:
                 # Binance US uses /USD pairs
@@ -848,7 +848,7 @@ class PolybotRunner:
                     ("SOL/USDT", "AVAX/USDT", "SOL-AVAX", 0.78, 3.5),
                     ("LINK/USDT", "UNI/USDT", "LINK-UNI", 0.72, 1.8),
                 ]
-            
+
             # Filter pairs to only those with valid symbols on exchange
             custom_pairs = []
             if hasattr(self.ccxt_client, 'has_symbol'):
@@ -860,7 +860,7 @@ class PolybotRunner:
                         logger.debug(f"Skipping pair {name}: symbols not available")
             else:
                 custom_pairs = candidate_pairs
-            
+
             if not custom_pairs:
                 logger.info("⏸️ Pairs Trading DISABLED (no valid pairs on exchange)")
             else:
@@ -885,13 +885,13 @@ class PolybotRunner:
             logger.info("⏸️ Pairs Trading DISABLED (no CCXT client)")
         else:
             logger.info("⏸️ Pairs Trading DISABLED")
-        
+
         # =====================================================================
         # STOCK STRATEGIES (Alpaca)
         # Multi-tenant: Per-user credentials from user_exchange_credentials
         # Falls back to global secrets if no per-user credentials
         # =====================================================================
-        
+
         if self.config.trading.enable_alpaca:
             # Try multi-tenant approach first (per-user credentials)
             if self.user_id:
@@ -906,7 +906,7 @@ class PolybotRunner:
                         f"✓ Alpaca client initialized ({mode_str}) "
                         f"- per-user credentials for {self.user_id}"
                     )
-            
+
             # Fall back to global credentials (legacy behavior)
             if not self.alpaca_client:
                 alpaca_creds = self.db.get_alpaca_credentials(
@@ -914,7 +914,7 @@ class PolybotRunner:
                 )
                 alpaca_api_key = alpaca_creds.get('api_key')
                 alpaca_api_secret = alpaca_creds.get('api_secret')
-                
+
                 if alpaca_api_key and alpaca_api_secret:
                     self.alpaca_client = AlpacaClient(
                         api_key=alpaca_api_key,
@@ -935,13 +935,13 @@ class PolybotRunner:
                             "stock strategies will not work"
                         )
                         self.alpaca_client = None
-        
+
         # Initialize IBKR Client (Interactive Brokers)
         # Uses IBKRWebClient for cloud deployment (no gateway container needed)
         # Falls back to IBKRClient if user has local IB Gateway running
         if self.config.trading.enable_ibkr:
             logger.info("Initializing IBKR integration...")
-            
+
             # Try Web API first (works without gateway container)
             try:
                 # For multi-tenant, we'd pass user_id here
@@ -950,7 +950,7 @@ class PolybotRunner:
                     sandbox=self.simulation_mode
                 )
                 ibkr_initialized = await self.ibkr_client.initialize()
-                
+
                 if ibkr_initialized:
                     logger.info(
                         "✓ IBKR Web API Client initialized "
@@ -969,7 +969,7 @@ class PolybotRunner:
                         sandbox=self.simulation_mode
                     )
                     ibkr_initialized = await self.ibkr_client.initialize()
-                    
+
                     if ibkr_initialized:
                         logger.info(
                             f"✓ IBKR Gateway Client on port {ibkr_port}"
@@ -1005,7 +1005,7 @@ class PolybotRunner:
              logger.warning("⚠️ IBKR Futures Momentum DISABLED - No IBKR Client")
         else:
              logger.info("⏸️ IBKR Futures Momentum DISABLED")
-        
+
         # Initialize Stock Mean Reversion Strategy (70% CONFIDENCE - 15-30% APY)
         if self.config.trading.enable_stock_mean_reversion and self.alpaca_client:
             watchlist = self.config.trading.stock_mr_watchlist.split(",")
@@ -1031,7 +1031,7 @@ class PolybotRunner:
             logger.info("⏸️ Stock Mean Reversion DISABLED (no Alpaca client)")
         else:
             logger.info("⏸️ Stock Mean Reversion DISABLED")
-        
+
         # Initialize Stock Momentum Strategy (70% CONFIDENCE - 20-40% APY)
         if self.config.trading.enable_stock_momentum and self.alpaca_client:
             universe = self.config.trading.stock_mom_watchlist.split(",")
@@ -1052,12 +1052,12 @@ class PolybotRunner:
             logger.info("⏸️ Stock Momentum DISABLED (no Alpaca client)")
         else:
             logger.info("⏸️ Stock Momentum DISABLED")
-        
+
         # =====================================================================
         # TWITTER-DERIVED STRATEGIES (2024)
         # High-conviction strategies from analyzing top traders on X/Twitter
         # =====================================================================
-        
+
         # Initialize BTC Bracket Arbitrage (85% CONFIDENCE - $20K-200K/month)
         btc_bracket_enabled = getattr(self.config.trading, 'enable_btc_bracket_arb', False)
         if btc_bracket_enabled:
@@ -1077,7 +1077,7 @@ class PolybotRunner:
             logger.info("  🔥 15-min brackets | YES+NO < $1.00 arbitrage")
         else:
             logger.info("⏸️ BTC Bracket Arb DISABLED")
-        
+
         # Initialize Bracket Compression (70% CONFIDENCE - 15-30% APY)
         bracket_compression_enabled = getattr(
             self.config.trading, 'enable_bracket_compression', False
@@ -1103,7 +1103,7 @@ class PolybotRunner:
             logger.info("  📊 Mean reversion on stretched brackets")
         else:
             logger.info("⏸️ Bracket Compression DISABLED")
-        
+
         # Initialize Kalshi Mention Sniper (80% CONFIDENCE - $120+/event)
         kalshi_snipe_enabled = getattr(
             self.config.trading, 'enable_kalshi_mention_snipe', False
@@ -1128,7 +1128,7 @@ class PolybotRunner:
             logger.info("⏸️ Kalshi Mention Sniper DISABLED (no Kalshi credentials)")
         else:
             logger.info("⏸️ Kalshi Mention Sniper DISABLED")
-        
+
         # Initialize Whale Copy Trading (75% CONFIDENCE - 25-50% APY)
         whale_copy_enabled = getattr(
             self.config.trading, 'enable_whale_copy_trading', False
@@ -1150,7 +1150,7 @@ class PolybotRunner:
             logger.info("  🐋 Track and copy 80%+ win rate wallets")
         else:
             logger.info("⏸️ Whale Copy Trading DISABLED")
-        
+
         # Initialize Macro Board Strategy (65% CONFIDENCE - $62K/month)
         macro_board_enabled = getattr(
             self.config.trading, 'enable_macro_board', False
@@ -1174,7 +1174,7 @@ class PolybotRunner:
             logger.info("  🌍 Weighted macro event exposure")
         else:
             logger.info("⏸️ Macro Board DISABLED")
-        
+
         # Initialize Fear Premium Contrarian (70% CONFIDENCE - 25-60% APY)
         fear_premium_enabled = getattr(
             self.config.trading, 'enable_fear_premium_contrarian', False
@@ -1199,7 +1199,7 @@ class PolybotRunner:
             logger.info("  😱 Trade against extreme sentiment | 91.4% win approach")
         else:
             logger.info("⏸️ Fear Premium Contrarian DISABLED")
-        
+
         # Initialize Congressional Tracker (70% CONFIDENCE - 15-40% APY)
         congress_enabled = getattr(
             self.config.trading, 'enable_congressional_tracker', False
@@ -1207,20 +1207,20 @@ class PolybotRunner:
         if congress_enabled:
             # Parse tracked politicians from config
             tracked_str = getattr(
-                self.config.trading, 'congress_tracked_politicians', 
+                self.config.trading, 'congress_tracked_politicians',
                 'Nancy Pelosi,Tommy Tuberville,Dan Crenshaw'
             )
             tracked_list = [
                 p.strip() for p in tracked_str.split(',') if p.strip()
             ] if tracked_str else None
-            
+
             # Get chambers setting
             chambers_str = getattr(
                 self.config.trading, 'congress_chambers', 'both'
             )
             from src.strategies.congressional_tracker import Chamber
             chambers = Chamber(chambers_str) if chambers_str else Chamber.BOTH
-            
+
             self.congressional_tracker = CongressionalTrackerStrategy(
                 tracked_politicians=tracked_list,
                 chambers=chambers,
@@ -1245,11 +1245,11 @@ class PolybotRunner:
             logger.info(f"  🏛️ Tracking: {', '.join(tracked_list or ['ALL'])}")
         else:
             logger.info("⏸️ Congressional Tracker DISABLED")
-        
+
         # =================================================================
         # NEW STRATEGIES (2025)
         # =================================================================
-        
+
         # Initialize Political Event Strategy (80% CONFIDENCE)
         political_event_enabled = getattr(
             self.config.trading, 'enable_political_event_strategy', False
@@ -1270,7 +1270,7 @@ class PolybotRunner:
                 "political_use_congressional": getattr(self.config.trading, 'political_use_congressional', True),
                 "political_event_lookback_hours": getattr(self.config.trading, 'political_lead_time_hours', 48)
             }
-            
+
             self.political_event_strategy = PoliticalEventStrategy(
                 db_client=self.db,
                 config=political_config
@@ -1279,7 +1279,7 @@ class PolybotRunner:
             logger.info("  🏛️ High-conviction political event trading")
         else:
             logger.info("⏸️ Political Event Strategy DISABLED")
-        
+
         # Initialize High Conviction Strategy (85% CONFIDENCE)
         high_conviction_enabled = getattr(
             self.config.trading, 'enable_high_conviction_strategy', False
@@ -1295,7 +1295,7 @@ class PolybotRunner:
                 "high_conviction_use_kelly": getattr(self.config.trading, 'high_conviction_use_kelly', True),
                 "high_conviction_kelly_fraction": getattr(self.config.trading, 'high_conviction_kelly_fraction', 0.25)
             }
-            
+
             self.high_conviction_strategy = HighConvictionStrategy(
                 config=high_conviction_config
             )
@@ -1307,7 +1307,7 @@ class PolybotRunner:
             logger.info("  🎯 Fewer, higher-confidence trades")
         else:
             logger.info("⏸️ High Conviction Strategy DISABLED")
-        
+
         # Initialize Selective Whale Copy Strategy (80% CONFIDENCE)
         selective_whale_enabled = getattr(
             self.config.trading, 'enable_selective_whale_copy', False
@@ -1325,7 +1325,7 @@ class PolybotRunner:
                 "swc_max_copy_usd": getattr(self.config.trading, 'selective_whale_max_position_usd', 200.0),
                 "swc_max_concurrent_copies": 5
             }
-            
+
             self.selective_whale_copy = SelectiveWhaleCopyStrategy(
                 db_client=self.db,
                 config=whale_config
@@ -1334,7 +1334,7 @@ class PolybotRunner:
             logger.info("  🐋 Performance-based whale selection")
         else:
             logger.info("⏸️ Selective Whale Copy DISABLED")
-        
+
         # Initialize 15-Minute Crypto Scalping Strategy (90% CONFIDENCE)
         crypto_scalp_enabled = getattr(
             self.config.trading, 'enable_15min_crypto_scalping', False
@@ -1368,14 +1368,14 @@ class PolybotRunner:
             logger.info("  ⚡ High-frequency BTC/ETH binary options scalping")
         else:
             logger.info("⏸️ 15-Min Crypto Scalping DISABLED")
-        
+
         # Initialize AI Superforecasting Strategy (85% CONFIDENCE)
         ai_forecast_enabled = getattr(
             self.config.trading, 'enable_ai_superforecasting', False
         )
         if ai_forecast_enabled:
             gemini_api_key = (
-                self.db.get_secret("GEMINI_API_KEY") or 
+                self.db.get_secret("GEMINI_API_KEY") or
                 os.getenv("GEMINI_API_KEY")
             )
             if gemini_api_key:
@@ -1438,7 +1438,7 @@ class PolybotRunner:
             logger.info("  ♻️ Recycling capital from locked high-prob positions")
         else:
             logger.info("⏸️ Polymarket Liquidation Bot DISABLED")
-        
+
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
             # Use configurable starting balance from database config
@@ -1456,7 +1456,7 @@ class PolybotRunner:
             logger.warning("🔴 LIVE TRADING MODE ENABLED 🔴")
             logger.warning("Real money will be used for trades!")
             logger.warning("=" * 60)
-            
+
             # Initialize Polymarket ClobClient for live order execution
             if self.private_key:
                 self._polymarket_clob_client = (
@@ -1478,7 +1478,7 @@ class PolybotRunner:
                     "⚠️ Polymarket live trading unavailable "
                     "(no private key)"
                 )
-            
+
             # Kalshi client already initialized with auth
             if self.kalshi_client.is_authenticated:
                 logger.info("✓ Kalshi LIVE trading client ready")
@@ -1487,7 +1487,7 @@ class PolybotRunner:
                     "⚠️ Kalshi live trading unavailable "
                     "(not authenticated)"
                 )
-        
+
         # Initialize balance aggregator for multi-platform balance tracking
         # Collects from: Polymarket, Kalshi, Crypto (CCXT), Stocks (Alpaca)
         self.balance_aggregator = BalanceAggregator(
@@ -1498,12 +1498,12 @@ class PolybotRunner:
             alpaca_client=self.alpaca_client,
         )
         logger.info("✓ Balance Aggregator initialized (saves to DB)")
-        
+
         # =====================================================================
         # ADVANCED FRAMEWORK MODULES (Phase 1)
         # These modules enhance ALL strategies with better risk management
         # =====================================================================
-        
+
         # Initialize Kelly Criterion Position Sizer
         kelly_enabled = getattr(self.config.trading, 'kelly_sizing_enabled', False)
         if kelly_enabled:
@@ -1521,7 +1521,7 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Kelly Position Sizing DISABLED")
-        
+
         # Initialize Market Regime Detector
         regime_enabled = getattr(self.config.trading, 'regime_detection_enabled', True)
         if regime_enabled:
@@ -1543,7 +1543,7 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Regime Detection DISABLED")
-        
+
         # Initialize Circuit Breaker System
         cb_enabled = getattr(self.config.trading, 'circuit_breaker_enabled', True)
         if cb_enabled:
@@ -1563,11 +1563,11 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Circuit Breaker DISABLED")
-        
+
         # =====================================================================
         # STRATEGY ENHANCEMENT MODULES (Phase 2)
         # =====================================================================
-        
+
         # Initialize Time Decay Analyzer (Prediction Markets)
         td_enabled = getattr(self.config.trading, 'time_decay_enabled', True)
         if td_enabled:
@@ -1585,7 +1585,7 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Time Decay Analysis DISABLED")
-        
+
         # Initialize Stablecoin Depeg Detector
         depeg_enabled = getattr(self.config.trading, 'depeg_detection_enabled', True)
         if depeg_enabled:
@@ -1603,7 +1603,7 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Depeg Detection DISABLED")
-        
+
         # Initialize Correlation Position Limiter
         corr_enabled = getattr(self.config.trading, 'correlation_limits_enabled', True)
         if corr_enabled:
@@ -1621,9 +1621,9 @@ class PolybotRunner:
             )
         else:
             logger.info("⏸️ Correlation Limits DISABLED")
-        
+
         logger.info("All features initialized!")
-    
+
     async def on_copy_signal(self, signal: CopySignal):
         """Handle copy trading signals."""
         logger.info(
@@ -1631,7 +1631,7 @@ class PolybotRunner:
             f"of {signal.outcome} @ ${signal.price:.3f} - "
             f"Market: {signal.market_slug}"
         )
-        
+
         # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
@@ -1650,11 +1650,11 @@ class PolybotRunner:
             })
         except Exception as e:
             logger.error(f"Error logging copy signal: {e}")
-        
+
         if not self.simulation_mode:
             # TODO: Execute actual trade
             pass
-    
+
     async def on_arb_opportunity(self, opp: OverlapOpportunity):
         """Handle overlapping arbitrage opportunities."""
         logger.info(
@@ -1662,14 +1662,14 @@ class PolybotRunner:
             f"{opp.deviation:.1f}% deviation, "
             f"${opp.profit_potential:.4f} potential profit"
         )
-        
+
         # Check if market is blacklisted
         market_a_id = opp.market_a.condition_id or "unknown"
         market_b_id = opp.market_b.condition_id or "unknown"
-        
+
         skip_reason = None
         status = "detected"
-        
+
         if await self.is_market_blacklisted(market_a_id, opp.market_a.question):
             skip_reason = f"Market A blacklisted: {opp.market_a.question[:50]}..."
             status = "skipped"
@@ -1678,15 +1678,15 @@ class PolybotRunner:
             skip_reason = f"Market B blacklisted: {opp.market_b.question[:50]}..."
             status = "skipped"
             logger.info(f"⛔ {skip_reason}")
-        
+
         # Generate ID
         opp_id = f"overlap_{opp.market_a.condition_id[:10]}_{opp.detected_at.timestamp():.0f}"
-        
+
         # Calculate total_profit in USD based on trade size and profit %
         trade_size = float(self.config.trading.max_trade_size)
         profit_pct = float(opp.profit_potential * 100)
         total_profit_usd = trade_size * (profit_pct / 100.0)
-        
+
         # Log to database with proper schema fields
         try:
             self.db.log_opportunity({
@@ -1710,10 +1710,10 @@ class PolybotRunner:
             })
         except Exception as e:
             logger.error(f"Error logging arb opportunity: {e}")
-            
+
         if status == "skipped":
             return
-        
+
         # Paper trade if in simulation mode
         if self.simulation_mode and self.paper_trader:
             try:
@@ -1733,20 +1733,20 @@ class PolybotRunner:
                     trade_type=f"overlapping_{opp.relationship}",
                     arbitrage_type="overlapping_arb",  # CRITICAL: Not "polymarket_single"!
                 )
-                
+
                 # Record trade result if executed
                 if trade:
                     # Determine status and result
                     status = "executed"
                     exec_result = "unknown"
-                    
+
                     if trade.outcome.value in ("won", "lost"):
                         is_win = trade.outcome.value == "won"
                         exec_result = "won" if is_win else "lost"
                     elif trade.outcome.value == "failed_execution":
                         status = "failed"
                         exec_result = "execution_failed"
-                    
+
                     self.db.update_opportunity_status(
                         opportunity_id=opp_id,
                         status=status,
@@ -1771,7 +1771,7 @@ class PolybotRunner:
         else:
             # LIVE TRADING MODE - Execute real overlapping arb trade
             await self._execute_live_overlapping_arb_trade(opp, opp_id)
-    
+
     async def on_cross_platform_opportunity(self, opp: Opportunity):
         """Handle cross-platform arbitrage opportunities (Polymarket↔Kalshi)."""
         logger.info(
@@ -1780,7 +1780,7 @@ class PolybotRunner:
             f"Sell {opp.sell_platform} @ {opp.sell_price:.2f}"
         )
         logger.info(f"   Market: {opp.buy_market_name[:60]}...")
-        
+
         # Send notification for opportunity
         self.notifier.send_opportunity(
             buy_platform=opp.buy_platform,
@@ -1789,7 +1789,7 @@ class PolybotRunner:
             profit_percent=opp.profit_percent,
             trade_size=self.config.trading.max_trade_size,
         )
-        
+
         # Generate ID (use one provided if possible, else generate)
         if hasattr(opp, 'id') and opp.id:
             opp_id = opp.id
@@ -1799,7 +1799,7 @@ class PolybotRunner:
         # Calculate total_profit in USD based on trade size and profit %
         trade_size = float(self.config.trading.max_trade_size)
         total_profit_usd = trade_size * (opp.profit_percent / 100.0)
-        
+
         # Log to database
         try:
             self.db.log_opportunity({
@@ -1823,7 +1823,7 @@ class PolybotRunner:
             })
         except Exception as e:
             logger.error(f"Error logging cross-platform opportunity: {e}")
-        
+
         # Paper trade if in simulation mode
         if self.simulation_mode and self.paper_trader:
             try:
@@ -1842,12 +1842,12 @@ class PolybotRunner:
                 )
                 # Track in analytics
                 self.analytics.record_opportunity(ArbitrageType.CROSS_PLATFORM)
-                
+
                 # Record trade result if executed
                 if trade:
                     status = "executed"
                     exec_result = "unknown"
-                    
+
                     if trade.outcome.value in ("won", "lost"):
                         is_win = trade.outcome.value == "won"
                         exec_result = "won" if is_win else "lost"
@@ -1886,28 +1886,28 @@ class PolybotRunner:
         else:
             # LIVE TRADING MODE - Execute real trades
             await self._execute_live_cross_platform_trade(opp, opp_id)
-    
+
     async def on_single_platform_opportunity(
-        self, 
+        self,
         opp: SinglePlatformOpportunity
     ):
         """Handle single-platform arbitrage opportunities (intra-market)."""
         arb_type = opp.arb_type
-        
+
         logger.info(
             f"🎯 [SINGLE-ARB] {opp.platform.upper()} | "
             f"{opp.profit_pct:.2f}% profit | "
             f"Total={opp.total_price:.4f} | "
             f"{opp.market_title[:50]}..."
         )
-        
+
         # Mark as traded IMMEDIATELY to prevent duplicate trades
         if self.single_platform_scanner:
             self.single_platform_scanner.mark_traded(opp.market_id, opp.platform)
-        
+
         # Track in analytics
         self.analytics.record_opportunity(arb_type)
-        
+
         # Send notification for opportunity
         self.notifier.send_opportunity(
             buy_platform=opp.platform,
@@ -1916,14 +1916,14 @@ class PolybotRunner:
             profit_percent=float(opp.profit_pct),
             trade_size=self.config.trading.max_trade_size,
         )
-        
+
         # Generate predictable ID
         opp_id = f"single_{opp.platform}_{opp.market_id[:20]}_{opp.detected_at.timestamp():.0f}"
-        
+
         # Calculate total_profit in USD based on trade size and profit %
         trade_size = float(self.config.trading.max_trade_size)
         total_profit_usd = trade_size * (float(opp.profit_pct) / 100.0)
-        
+
         # Log to database
         try:
             self.db.log_opportunity({
@@ -1945,7 +1945,7 @@ class PolybotRunner:
             })
         except Exception as e:
             logger.error(f"Error logging single-platform opportunity: {e}")
-        
+
         # Paper trade if in simulation mode
         if self.simulation_mode and self.paper_trader:
             try:
@@ -1964,13 +1964,13 @@ class PolybotRunner:
                     trade_type=f"single_platform_{opp.platform}",
                     arbitrage_type=arb_type_str,  # Explicit!
                 )
-                
+
                 # Record trade result if executed
                 if trade:
                     # Determine status and result
                     status = "executed"
                     exec_result = "unknown"
-                    
+
                     if trade.outcome.value in ("won", "lost"):
                         is_win = trade.outcome.value == "won"
                         exec_result = "won" if is_win else "lost"
@@ -1984,7 +1984,7 @@ class PolybotRunner:
                         status = "failed"
                         exec_result = "execution_failed"
                         self.analytics.record_failed_execution(arb_type)
-                    
+
                     # Update DB with result
                     self.db.update_opportunity_status(
                         opportunity_id=opp_id,
@@ -2013,7 +2013,7 @@ class PolybotRunner:
             # Execute real orders on Polymarket or Kalshi
             # =========================================================
             await self._execute_live_single_platform_trade(opp, opp_id, arb_type)
-    
+
     async def on_position_claim(self, result: ClaimResult):
         """Handle position claim results."""
         if result.success:
@@ -2040,10 +2040,10 @@ class PolybotRunner:
     ):
         """
         Execute a live single-platform arbitrage trade.
-        
+
         For single-platform arb, we need to buy ALL outcomes so that
         we're guaranteed $1 at resolution regardless of outcome.
-        
+
         Args:
             opp: The opportunity to execute
             opp_id: Database opportunity ID
@@ -2053,12 +2053,12 @@ class PolybotRunner:
             f"🔴 LIVE TRADE: {opp.platform.upper()} single-platform arb | "
             f"{opp.profit_pct:.2f}% profit"
         )
-        
+
         try:
             # Calculate position size
             max_size = self.config.trading.max_trade_size
             position_size = min(max_size, 100)  # Cap at $100 for safety
-            
+
             if opp.platform == "polymarket":
                 result = await self._execute_polymarket_live_trade(
                     opp, position_size
@@ -2071,7 +2071,7 @@ class PolybotRunner:
                 result = {
                     "success": False, "error": f"Unknown platform: {opp.platform}"
                 }
-            
+
             # Update database with result
             if result.get("success"):
                 logger.info(f"✅ Live trade executed: {result.get('order_ids')}")
@@ -2083,7 +2083,7 @@ class PolybotRunner:
                 )
                 # Track in analytics
                 self.analytics.record_opportunity(arb_type)
-                
+
                 # Log to live trades table
                 self.db.log_live_trade({
                     "opportunity_id": opp_id,
@@ -2104,7 +2104,7 @@ class PolybotRunner:
                     skip_reason=f"Execution failed: {error}"
                 )
                 self.analytics.record_failed_execution(arb_type)
-                
+
         except Exception as e:
             logger.error(f"❌ Live trade exception: {e}")
             self.db.update_opportunity_status(
@@ -2120,38 +2120,38 @@ class PolybotRunner:
     ) -> dict:
         """
         Execute a live trade on Polymarket.
-        
+
         For single-platform arb, we buy both YES and NO tokens.
         """
         clob_client = getattr(self, '_polymarket_clob_client', None)
-        
+
         if not clob_client:
             return {
                 "success": False,
                 "error": "Polymarket ClobClient not initialized"
             }
-        
+
         try:
             # Get YES and NO token IDs
             yes_token_id = opp.outcomes.get("yes", {}).get("token_id")
             no_token_id = opp.outcomes.get("no", {}).get("token_id")
             yes_price = opp.outcomes.get("yes", {}).get("price", 0.5)
             no_price = opp.outcomes.get("no", {}).get("price", 0.5)
-            
+
             if not yes_token_id or not no_token_id:
                 return {
                     "success": False,
                     "error": "Missing token IDs for YES/NO outcomes"
                 }
-            
+
             # Calculate shares to buy for each outcome
             # Total cost = yes_shares * yes_price + no_shares * no_price
             # For equal investment, buy equal dollar amounts
             yes_shares = (position_size / 2) / yes_price
             no_shares = (position_size / 2) / no_price
-            
+
             order_ids = []
-            
+
             # Buy YES tokens
             yes_result = await self.polymarket_client.place_order(
                 clob_client=clob_client,
@@ -2161,7 +2161,7 @@ class PolybotRunner:
                 size=yes_shares,
                 order_type="GTC",
             )
-            
+
             if yes_result.get("success"):
                 order_ids.append(yes_result.get("order_id"))
             else:
@@ -2169,7 +2169,7 @@ class PolybotRunner:
                     "success": False,
                     "error": f"YES order failed: {yes_result.get('error')}"
                 }
-            
+
             # Buy NO tokens
             no_result = await self.polymarket_client.place_order(
                 clob_client=clob_client,
@@ -2179,7 +2179,7 @@ class PolybotRunner:
                 size=no_shares,
                 order_type="GTC",
             )
-            
+
             if no_result.get("success"):
                 order_ids.append(no_result.get("order_id"))
                 return {
@@ -2199,7 +2199,7 @@ class PolybotRunner:
                     "error": f"NO order failed: {no_result.get('error')}",
                     "partial_order_ids": order_ids,
                 }
-                
+
         except Exception as e:
             logger.error(f"Polymarket live trade error: {e}")
             return {"success": False, "error": str(e)}
@@ -2211,7 +2211,7 @@ class PolybotRunner:
     ) -> dict:
         """
         Execute a live trade on Kalshi.
-        
+
         For single-platform arb, we buy both YES and NO contracts.
         """
         if not self.kalshi_client.is_authenticated:
@@ -2219,20 +2219,20 @@ class PolybotRunner:
                 "success": False,
                 "error": "Kalshi client not authenticated"
             }
-        
+
         try:
             # Get ticker
             ticker = opp.market_id
             yes_price = opp.outcomes.get("yes", {}).get("price", 0.5)
             no_price = opp.outcomes.get("no", {}).get("price", 0.5)
-            
+
             # Calculate contracts to buy
             # On Kalshi, each contract costs price_cents and pays $1
             yes_contracts = int((position_size / 2) / yes_price)
             no_contracts = int((position_size / 2) / no_price)
-            
+
             order_ids = []
-            
+
             # Buy YES contracts
             yes_result = await self.kalshi_client.place_order(
                 ticker=ticker,
@@ -2242,7 +2242,7 @@ class PolybotRunner:
                 price_cents=int(yes_price * 100),
                 order_type="limit",
             )
-            
+
             if yes_result.get("success"):
                 order_ids.append(yes_result.get("order_id"))
             else:
@@ -2250,7 +2250,7 @@ class PolybotRunner:
                     "success": False,
                     "error": f"YES order failed: {yes_result.get('error')}"
                 }
-            
+
             # Buy NO contracts
             no_result = await self.kalshi_client.place_order(
                 ticker=ticker,
@@ -2260,7 +2260,7 @@ class PolybotRunner:
                 price_cents=int(no_price * 100),
                 order_type="limit",
             )
-            
+
             if no_result.get("success"):
                 order_ids.append(no_result.get("order_id"))
                 return {
@@ -2279,7 +2279,7 @@ class PolybotRunner:
                     "error": f"NO order failed: {no_result.get('error')}",
                     "partial_order_ids": order_ids,
                 }
-                
+
         except Exception as e:
             logger.error(f"Kalshi live trade error: {e}")
             return {"success": False, "error": str(e)}
@@ -2291,10 +2291,10 @@ class PolybotRunner:
     ):
         """
         Execute a live cross-platform arbitrage trade.
-        
+
         For cross-platform arb, we buy on one platform and sell on another.
         Example: Buy YES on Polymarket @ 0.45, Sell YES on Kalshi @ 0.55
-        
+
         Args:
             opp: The cross-platform opportunity
             opp_id: Database opportunity ID
@@ -2305,11 +2305,11 @@ class PolybotRunner:
             f"Sell {opp.sell_platform} @ {opp.sell_price:.2f} | "
             f"{opp.profit_percent:.2f}% profit"
         )
-        
+
         try:
             max_size = self.config.trading.max_trade_size
             position_size = min(max_size, 100)
-            
+
             # Execute buy leg first
             buy_result = await self._execute_cross_platform_leg(
                 platform=opp.buy_platform,
@@ -2318,7 +2318,7 @@ class PolybotRunner:
                 price=opp.buy_price,
                 position_size=position_size,
             )
-            
+
             if not buy_result.get("success"):
                 logger.error(
                     f"Buy leg failed: {buy_result.get('error')}"
@@ -2329,7 +2329,7 @@ class PolybotRunner:
                     skip_reason=f"Buy leg failed: {buy_result.get('error')}"
                 )
                 return
-            
+
             # Execute sell leg
             sell_result = await self._execute_cross_platform_leg(
                 platform=opp.sell_platform,
@@ -2338,7 +2338,7 @@ class PolybotRunner:
                 price=opp.sell_price,
                 position_size=position_size,
             )
-            
+
             if not sell_result.get("success"):
                 logger.error(
                     f"Sell leg failed (buy leg succeeded!): "
@@ -2359,23 +2359,23 @@ class PolybotRunner:
                     )
                 )
                 return
-            
+
             # Both legs succeeded
             logger.info(
                 f"✅ Cross-platform trade executed: "
                 f"Buy {buy_result.get('order_id')}, "
                 f"Sell {sell_result.get('order_id')}"
             )
-            
+
             self.db.update_opportunity_status(
                 opportunity_id=opp_id,
                 status="executed",
                 executed_at=datetime.utcnow(),
                 execution_result="pending_resolution"
             )
-            
+
             self.analytics.record_opportunity(ArbitrageType.CROSS_PLATFORM)
-            
+
             self.db.log_live_trade({
                 "opportunity_id": opp_id,
                 "platform": f"{opp.buy_platform}_to_{opp.sell_platform}",
@@ -2389,7 +2389,7 @@ class PolybotRunner:
                 ],
                 "status": "open",
             })
-            
+
         except Exception as e:
             logger.error(f"❌ Cross-platform trade exception: {e}")
             self.db.update_opportunity_status(
@@ -2408,7 +2408,7 @@ class PolybotRunner:
     ) -> dict:
         """
         Execute a single leg of a cross-platform trade.
-        
+
         Args:
             platform: "polymarket" or "kalshi"
             market_id: Market/ticker ID
@@ -2417,7 +2417,7 @@ class PolybotRunner:
             position_size: USD amount to trade
         """
         contracts = int(position_size / price)
-        
+
         if platform == "polymarket":
             clob_client = getattr(self, '_polymarket_clob_client', None)
             if not clob_client:
@@ -2425,7 +2425,7 @@ class PolybotRunner:
                     "success": False,
                     "error": "Polymarket ClobClient not initialized"
                 }
-            
+
             return await self.polymarket_client.place_order(
                 clob_client=clob_client,
                 token_id=market_id,
@@ -2434,14 +2434,14 @@ class PolybotRunner:
                 size=contracts,
                 order_type="GTC",
             )
-            
+
         elif platform == "kalshi":
             if not self.kalshi_client.is_authenticated:
                 return {
                     "success": False,
                     "error": "Kalshi client not authenticated"
                 }
-            
+
             action = "buy" if side == "buy" else "sell"
             return await self.kalshi_client.place_order(
                 ticker=market_id,
@@ -2464,12 +2464,12 @@ class PolybotRunner:
     ):
         """
         Execute a live overlapping arbitrage trade on Polymarket.
-        
+
         Overlapping arb exploits correlated markets. Example:
         - Market A: "Will X win election?" at 0.60
         - Market B: "Will X win primary?" at 0.40
         - If A implies B, buy B (underpriced) or sell A (overpriced)
-        
+
         CAUTION: This is more speculative than pure YES+NO arb.
         """
         logger.warning(
@@ -2477,11 +2477,11 @@ class PolybotRunner:
             f"{opp.deviation:.1f}% deviation | "
             f"Potential: ${opp.profit_potential:.4f}"
         )
-        
+
         try:
             max_size = self.config.trading.max_trade_size
             position_size = min(max_size, 50)
-            
+
             clob_client = getattr(self, '_polymarket_clob_client', None)
             if not clob_client:
                 logger.error("Polymarket ClobClient not initialized")
@@ -2491,12 +2491,12 @@ class PolybotRunner:
                     skip_reason="ClobClient not initialized"
                 )
                 return
-            
+
             # Determine trade direction based on relationship
             # For "subset" relationship: if A implies B, and A > B, buy B
             # For "superset" relationship: if B implies A, and A < B, sell B
             trade_action = self._determine_overlap_trade_action(opp)
-            
+
             if not trade_action:
                 logger.warning(
                     f"Could not determine trade action for {opp.relationship}"
@@ -2507,15 +2507,15 @@ class PolybotRunner:
                     skip_reason="Could not determine trade action"
                 )
                 return
-            
+
             # Execute the trade
             market_id = trade_action["market_id"]
             token_id = trade_action["token_id"]
             side = trade_action["side"]
             price = trade_action["price"]
-            
+
             shares = int(position_size / price)
-            
+
             result = await self.polymarket_client.place_order(
                 clob_client=clob_client,
                 token_id=token_id,
@@ -2524,7 +2524,7 @@ class PolybotRunner:
                 size=shares,
                 order_type="GTC",
             )
-            
+
             if result.get("success"):
                 logger.info(
                     f"✅ Overlapping arb executed: {result.get('order_id')}"
@@ -2535,7 +2535,7 @@ class PolybotRunner:
                     executed_at=datetime.utcnow(),
                     execution_result="pending_resolution"
                 )
-                
+
                 self.db.log_live_trade({
                     "opportunity_id": opp_id,
                     "platform": "polymarket",
@@ -2554,7 +2554,7 @@ class PolybotRunner:
                     status="failed",
                     skip_reason=f"Execution failed: {error}"
                 )
-                
+
         except Exception as e:
             logger.error(f"❌ Overlapping arb exception: {e}")
             self.db.update_opportunity_status(
@@ -2568,14 +2568,14 @@ class PolybotRunner:
     ) -> Optional[dict]:
         """
         Determine the trade action for an overlapping arbitrage opportunity.
-        
+
         Returns dict with: market_id, token_id, side, price, market_title
         or None if trade action cannot be determined.
         """
         # Get prices
         price_a = opp.market_a.yes_price or 0.5
         price_b = opp.market_b.yes_price or 0.5
-        
+
         if opp.relationship == "subset":
             # A is subset of B (A implies B)
             # If A > B, B is underpriced - BUY B
@@ -2588,7 +2588,7 @@ class PolybotRunner:
                     "market_title": opp.market_b.question,
                 }
             else:
-                # A < B - A is overpriced, SELL A 
+                # A < B - A is overpriced, SELL A
                 return {
                     "market_id": opp.market_a.condition_id,
                     "token_id": opp.market_a.yes_token_id,
@@ -2596,7 +2596,7 @@ class PolybotRunner:
                     "price": price_a,
                     "market_title": opp.market_a.question,
                 }
-                
+
         elif opp.relationship == "superset":
             # B is subset of A (B implies A)
             # If B > A, A is underpriced - BUY A
@@ -2616,7 +2616,7 @@ class PolybotRunner:
                     "price": price_b,
                     "market_title": opp.market_b.question,
                 }
-                
+
         elif opp.relationship == "complement":
             # A and B are complements (A + B should = 1)
             total = price_a + price_b
@@ -2656,9 +2656,9 @@ class PolybotRunner:
                         "price": price_b,
                         "market_title": opp.market_b.question,
                     }
-        
+
         return None
-    
+
     async def on_portfolio_update(self, summary: PortfolioSummary):
         """Handle portfolio updates."""
         logger.info(
@@ -2667,54 +2667,54 @@ class PolybotRunner:
             f"PnL: ${summary.total_unrealized_pnl + summary.total_realized_pnl:.2f}, "
             f"Win rate: {summary.win_rate:.1f}%"
         )
-    
+
     async def on_news_alert(self, alert: MarketAlert):
         """Handle news/sentiment alerts - informational signals, not arbitrage."""
         logger.info(
             f"[NEWS] {alert.alert_type}: {alert.news_item.title[:60]}... "
             f"-> {alert.suggested_action.upper()} confidence: {alert.confidence:.0%}"
         )
-        
+
         # NOTE: News alerts are informational signals, NOT arbitrage opportunities.
         # They don't have guaranteed profit like arbitrage (YES+NO<$1).
         # Don't log them to opportunities table - they pollute missed money stats.
-        # 
+        #
         # If news creates price divergence between platforms, that gets
         # detected separately by NewsArbitrageStrategy with actual profit %.
-    
+
     async def run_copy_trading(self):
         """Run copy trading engine."""
         if self.copy_trading:
             await self.copy_trading.run(callback=self.on_copy_signal)
-    
+
     async def run_arb_detection(self):
         """Run arbitrage detection."""
         if self.arb_detector:
             await self.arb_detector.run(callback=self.on_arb_opportunity)
-    
+
     async def run_cross_platform_scanner(self):
         """Run cross-platform arbitrage scanner (Polymarket↔Kalshi)."""
         # Use self.config (loaded from Supabase)
         if not self.config.trading.enable_cross_platform_arb:
             logger.info("⏸️ Cross-platform arbitrage DISABLED")
             return
-            
+
         if self.cross_platform_scanner:
             logger.info("▶️ Starting Cross-Platform Scanner...")
             await self.cross_platform_scanner.run(
                 callback=self.on_cross_platform_opportunity
             )
-    
+
     async def run_single_platform_scanner(self):
         """Run single-platform arbitrage scanner (intra-market)."""
         # Use self.config (loaded from Supabase)
         enable_poly = self.config.trading.enable_polymarket_single_arb
         enable_kalshi = self.config.trading.enable_kalshi_single_arb
-        
+
         if not enable_poly and not enable_kalshi:
             logger.info("⏸️ Single-platform arb DISABLED (both platforms)")
             return
-        
+
         if self.single_platform_scanner:
             logger.info(
                 f"▶️ Starting Single-Platform Scanner | "
@@ -2725,13 +2725,13 @@ class PolybotRunner:
                 enable_polymarket=enable_poly,
                 enable_kalshi=enable_kalshi,
             )
-    
+
     async def run_market_maker(self):
         """Run market making strategy (10-20% APR)."""
         if not self.config.trading.enable_market_making:
             logger.info("⏸️ Market Making DISABLED")
             return
-        
+
         if self.market_maker:
             logger.info("▶️ Starting Market Maker Strategy...")
             # Run indefinitely until stopped
@@ -2741,13 +2741,13 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"Market maker error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     async def run_news_arbitrage(self):
         """Run news arbitrage strategy (5-30% per event)."""
         if not self.config.trading.enable_news_arbitrage:
             logger.info("⏸️ News Arbitrage DISABLED")
             return
-        
+
         if self.news_arbitrage:
             logger.info("▶️ Starting News Arbitrage Scanner...")
             # Run indefinitely until stopped
@@ -2757,13 +2757,13 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"News arbitrage error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     async def run_funding_rate_arb(self):
         """Run funding rate arbitrage strategy (85% CONFIDENCE - 15-50% APY)."""
         if not self.config.trading.enable_funding_rate_arb:
             logger.info("⏸️ Funding Rate Arb DISABLED")
             return
-        
+
         if self.funding_rate_arb:
             logger.info("▶️ Starting Funding Rate Arb Strategy...")
             logger.info("  💰 Delta-neutral: Long spot, short perp")
@@ -2774,22 +2774,22 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"Funding rate arb error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     async def run_grid_trading(self):
         """Run grid trading strategy (75% CONFIDENCE - 20-60% APY)."""
         if not self.config.trading.enable_grid_trading:
             logger.info("⏸️ Grid Trading DISABLED")
             return
-        
+
         if self.grid_trading:
             logger.info("▶️ Starting Grid Trading Strategy...")
             logger.info("  📊 Profit from sideways price oscillation")
-            
+
             # Auto-create default grids if none exist
             # Detect exchange to use correct symbol format
             exchange_id = getattr(self.ccxt_client, 'exchange_id', 'binance')
             is_us_exchange = 'us' in exchange_id.lower()
-            
+
             # Choose symbols based on exchange
             if is_us_exchange:
                 # Binance US uses /USD pairs
@@ -2797,7 +2797,7 @@ class PolybotRunner:
             else:
                 # International exchanges use /USDT pairs
                 default_symbols = ["BTC/USDT", "ETH/USDT"]
-            
+
             # Create grids for default symbols if none exist
             active_grids = len([g for g in self.grid_trading.grids.values() if g.is_active])
             if active_grids == 0:
@@ -2820,7 +2820,7 @@ class PolybotRunner:
                             logger.warning(f"  ⚠️ Failed to create grid for {symbol}")
                     except Exception as e:
                         logger.error(f"  ❌ Error creating grid for {symbol}: {e}")
-            
+
             # Run indefinitely until stopped
             while self._running:
                 try:
@@ -2828,13 +2828,13 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"Grid trading error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     async def run_pairs_trading(self):
         """Run pairs trading strategy (65% CONFIDENCE - 10-25% APY)."""
         if not self.config.trading.enable_pairs_trading:
             logger.info("⏸️ Pairs Trading DISABLED")
             return
-        
+
         if self.pairs_trading:
             logger.info("▶️ Starting Pairs Trading Strategy...")
             logger.info("  📈 Statistical arb on correlated pairs")
@@ -2845,13 +2845,13 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"Pairs trading error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     async def run_stock_mean_reversion(self):
         """Run stock mean reversion strategy (70% CONFIDENCE - 15-30% APY)."""
         if not self.config.trading.enable_stock_mean_reversion:
             logger.info("⏸️ Stock Mean Reversion DISABLED")
             return
-        
+
         if self.stock_mean_reversion:
             logger.info("▶️ Starting Stock Mean Reversion Strategy...")
             logger.info("  📉 Buy oversold stocks reverting to mean")
@@ -2864,13 +2864,13 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"Stock mean reversion error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     async def run_stock_momentum(self):
         """Run stock momentum strategy (70% CONFIDENCE - 20-40% APY)."""
         if not self.config.trading.enable_stock_momentum:
             logger.info("⏸️ Stock Momentum DISABLED")
             return
-        
+
         if self.stock_momentum:
             logger.info("▶️ Starting Stock Momentum Strategy...")
             logger.info("  📈 Ride trends in high-momentum stocks")
@@ -2883,72 +2883,72 @@ class PolybotRunner:
                 except Exception as e:
                     logger.error(f"Stock momentum error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
-    
+
     # =========================================================================
     # TWITTER-DERIVED STRATEGIES (2024)
     # High-conviction strategies from analyzing top traders on X/Twitter
     # =========================================================================
-    
+
     async def run_btc_bracket_arb(self):
         """Run BTC Bracket Arbitrage (85% CONFIDENCE - $20K-200K/month)."""
         if not getattr(self.config.trading, 'enable_btc_bracket_arb', False):
             return
-        
+
         if self.btc_bracket_arb:
             logger.info("▶️ Starting BTC Bracket Arb Strategy...")
             logger.info("  💰 YES + NO < $1.00 = guaranteed profit")
             # Use the strategy's own run method
             await self.btc_bracket_arb.run()
-    
+
     async def run_bracket_compression(self):
         """Run Bracket Compression (70% CONFIDENCE - 15-30% APY)."""
         if not getattr(self.config.trading, 'enable_bracket_compression', False):
             return
-        
+
         if self.bracket_compression:
             logger.info("▶️ Starting Bracket Compression Strategy...")
             logger.info("  📊 Mean reversion on stretched bracket prices")
             # Use the strategy's own run method
             await self.bracket_compression.run()
-    
+
     async def run_kalshi_mention_sniper(self):
         """Run Kalshi Mention Sniper (80% CONFIDENCE - $120+/event)."""
         if not getattr(self.config.trading, 'enable_kalshi_mention_snipe', False):
             return
-        
+
         if self.kalshi_mention_sniper:
             logger.info("▶️ Starting Kalshi Mention Sniper...")
             logger.info("  ⚡ Fast execution on resolved mention markets")
             # Use the strategy's own run method
             await self.kalshi_mention_sniper.run()
-    
+
     async def run_whale_copy_trading(self):
         """Run Whale Copy Trading (75% CONFIDENCE - 25-50% APY)."""
         if not getattr(self.config.trading, 'enable_whale_copy_trading', False):
             return
-        
+
         if self.whale_copy_trading:
             logger.info("▶️ Starting Whale Copy Trading Strategy...")
             logger.info("  🐋 Track and copy 80%+ win rate wallets")
             # Use the strategy's own run method which handles DB integration
             await self.whale_copy_trading.run()
-    
+
     async def run_macro_board(self):
         """Run Macro Board Strategy (65% CONFIDENCE - $62K/month)."""
         if not getattr(self.config.trading, 'enable_macro_board', False):
             return
-        
+
         if self.macro_board:
             logger.info("▶️ Starting Macro Board Strategy...")
             logger.info("  🌍 Weighted macro event exposure")
             # Use the strategy's own run method
             await self.macro_board.run()
-    
+
     async def run_fear_premium_contrarian(self):
         """Run Fear Premium Contrarian (70% CONFIDENCE - 25-60% APY)."""
         if not getattr(self.config.trading, 'enable_fear_premium_contrarian', False):
             return
-        
+
         if self.fear_premium_contrarian:
             logger.info("▶️ Starting Fear Premium Contrarian Strategy...")
             logger.info("  😱 Trade against extreme sentiment | 91.4% win approach")
@@ -3033,7 +3033,7 @@ class PolybotRunner:
                 on_claim=self.on_position_claim,
                 on_update=self.on_portfolio_update,
             )
-    
+
     async def run_news_sentiment(self):
         """Run news/sentiment engine."""
         if self.news_engine:
@@ -3045,7 +3045,7 @@ class PolybotRunner:
                     {"conditionId": m.condition_id, "question": m.question}
                     for m in self.arb_detector.markets_cache.values()
                 ]
-            
+
             await self.news_engine.run(
                 markets=markets,
                 on_alert=self.on_news_alert,
@@ -3071,7 +3071,7 @@ class PolybotRunner:
                     await self.fetch_balances()
             except Exception as e:
                 logger.error(f"Error fetching balances: {e}")
-            
+
             # Check every 5 minutes
             await asyncio.sleep(300)
 
@@ -3084,7 +3084,7 @@ class PolybotRunner:
         version = get_version()
         scan_count = 0
         errors_last_hour = 0
-        
+
         while self._running:
             try:
                 # Count active strategies
@@ -3117,16 +3117,16 @@ class PolybotRunner:
                     active_strategies.append("congressional_tracker")
                 if getattr(self, 'spike_hunter', None):
                     active_strategies.append("spike_hunter")
-                
+
                 # Get trades in last hour from paper trader
                 trades_last_hour = 0
                 if self.paper_trader and hasattr(self.paper_trader, 'stats'):
                     trades_last_hour = getattr(self.paper_trader.stats, 'opportunities_traded', 0)
-                
+
                 # Get scan count from analytics
                 if self.analytics:
                     scan_count = getattr(self.analytics, 'total_opportunities', 0)
-                
+
                 self.db.heartbeat(
                     version=version,
                     scan_count=scan_count,
@@ -3150,12 +3150,12 @@ class PolybotRunner:
         """Periodically save paper trading stats and print summary."""
         while self._running:
             await asyncio.sleep(60)  # Save stats every minute
-            
+
             if self.paper_trader:
                 try:
                     # Save stats to database
                     await self.paper_trader.save_stats_to_db()
-                    
+
                     # Log summary
                     stats = self.paper_trader.stats
                     if stats.opportunities_seen > 0:
@@ -3169,7 +3169,7 @@ class PolybotRunner:
                         )
                 except Exception as e:
                     logger.error(f"Error saving paper trading stats: {e}")
-            
+
             # Save per-strategy analytics
             try:
                 await self.analytics.save_to_db(self.db)
@@ -3188,9 +3188,9 @@ class PolybotRunner:
             logger.error("Bot will continue with limited functionality")
             import traceback
             traceback.print_exc()
-        
+
         self._running = True
-        
+
         # Use self.config which was loaded from Supabase
         logger.info("=" * 60)
         logger.info("PolyBot Starting!")
@@ -3255,31 +3255,31 @@ class PolybotRunner:
         logger.info(f"  - Fear Premium Contrarian (70%): {'ON' if fear_pr else 'OFF'}")
         logger.info(f"  - Congressional Tracker (75%): {'ON' if cong_tr else 'OFF'}")
         logger.info("=" * 60)
-        
+
         # Send startup notification
         self.notifier.send_startup(
             dry_run=self.simulation_mode,
             max_trade_size=self.config.trading.max_trade_size,
         )
-        
+
         # Create tasks for each enabled feature
         tasks = []
-        
+
         if self.enable_copy_trading and self.copy_trading:
             tasks.append(asyncio.create_task(self.run_copy_trading()))
-        
+
         if self.enable_arb_detection and self.arb_detector:
             tasks.append(asyncio.create_task(self.run_arb_detection()))
-        
+
         # Run cross-platform scanner if enabled
         if cp and self.cross_platform_scanner:
             tasks.append(
                 asyncio.create_task(
-                    self._resilient_task("cross_platform_scanner", 
+                    self._resilient_task("cross_platform_scanner",
                                         self.run_cross_platform_scanner)
                 )
             )
-        
+
         # Run single-platform scanner if either platform enabled
         if (ps or ks) and self.single_platform_scanner:
             tasks.append(
@@ -3288,77 +3288,77 @@ class PolybotRunner:
                                         self.run_single_platform_scanner)
                 )
             )
-        
+
         # Run Market Making strategy (HIGH confidence - 10-20% APR)
         if mm and self.market_maker:
             tasks.append(asyncio.create_task(self.run_market_maker()))
-        
+
         # Run News Arbitrage strategy (MEDIUM confidence)
         if na and self.news_arbitrage:
             tasks.append(asyncio.create_task(self.run_news_arbitrage()))
-        
+
         # =====================================================================
         # CRYPTO STRATEGIES (HIGH PRIORITY)
         # =====================================================================
-        
+
         # Run Funding Rate Arb (85% CONFIDENCE - 15-50% APY)
         if fra and self.funding_rate_arb:
             tasks.append(asyncio.create_task(self.run_funding_rate_arb()))
-        
+
         # Run Grid Trading (75% CONFIDENCE - 20-60% APY)
         if gt and self.grid_trading:
             tasks.append(asyncio.create_task(self.run_grid_trading()))
-        
+
         # Run Pairs Trading (65% CONFIDENCE - 10-25% APY)
         if pt and self.pairs_trading:
             tasks.append(asyncio.create_task(self.run_pairs_trading()))
-        
+
         # Run Stock Mean Reversion (70% CONFIDENCE - 15-30% APY)
         if smr and self.stock_mean_reversion:
             tasks.append(asyncio.create_task(self.run_stock_mean_reversion()))
-        
+
         # Run Stock Momentum (70% CONFIDENCE - 20-40% APY)
         if sm and self.stock_momentum:
             tasks.append(asyncio.create_task(self.run_stock_momentum()))
-        
+
         # =====================================================================
         # TWITTER-DERIVED STRATEGIES (2024)
         # High-conviction strategies from analyzing top traders on X/Twitter
         # =====================================================================
-        
+
         # Run BTC Bracket Arb (85% CONFIDENCE)
         btc_bracket = getattr(
             self.config.trading, 'enable_btc_bracket_arb', False
         )
         if btc_bracket and self.btc_bracket_arb:
             tasks.append(asyncio.create_task(self.run_btc_bracket_arb()))
-        
+
         # Run Bracket Compression (70% CONFIDENCE)
         bracket_comp = getattr(
             self.config.trading, 'enable_bracket_compression', False
         )
         if bracket_comp and self.bracket_compression:
             tasks.append(asyncio.create_task(self.run_bracket_compression()))
-        
+
         # Run Kalshi Mention Sniper (80% CONFIDENCE)
         kalshi_snipe = getattr(
             self.config.trading, 'enable_kalshi_mention_snipe', False
         )
         if kalshi_snipe and self.kalshi_mention_sniper:
             tasks.append(asyncio.create_task(self.run_kalshi_mention_sniper()))
-        
+
         # Run Whale Copy Trading (75% CONFIDENCE)
         whale_copy = getattr(
             self.config.trading, 'enable_whale_copy_trading', False
         )
         if whale_copy and self.whale_copy_trading:
             tasks.append(asyncio.create_task(self.run_whale_copy_trading()))
-        
+
         # Run Macro Board (65% CONFIDENCE)
         macro = getattr(self.config.trading, 'enable_macro_board', False)
         if macro and self.macro_board:
             tasks.append(asyncio.create_task(self.run_macro_board()))
-        
+
         # Run Fear Premium Contrarian (70% CONFIDENCE)
         fear_prem = getattr(
             self.config.trading, 'enable_fear_premium_contrarian', False
@@ -3372,97 +3372,97 @@ class PolybotRunner:
         )
         if congress and self.congressional_tracker:
             tasks.append(asyncio.create_task(self.run_congressional_tracker()))
-        
+
         # Run Political Event Strategy (80% CONFIDENCE)
         pol_event = getattr(
             self.config.trading, 'enable_political_event_strategy', False
         )
         if pol_event and self.political_event_strategy:
             tasks.append(asyncio.create_task(self.run_political_event_strategy()))
-        
+
         # Run High Conviction Strategy (85% CONFIDENCE)
         high_conv = getattr(
             self.config.trading, 'enable_high_conviction_strategy', False
         )
         if high_conv and self.high_conviction_strategy:
             tasks.append(asyncio.create_task(self.run_high_conviction_strategy()))
-        
+
         # Run Selective Whale Copy (80% CONFIDENCE)
         sel_whale = getattr(
             self.config.trading, 'enable_selective_whale_copy', False
         )
         if sel_whale and self.selective_whale_copy:
             tasks.append(asyncio.create_task(self.run_selective_whale_copy()))
-        
+
         # Run 15-Min Crypto Scalping (90% CONFIDENCE)
         crypto_scalp = getattr(
             self.config.trading, 'enable_15min_crypto_scalping', False
         )
         if crypto_scalp and self.crypto_15min_scalping:
             tasks.append(asyncio.create_task(self.run_crypto_15min_scalping()))
-        
+
         # Run AI Superforecasting (85% CONFIDENCE)
         ai_forecast = getattr(
             self.config.trading, 'enable_ai_superforecasting', False
         )
         if ai_forecast and self.ai_superforecasting:
             tasks.append(asyncio.create_task(self.run_ai_superforecasting()))
-        
+
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))
-        
+
         if self.enable_news_sentiment and self.news_engine:
             tasks.append(asyncio.create_task(self.run_news_sentiment()))
-        
+
         # Always run balance tracker (resilient)
         tasks.append(asyncio.create_task(
             self._resilient_task("balance_tracker", self.run_balance_tracker)
         ))
-        
+
         # Always run heartbeat to update polybot_status (resilient)
         tasks.append(asyncio.create_task(
             self._resilient_task("heartbeat", self.run_heartbeat)
         ))
-        
+
         # Run paper trading stats saver if in simulation mode
         if self.simulation_mode and self.paper_trader:
             tasks.append(asyncio.create_task(self.run_paper_trading_stats()))
-        
+
         self._tasks = tasks
-        
+
         if not tasks:
             logger.warning("No features enabled! Exiting.")
             return
-        
+
         try:
             # Run all tasks concurrently
             # CRITICAL: return_exceptions=True prevents one failing task from crashing all others
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            
+
             # Log any exceptions that occurred
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
                     task_name = self._tasks[i].get_name() if hasattr(self._tasks[i], 'get_name') else f"task_{i}"
                     logger.error(f"Task {task_name} failed with error: {result}")
-                    
+
         except asyncio.CancelledError:
             logger.info("Tasks cancelled, shutting down...")
         except Exception as e:
             logger.error(f"Error in main loop: {e}")
             raise
-    
+
     async def shutdown(self):
         """Gracefully shutdown all features."""
         logger.info("Shutting down PolyBot...")
         self._running = False
-        
+
         # Send shutdown notification
         self.notifier.send_shutdown("Bot stopped by user")
-        
+
         # Print final analytics summary
         logger.info("\n" + self.analytics.get_comparison_summary())
         logger.info(self.analytics.get_recommendation())
-        
+
         if self.copy_trading:
             self.copy_trading.stop()
         if self.arb_detector:
@@ -3479,7 +3479,7 @@ class PolybotRunner:
             self.position_manager.stop()
         if self.news_engine:
             self.news_engine.stop()
-        
+
         # Stop crypto strategies
         if self.funding_rate_arb:
             await self.funding_rate_arb.stop()
@@ -3487,7 +3487,7 @@ class PolybotRunner:
             await self.grid_trading.stop()
         if self.pairs_trading:
             await self.pairs_trading.stop()
-        
+
         # Stop Twitter-derived strategies
         if self.btc_bracket_arb:
             self.btc_bracket_arb.stop()
@@ -3501,7 +3501,7 @@ class PolybotRunner:
             self.macro_board.stop()
         if self.fear_premium_contrarian:
             self.fear_premium_contrarian.stop()
-        
+
         # Stop new strategies (2025)
         if self.political_event_strategy:
             self.political_event_strategy.stop()
@@ -3513,7 +3513,7 @@ class PolybotRunner:
             self.crypto_15min_scalping.stop()
         if self.ai_superforecasting:
             self.ai_superforecasting.stop()
-        
+
         # Close exchange connections (prevents unclosed session warnings)
         if self.ccxt_client:
             try:
@@ -3521,28 +3521,28 @@ class PolybotRunner:
                 logger.debug("CCXT client closed")
             except Exception as e:
                 logger.debug(f"Error closing CCXT client: {e}")
-        
+
         if self.alpaca_client:
             try:
                 await self.alpaca_client.close()
                 logger.debug("Alpaca client closed")
             except Exception as e:
                 logger.debug(f"Error closing Alpaca client: {e}")
-        
+
         if self.single_platform_scanner:
             try:
                 await self.single_platform_scanner.close()
                 logger.debug("Scanner session closed")
             except Exception as e:
                 logger.debug(f"Error closing scanner: {e}")
-        
+
         # Cancel all running tasks
         for task in self._tasks:
             task.cancel()
-        
+
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
-        
+
         logger.info("PolyBot shutdown complete")
 
 
@@ -3551,7 +3551,7 @@ def setup_signal_handlers(runner: PolybotRunner, loop: asyncio.AbstractEventLoop
     def signal_handler():
         logger.info("Received shutdown signal")
         asyncio.create_task(runner.shutdown())
-    
+
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, signal_handler)
 
@@ -3567,7 +3567,7 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
         force=True,  # CRITICAL: Override pre-existing handlers
     )
-    
+
     # Also ensure we have stdout logging for container logs
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
@@ -3576,16 +3576,16 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S"
     ))
     logging.getLogger().addHandler(console_handler)
-    
+
     # NOW add database logging (after stdout is configured)
     # This writes logs to Supabase for the admin UI
     setup_database_logging()
-    
+
     logger.info("🚀 PolyBot starting up...")
-    
+
     # Global reference to bot runner for health server
     global_runner = {'instance': None}
-    
+
     # CRITICAL: Start health server FIRST before anything else
     # This ensures Lightsail health checks pass even if bot init crashes
     logger.info("🏥 Starting health server FIRST for deployment health checks...")
@@ -3593,7 +3593,7 @@ async def main():
     # Give health server time to start
     await asyncio.sleep(2)
     logger.info("✅ Health server started, proceeding with bot initialization...")
-    
+
     # Load simulation mode from database (Admin UI setting)
     # This allows toggling simulation/live from the UI without code changes
     db = Database()
@@ -3616,12 +3616,12 @@ async def main():
     except Exception as e:
         logger.warning(f"Could not load dry_run_mode: {e}")
         simulation_mode = True
-    
+
     # Example tracked traders (these are whale addresses on Polymarket)
     tracked_traders = [
         # Add trader addresses to copy here
     ]
-    
+
     try:
         runner = PolybotRunner(
             tracked_traders=tracked_traders,
@@ -3642,11 +3642,11 @@ async def main():
         logger.info("Health server will keep running - fix code and redeploy")
         while True:
             await asyncio.sleep(60)
-    
+
     # Setup signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
     setup_signal_handlers(runner, loop)
-    
+
     try:
         await runner.run()
     except KeyboardInterrupt:
@@ -3670,7 +3670,7 @@ def get_build_number():
     """Get build number from BUILD_NUMBER env var, git commit count, or BUILD file."""
     import subprocess
     import os
-    
+
     # First check env var (set during docker build)
     env_build = os.environ.get('BUILD_NUMBER')
     if env_build:
@@ -3678,7 +3678,7 @@ def get_build_number():
             return int(env_build)
         except:
             pass
-    
+
     # Check BUILD file
     build_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'BUILD')
     try:
@@ -3686,22 +3686,22 @@ def get_build_number():
             return int(f.read().strip())
     except:
         pass
-    
+
     # Try git
     try:
-        result = subprocess.run(['git', 'rev-list', '--count', 'HEAD'], 
+        result = subprocess.run(['git', 'rev-list', '--count', 'HEAD'],
                                 capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
         if result.returncode == 0:
             return int(result.stdout.strip())
     except:
         pass
-    
+
     return 17  # Default to current deployment version
 
 
 async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None):
     """Start a simple HTTP health check server for Lightsail.
-    
+
     Args:
         port: Port to listen on
         bot_runner: Direct reference to PolybotRunner (legacy)
@@ -3709,10 +3709,10 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
     """
     from aiohttp import web
     import os
-    
+
     version = get_version()
     build = get_build_number()
-    
+
     def get_runner():
         """Get bot runner from direct ref or runner_ref dict."""
         if bot_runner:
@@ -3720,10 +3720,10 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
         if runner_ref and runner_ref.get('instance'):
             return runner_ref['instance']
         return None
-    
+
     async def health_handler(request):
         return web.Response(text="OK", status=200)
-    
+
     async def status_handler(request):
         return web.json_response({
             "status": "running",
@@ -3732,7 +3732,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
             "build": build,
             "fullVersion": f"v{version} (Build #{build})",
         })
-    
+
     async def debug_secrets_handler(request):
         """Debug endpoint to check if secrets are being loaded."""
         try:
@@ -3741,7 +3741,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
             debug_info = {
                 "bot_runner_direct": bot_runner is not None,
                 "runner_ref_exists": runner_ref is not None,
-                "runner_ref_has_instance": (runner_ref.get('instance') is not None 
+                "runner_ref_has_instance": (runner_ref.get('instance') is not None
                                            if runner_ref else False),
                 "get_runner_result": runner is not None,
             }
@@ -3755,17 +3755,17 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                     "error": "Bot has no database connection",
                     "debug": debug_info
                 }, status=500)
-            
+
             db = runner.db
-            
+
             # Check which secrets are loaded (show key names only, not values!)
             secrets_status = {}
-            for key in ['BINANCE_API_KEY', 'BINANCE_API_SECRET', 
-                        'ALPACA_PAPER_API_KEY', 'ALPACA_PAPER_API_SECRET', 
+            for key in ['BINANCE_API_KEY', 'BINANCE_API_SECRET',
+                        'ALPACA_PAPER_API_KEY', 'ALPACA_PAPER_API_SECRET',
                         'POLYMARKET_API_KEY', 'KALSHI_API_KEY']:
                 val = db.get_secret(key)
                 secrets_status[key] = "✅ Set" if val else "❌ Missing"
-            
+
             # Check CCXT client - show which exchange is connected
             ccxt_status = "❌ Not initialized"
             ccxt_details = {}
@@ -3783,10 +3783,10 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                     ccxt_details["has_futures"] = ex.has.get('fetchFundingRate', False)
                     ccxt_details["has_spot"] = ex.has.get('fetchTicker', False)
                     ccxt_details["sandbox"] = getattr(ex, 'sandbox', False)
-            
-            # Check Alpaca client  
+
+            # Check Alpaca client
             alpaca_status = "✅ Initialized" if runner.alpaca_client else "❌ Not initialized"
-            
+
             # News source configuration
             news_config = {
                 "finnhub_api_key": "✅ Set" if runner.finnhub_api_key else "❌ Missing",
@@ -3794,7 +3794,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                 "news_api_key": "✅ Set" if runner.news_api_key else "❌ Missing",
                 "news_engine_active": "✅ Active" if runner.news_engine else "❌ Disabled",
             }
-            
+
             # Check strategy status
             strategies = {
                 "funding_rate_arb": "✅ Active" if runner.funding_rate_arb else "❌ Disabled",
@@ -3803,7 +3803,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                 "stock_mean_reversion": "✅ Active" if runner.stock_mean_reversion else "❌ Disabled",
                 "stock_momentum": "✅ Active" if runner.stock_momentum else "❌ Disabled",
             }
-            
+
             # Check config
             config_status = {
                 "enable_binance": getattr(runner.config.trading, 'enable_binance', False),
@@ -3812,7 +3812,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                 "enable_grid_trading": getattr(runner.config.trading, 'enable_grid_trading', False),
                 "enable_pairs_trading": getattr(runner.config.trading, 'enable_pairs_trading', False),
             }
-            
+
             # Check if using service_role key by decoding JWT payload
             key_type = "unknown"
             if db.key:
@@ -3826,7 +3826,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                     key_type = "service_role" if '"role":"service_role"' in decoded else "anon"
                 except:
                     key_type = "parse_error"
-            
+
             # Check exchange credentials loading
             exchange_creds_check = {}
             for ex in ['binance', 'coinbase']:
@@ -3834,7 +3834,7 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                 has_key = bool(creds.get('api_key'))
                 has_secret = bool(creds.get('api_secret'))
                 exchange_creds_check[ex] = f"key={has_key},secret={has_secret}"
-            
+
             return web.json_response({
                 "secrets": secrets_status,
                 "ccxt_client": ccxt_status,
@@ -3858,19 +3858,19 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                 "type": type(e).__name__,
                 "traceback": traceback.format_exc()[:500],
             }, status=500)
-    
+
     app = web.Application()
     app.router.add_get('/health', health_handler)
     app.router.add_get('/status', status_handler)
     app.router.add_get('/debug/secrets', debug_secrets_handler)
     app.router.add_get('/', health_handler)
-    
+
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     logger.info(f"Health server started on port {port} - v{version} (Build #{build})")
-    
+
     # Keep running until cancelled
     try:
         while True:

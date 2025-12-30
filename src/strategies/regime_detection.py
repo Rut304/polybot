@@ -165,7 +165,7 @@ DEFAULT_REGIME_CONFIGS: Dict[MarketRegime, RegimeConfig] = {
 class RegimeDetector:
     """
     Detects market regime based on volatility and trend indicators.
-    
+
     Uses multiple signals:
     - VIX level (if available)
     - ATR (Average True Range) percentage
@@ -173,7 +173,7 @@ class RegimeDetector:
     - Price vs moving averages
     - Correlation breakdown detection
     """
-    
+
     def __init__(
         self,
         vix_low_threshold: float = 15.0,
@@ -186,7 +186,7 @@ class RegimeDetector:
     ):
         """
         Initialize regime detector.
-        
+
         Args:
             vix_low_threshold: VIX below this = low volatility
             vix_high_threshold: VIX above this = high volatility
@@ -203,14 +203,14 @@ class RegimeDetector:
         self.atr_high = atr_high_threshold
         self.trend_threshold = trend_strength_threshold
         self.lookback = lookback_periods
-        
+
         self._current_state: Optional[RegimeState] = None
         self._price_history: List[float] = []
         self._regime_history: List[RegimeState] = []
-        
+
         # Config mapping
         self.regime_configs = DEFAULT_REGIME_CONFIGS.copy()
-    
+
     def detect_regime(
         self,
         vix: Optional[float] = None,
@@ -222,7 +222,7 @@ class RegimeDetector:
     ) -> RegimeState:
         """
         Detect current market regime.
-        
+
         Args:
             vix: Current VIX level (optional)
             atr_percent: ATR as percentage of price
@@ -230,20 +230,20 @@ class RegimeDetector:
             price_vs_sma: Price relative to SMA (e.g., 1.05 = 5% above)
             correlation_breakdown: Whether correlations have broken down
             recent_prices: Recent price data for calculation
-        
+
         Returns:
             RegimeState with detected regime
         """
         # Calculate indicators from price data if provided
         if recent_prices and len(recent_prices) >= self.lookback:
             self._price_history = recent_prices[-100:]  # Keep last 100
-            
+
             if atr_percent is None:
                 atr_percent = self._calculate_atr_percent(recent_prices)
-            
+
             if price_vs_sma is None:
                 price_vs_sma = self._calculate_price_vs_sma(recent_prices)
-        
+
         # Store indicators
         indicators = {
             "vix": vix,
@@ -252,7 +252,7 @@ class RegimeDetector:
             "price_vs_sma": price_vs_sma,
             "correlation_breakdown": float(correlation_breakdown),
         }
-        
+
         # Determine regime
         regime, confidence = self._classify_regime(
             vix=vix,
@@ -261,21 +261,21 @@ class RegimeDetector:
             price_vs_sma=price_vs_sma,
             correlation_breakdown=correlation_breakdown,
         )
-        
+
         # Calculate regime duration
         duration_hours = 0.0
         if self._current_state and self._current_state.current_regime == regime:
             duration_hours = (
                 datetime.utcnow() - self._current_state.detected_at
             ).total_seconds() / 3600
-        
+
         # Create new state
         previous_regime = (
             self._current_state.current_regime
             if self._current_state
             else None
         )
-        
+
         state = RegimeState(
             current_regime=regime,
             confidence=confidence,
@@ -284,23 +284,23 @@ class RegimeDetector:
             previous_regime=previous_regime,
             regime_duration_hours=duration_hours,
         )
-        
+
         # Log regime change
         if previous_regime and previous_regime != regime:
             logger.info(
                 f"🔄 Regime change: {previous_regime.value} → {regime.value} "
                 f"(confidence: {confidence:.0%})"
             )
-        
+
         self._current_state = state
         self._regime_history.append(state)
-        
+
         # Keep history bounded
         if len(self._regime_history) > 1000:
             self._regime_history = self._regime_history[-500:]
-        
+
         return state
-    
+
     def _classify_regime(
         self,
         vix: Optional[float],
@@ -311,11 +311,11 @@ class RegimeDetector:
     ) -> tuple:
         """Classify regime based on indicators."""
         confidence_scores: Dict[MarketRegime, float] = {}
-        
+
         # Crisis detection (highest priority)
         if correlation_breakdown:
             confidence_scores[MarketRegime.CRISIS] = 0.9
-        
+
         if vix is not None:
             if vix > self.vix_crisis:
                 confidence_scores[MarketRegime.CRISIS] = max(
@@ -326,7 +326,7 @@ class RegimeDetector:
                 confidence_scores[MarketRegime.HIGH_VOLATILITY] = 0.85
             elif vix < self.vix_low:
                 confidence_scores[MarketRegime.LOW_VOLATILITY] = 0.80
-        
+
         # ATR-based classification
         if atr_percent is not None:
             if atr_percent > self.atr_high:
@@ -339,7 +339,7 @@ class RegimeDetector:
                     confidence_scores.get(MarketRegime.LOW_VOLATILITY, 0),
                     0.70
                 )
-        
+
         # Trend detection
         if adx is not None and adx > self.trend_threshold:
             if price_vs_sma is not None:
@@ -349,104 +349,104 @@ class RegimeDetector:
                     confidence_scores[MarketRegime.TRENDING_DOWN] = 0.80
         elif adx is not None and adx < 20:
             confidence_scores[MarketRegime.MEAN_REVERTING] = 0.70
-        
+
         # Default to normal if no strong signals
         if not confidence_scores:
             return MarketRegime.NORMAL, 0.5
-        
+
         # Return highest confidence regime
         best_regime = max(confidence_scores, key=confidence_scores.get)
         return best_regime, confidence_scores[best_regime]
-    
+
     def _calculate_atr_percent(self, prices: List[float]) -> float:
         """Calculate ATR as percentage of current price."""
         if len(prices) < 2:
             return 0.0
-        
+
         # Simple ATR approximation using price changes
         changes = [
             abs(prices[i] - prices[i-1])
             for i in range(1, len(prices))
         ]
-        
+
         atr = statistics.mean(changes[-self.lookback:])
         current_price = prices[-1]
-        
+
         if current_price == 0:
             return 0.0
-        
+
         return (atr / current_price) * 100
-    
+
     def _calculate_price_vs_sma(self, prices: List[float]) -> float:
         """Calculate price relative to SMA."""
         if len(prices) < self.lookback:
             return 1.0
-        
+
         sma = statistics.mean(prices[-self.lookback:])
         current_price = prices[-1]
-        
+
         if sma == 0:
             return 1.0
-        
+
         return current_price / sma
-    
+
     def get_config(self, regime: Optional[MarketRegime] = None) -> RegimeConfig:
         """Get configuration for a regime."""
         if regime is None:
             regime = self.current_regime
-        
+
         return self.regime_configs.get(regime, self.regime_configs[MarketRegime.NORMAL])
-    
+
     @property
     def current_regime(self) -> MarketRegime:
         """Get current detected regime."""
         if self._current_state:
             return self._current_state.current_regime
         return MarketRegime.NORMAL
-    
+
     @property
     def current_state(self) -> Optional[RegimeState]:
         """Get current regime state."""
         return self._current_state
-    
+
     def is_strategy_enabled(self, strategy_name: str) -> bool:
         """Check if a strategy is enabled in current regime."""
         config = self.get_config()
-        
+
         # Check if explicitly disabled
         if strategy_name in config.disabled_strategies:
             return False
-        
+
         # Check if "all" is enabled or strategy is explicitly enabled
         if "all" in config.enabled_strategies:
             return True
-        
+
         return strategy_name in config.enabled_strategies
-    
+
     def adjust_position_size(self, base_size: float) -> float:
         """Adjust position size for current regime."""
         config = self.get_config()
         return base_size * config.position_size_multiplier
-    
+
     def adjust_stop_loss(self, base_stop_pct: float) -> float:
         """Adjust stop loss for current regime."""
         config = self.get_config()
         return base_stop_pct * config.stop_loss_multiplier
-    
+
     def adjust_scan_interval(self, base_interval: float) -> float:
         """Adjust scan interval for current regime."""
         config = self.get_config()
         return base_interval * config.scan_interval_multiplier
-    
+
     def adjust_min_profit(self, base_profit_pct: float) -> float:
         """Adjust minimum profit threshold for current regime."""
         config = self.get_config()
         return base_profit_pct * config.min_profit_multiplier
-    
+
     def get_regime_config(self, regime: Optional[MarketRegime] = None) -> RegimeConfig:
         """Alias for get_config() - get config for current or specified regime."""
         return self.get_config(regime)
-    
+
     def get_regime_history(self) -> List[RegimeState]:
         """Get history of regime states."""
         return self._regime_history.copy()

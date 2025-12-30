@@ -32,45 +32,45 @@ class SelectableWhale:
     """A whale that can be selected for copy trading"""
     address: str
     username: str
-    
+
     # Performance metrics
     win_rate: float = 0.0
     roi_pct: float = 0.0
     total_volume_usd: Decimal = Decimal("0")
     total_trades: int = 0
     winning_trades: int = 0
-    
+
     # Activity
     last_active_at: Optional[datetime] = None
     positions_count: int = 0
-    
+
     # Selection status
     is_selected: bool = False
     selection_reason: Optional[str] = None
     auto_selected: bool = False  # Selected by algorithm vs manual
-    
+
     # Copy settings (per whale)
     copy_delay_seconds: int = 60
     copy_scale_pct: float = 100.0  # % of whale position to copy
     max_copy_usd: Decimal = Decimal("100")
-    
+
     # Track record of copying this whale
     copy_trades: int = 0
     copy_wins: int = 0
     copy_pnl: Decimal = Decimal("0")
-    
+
     # Metadata
     added_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-    
+
     @property
     def copy_win_rate(self) -> float:
         """Win rate from copying this whale"""
         if self.copy_trades == 0:
             return 0.0
         return (self.copy_wins / self.copy_trades) * 100
-    
+
     def meets_criteria(
         self,
         min_win_rate: float = 75.0,
@@ -80,23 +80,23 @@ class SelectableWhale:
         max_days_inactive: int = 7,
     ) -> tuple[bool, str]:
         """Check if whale meets selection criteria"""
-        
+
         # Win rate check
         if self.win_rate < min_win_rate:
             return False, f"Win rate {self.win_rate:.1f}% < {min_win_rate}%"
-        
+
         # Volume check
         if float(self.total_volume_usd) < min_volume_usd:
             return False, f"Volume ${self.total_volume_usd:,.0f} < ${min_volume_usd:,.0f}"
-        
+
         # ROI check
         if self.roi_pct < min_roi_pct:
             return False, f"ROI {self.roi_pct:.1f}% < {min_roi_pct}%"
-        
+
         # Trade count check
         if self.total_trades < min_trades:
             return False, f"Trades {self.total_trades} < {min_trades}"
-        
+
         # Activity check
         if self.last_active_at:
             days_inactive = (
@@ -104,9 +104,9 @@ class SelectableWhale:
             ).days
             if days_inactive > max_days_inactive:
                 return False, f"Inactive {days_inactive} days > {max_days_inactive}"
-        
+
         return True, "Meets all criteria"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "address": self.address,
@@ -137,19 +137,19 @@ class CopySignal:
     whale_size_usd: Decimal
     copy_size_usd: Decimal
     execute_at: datetime
-    
+
     # Market info
     current_price: float = 0.5
     market_title: str = ""
-    
+
     # Status
     executed: bool = False
     execution_result: Optional[str] = None
-    
+
     created_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "whale_address": self.whale.address,
@@ -169,7 +169,7 @@ class CopySignal:
 class SelectiveWhaleCopyStrategy:
     """
     Copy trades from only selected high-performing whales.
-    
+
     Selection process:
     1. Scan leaderboard for candidates
     2. Filter by win rate, volume, ROI, activity
@@ -177,7 +177,7 @@ class SelectiveWhaleCopyStrategy:
     4. Allow manual selection/deselection
     5. Copy with configurable delay and scaling
     """
-    
+
     def __init__(
         self,
         db_client=None,
@@ -187,7 +187,7 @@ class SelectiveWhaleCopyStrategy:
         self.db = db_client
         self.config = config or {}
         self.on_copy_signal = on_copy_signal
-        
+
         # Configuration
         self.enabled = self.config.get("enable_selective_whale_copy", True)
         self.min_win_rate = self.config.get("swc_min_win_rate", 75.0)
@@ -196,7 +196,7 @@ class SelectiveWhaleCopyStrategy:
         self.min_trades = self.config.get("swc_min_trades", 20)
         self.max_days_inactive = self.config.get("swc_max_days_inactive", 7)
         self.auto_select_count = self.config.get("swc_auto_select_count", 5)
-        
+
         # Copy settings
         self.default_delay_seconds = self.config.get("swc_copy_delay_sec", 60)
         self.default_scale_pct = self.config.get("swc_copy_scale_pct", 50)
@@ -206,29 +206,29 @@ class SelectiveWhaleCopyStrategy:
         self.max_concurrent_copies = self.config.get(
             "swc_max_concurrent_copies", 5
         )
-        
+
         # State
         self.tracked_whales: Dict[str, SelectableWhale] = {}
         self.selected_whales: List[str] = []  # addresses
         self.pending_copies: List[CopySignal] = []
         self.active_copies: List[CopySignal] = []
-        
+
         logger.info(
             f"SelectiveWhaleCopyStrategy initialized - "
             f"enabled={self.enabled}, min_win_rate={self.min_win_rate}%, "
             f"auto_select={self.auto_select_count}"
         )
-    
+
     async def load_tracked_whales(self) -> List[SelectableWhale]:
         """Load tracked whales from database"""
         if not self.db:
             return []
-        
+
         try:
             result = await self.db.from_(
                 "polybot_tracked_whales"
             ).select("*").execute()
-            
+
             for row in result.data or []:
                 whale = SelectableWhale(
                     address=row["address"],
@@ -244,17 +244,17 @@ class SelectiveWhaleCopyStrategy:
                     )),
                 )
                 self.tracked_whales[whale.address] = whale
-                
+
                 if whale.is_selected:
                     self.selected_whales.append(whale.address)
-            
+
             logger.info(f"Loaded {len(self.tracked_whales)} tracked whales")
             return list(self.tracked_whales.values())
-            
+
         except Exception as e:
             logger.error(f"Failed to load tracked whales: {e}")
             return []
-    
+
     def add_whale_from_leaderboard(
         self,
         address: str,
@@ -274,9 +274,9 @@ class SelectiveWhaleCopyStrategy:
             total_trades=total_trades,
             last_active_at=datetime.now(timezone.utc),
         )
-        
+
         self.tracked_whales[address] = whale
-        
+
         # Check if auto-select
         meets, reason = whale.meets_criteria(
             min_win_rate=self.min_win_rate,
@@ -285,17 +285,17 @@ class SelectiveWhaleCopyStrategy:
             min_trades=self.min_trades,
             max_days_inactive=self.max_days_inactive,
         )
-        
+
         if meets:
             whale.selection_reason = reason
             logger.debug(f"Whale {username} meets criteria: {reason}")
-        
+
         return whale
-    
+
     def auto_select_top_whales(self) -> List[SelectableWhale]:
         """Automatically select top N whales meeting criteria"""
         candidates = []
-        
+
         for whale in self.tracked_whales.values():
             meets, reason = whale.meets_criteria(
                 min_win_rate=self.min_win_rate,
@@ -306,16 +306,16 @@ class SelectiveWhaleCopyStrategy:
             )
             if meets:
                 candidates.append(whale)
-        
+
         # Sort by ROI * win_rate composite score
         candidates.sort(
             key=lambda w: w.roi_pct * w.win_rate,
             reverse=True,
         )
-        
+
         # Select top N
         selected = candidates[:self.auto_select_count]
-        
+
         for whale in selected:
             whale.is_selected = True
             whale.auto_selected = True
@@ -325,14 +325,14 @@ class SelectiveWhaleCopyStrategy:
             )
             if whale.address not in self.selected_whales:
                 self.selected_whales.append(whale.address)
-        
+
         logger.info(
             f"Auto-selected {len(selected)} whales from "
             f"{len(candidates)} candidates"
         )
-        
+
         return selected
-    
+
     def select_whale(
         self,
         address: str,
@@ -342,33 +342,33 @@ class SelectiveWhaleCopyStrategy:
         if address not in self.tracked_whales:
             logger.warning(f"Whale {address} not found")
             return False
-        
+
         whale = self.tracked_whales[address]
         whale.is_selected = True
         whale.auto_selected = False
         whale.selection_reason = reason
-        
+
         if address not in self.selected_whales:
             self.selected_whales.append(address)
-        
+
         logger.info(f"Selected whale {whale.username}: {reason}")
         return True
-    
+
     def deselect_whale(self, address: str) -> bool:
         """Deselect a whale from copy trading"""
         if address not in self.tracked_whales:
             return False
-        
+
         whale = self.tracked_whales[address]
         whale.is_selected = False
         whale.selection_reason = None
-        
+
         if address in self.selected_whales:
             self.selected_whales.remove(address)
-        
+
         logger.info(f"Deselected whale {whale.username}")
         return True
-    
+
     def process_whale_trade(
         self,
         whale_address: str,
@@ -381,23 +381,23 @@ class SelectiveWhaleCopyStrategy:
         """Process a whale trade and create copy signal if selected"""
         if not self.enabled:
             return None
-        
+
         if whale_address not in self.tracked_whales:
             return None
-        
+
         whale = self.tracked_whales[whale_address]
-        
+
         if not whale.is_selected:
             logger.debug(f"Whale {whale.username} not selected, skipping")
             return None
-        
+
         # Check concurrent copies limit
         if len(self.active_copies) >= self.max_concurrent_copies:
             logger.info(
                 f"Max concurrent copies ({self.max_concurrent_copies}) reached"
             )
             return None
-        
+
         # Calculate copy size
         scale = whale.copy_scale_pct / 100
         copy_size = min(
@@ -405,11 +405,11 @@ class SelectiveWhaleCopyStrategy:
             whale.max_copy_usd,
             self.max_copy_usd,
         )
-        
+
         # Calculate execution time with delay
         delay = timedelta(seconds=whale.copy_delay_seconds)
         execute_at = datetime.now(timezone.utc) + delay
-        
+
         # Create copy signal
         signal = CopySignal(
             whale=whale,
@@ -421,32 +421,32 @@ class SelectiveWhaleCopyStrategy:
             current_price=current_price,
             market_title=market_title,
         )
-        
+
         self.pending_copies.append(signal)
-        
+
         logger.info(
             f"Copy signal created: {whale.username} {direction} on "
             f"{market_id}, copy ${copy_size} in {whale.copy_delay_seconds}s"
         )
-        
+
         # Callback
         if self.on_copy_signal:
             self.on_copy_signal(signal)
-        
+
         return signal
-    
+
     def get_ready_copies(self) -> List[CopySignal]:
         """Get copies that are ready to execute"""
         now = datetime.now(timezone.utc)
         ready = [c for c in self.pending_copies if c.execute_at <= now]
-        
+
         # Move to active
         for copy in ready:
             self.pending_copies.remove(copy)
             self.active_copies.append(copy)
-        
+
         return ready
-    
+
     def mark_copy_executed(
         self,
         signal: CopySignal,
@@ -456,16 +456,16 @@ class SelectiveWhaleCopyStrategy:
         """Mark a copy as executed"""
         signal.executed = True
         signal.execution_result = result
-        
+
         # Update whale stats
         if success:
             signal.whale.copy_trades += 1
-        
+
         logger.info(
             f"Copy executed: {signal.whale.username} {signal.direction} "
             f"${signal.copy_size_usd} - {result}"
         )
-    
+
     def record_copy_outcome(
         self,
         whale_address: str,
@@ -475,22 +475,22 @@ class SelectiveWhaleCopyStrategy:
         """Record the outcome of a copy trade"""
         if whale_address not in self.tracked_whales:
             return
-        
+
         whale = self.tracked_whales[whale_address]
         if won:
             whale.copy_wins += 1
         whale.copy_pnl += pnl
-        
+
         logger.info(
             f"Copy outcome: {whale.username} - "
             f"{'Won' if won else 'Lost'} ${pnl}"
         )
-    
+
     async def sync_to_database(self):
         """Sync whale selection status to database"""
         if not self.db:
             return
-        
+
         try:
             for address, whale in self.tracked_whales.items():
                 await self.db.from_("polybot_tracked_whales").upsert({
@@ -500,13 +500,13 @@ class SelectiveWhaleCopyStrategy:
                     "copy_multiplier": whale.copy_scale_pct / 100,
                     "max_copy_size_usd": float(whale.max_copy_usd),
                 }).execute()
-            
+
             logger.info(
                 f"Synced {len(self.tracked_whales)} whales to database"
             )
         except Exception as e:
             logger.error(f"Failed to sync whales: {e}")
-    
+
     def get_selected_whales(self) -> List[SelectableWhale]:
         """Get all selected whales"""
         return [
@@ -514,7 +514,7 @@ class SelectiveWhaleCopyStrategy:
             for addr in self.selected_whales
             if addr in self.tracked_whales
         ]
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get strategy statistics"""
         selected = self.get_selected_whales()

@@ -54,30 +54,30 @@ class BracketOpportunity:
     detected_at: datetime
     platform: str  # "polymarket" or "kalshi"
     bracket_type: BracketType
-    
+
     # Market info
     market_id: str
     market_title: str
     market_slug: Optional[str] = None
     expiry: Optional[datetime] = None
-    
+
     # Prices
     yes_price: Decimal = Decimal("0")
     no_price: Decimal = Decimal("0")
     total_price: Decimal = Decimal("0")
-    
+
     # Arbitrage details
     profit_pct: Decimal = Decimal("0")
     max_size_usd: Decimal = Decimal("0")
-    
+
     # Execution info
     yes_token_id: Optional[str] = None
     no_token_id: Optional[str] = None
-    
+
     # Risk metrics
     time_to_expiry_minutes: int = 0
     liquidity_score: float = 0.0
-    
+
     def __str__(self) -> str:
         return (
             f"BTC Bracket Arb: {self.bracket_type.value} | "
@@ -85,7 +85,7 @@ class BracketOpportunity:
             f"Total={self.total_price:.0%} | "
             f"Profit={self.profit_pct:.2f}%"
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -114,10 +114,10 @@ class BracketArbStats:
     avg_profit_pct: Decimal = Decimal("0")
     best_profit_pct: Decimal = Decimal("0")
     markets_tracked: int = 0
-    
+
     # Per bracket type stats
     stats_by_type: Dict[str, Dict] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "total_scans": self.total_scans,
@@ -134,28 +134,28 @@ class BracketArbStats:
 class BTCBracketArbStrategy:
     """
     BTC Bracket Arbitrage Scanner
-    
+
     Specialized scanner for Bitcoin (and ETH) bracket markets:
     - 15-minute Up/Down markets (primary focus)
     - 1-hour brackets
     - Daily brackets
-    
+
     Strategy:
     1. Scan for BTC/ETH bracket markets
     2. Check if YES + NO < 100%
     3. If profitable, buy BOTH sides
     4. Wait for resolution (guaranteed profit)
-    
+
     Risk Management:
     - Only trade markets with sufficient liquidity
     - Time filter: Avoid markets expiring in < 2 minutes
     - Max position sizing based on config
     """
-    
+
     # API endpoints
     POLYMARKET_API = "https://gamma-api.polymarket.com"
     KALSHI_API = "https://api.elections.kalshi.com/trade-api/v2"
-    
+
     # BTC market patterns
     BTC_PATTERNS = [
         r"bitcoin.*up.*down",
@@ -168,14 +168,14 @@ class BTCBracketArbStrategy:
         r"btc.*\d+.*minute",
         r"bitcoin.*higher.*lower",
     ]
-    
+
     ETH_PATTERNS = [
         r"ethereum.*up.*down",
         r"eth.*up.*down",
         r"ethereum.*price.*15.*min",
         r"eth.*price.*15.*min",
     ]
-    
+
     # Kalshi BTC market tickers
     KALSHI_BTC_PREFIXES = [
         "BTCUP",
@@ -231,7 +231,7 @@ class BTCBracketArbStrategy:
         self._eth_regex = re.compile(
             '|'.join(self.ETH_PATTERNS), re.IGNORECASE
         )
-    
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
         if self._session is None or self._session.closed:
@@ -354,7 +354,7 @@ class BTCBracketArbStrategy:
         """Fetch BTC bracket markets from Polymarket"""
         session = await self._get_session()
         btc_markets = []
-        
+
         try:
             url = f"{self.POLYMARKET_API}/markets"
             params = {
@@ -362,18 +362,18 @@ class BTCBracketArbStrategy:
                 "closed": "false",
                 "limit": 200,
             }
-            
+
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     markets = data if isinstance(data, list) else data.get("data", [])
-                    
+
                     # Filter for BTC/ETH bracket markets
                     for market in markets:
                         title = market.get("question", "")
                         if self._is_bracket_market(title):
                             btc_markets.append(market)
-                    
+
                     logger.info(f"Found {len(btc_markets)} BTC bracket markets on Polymarket")
                 else:
                     logger.warning(f"Polymarket API returned {resp.status}")
@@ -431,70 +431,70 @@ class BTCBracketArbStrategy:
 
         market_id = market.get("conditionId") or market.get("id", "unknown")
         title = market.get("question", "Unknown")
-        
+
         try:
             import json
-            
+
             # Parse prices from gamma-api format
             prices_str = market.get("outcomePrices")
             outcomes_str = market.get("outcomes")
-            
+
             if not prices_str or not outcomes_str:
                 return None
-            
+
             prices = json.loads(prices_str) if isinstance(prices_str, str) else prices_str
             outcomes = json.loads(outcomes_str) if isinstance(outcomes_str, str) else outcomes_str
-            
+
             if len(prices) < 2:
                 return None
-            
+
             # Get YES and NO prices
             yes_price = Decimal(str(prices[0]))
             no_price = Decimal(str(prices[1])) if len(prices) > 1 else Decimal("1") - yes_price
-            
+
             # Calculate total
             total_price = yes_price + no_price
-            
+
             # Check for arbitrage (total < 1.0)
             if total_price >= Decimal("1.0"):
                 return None
-            
+
             profit_pct = (Decimal("1.0") - total_price) * 100
-            
+
             # Validate profit range
             if profit_pct < self.min_profit_pct:
                 return None
             if profit_pct > self.max_profit_pct:
                 logger.warning(f"Suspicious profit {profit_pct}% on {title} - likely bad data")
                 return None
-            
+
             # Check cooldown
             if self._is_on_cooldown(market_id):
                 return None
-            
+
             # Get token IDs
             clob_ids = market.get("clobTokenIds")
             if clob_ids and isinstance(clob_ids, str):
                 clob_ids = json.loads(clob_ids)
-            
+
             yes_token = clob_ids[0] if clob_ids else None
             no_token = clob_ids[1] if clob_ids and len(clob_ids) > 1 else None
-            
+
             # Check liquidity
             volume = Decimal(str(market.get("volume", 0) or 0))
             if volume < self.min_liquidity_usd:
                 return None
-            
+
             # Calculate max position
             max_size = min(
                 self.max_position_usd,
                 volume / 10,  # Don't take more than 10% of volume
             )
-            
+
             # Create opportunity
             bracket_type = self._identify_bracket_type(title)
             opp_id = f"BTC-{datetime.utcnow().strftime('%H%M%S')}-{market_id[:8]}"
-            
+
             opportunity = BracketOpportunity(
                 id=opp_id,
                 detected_at=datetime.now(timezone.utc),
@@ -512,70 +512,70 @@ class BTCBracketArbStrategy:
                 no_token_id=no_token,
                 liquidity_score=float(volume / 1000),
             )
-            
+
             return opportunity
-            
+
         except Exception as e:
             logger.error(f"Error analyzing bracket market {market_id}: {e}")
             return None
-    
+
     async def analyze_kalshi_bracket(
         self,
         market: Dict,
     ) -> Optional[BracketOpportunity]:
         """Analyze a Kalshi bracket market for arbitrage"""
-        
+
         ticker = market.get("ticker", "unknown")
         title = market.get("title", market.get("subtitle", "Unknown"))
-        
+
         try:
             # Kalshi prices are in cents (0-100)
             yes_bid = Decimal(str(market.get("yes_bid", 0) or 0)) / 100
             yes_ask = Decimal(str(market.get("yes_ask", 0) or 0)) / 100
             no_bid = Decimal(str(market.get("no_bid", 0) or 0)) / 100
             no_ask = Decimal(str(market.get("no_ask", 0) or 0)) / 100
-            
+
             # Use ask prices (what we'd pay to buy)
             yes_price = yes_ask if yes_ask > 0 else (yes_bid + Decimal("0.01"))
             no_price = no_ask if no_ask > 0 else (no_bid + Decimal("0.01"))
-            
+
             # Calculate total
             total_price = yes_price + no_price
-            
+
             # Check for arbitrage (total < 1.0)
             # Note: Kalshi has 7% fees, so we need higher spread
             min_profit_kalshi = max(self.min_profit_pct, Decimal("7.0"))
-            
+
             if total_price >= Decimal("1.0"):
                 return None
-            
+
             profit_pct = (Decimal("1.0") - total_price) * 100
-            
+
             # Need higher profit to cover Kalshi fees
             if profit_pct < min_profit_kalshi:
                 return None
             if profit_pct > self.max_profit_pct:
                 return None
-            
+
             # Check cooldown
             if self._is_on_cooldown(ticker):
                 return None
-            
+
             # Check liquidity
             volume = int(market.get("volume", 0) or 0)
             if volume < 10:  # Kalshi uses contracts
                 return None
-            
+
             # Calculate max position
             max_size = min(
                 self.max_position_usd,
                 Decimal(str(volume)) / 10,
             )
-            
+
             # Create opportunity
             bracket_type = self._identify_bracket_type(title, ticker)
             opp_id = f"BTC-K-{datetime.utcnow().strftime('%H%M%S')}-{ticker}"
-            
+
             opportunity = BracketOpportunity(
                 id=opp_id,
                 detected_at=datetime.now(timezone.utc),
@@ -590,84 +590,84 @@ class BTCBracketArbStrategy:
                 max_size_usd=max_size,
                 liquidity_score=float(volume / 100),
             )
-            
+
             return opportunity
-            
+
         except Exception as e:
             logger.error(f"Error analyzing Kalshi bracket {ticker}: {e}")
             return None
-    
+
     async def scan_for_opportunities(self) -> List[BracketOpportunity]:
         """Scan all bracket markets for arbitrage opportunities"""
         self.stats.total_scans += 1
         opportunities = []
-        
+
         # Fetch markets from both platforms
         poly_markets, kalshi_markets = await asyncio.gather(
             self.fetch_polymarket_btc_markets(),
             self.fetch_kalshi_btc_markets(),
         )
-        
+
         self.stats.markets_tracked = len(poly_markets) + len(kalshi_markets)
-        
+
         # Analyze Polymarket brackets
         for market in poly_markets:
             opp = await self.analyze_polymarket_bracket(market)
             if opp:
                 opportunities.append(opp)
                 self.stats.opportunities_found += 1
-                
+
                 # Track best profit
                 if opp.profit_pct > self.stats.best_profit_pct:
                     self.stats.best_profit_pct = opp.profit_pct
-        
+
         # Analyze Kalshi brackets
         for market in kalshi_markets:
             opp = await self.analyze_kalshi_bracket(market)
             if opp:
                 opportunities.append(opp)
                 self.stats.opportunities_found += 1
-                
+
                 if opp.profit_pct > self.stats.best_profit_pct:
                     self.stats.best_profit_pct = opp.profit_pct
-        
+
         # Sort by profit
         opportunities.sort(key=lambda x: x.profit_pct, reverse=True)
-        
+
         # Log opportunities
         if opportunities:
             logger.info(f"🎯 Found {len(opportunities)} BTC bracket opportunities!")
             for opp in opportunities[:3]:  # Log top 3
                 logger.info(f"   {opp}")
-        
+
         return opportunities
-    
+
     async def run(self):
         """Run continuous scanning"""
         self._running = True
         logger.info("🔍 Starting BTC Bracket Arbitrage Scanner")
         logger.info(f"   Min profit: {self.min_profit_pct}%")
         logger.info(f"   Scan interval: {self.scan_interval}s")
-        
+
         while self._running:
             try:
                 opportunities = await self.scan_for_opportunities()
-                
+
                 # Callback for each opportunity
                 if self.on_opportunity and opportunities:
                     for opp in opportunities:
                         await self.on_opportunity(opp)
-                
+
                 await asyncio.sleep(self.scan_interval)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Bracket scanner error: {e}")
                 await asyncio.sleep(5)
-        
+
         await self.close()
-    
+
     def stop(self):
         """Stop the scanner"""
         self._running = False

@@ -34,14 +34,14 @@ class PlatformBalance:
     details: Dict[str, Any] = field(default_factory=dict)
     last_updated: datetime = field(default_factory=datetime.now)
     error: Optional[str] = None
-    
+
     @property
     def pnl(self) -> Decimal:
         """Calculate P&L from starting balance."""
         if self.starting_balance > 0:
             return self.total_usd - self.starting_balance
         return Decimal('0')
-    
+
     @property
     def pnl_percent(self) -> float:
         """Calculate P&L percentage."""
@@ -59,19 +59,19 @@ class AggregatedBalance:
     total_starting_balance: Decimal = Decimal('0')  # Sum of all starting balances
     platforms: List[PlatformBalance] = field(default_factory=list)
     last_updated: datetime = field(default_factory=datetime.now)
-    
+
     @property
     def total_pnl(self) -> Decimal:
         """Total P&L across all platforms."""
         return self.total_portfolio_usd - self.total_starting_balance
-    
+
     @property
     def total_pnl_percent(self) -> float:
         """Total P&L percentage."""
         if self.total_starting_balance > 0:
             return float((self.total_pnl / self.total_starting_balance) * 100)
         return 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -107,15 +107,15 @@ class AggregatedBalance:
 class BalanceAggregator:
     """
     Aggregates balances from all connected trading platforms.
-    
+
     Starting balances are used to calculate P&L:
     - Set via database config (polybot_config table) or defaults
     - Each platform tracks its own starting balance
     - Total P&L = sum of all platform P&Ls
-    
+
     Default: $100K total split evenly across 5 platforms ($20K each)
     """
-    
+
     # Default starting balances for each platform (in USD)
     # $100K total / 5 platforms = $20K each
     # Can be overridden via polybot_config table in database
@@ -126,7 +126,7 @@ class BalanceAggregator:
         'Coinbase': Decimal('20000'),     # $20k crypto
         'Alpaca': Decimal('20000'),       # $20k stocks (paper)
     }
-    
+
     def __init__(
         self,
         db_client=None,
@@ -141,15 +141,15 @@ class BalanceAggregator:
         self.kalshi_client = kalshi_client
         self.ccxt_clients = ccxt_clients or {}
         self.alpaca_client = alpaca_client
-        
+
         # Starting balances for P&L calculation
         self.starting_balances = starting_balances or {}
-        
+
         # Cached balances
         self._cached_balance: Optional[AggregatedBalance] = None
         self._cache_ttl = 60  # Cache for 60 seconds
         self._last_fetch: Optional[datetime] = None
-    
+
     def get_starting_balance(self, platform: str) -> Decimal:
         """Get starting balance for a platform."""
         # First check instance config
@@ -167,48 +167,48 @@ class BalanceAggregator:
         return self.DEFAULT_STARTING_BALANCES.get(
             platform, Decimal('20000')
         )
-    
+
     async def fetch_all_balances(
         self,
         force_refresh: bool = False
     ) -> AggregatedBalance:
         """
         Fetch balances from all connected platforms.
-        
+
         Args:
             force_refresh: Bypass cache and fetch fresh data
-            
+
         Returns:
             AggregatedBalance with all platform balances
         """
         # Check cache
         if (
-            not force_refresh 
-            and self._cached_balance 
+            not force_refresh
+            and self._cached_balance
             and self._last_fetch
             and (datetime.now() - self._last_fetch).seconds < self._cache_ttl
         ):
             return self._cached_balance
-        
+
         platforms: List[PlatformBalance] = []
-        
+
         # Fetch in parallel
         tasks = []
-        
+
         # Prediction Markets
         if self.polymarket_client:
             tasks.append(self._fetch_polymarket_balance())
         if self.kalshi_client:
             tasks.append(self._fetch_kalshi_balance())
-        
+
         # Crypto Exchanges
         for exchange_id, client in self.ccxt_clients.items():
             tasks.append(self._fetch_ccxt_balance(exchange_id, client))
-        
+
         # Stock Brokers
         if self.alpaca_client:
             tasks.append(self._fetch_alpaca_balance())
-        
+
         # Execute all fetches
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -217,20 +217,20 @@ class BalanceAggregator:
                     platforms.append(result)
                 elif isinstance(result, Exception):
                     logger.error(f"Error fetching balance: {result}")
-        
+
         # Calculate totals
         total_portfolio = Decimal('0')
         total_cash = Decimal('0')
         total_positions = Decimal('0')
         total_starting = Decimal('0')
-        
+
         for p in platforms:
             total_starting += p.starting_balance
             if p.error is None:
                 total_portfolio += p.total_usd
                 total_cash += p.cash_balance
                 total_positions += p.positions_value
-        
+
         aggregated = AggregatedBalance(
             total_portfolio_usd=total_portfolio,
             total_cash_usd=total_cash,
@@ -239,16 +239,16 @@ class BalanceAggregator:
             platforms=platforms,
             last_updated=datetime.now(),
         )
-        
+
         # Update cache
         self._cached_balance = aggregated
         self._last_fetch = datetime.now()
-        
+
         # Save to database
         await self._save_to_db(aggregated)
-        
+
         return aggregated
-    
+
     async def _fetch_polymarket_balance(self) -> PlatformBalance:
         """Fetch balance from Polymarket."""
         try:
@@ -258,7 +258,7 @@ class BalanceAggregator:
                 wallet_address = self.db.get_secret('POLYMARKET_WALLET_ADDRESS')
             if not wallet_address:
                 wallet_address = os.getenv('WALLET_ADDRESS', '')
-            
+
             if not wallet_address:
                 return PlatformBalance(
                     platform='Polymarket',
@@ -269,12 +269,12 @@ class BalanceAggregator:
                     positions_count=0,
                     error='No wallet address configured'
                 )
-            
+
             balance = self.polymarket_client.get_balance(wallet_address)
-            
+
             total_value = Decimal(str(balance.get('total_value', 0)))
             positions = balance.get('positions', [])
-            
+
             return PlatformBalance(
                 platform='Polymarket',
                 platform_type='prediction_market',
@@ -307,7 +307,7 @@ class BalanceAggregator:
                 starting_balance=self.get_starting_balance('Polymarket'),
                 error=str(e)
             )
-    
+
     async def _fetch_kalshi_balance(self) -> PlatformBalance:
         """Fetch balance from Kalshi."""
         try:
@@ -322,14 +322,14 @@ class BalanceAggregator:
                     starting_balance=self.get_starting_balance('Kalshi'),
                     error='Not authenticated'
                 )
-            
+
             balance = self.kalshi_client.get_balance()
-            
+
             total = Decimal(str(balance.get('total_value', 0)))
             cash = Decimal(str(balance.get('balance', 0)))
             positions_value = total - cash
             positions_count = balance.get('position_count', 0)
-            
+
             return PlatformBalance(
                 platform='Kalshi',
                 platform_type='prediction_market',
@@ -356,32 +356,32 @@ class BalanceAggregator:
                 starting_balance=self.get_starting_balance('Kalshi'),
                 error=str(e)
             )
-    
+
     async def _fetch_ccxt_balance(
-        self, 
-        exchange_id: str, 
+        self,
+        exchange_id: str,
         client
     ) -> PlatformBalance:
         """Fetch balance from a CCXT-connected exchange."""
         exchange_name = exchange_id.replace('_', ' ').title()
-        
+
         try:
             if not client._initialized:
                 await client.initialize()
-            
+
             balances = await client.get_balance()
-            
+
             # Calculate total in USD (approximate for non-USD assets)
             total_usd = Decimal('0')
             cash_usd = Decimal('0')
             asset_details = {}
-            
+
             # Get tickers for conversion
             try:
                 tickers = await client.get_tickers()
             except Exception:
                 tickers = {}
-            
+
             for asset, balance in balances.items():
                 if asset in ['USD', 'USDT', 'USDC', 'BUSD', 'DAI']:
                     # Stablecoins - count as cash
@@ -403,7 +403,7 @@ class BalanceAggregator:
                     else:
                         # Unknown asset - include raw amount
                         asset_details[asset] = float(balance.total)
-            
+
             return PlatformBalance(
                 platform=exchange_name,
                 platform_type='crypto_exchange',
@@ -414,7 +414,7 @@ class BalanceAggregator:
                 currency='USDT',
                 details={'assets': asset_details}
             )
-            
+
         except Exception as e:
             logger.error(f"Error fetching {exchange_name} balance: {e}")
             return PlatformBalance(
@@ -426,7 +426,7 @@ class BalanceAggregator:
                 positions_count=0,
                 error=str(e)
             )
-    
+
     async def _fetch_alpaca_balance(self) -> PlatformBalance:
         """Fetch balance from Alpaca."""
         try:
@@ -441,13 +441,13 @@ class BalanceAggregator:
                     starting_balance=self.get_starting_balance('Alpaca'),
                     error='Client not configured'
                 )
-            
+
             account = await self.alpaca_client.get_account()
             positions = await self.alpaca_client.get_positions()
-            
+
             total = Decimal(str(account.get('equity', 0)))
             cash = Decimal(str(account.get('cash', 0)))
-            
+
             return PlatformBalance(
                 platform='Alpaca',
                 platform_type='stock_broker',
@@ -482,12 +482,12 @@ class BalanceAggregator:
                 starting_balance=self.get_starting_balance('Alpaca'),
                 error=str(e)
             )
-    
+
     async def _save_to_db(self, balance: AggregatedBalance):
         """Save aggregated balance to Supabase."""
         if not self.db:
             return
-        
+
         try:
             # Save to polybot_balances table
             if hasattr(self.db, '_client') and self.db._client:
@@ -501,7 +501,7 @@ class BalanceAggregator:
                 }
                 # Add P&L fields (stored in platforms JSON, calculated on read)
                 self.db._client.table('polybot_balances').upsert(data).execute()
-                
+
                 logger.debug("Saved aggregated balance to database")
         except Exception as e:
             logger.error(f"Error saving balance to DB: {e}")

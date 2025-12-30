@@ -31,79 +31,79 @@ class SimulatedPosition:
     """Represents a simulated arbitrage position"""
     id: str
     created_at: datetime
-    
+
     # Market info
     polymarket_token_id: str
     polymarket_market_title: str
     kalshi_ticker: str
     kalshi_market_title: str
-    
+
     # Entry prices (at time of opportunity)
     polymarket_yes_price: Decimal
     polymarket_no_price: Decimal
     kalshi_yes_price: Decimal
     kalshi_no_price: Decimal
-    
+
     # Simulated trade details
     trade_type: str  # "buy_poly_yes_sell_kalshi_yes" etc.
     position_size_usd: Decimal
     expected_profit_usd: Decimal
     expected_profit_pct: Decimal
-    
+
     # Outcome tracking
     outcome: SimulatedTradeOutcome = SimulatedTradeOutcome.PENDING
     actual_profit_usd: Optional[Decimal] = None
     resolved_at: Optional[datetime] = None
     resolution_notes: str = ""
-    
+
     # Market resolution (when known)
     market_result: Optional[str] = None  # "yes", "no", or None
 
 
-@dataclass  
+@dataclass
 class PaperTradingStats:
     """Running statistics for paper trading"""
     total_opportunities_seen: int = 0
     total_simulated_trades: int = 0
-    
+
     # P&L tracking
     simulated_starting_balance: Decimal = Decimal("10000.00")
     simulated_current_balance: Decimal = Decimal("5000.00")
     total_simulated_profit: Decimal = Decimal("0.00")
     total_simulated_loss: Decimal = Decimal("0.00")
-    
+
     # Trade stats
     winning_trades: int = 0
     losing_trades: int = 0
     pending_trades: int = 0
-    
+
     # Best/worst
     best_trade_profit: Decimal = Decimal("0.00")
     worst_trade_loss: Decimal = Decimal("0.00")
     largest_opportunity_seen: Decimal = Decimal("0.00")
-    
+
     # Timing
     first_opportunity_at: Optional[datetime] = None
     last_opportunity_at: Optional[datetime] = None
-    
+
     @property
     def total_pnl(self) -> Decimal:
         return self.total_simulated_profit - self.total_simulated_loss
-    
+
     @property
     def win_rate(self) -> float:
         total = self.winning_trades + self.losing_trades
         if total == 0:
             return 0.0
         return self.winning_trades / total * 100
-    
+
     @property
     def roi_percent(self) -> float:
         if self.simulated_starting_balance == 0:
             return 0.0
-        return float((self.simulated_current_balance - self.simulated_starting_balance) 
+        return float((self.simulated_current_balance - self.simulated_starting_balance)
                     / self.simulated_starting_balance * 100)
-    
+
     def to_dict(self) -> dict:
         return {
             "total_opportunities_seen": self.total_opportunities_seen,
@@ -127,14 +127,14 @@ class PaperTradingStats:
 class PaperTrader:
     """
     Paper trading simulator that tracks hypothetical performance.
-    
+
     Features:
     - Records every arbitrage opportunity detected
     - Simulates trades at detected prices
     - Tracks hypothetical P&L over time
     - Persists to Supabase for historical analysis
     """
-    
+
     def __init__(
         self,
         db_client,
@@ -151,12 +151,12 @@ class PaperTrader:
         self.min_profit_threshold = min_profit_threshold
         self.positions: dict[str, SimulatedPosition] = {}
         self._position_counter = 0
-        
+
     def _generate_position_id(self) -> str:
         """Generate unique position ID"""
         self._position_counter += 1
         return f"SIM-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{self._position_counter:04d}"
-    
+
     def calculate_position_size(self, profit_pct: Decimal) -> Decimal:
         """
         Calculate optimal position size based on Kelly Criterion (simplified).
@@ -166,7 +166,7 @@ class PaperTrader:
         base_pct = min(float(profit_pct) * 2, self.max_position_pct)  # 2x profit % up to max
         position_usd = self.stats.simulated_current_balance * Decimal(str(base_pct / 100))
         return min(position_usd, Decimal("100.00"))  # Cap at $100 per trade for safety
-    
+
     async def record_opportunity(
         self,
         polymarket_token_id: str,
@@ -182,29 +182,29 @@ class PaperTrader:
     ) -> Optional[SimulatedPosition]:
         """
         Record an arbitrage opportunity and simulate a trade if profitable enough.
-        
+
         Returns the simulated position if a trade was simulated, None otherwise.
         """
         now = datetime.now(timezone.utc)
-        
+
         # Update stats
         self.stats.total_opportunities_seen += 1
         if self.stats.first_opportunity_at is None:
             self.stats.first_opportunity_at = now
         self.stats.last_opportunity_at = now
-        
+
         if profit_pct > self.stats.largest_opportunity_seen:
             self.stats.largest_opportunity_seen = profit_pct
-        
+
         # Check if profitable enough to simulate
         if float(profit_pct) < self.min_profit_threshold:
             logger.debug(f"Opportunity {profit_pct:.2f}% below threshold, not simulating")
             return None
-        
+
         # Calculate position size
         position_size = self.calculate_position_size(profit_pct)
         expected_profit = position_size * profit_pct / Decimal("100")
-        
+
         # Create simulated position
         position = SimulatedPosition(
             id=self._generate_position_id(),
@@ -222,23 +222,23 @@ class PaperTrader:
             expected_profit_usd=expected_profit,
             expected_profit_pct=profit_pct,
         )
-        
+
         self.positions[position.id] = position
         self.stats.total_simulated_trades += 1
         self.stats.pending_trades += 1
-        
+
         # Persist to database
         await self._save_position_to_db(position)
-        
+
         logger.info(
             f"📝 PAPER TRADE: {position.id} | "
             f"Size: ${position_size:.2f} | "
             f"Expected: +${expected_profit:.2f} ({profit_pct:.2f}%) | "
             f"{trade_type}"
         )
-        
+
         return position
-    
+
     async def resolve_position(
         self,
         position_id: str,
@@ -247,48 +247,48 @@ class PaperTrader:
     ) -> None:
         """
         Resolve a pending position when the market settles.
-        
+
         For arbitrage:
-        - If we bought YES on one platform and NO on other, 
+        - If we bought YES on one platform and NO on other,
           one wins and one loses, locking in the spread profit.
         """
         if position_id not in self.positions:
             logger.warning(f"Position {position_id} not found")
             return
-            
+
         position = self.positions[position_id]
         now = datetime.now(timezone.utc)
-        
+
         position.resolved_at = now
         position.market_result = market_result
         position.resolution_notes = notes
-        
+
         # For arbitrage, we generally lock in the spread profit regardless of outcome
         # (assuming both legs filled at expected prices)
         # In reality there's execution risk, but for simulation we assume perfect fills
-        
+
         # Simulate that we captured the expected profit
         position.actual_profit_usd = position.expected_profit_usd
         position.outcome = SimulatedTradeOutcome.WON
-        
+
         # Update stats
         self.stats.pending_trades -= 1
         self.stats.winning_trades += 1
         self.stats.total_simulated_profit += position.actual_profit_usd
         self.stats.simulated_current_balance += position.actual_profit_usd
-        
+
         if position.actual_profit_usd > self.stats.best_trade_profit:
             self.stats.best_trade_profit = position.actual_profit_usd
-        
+
         # Update in database
         await self._update_position_in_db(position)
-        
+
         logger.info(
             f"✅ RESOLVED: {position.id} | "
             f"Profit: +${position.actual_profit_usd:.2f} | "
             f"New Balance: ${self.stats.simulated_current_balance:.2f}"
         )
-    
+
     async def simulate_instant_profit(
         self,
         polymarket_token_id: str,
@@ -318,17 +318,17 @@ class PaperTrader:
             profit_pct=profit_pct,
             trade_type=trade_type,
         )
-        
+
         if position:
             # Immediately "resolve" as profitable (optimistic simulation)
             await self.resolve_position(
-                position.id, 
+                position.id,
                 market_result="simulated",
                 notes="Instant simulation - assumed perfect execution"
             )
-        
+
         return position
-    
+
     async def _save_position_to_db(self, position: SimulatedPosition) -> None:
         """Save simulated position to Supabase"""
         try:
@@ -349,12 +349,12 @@ class PaperTrader:
                 "expected_profit_pct": float(position.expected_profit_pct),
                 "outcome": position.outcome.value,
             }
-            
+
             await self.db.insert("polybot_simulated_trades", data)
-            
+
         except Exception as e:
             logger.error(f"Failed to save simulated position: {e}")
-    
+
     async def _update_position_in_db(self, position: SimulatedPosition) -> None:
         """Update resolved position in Supabase"""
         try:
@@ -365,16 +365,16 @@ class PaperTrader:
                 "market_result": position.market_result,
                 "resolution_notes": position.resolution_notes,
             }
-            
+
             await self.db.update(
                 "polybot_simulated_trades",
                 data,
                 {"position_id": position.id}
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to update simulated position: {e}")
-    
+
     async def save_stats_to_db(self) -> None:
         """Save current paper trading stats to Supabase"""
         try:
@@ -387,13 +387,13 @@ class PaperTrader:
                 "total_trades": self.stats.total_simulated_trades,
                 "win_rate": self.stats.win_rate,
             }
-            
+
             # Use upsert to update existing row or insert new one
             await self.db.upsert("polybot_simulation_stats", data)
-            
+
         except Exception as e:
             logger.error(f"Failed to save simulation stats: {e}")
-    
+
     def get_stats_summary(self) -> str:
         """Get a formatted summary of paper trading performance"""
         return f"""
@@ -414,7 +414,7 @@ class PaperTrader:
 ║  Largest Opportunity:  {self.stats.largest_opportunity_seen:>10.2f}%                    ║
 ╚══════════════════════════════════════════════════════════════╝
 """
-    
+
     def get_stats_dict(self) -> dict:
         """Get stats as dictionary for API/JSON responses"""
         return self.stats.to_dict()

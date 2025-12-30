@@ -1,7 +1,7 @@
 """
 Earnings Momentum Strategy for Alpaca
 
-Trade stocks around earnings announcements based on 
+Trade stocks around earnings announcements based on
 expectations, historical patterns, and post-earnings drift.
 
 Strategy Components:
@@ -300,7 +300,7 @@ class EarningsMomentumStrategy:
 
             # Submit order
             side = 'buy'
-            if (strategy == EarningsStrategy.POST_EARNINGS_DRIFT 
+            if (strategy == EarningsStrategy.POST_EARNINGS_DRIFT
                 and opportunity.get('direction') == 'short'):
                 side = 'sell'  # Short sell
 
@@ -369,7 +369,7 @@ class EarningsMomentumStrategy:
 
                 # Check time-based exit for drift trades
                 elif (pos.strategy == EarningsStrategy.POST_EARNINGS_DRIFT
-                      and pos.target_exit_date 
+                      and pos.target_exit_date
                       and now >= pos.target_exit_date):
                     actions.append({
                         'symbol': symbol,

@@ -16,7 +16,7 @@ class IBKRClient(BaseExchange):
     Interactive Brokers client using ib_insync.
     Connects to a running IB Gateway/TWS instance.
     """
-    
+
     def __init__(self, host: str = '127.0.0.1', port: int = 4002, client_id: int = 1,
                  account: str = '', sandbox: bool = True):
         super().__init__(api_key=None, api_secret=None, sandbox=sandbox)
@@ -34,7 +34,7 @@ class IBKRClient(BaseExchange):
             await self.ib.connectAsync(self.host, self.port, self.client_id)
             self._connected = True
             logger.info("Successfully connected to IBKR Gateway")
-            
+
             # Request account summary updates
             self.ib.reqAccountSummary()
             return True
@@ -53,11 +53,11 @@ class IBKRClient(BaseExchange):
         """Helper to create appropriate contract type based on symbol."""
         # Simple heuristic: Common futures symbols
         futures = ['ES', 'NQ', 'MES', 'MNQ', 'BTC', 'ETH', 'CL', 'GC']
-        
+
         if symbol in futures or symbol.startswith('F:'):
             clean_sym = symbol.replace('F:', '')
-            # For futures, usually need expiration. 
-            # Empty string expiration in ib_insync often defaults to front month if combined with 'ContFut'? 
+            # For futures, usually need expiration.
+            # Empty string expiration in ib_insync often defaults to front month if combined with 'ContFut'?
             # Or we let qualifyContracts resolve to the nearest expiry
             # Here we try with empty lastTradeDateOrContractMonth to let IB resolve to front month
             return Future(clean_sym, '202506', 'GLOBEX') # HARDCODED expiry for now as example until refined
@@ -79,16 +79,16 @@ class IBKRClient(BaseExchange):
         except Exception as e:
             logger.error(f"Failed to qualify contract {symbol}: {e}")
             raise
-        
+
         # Request market data
         ticker = self.ib.reqMktData(contract, '', False, False)
-        
+
         # Wait for data (market data in IB is streaming, wait for initial snapshot)
         for _ in range(20):
             if ticker.last or ticker.bid or ticker.ask:
                 break
             await asyncio.sleep(0.1)
-            
+
         return Ticker(
             symbol=symbol,
             bid=ticker.bid if ticker.bid else 0.0,
@@ -125,7 +125,7 @@ class IBKRClient(BaseExchange):
         elif timeframe == '15m':
             duration = '1 D'
             bar_size = '15 mins'
-        
+
         contract = self._get_contract(symbol)
         try:
             # For futures, we might need to specify expiry logic, but defaulting to front month via qualifyContracts might work
@@ -138,7 +138,7 @@ class IBKRClient(BaseExchange):
             contract, endDateTime='', durationStr=duration,
             barSizeSetting=bar_size, whatToShow='TRADES', useRTH=True
         )
-        
+
         # Format: [timestamp, open, high, low, close, volume]
         return [[b.date.timestamp() * 1000, b.open, b.high, b.low, b.close, b.volume] for b in bars]
 
@@ -152,14 +152,14 @@ class IBKRClient(BaseExchange):
         # We look for TotalCashValue
         tags = self.ib.accountSummary()
         balances = {}
-        
+
         # Parse 'TotalCashValue' for USD
         usd_val = 0.0
         for tag in tags:
             if tag.tag == 'TotalCashValue' and tag.currency == 'USD':
                 usd_val = float(tag.value)
                 break
-                
+
         balances['USD'] = Balance(
             asset='USD',
             free=usd_val, # IB doesn't strictly split free/locked in same way as crypto exchanges
@@ -172,19 +172,19 @@ class IBKRClient(BaseExchange):
         """Get open positions."""
         ib_positions = self.ib.positions()
         positions = []
-        
+
         for p in ib_positions:
             # Filter by account if specified
             if self.account and p.account != self.account:
                 continue
-                
+
             sym = p.contract.symbol
             if symbol and sym != symbol:
                 continue
-                
+
             side = PositionSide.LONG if p.position > 0 else PositionSide.SHORT
             size = abs(p.position)
-            
+
             positions.append(Position(
                 symbol=sym,
                 side=side,
@@ -195,7 +195,7 @@ class IBKRClient(BaseExchange):
                 liquidation_price=0.0,
                 leverage=1.0 # Stocks default
             ))
-            
+
         return positions
 
     # =========================================================================
@@ -209,7 +209,7 @@ class IBKRClient(BaseExchange):
         contract = self._get_contract(symbol)
         self.ib.qualifyContracts(contract)
         action = 'BUY' if side == OrderSide.BUY else 'SELL'
-        
+
         ib_order = None
         if order_type == OrderType.MARKET:
             ib_order = MarketOrder(action, amount)
@@ -217,14 +217,14 @@ class IBKRClient(BaseExchange):
             ib_order = LimitOrder(action, amount, price)
         else:
             raise ValueError(f"Unsupported order type: {order_type}")
-            
+
         if params and 'account' in params:
             ib_order.account = params['account']
-            
+
         trade = self.ib.placeOrder(contract, ib_order)
-        
+
         # Wait for acknowledgment
-        count = 0 
+        count = 0
         while not trade.orderStatus.orderId and count < 20:
              await asyncio.sleep(0.1)
              count += 1

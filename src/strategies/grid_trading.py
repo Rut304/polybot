@@ -513,7 +513,7 @@ class GridTradingStrategy:
                         )
                         await self.close_grid(grid_id, reason="symbol_unavailable")
                         continue
-                
+
                 # Get current price
                 ticker = await self.ccxt_client.get_ticker(grid.config.symbol)
                 current_price = Decimal(str(ticker.last))
@@ -742,14 +742,14 @@ class GridTradingStrategy:
     async def run(self, duration_seconds: int = 3600) -> None:
         """
         Run the strategy for a specified duration.
-        
+
         This is the main entry point matching other strategy interfaces.
-        
+
         Args:
             duration_seconds: How long to run (default 1 hour)
         """
         await self.start()
-        
+
         try:
             # Wait for duration or until stopped
             await asyncio.sleep(duration_seconds)

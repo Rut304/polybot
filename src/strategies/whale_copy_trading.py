@@ -55,30 +55,30 @@ class WhaleProfile:
     """Profile of a tracked whale"""
     address: str
     alias: Optional[str] = None
-    
+
     # Performance metrics
     total_volume_usd: Decimal = Decimal("0")
     win_rate: float = 0.0
     total_predictions: int = 0
     winning_predictions: int = 0
-    
+
     # Tier
     tier: WhaleTier = WhaleTier.RETAIL
-    
+
     # Activity
     last_trade_at: Optional[datetime] = None
     active_positions: int = 0
-    
+
     # Copy settings
     copy_enabled: bool = True
     copy_multiplier: float = 1.0  # Scale of our position vs whale
     max_copy_size_usd: Decimal = Decimal("100")
-    
+
     # Track record following this whale
     copy_trades: int = 0
     copy_wins: int = 0
     copy_pnl: Decimal = Decimal("0")
-    
+
     def calculate_tier(self):
         """Calculate whale tier based on metrics"""
         if self.total_volume_usd >= Decimal("100000") and self.win_rate >= 80:
@@ -89,7 +89,7 @@ class WhaleProfile:
             self.tier = WhaleTier.SMART_MONEY
         else:
             self.tier = WhaleTier.RETAIL
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "address": self.address,
@@ -111,17 +111,17 @@ class WhaleTrade:
     id: str
     whale_address: str
     timestamp: datetime
-    
+
     # Market info
     market_id: str
     market_title: str
-    
+
     # Trade details
     direction: TradeDirection
     side: str  # "YES" or "NO"
     price: Decimal
     size_usd: Decimal
-    
+
     # Transaction info
     tx_hash: Optional[str] = None
 
@@ -131,12 +131,12 @@ class CopySignal:
     """A signal to copy a whale trade"""
     id: str
     detected_at: datetime
-    
+
     # Whale info
     whale_address: str
     whale_tier: WhaleTier
     whale_win_rate: float
-    
+
     # Trade info
     market_id: str
     market_title: str
@@ -144,19 +144,19 @@ class CopySignal:
     side: str
     whale_price: Decimal
     whale_size_usd: Decimal
-    
+
     # Recommended action
     recommended_size_usd: Decimal
     confidence_score: float
     delay_seconds: int
-    
+
     def __str__(self) -> str:
         return (
             f"Copy {self.whale_tier.value}: {self.side} {self.market_title[:40]} | "
             f"Whale: ${self.whale_size_usd:.0f} @ {self.whale_price:.0%} | "
             f"Copy: ${self.recommended_size_usd:.0f}"
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -185,7 +185,7 @@ class CopyTradingStats:
     trades_lost: int = 0
     total_pnl: Decimal = Decimal("0")
     best_whale_pnl: Decimal = Decimal("0")
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "whales_tracked": self.whales_tracked,
@@ -202,17 +202,17 @@ class CopyTradingStats:
 class WhaleCopyTradingStrategy:
     """
     Whale Copy Trading Strategy
-    
+
     Monitors successful traders on Polymarket and copies their trades.
     Fully integrated with Supabase for persistence and Admin UI control.
-    
+
     Configuration:
     - whale_addresses: List of addresses to track
     - min_win_rate: Minimum win rate to qualify as whale
     - min_volume: Minimum volume to qualify as whale
     - copy_delay_seconds: Delay before copying (to confirm trade)
     - copy_multiplier: Scale factor for copy positions
-    
+
     Features:
     - Auto-discover whales from leaderboard
     - Real-time trade monitoring
@@ -221,17 +221,17 @@ class WhaleCopyTradingStrategy:
     - Supabase persistence (polybot_tracked_whales, polybot_whale_trades, polybot_copy_trades)
     - Admin UI integration for manual whale management
     """
-    
+
     # Polymarket APIs
     POLYMARKET_API = "https://gamma-api.polymarket.com"
     CLOB_API = "https://clob.polymarket.com"
-    
+
     # Default whale addresses (known successful traders)
     DEFAULT_WHALES = [
         # Add known whale addresses here
         # These are examples - replace with real addresses
     ]
-    
+
     def __init__(
         self,
         whale_addresses: Optional[List[str]] = None,
@@ -262,29 +262,29 @@ class WhaleCopyTradingStrategy:
         self.auto_discover = auto_discover_whales
         self.on_signal = on_signal
         self.db = db_client
-        
+
         # Slippage protection settings (NEW)
         self.slippage_enabled = slippage_enabled
         self.max_slippage_pct = max_slippage_pct
         self.balance_proportional = balance_proportional
         self.max_balance_pct = max_balance_pct
-        
+
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
         self.stats = CopyTradingStats()
-        
+
         # Tracked whales
         self._whales: Dict[str, WhaleProfile] = {}
-        
+
         # Recent trades (to avoid duplicates)
         self._recent_trades: Dict[str, datetime] = {}
-        
+
         # Pending copy signals
         self._pending_signals: List[CopySignal] = []
-        
+
         # Snapshot tracking
         self._last_daily_snapshot: Optional[datetime] = None
-    
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
         if self._session is None or self._session.closed:
@@ -292,97 +292,97 @@ class WhaleCopyTradingStrategy:
                 timeout=aiohttp.ClientTimeout(total=30)
             )
         return self._session
-    
+
     async def close(self):
         """Close the session"""
         if self._session and not self._session.closed:
             await self._session.close()
-    
+
     async def fetch_leaderboard(self) -> List[Dict]:
         """Fetch top traders from Polymarket leaderboard"""
         session = await self._get_session()
         traders = []
-        
+
         try:
             url = f"{self.CLOB_API}/leaderboard"
             params = {
                 "limit": 100,
                 "period": "all",
             }
-            
+
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     traders = data.get("data", [])
                     logger.info(f"Fetched {len(traders)} traders from leaderboard")
-                    
+
         except Exception as e:
             logger.error(f"Error fetching leaderboard: {e}")
-        
+
         return traders
-    
+
     async def fetch_trader_profile(self, address: str) -> Optional[Dict]:
         """Fetch detailed profile for a trader"""
         session = await self._get_session()
-        
+
         try:
             url = f"{self.CLOB_API}/profile/{address}"
-            
+
             async with session.get(url) as resp:
                 if resp.status == 200:
                     return await resp.json()
-                    
+
         except Exception as e:
             logger.debug(f"Error fetching profile {address}: {e}")
-        
+
         return None
-    
+
     async def fetch_trader_activity(self, address: str, limit: int = 20) -> List[Dict]:
         """Fetch recent trading activity for an address"""
         session = await self._get_session()
         activity = []
-        
+
         try:
             url = f"{self.CLOB_API}/activity"
             params = {
                 "user": address,
                 "limit": limit,
             }
-            
+
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     activity = data.get("data", [])
-                    
+
         except Exception as e:
             logger.debug(f"Error fetching activity for {address}: {e}")
-        
+
         return activity
-    
+
     async def discover_whales(self) -> List[WhaleProfile]:
         """Auto-discover whales from leaderboard"""
         discovered = []
-        
+
         if not self.auto_discover:
             return discovered
-        
+
         # Fetch leaderboard
         traders = await self.fetch_leaderboard()
-        
+
         for trader in traders:
             address = trader.get("address")
             if not address:
                 continue
-            
+
             # Check if meets criteria
             volume = Decimal(str(trader.get("volume", 0) or 0))
             win_rate = float(trader.get("win_rate", 0) or 0) * 100
             predictions = int(trader.get("predictions", 0) or 0)
-            
-            if (volume >= self.min_volume and 
+
+            if (volume >= self.min_volume and
                 win_rate >= self.min_win_rate and
                 predictions >= self.min_predictions):
-                
+
                 profile = WhaleProfile(
                     address=address,
                     alias=trader.get("username"),
@@ -394,47 +394,47 @@ class WhaleCopyTradingStrategy:
                     max_copy_size_usd=self.max_copy_size,
                 )
                 profile.calculate_tier()
-                
+
                 discovered.append(profile)
                 logger.info(
                     f"Discovered whale: {address[:10]}... | "
                     f"Win: {win_rate:.0f}% | Vol: ${volume:,.0f} | "
                     f"Tier: {profile.tier.value}"
                 )
-        
+
         return discovered
-    
+
     async def update_whale_profiles(self):
         """Update profiles for all tracked whales"""
         for address in list(self._whales.keys()):
             profile_data = await self.fetch_trader_profile(address)
-            
+
             if profile_data:
                 whale = self._whales[address]
                 whale.total_volume_usd = Decimal(str(profile_data.get("volume", 0) or 0))
                 whale.win_rate = float(profile_data.get("win_rate", 0) or 0) * 100
                 whale.total_predictions = int(profile_data.get("predictions", 0) or 0)
                 whale.calculate_tier()
-    
+
     def _parse_trade(self, activity: Dict, whale: WhaleProfile) -> Optional[WhaleTrade]:
         """Parse an activity entry into a WhaleTrade"""
         try:
             trade_type = activity.get("type", "").lower()
-            
+
             if trade_type not in ["buy", "sell"]:
                 return None
-            
+
             # Determine direction
             side = activity.get("side", "YES").upper()
             if trade_type == "buy":
                 direction = TradeDirection.BUY_YES if side == "YES" else TradeDirection.BUY_NO
             else:
                 direction = TradeDirection.SELL_YES if side == "YES" else TradeDirection.SELL_NO
-            
+
             # Get trade details
             price = Decimal(str(activity.get("price", 0.5)))
             size = Decimal(str(activity.get("size_usd", 0) or activity.get("amount", 0)))
-            
+
             trade = WhaleTrade(
                 id=activity.get("id", f"trade-{datetime.utcnow().timestamp()}"),
                 whale_address=whale.address,
@@ -447,98 +447,98 @@ class WhaleCopyTradingStrategy:
                 size_usd=size,
                 tx_hash=activity.get("tx_hash"),
             )
-            
+
             return trade
-            
+
         except Exception as e:
             logger.debug(f"Error parsing trade: {e}")
             return None
-    
+
     async def detect_whale_trades(self) -> List[WhaleTrade]:
         """Detect new trades from tracked whales and save to DB"""
         new_trades = []
-        
+
         for address, whale in self._whales.items():
             if not whale.copy_enabled:
                 continue
-            
+
             # Fetch recent activity
             activity = await self.fetch_trader_activity(address)
-            
+
             for entry in activity:
                 trade_id = entry.get("id", "")
-                
+
                 # Skip if already processed
                 if trade_id in self._recent_trades:
                     continue
-                
+
                 # Parse trade
                 trade = self._parse_trade(entry, whale)
                 if trade:
                     new_trades.append(trade)
                     self._recent_trades[trade_id] = datetime.now(timezone.utc)
                     self.stats.trades_detected += 1
-                    
+
                     # Update whale's last_trade_at
                     whale.last_trade_at = datetime.now(timezone.utc)
-                    
+
                     # Save trade to database
                     await self.save_whale_trade_to_db(trade)
-                    
+
                     logger.info(
                         f"🐋 Whale trade detected: {whale.alias or address[:10]}... | "
                         f"{trade.direction.value} {trade.side} | "
                         f"${trade.size_usd:.0f} @ {trade.price:.0%}"
                     )
-        
+
         # Cleanup old trade IDs
         cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
         self._recent_trades = {
             k: v for k, v in self._recent_trades.items()
             if v > cutoff
         }
-        
+
         return new_trades
-    
+
     async def check_slippage(
-        self, 
-        market_id: str, 
+        self,
+        market_id: str,
         whale_price: Decimal
     ) -> tuple[bool, Decimal, float]:
         """
         Check if current market price has moved too far from whale's entry.
-        
+
         Returns:
             (ok_to_copy, current_price, slippage_pct)
         """
         try:
             session = await self._get_session()
-            
+
             # Fetch current market price from CLOB API
             url = f"{self.CLOB_API}/markets/{market_id}"
             async with session.get(url) as resp:
                 if resp.status != 200:
                     logger.warning(f"Failed to fetch market price for slippage check")
                     return True, whale_price, 0.0  # Allow if can't check
-                
+
                 data = await resp.json()
-                
+
                 # Get best bid/ask
                 best_bid = Decimal(str(data.get("bestBid", 0) or 0))
                 best_ask = Decimal(str(data.get("bestAsk", 1) or 1))
                 current_price = (best_bid + best_ask) / 2
-                
+
                 if current_price == 0:
                     return True, whale_price, 0.0
-                
+
                 # Calculate slippage percentage
                 slippage_pct = abs(
                     float(current_price - whale_price) / float(whale_price)
                 ) * 100
-                
+
                 # Check if within tolerance
                 ok = slippage_pct <= self.max_slippage_pct
-                
+
                 if not ok:
                     logger.warning(
                         f"⚠️ Slippage too high: {slippage_pct:.1f}% > "
@@ -546,23 +546,23 @@ class WhaleCopyTradingStrategy:
                         f"Whale: {float(whale_price):.0%} → "
                         f"Now: {float(current_price):.0%}"
                     )
-                
+
                 return ok, current_price, slippage_pct
-                
+
         except Exception as e:
             logger.error(f"Error checking slippage: {e}")
             return True, whale_price, 0.0  # Allow if error
-    
+
     async def create_copy_signal(self, trade: WhaleTrade) -> Optional[CopySignal]:
         """Create a copy signal from a whale trade with slippage protection"""
         whale = self._whales.get(trade.whale_address)
         if not whale:
             return None
-        
+
         # Only copy BUY trades (we want to follow their entries)
         if trade.direction not in [TradeDirection.BUY_YES, TradeDirection.BUY_NO]:
             return None
-        
+
         # SLIPPAGE PROTECTION: Check if price has moved too much
         if self.slippage_enabled:
             ok, current_price, slippage = await self.check_slippage(
@@ -574,11 +574,11 @@ class WhaleCopyTradingStrategy:
                     f"{trade.market_title[:30]}"
                 )
                 return None
-        
+
         # Calculate recommended size
         base_size = trade.size_usd * Decimal(str(whale.copy_multiplier))
         recommended_size = min(base_size, whale.max_copy_size_usd)
-        
+
         # BALANCE PROPORTIONAL SIZING: Cap at % of balance
         if self.balance_proportional and self.db:
             try:
@@ -586,7 +586,7 @@ class WhaleCopyTradingStrategy:
                 balance_data = self.db._client.table("polybot_balances").select(
                     "total_usd"
                 ).order("fetched_at", desc=True).limit(1).execute()
-                
+
                 if balance_data.data:
                     total_balance = Decimal(str(balance_data.data[0]["total_usd"]))
                     max_by_balance = total_balance * Decimal(
@@ -602,7 +602,7 @@ class WhaleCopyTradingStrategy:
                         recommended_size = max_by_balance
             except Exception as e:
                 logger.debug(f"Could not apply balance proportional sizing: {e}")
-        
+
         # Calculate confidence based on whale tier
         confidence_map = {
             WhaleTier.MEGA_WHALE: 0.95,
@@ -611,7 +611,7 @@ class WhaleCopyTradingStrategy:
             WhaleTier.RETAIL: 0.50,
         }
         confidence = confidence_map.get(whale.tier, 0.50)
-        
+
         signal = CopySignal(
             id=f"COPY-{datetime.utcnow().strftime('%H%M%S')}-{trade.id[:8]}",
             detected_at=datetime.now(timezone.utc),
@@ -628,37 +628,37 @@ class WhaleCopyTradingStrategy:
             confidence_score=confidence,
             delay_seconds=self.copy_delay,
         )
-        
+
         return signal
-    
+
     async def scan_for_signals(self) -> List[CopySignal]:
         """Scan for copy trading signals"""
         signals = []
-        
+
         # Detect new whale trades
         trades = await self.detect_whale_trades()
-        
+
         # Create signals (now async with slippage check)
         for trade in trades:
             signal = await self.create_copy_signal(trade)
             if signal:
                 signals.append(signal)
-        
+
         # Sort by confidence
         signals.sort(key=lambda x: x.confidence_score, reverse=True)
-        
+
         if signals:
             logger.info(f"🎯 Found {len(signals)} copy signals!")
             for signal in signals[:3]:
                 logger.info(f"   {signal}")
-        
+
         return signals
-    
+
     async def initialize(self):
         """Initialize the strategy - load from DB and discover whales"""
         # Load tracked whales from Supabase (configured via Admin UI)
         await self.load_whales_from_db()
-        
+
         # Add manually configured whales (from code)
         for address in self.whale_addresses:
             if address not in self._whales:
@@ -667,7 +667,7 @@ class WhaleCopyTradingStrategy:
                     copy_multiplier=self.default_multiplier,
                     max_copy_size_usd=self.max_copy_size,
                 )
-        
+
         # Auto-discover whales from leaderboard
         if self.auto_discover:
             discovered = await self.discover_whales()
@@ -676,31 +676,31 @@ class WhaleCopyTradingStrategy:
                     self._whales[whale.address] = whale
                     # Save discovered whale to DB
                     await self.save_whale_to_db(whale)
-        
+
         self.stats.whales_tracked = len(self._whales)
         logger.info(f"Tracking {self.stats.whales_tracked} whales")
-        
+
         # Update profiles from API
         await self.update_whale_profiles()
-        
+
         # Sync updated profiles back to DB
         await self.sync_whales_to_db()
-    
+
     async def load_whales_from_db(self):
         """Load tracked whales from Supabase polybot_tracked_whales table"""
         if not self.db or not hasattr(self.db, '_client') or not self.db._client:
             logger.warning("No database client - skipping whale load from DB")
             return
-        
+
         try:
             result = self.db._client.table("polybot_tracked_whales").select("*").execute()
-            
+
             if result.data:
                 for row in result.data:
                     address = row.get("address")
                     if not address:
                         continue
-                    
+
                     # Create WhaleProfile from DB row
                     whale = WhaleProfile(
                         address=address,
@@ -716,14 +716,14 @@ class WhaleCopyTradingStrategy:
                         copy_wins=int(row.get("copy_wins", 0) or 0),
                         copy_pnl=Decimal(str(row.get("copy_pnl", 0) or 0)),
                     )
-                    
+
                     # Parse tier
                     tier_str = row.get("tier", "retail")
                     try:
                         whale.tier = WhaleTier(tier_str)
                     except ValueError:
                         whale.calculate_tier()
-                    
+
                     # Parse last_trade_at
                     if row.get("last_trade_at"):
                         try:
@@ -732,18 +732,18 @@ class WhaleCopyTradingStrategy:
                             )
                         except:
                             pass
-                    
+
                     self._whales[address] = whale
-                
+
                 logger.info(f"Loaded {len(result.data)} whales from database")
         except Exception as e:
             logger.error(f"Error loading whales from DB: {e}")
-    
+
     async def save_whale_to_db(self, whale: WhaleProfile):
         """Save a single whale profile to Supabase"""
         if not self.db or not hasattr(self.db, '_client') or not self.db._client:
             return
-        
+
         try:
             self.db._client.table("polybot_tracked_whales").upsert({
                 "address": whale.address,
@@ -765,20 +765,20 @@ class WhaleCopyTradingStrategy:
             }, on_conflict="address").execute()
         except Exception as e:
             logger.error(f"Error saving whale {whale.address[:10]}... to DB: {e}")
-    
+
     async def sync_whales_to_db(self):
         """Sync all tracked whales to Supabase"""
         if not self.db or not hasattr(self.db, '_client') or not self.db._client:
             return
-        
+
         for whale in self._whales.values():
             await self.save_whale_to_db(whale)
-    
+
     async def save_whale_trade_to_db(self, trade: WhaleTrade, copied: bool = False, copy_trade_id: Optional[str] = None):
         """Save a detected whale trade to Supabase"""
         if not self.db or not hasattr(self.db, '_client') or not self.db._client:
             return
-        
+
         try:
             self.db._client.table("polybot_whale_trades").upsert({
                 "id": trade.id,
@@ -798,12 +798,12 @@ class WhaleCopyTradingStrategy:
             }, on_conflict="id").execute()
         except Exception as e:
             logger.error(f"Error saving whale trade to DB: {e}")
-    
+
     async def save_copy_trade_to_db(self, signal: CopySignal, status: str = "open"):
         """Save a copy trade to Supabase"""
         if not self.db or not hasattr(self.db, '_client') or not self.db._client:
             return
-        
+
         try:
             whale = self._whales.get(signal.whale_address)
             self.db._client.table("polybot_copy_trades").upsert({
@@ -829,19 +829,19 @@ class WhaleCopyTradingStrategy:
             }, on_conflict="id").execute()
         except Exception as e:
             logger.error(f"Error saving copy trade to DB: {e}")
-    
+
     async def create_performance_snapshot(self):
         """Create daily performance snapshots for all whales"""
         if not self.db or not hasattr(self.db, '_client') or not self.db._client:
             return
-        
+
         now = datetime.now(timezone.utc)
-        
+
         # Check if we already did a daily snapshot today
         if self._last_daily_snapshot:
             if self._last_daily_snapshot.date() == now.date():
                 return  # Already snapshotted today
-        
+
         try:
             for whale in self._whales.values():
                 self.db._client.table("polybot_whale_performance_history").insert({
@@ -858,64 +858,64 @@ class WhaleCopyTradingStrategy:
                     "period_volume_usd": 0,
                     "period_pnl_usd": 0,
                 }).execute()
-            
+
             self._last_daily_snapshot = now
             logger.info(f"Created daily snapshot for {len(self._whales)} whales")
         except Exception as e:
             logger.error(f"Error creating performance snapshot: {e}")
-    
+
     async def run(self):
         """Run continuous monitoring with database integration"""
         self._running = True
         logger.info("🐋 Starting Whale Copy Trading Strategy")
-        
+
         # Initialize (loads from DB + discovers)
         await self.initialize()
-        
+
         scan_count = 0
-        
+
         while self._running:
             try:
                 # Scan for copy signals
                 signals = await self.scan_for_signals()
-                
+
                 # Process signals
                 for signal in signals:
                     # Save copy trade to DB
                     await self.save_copy_trade_to_db(signal)
-                    
+
                     # Callback for execution
                     if self.on_signal:
                         await self.on_signal(signal)
-                
+
                 scan_count += 1
-                
+
                 # Every 10 scans, refresh whale data from DB (in case Admin UI changed settings)
                 if scan_count % 10 == 0:
                     await self.load_whales_from_db()
-                
+
                 # Every 60 scans (~1 hour at 60s interval), update profiles from API
                 if scan_count % 60 == 0:
                     await self.update_whale_profiles()
                     await self.sync_whales_to_db()
-                
+
                 # Check for daily snapshot
                 await self.create_performance_snapshot()
-                
+
                 await asyncio.sleep(self.scan_interval)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Whale copy trading error: {e}")
                 await asyncio.sleep(10)
-        
+
         await self.close()
-    
+
     def stop(self):
         """Stop the strategy"""
         self._running = False
-    
+
     def add_whale(self, address: str, alias: Optional[str] = None):
         """Add a whale to track"""
         if address not in self._whales:
@@ -926,7 +926,7 @@ class WhaleCopyTradingStrategy:
                 max_copy_size_usd=self.max_copy_size,
             )
             self.stats.whales_tracked = len(self._whales)
-    
+
     def remove_whale(self, address: str):
         """Remove a whale from tracking"""
         if address in self._whales:

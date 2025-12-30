@@ -3,7 +3,7 @@ Rate Limiter - Prevents 429 errors with adaptive rate limiting.
 
 Provides:
 - Per-API endpoint rate limiting
-- Adaptive backoff on 429 responses  
+- Adaptive backoff on 429 responses
 - Async-compatible with thread-safe design
 - Configurable limits per service
 """
@@ -102,69 +102,69 @@ class RateLimitState:
 class RateLimiter:
     """
     Adaptive rate limiter for API calls.
-    
+
     Features:
     - Per-API rate limiting with configurable limits
     - Adaptive backoff on 429 responses
     - Thread-safe and async-compatible
     - Automatic request spacing
-    
+
     Usage:
         limiter = RateLimiter()
-        
+
         # Before making a request
         await limiter.wait("kalshi")
-        
+
         # After getting a 429
         limiter.record_rate_limit("kalshi")
-        
+
         # Or use as decorator
         @limiter.rate_limited("kalshi")
         async def fetch_kalshi_markets():
             ...
     """
-    
+
     def __init__(self):
         self._states: Dict[str, RateLimitState] = defaultdict(RateLimitState)
         self._async_locks: Dict[str, asyncio.Lock] = {}
-    
+
     def get_config(self, api_name: str) -> RateLimitConfig:
         """Get rate limit config for an API."""
         return API_CONFIGS.get(api_name.lower(), API_CONFIGS["default"])
-    
+
     def _get_async_lock(self, api_name: str) -> asyncio.Lock:
         """Get or create async lock for API."""
         if api_name not in self._async_locks:
             self._async_locks[api_name] = asyncio.Lock()
         return self._async_locks[api_name]
-    
+
     async def wait(self, api_name: str) -> float:
         """
         Wait if necessary before making a request.
-        
+
         Returns the time waited in seconds.
         """
         config = self.get_config(api_name)
         state = self._states[api_name]
         async_lock = self._get_async_lock(api_name)
-        
+
         async with async_lock:
             now = time.time()
             wait_time = 0.0
-            
+
             # Check if we're in backoff period
             if now < state.backoff_until:
                 wait_time = state.backoff_until - now
                 logger.info(f"[{api_name}] Rate limited, waiting {wait_time:.1f}s")
                 await asyncio.sleep(wait_time)
                 now = time.time()
-            
+
             # Check per-minute limit
             if now - state.minute_window_start >= 60:
                 # Reset minute window
                 state.minute_window_start = now
                 state.request_count_minute = 0
-            
+
             if state.request_count_minute >= config.requests_per_minute:
                 # Wait until minute window resets
                 wait_until = state.minute_window_start + 60
@@ -176,52 +176,52 @@ class RateLimiter:
                     now = time.time()
                     state.minute_window_start = now
                     state.request_count_minute = 0
-            
+
             # Enforce minimum interval between requests
             time_since_last = now - state.last_request_time
             if time_since_last < config.min_interval_seconds:
                 extra_wait = config.min_interval_seconds - time_since_last
                 await asyncio.sleep(extra_wait)
                 wait_time += extra_wait
-            
+
             # Update state
             state.last_request_time = time.time()
             state.request_count_minute += 1
-            
+
             # Log if we're approaching limits
             if state.request_count_minute > config.requests_per_minute * 0.8:
                 logger.debug(
                     f"[{api_name}] {state.request_count_minute}/{config.requests_per_minute} "
                     f"requests in current minute"
                 )
-            
+
             return wait_time
-    
+
     def record_rate_limit(self, api_name: str, response_code: int = 429):
         """
         Record a rate limit response and update backoff.
-        
+
         Call this when you receive a 429 or similar rate limit error.
         """
         config = self.get_config(api_name)
         state = self._states[api_name]
-        
+
         with state.lock:
             state.consecutive_429s += 1
-            
+
             # Calculate backoff with exponential increase
             state.current_backoff = min(
                 config.initial_backoff * (config.backoff_multiplier ** (state.consecutive_429s - 1)),
                 config.max_backoff
             )
-            
+
             state.backoff_until = time.time() + state.current_backoff
-            
+
             logger.warning(
                 f"[{api_name}] Rate limit hit (429 #{state.consecutive_429s}). "
                 f"Backing off for {state.current_backoff:.1f}s"
             )
-    
+
     def record_success(self, api_name: str):
         """
         Record a successful request - resets consecutive 429 counter.
@@ -232,12 +232,12 @@ class RateLimiter:
                 logger.debug(f"[{api_name}] Request succeeded, resetting backoff")
             state.consecutive_429s = 0
             state.current_backoff = 0.0
-    
+
     def get_stats(self, api_name: str) -> Dict[str, Any]:
         """Get rate limiting stats for an API."""
         config = self.get_config(api_name)
         state = self._states[api_name]
-        
+
         return {
             "api": api_name,
             "requests_per_minute_limit": config.requests_per_minute,
@@ -247,11 +247,11 @@ class RateLimiter:
             "backoff_until": state.backoff_until,
             "last_request": state.last_request_time,
         }
-    
+
     def rate_limited(self, api_name: str):
         """
         Decorator for rate-limited async functions.
-        
+
         Usage:
             @rate_limiter.rate_limited("kalshi")
             async def fetch_markets():
@@ -296,7 +296,7 @@ async def rate_limited_request(
 ) -> Any:
     """
     Execute a rate-limited request with automatic retry on 429.
-    
+
     Usage:
         result = await rate_limited_request(
             "kalshi",
@@ -306,15 +306,15 @@ async def rate_limited_request(
         )
     """
     limiter = get_rate_limiter()
-    config = limiter.get_config(api_name)
+    _ = limiter.get_config(api_name)  # Validate API name exists
     retries = 0
-    
+
     while retries <= max_retries:
         await limiter.wait(api_name)
-        
+
         try:
             result = await request_func(*args, **kwargs)
-            
+
             # Check if result is an aiohttp response
             if hasattr(result, 'status'):
                 if result.status == 429:
@@ -328,9 +328,9 @@ async def rate_limited_request(
                     limiter.record_success(api_name)
             else:
                 limiter.record_success(api_name)
-            
+
             return result
-            
+
         except Exception as e:
             error_str = str(e).lower()
             if "429" in error_str or "rate limit" in error_str:
@@ -340,5 +340,5 @@ async def rate_limited_request(
                     logger.info(f"[{api_name}] Retrying after rate limit error ({retries}/{max_retries})")
                     continue
             raise
-    
+
     raise Exception(f"[{api_name}] Max retries ({max_retries}) exceeded")

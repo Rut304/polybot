@@ -6,7 +6,7 @@ Strategy focuses on high-conviction political event trading with specific trigge
 
 Key insights from top traders:
 - Politics-focused usernames dominate top 50 leaderboard
-- Political events offer asymmetric risk/reward opportunities  
+- Political events offer asymmetric risk/reward opportunities
 - Information edges are possible through careful news monitoring
 - Time-sensitive events (debates, primaries, speeches) create momentum
 
@@ -59,20 +59,20 @@ class PoliticalEvent:
     title: str
     description: str
     scheduled_at: Optional[datetime]
-    
+
     # Related markets
     related_market_ids: List[str] = field(default_factory=list)
     related_tickers: List[str] = field(default_factory=list)
-    
+
     # Signals
     sentiment_score: float = 0.0  # -1 to 1
     conviction_level: ConvictionLevel = ConvictionLevel.LOW
     congressional_signal: Optional[str] = None  # Buy/sell signal from congress trades
-    
+
     # Metadata
     detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     source: str = "unknown"
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "event_type": self.event_type.value,
@@ -98,29 +98,29 @@ class PoliticalSignal:
     conviction: ConvictionLevel
     reason: str
     event: Optional[PoliticalEvent] = None
-    
+
     # Position sizing suggestion
     suggested_position_pct: float = 1.0  # % of normal position size
     max_position_usd: Decimal = Decimal("100")
-    
+
     # Timing
     urgency: str = "normal"  # "immediate", "normal", "wait"
     expires_at: Optional[datetime] = None
-    
+
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class PoliticalEventStrategy:
     """
     Strategy that trades on political events with high conviction.
-    
+
     Features:
     - Event calendar monitoring
     - News sentiment analysis
     - Congressional trading signal integration
     - Dynamic position sizing based on conviction
     """
-    
+
     def __init__(
         self,
         db_client=None,
@@ -130,7 +130,7 @@ class PoliticalEventStrategy:
         self.db = db_client
         self.config = config or {}
         self.on_signal = on_signal
-        
+
         # Configuration
         self.enabled = self.config.get("enable_political_event", True)
         self.min_conviction = ConvictionLevel[
@@ -139,12 +139,12 @@ class PoliticalEventStrategy:
         self.max_position_usd = Decimal(str(self.config.get("political_max_position_usd", 200)))
         self.use_congressional_signal = self.config.get("political_use_congressional", True)
         self.event_lookback_hours = self.config.get("political_event_lookback_hours", 48)
-        
+
         # State
         self.active_events: List[PoliticalEvent] = []
         self.recent_signals: List[PoliticalSignal] = []
         self.last_scan_at: Optional[datetime] = None
-        
+
         # Political keywords for market identification
         self.political_keywords = [
             "trump", "biden", "harris", "vance", "election", "president",
@@ -152,7 +152,7 @@ class PoliticalEventStrategy:
             "gop", "dnc", "primary", "debate", "poll", "vote", "ballot",
             "governor", "mayor", "impeach", "scotus", "supreme court"
         ]
-        
+
         # Event patterns
         self.event_patterns = {
             PoliticalEventType.DEBATE: [
@@ -171,18 +171,18 @@ class PoliticalEventStrategy:
                 r"speech", r"address", r"statement", r"press conference"
             ],
         }
-        
+
         logger.info(
             f"PoliticalEventStrategy initialized - "
             f"enabled={self.enabled}, min_conviction={self.min_conviction.value}, "
             f"max_position=${self.max_position_usd}"
         )
-    
+
     def is_political_market(self, market: Dict) -> bool:
         """Check if a market is political based on keywords"""
         text = f"{market.get('question', '')} {market.get('description', '')}".lower()
         return any(kw in text for kw in self.political_keywords)
-    
+
     def classify_event_type(self, text: str) -> Optional[PoliticalEventType]:
         """Classify the type of political event from text"""
         text_lower = text.lower()
@@ -191,7 +191,7 @@ class PoliticalEventStrategy:
                 if re.search(pattern, text_lower):
                     return event_type
         return None
-    
+
     def calculate_conviction(
         self,
         sentiment_score: float,
@@ -200,14 +200,14 @@ class PoliticalEventStrategy:
     ) -> ConvictionLevel:
         """Calculate conviction level based on multiple signals"""
         score = 0
-        
+
         # Sentiment contributes up to 40 points
         score += abs(sentiment_score) * 40
-        
+
         # Congressional signal contributes 30 points
         if congressional_signal:
             score += 30
-        
+
         # Certain event types are higher conviction
         high_conviction_events = [
             PoliticalEventType.ELECTION,
@@ -216,7 +216,7 @@ class PoliticalEventStrategy:
         ]
         if event_type in high_conviction_events:
             score += 20
-        
+
         # Map score to conviction level
         if score >= 80:
             return ConvictionLevel.EXTREME
@@ -226,7 +226,7 @@ class PoliticalEventStrategy:
             return ConvictionLevel.MEDIUM
         else:
             return ConvictionLevel.LOW
-    
+
     def get_position_multiplier(self, conviction: ConvictionLevel) -> float:
         """Get position size multiplier based on conviction"""
         multipliers = {
@@ -236,21 +236,21 @@ class PoliticalEventStrategy:
             ConvictionLevel.LOW: 0.5,
         }
         return multipliers.get(conviction, 1.0)
-    
+
     async def scan_markets_for_political_events(
         self,
         markets: List[Dict],
     ) -> List[PoliticalEvent]:
         """Scan markets to identify political events"""
         events = []
-        
+
         for market in markets:
             if not self.is_political_market(market):
                 continue
-            
+
             question = market.get("question", "")
             event_type = self.classify_event_type(question)
-            
+
             if event_type:
                 event = PoliticalEvent(
                     event_type=event_type,
@@ -261,34 +261,34 @@ class PoliticalEventStrategy:
                     source="market_scan",
                 )
                 events.append(event)
-        
+
         return events
-    
+
     async def get_congressional_signals(
         self,
         tickers: List[str],
     ) -> Dict[str, str]:
         """Get congressional trading signals for related tickers"""
         signals = {}
-        
+
         if not self.db or not self.use_congressional_signal:
             return signals
-        
+
         try:
             # Query recent congressional trades
             result = await self.db.from_("polybot_tracked_politicians").select(
                 "*"
             ).execute()
-            
+
             # This would need to be enhanced to correlate with actual trade data
             # For now, return empty signals
             pass
-            
+
         except Exception as e:
             logger.warning(f"Failed to get congressional signals: {e}")
-        
+
         return signals
-    
+
     async def generate_signals(
         self,
         markets: List[Dict],
@@ -296,16 +296,16 @@ class PoliticalEventStrategy:
     ) -> List[PoliticalSignal]:
         """Generate trading signals from political analysis"""
         signals = []
-        
+
         if not self.enabled:
             return signals
-        
+
         self.last_scan_at = datetime.now(timezone.utc)
-        
+
         # Scan for political events
         events = await self.scan_markets_for_political_events(markets)
         self.active_events = events
-        
+
         for event in events:
             # Get sentiment if available
             sentiment = 0.0
@@ -315,18 +315,18 @@ class PoliticalEventStrategy:
                     if keyword in event.title.lower():
                         sentiment = news_sentiment.get(keyword, 0.0)
                         break
-            
+
             event.sentiment_score = sentiment
-            
+
             # Get congressional signals
             congressional_signal = None
             if event.related_tickers:
                 cong_signals = await self.get_congressional_signals(event.related_tickers)
                 if cong_signals:
                     congressional_signal = list(cong_signals.values())[0]
-            
+
             event.congressional_signal = congressional_signal
-            
+
             # Calculate conviction
             conviction = self.calculate_conviction(
                 sentiment,
@@ -334,18 +334,18 @@ class PoliticalEventStrategy:
                 event.event_type,
             )
             event.conviction_level = conviction
-            
+
             # Only generate signal if meets minimum conviction
             if self._conviction_meets_minimum(conviction):
                 # Determine direction based on sentiment
                 direction = "buy" if sentiment >= 0 else "sell"
-                
+
                 # If congressional signal, use that direction
                 if congressional_signal:
                     direction = congressional_signal.lower()
-                
+
                 position_mult = self.get_position_multiplier(conviction)
-                
+
                 signal = PoliticalSignal(
                     market_id=event.related_market_ids[0] if event.related_market_ids else "",
                     ticker="",  # Would need to map from market
@@ -357,22 +357,22 @@ class PoliticalEventStrategy:
                     max_position_usd=self.max_position_usd * Decimal(str(position_mult)),
                     urgency="normal",
                 )
-                
+
                 signals.append(signal)
-                
+
                 # Callback
                 if self.on_signal:
                     self.on_signal(signal)
-        
+
         self.recent_signals = signals
-        
+
         logger.info(
             f"Political event scan complete - "
             f"events={len(events)}, signals={len(signals)}"
         )
-        
+
         return signals
-    
+
     def _conviction_meets_minimum(self, conviction: ConvictionLevel) -> bool:
         """Check if conviction meets minimum threshold"""
         levels = [
@@ -382,7 +382,7 @@ class PoliticalEventStrategy:
             ConvictionLevel.EXTREME,
         ]
         return levels.index(conviction) >= levels.index(self.min_conviction)
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get strategy statistics"""
         return {

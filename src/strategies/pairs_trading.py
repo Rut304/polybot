@@ -406,7 +406,7 @@ class PairsTradingStrategy:
                             f"Pair {pair.name}: {pair.symbol_b} not available"
                         )
                         continue
-                
+
                 # Fetch current prices
                 ticker_a = await self.ccxt_client.get_ticker(pair.symbol_a)
                 ticker_b = await self.ccxt_client.get_ticker(pair.symbol_b)
@@ -738,14 +738,14 @@ class PairsTradingStrategy:
     async def run(self, duration_seconds: int = 3600) -> None:
         """
         Run the strategy for a specified duration.
-        
+
         This is the main entry point matching other strategy interfaces.
-        
+
         Args:
             duration_seconds: How long to run (default 1 hour)
         """
         await self.start()
-        
+
         try:
             # Wait for duration or until stopped
             await asyncio.sleep(duration_seconds)

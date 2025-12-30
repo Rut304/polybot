@@ -46,7 +46,7 @@ class SecretsManager:
             except json.JSONDecodeError:
                 # If it's just a raw string, return it wrapped
                 return {"raw_value": response['SecretString']}
-        
+
         return None
 
 # Global instance

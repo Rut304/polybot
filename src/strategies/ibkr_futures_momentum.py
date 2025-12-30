@@ -26,7 +26,7 @@ class IBKRFuturesMomentumStrategy(BaseStrategy):
     Buy when price is significantly above Moving Average.
     Sell when price is significantly below Moving Average.
     """
-    
+
     def __init__(
         self,
         ibkr_client: IBKRClient,
@@ -50,7 +50,7 @@ class IBKRFuturesMomentumStrategy(BaseStrategy):
                     await self.check_signals()
                 except Exception as e:
                     logger.error(f"Error in futures momentum: {e}")
-            
+
             await asyncio.sleep(self.scan_interval)
 
     async def stop(self):
@@ -70,44 +70,44 @@ class IBKRFuturesMomentumStrategy(BaseStrategy):
         # Close prices
         closes = [k[4] for k in klines]
         current_price = closes[-1]
-        
+
         # Calculate MA
         ma_slice = closes[-self.config.ma_period:]
         ma = statistics.mean(ma_slice)
-        
+
         # Deviation
         deviation_pct = ((current_price - ma) / ma) * 100
-        
+
         logger.info(f"Futures {self.config.symbol}: Price={current_price:.2f}, MA({self.config.ma_period})={ma:.2f}, Dev={deviation_pct:.2f}%")
-        
+
         # Signal Generation
         signal = None
         reason = ""
-        
+
         if deviation_pct > self.config.trend_threshold_pct:
             signal = OrderSide.BUY
             reason = f"Price {deviation_pct:.2f}% above MA"
         elif deviation_pct < -self.config.trend_threshold_pct:
             signal = OrderSide.SELL
             reason = f"Price {deviation_pct:.2f}% below MA"
-            
+
         if signal:
             # Check current position first to avoid stacking too many
             positions = await self.ibkr.get_positions(self.config.symbol)
             current_qty = sum(p.size * (1 if p.side.value == 'LONG' else -1) for p in positions)
-            
+
             # Simple logic: Go Long if Flat or Short. Go Short if Flat or Long.
             # Don't add to existing position of same side (simplify)
-            
+
             action = None
             if signal == OrderSide.BUY and current_qty <= 0:
                 action = OrderSide.BUY
             elif signal == OrderSide.SELL and current_qty >= 0:
                 action = OrderSide.SELL
-                
+
             if action:
                 logger.info(f"🚀 FUTURES SIGNAL: {action} {self.config.symbol} ({reason})")
-                
+
                 # Execution (Mock/Paper for safety unless configured)
                 # Uncommented for Simulation
                 try:
@@ -115,7 +115,7 @@ class IBKRFuturesMomentumStrategy(BaseStrategy):
                     logger.info("Order sent to IBKR")
                 except Exception as e:
                     logger.error(f"Failed to send IBKR order: {e}")
-                
+
                 self.db.log_opportunity({
                     "id": f"futures_{self.config.symbol}_{int(datetime.now().timestamp())}",
                     "strategy": "futures_momentum",

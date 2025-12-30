@@ -26,7 +26,7 @@ class BaseStrategy(abc.ABC):
     Abstract base class for all strategies.
     Ensures consistent interface for the BotRunner.
     """
-    
+
     def __init__(self):
         self.running = False
         self.enabled = False

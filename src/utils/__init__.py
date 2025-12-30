@@ -5,7 +5,7 @@ from .rate_limiter import RateLimiter
 
 __all__ = [
     "TwitterAPI",
-    "fetch_thread", 
+    "fetch_thread",
     "search_prediction_markets",
     "RateLimiter",
 ]

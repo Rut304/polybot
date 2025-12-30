@@ -78,7 +78,7 @@ class MomentumStats:
     best_trade: float = 0.0
     worst_trade: float = 0.0
     current_positions: int = 0
-    
+
     @property
     def win_rate(self) -> float:
         total = self.trades_won + self.trades_lost
@@ -88,10 +88,10 @@ class MomentumStats:
 class StockMomentumStrategy:
     """
     Momentum Strategy for stock trading via Alpaca.
-    
+
     This strategy identifies stocks with strong momentum and
     rides the trend until momentum fades.
-    
+
     Configuration:
     - universe: List of stock symbols to monitor
     - min_momentum_score: Minimum score to enter (default: 70)
@@ -99,7 +99,7 @@ class StockMomentumStrategy:
     - max_position_size: Maximum USD per position
     - max_positions: Maximum concurrent positions
     """
-    
+
     # Default universe - liquid, volatile stocks good for momentum
     DEFAULT_UNIVERSE = [
         # Tech (high beta)
@@ -115,7 +115,7 @@ class StockMomentumStrategy:
         # Biotech (high volatility)
         "MRNA", "REGN", "VRTX",
     ]
-    
+
     def __init__(
         self,
         alpaca_client,
@@ -135,13 +135,13 @@ class StockMomentumStrategy:
         self.max_position_size = max_position_size
         self.max_positions = max_positions
         self.dry_run = dry_run
-        
+
         # State
         self.positions: Dict[str, MomentumPosition] = {}
         self.price_data: Dict[str, List[Dict]] = {}  # OHLCV data
         self.stats = MomentumStats()
         self._running = False
-        
+
         logger.info(
             f"🚀 Stock Momentum Strategy initialized | "
             f"Universe: {len(self.universe)} stocks | "
@@ -149,7 +149,7 @@ class StockMomentumStrategy:
             f"Trailing Stop: {trailing_stop_pct}% | "
             f"Mode: {'DRY RUN' if dry_run else 'LIVE'}"
         )
-    
+
     async def initialize(self) -> bool:
         """Initialize strategy and load historical data."""
         try:
@@ -157,9 +157,9 @@ class StockMomentumStrategy:
                 if not await self.alpaca.initialize():
                     logger.error("Failed to initialize Alpaca client")
                     return False
-            
+
             logger.info("Loading historical data for momentum calculation...")
-            
+
             for symbol in self.universe:
                 try:
                     ohlcv = await self.alpaca.get_ohlcv(
@@ -178,61 +178,61 @@ class StockMomentumStrategy:
                     ]
                 except Exception as e:
                     logger.warning(f"Failed to load data for {symbol}: {e}")
-            
+
             loaded = len(self.price_data)
             logger.info(f"✅ Loaded data for {loaded}/{len(self.universe)} stocks")
             return loaded > 0
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize strategy: {e}")
             return False
-    
+
     def _calculate_rsi(self, prices: List[float], period: int = 14) -> float:
         """Calculate RSI indicator."""
         if len(prices) < period + 1:
             return 50.0  # Neutral
-        
+
         # Calculate price changes
         changes = [prices[i] - prices[i-1] for i in range(1, len(prices))]
-        
+
         # Separate gains and losses
         gains = [max(0, c) for c in changes[-period:]]
         losses = [abs(min(0, c)) for c in changes[-period:]]
-        
+
         avg_gain = sum(gains) / period
         avg_loss = sum(losses) / period
-        
+
         if avg_loss == 0:
             return 100.0
-        
+
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
-        
+
         return rsi
-    
+
     def _calculate_momentum_score(self, symbol: str) -> Optional[MomentumScore]:
         """Calculate momentum score for a symbol."""
         data = self.price_data.get(symbol, [])
-        
+
         if len(data) < 20:
             return None
-        
+
         closes = [d['close'] for d in data]
         volumes = [d['volume'] for d in data]
         current_price = closes[-1]
-        
+
         # Price changes
         price_1d = ((current_price / closes[-2]) - 1) * 100 if len(closes) >= 2 else 0
         price_5d = ((current_price / closes[-5]) - 1) * 100 if len(closes) >= 5 else 0
         price_20d = ((current_price / closes[-20]) - 1) * 100 if len(closes) >= 20 else 0
-        
+
         # RSI
         rsi = self._calculate_rsi(closes)
-        
+
         # Volume surge (current vs 20-day average)
         avg_volume = statistics.mean(volumes[-20:]) if volumes else 1
         vol_ratio = volumes[-1] / avg_volume if avg_volume > 0 else 1
-        
+
         # Calculate momentum score (0-100)
         # Components:
         # - Short-term momentum (1d change): 20%
@@ -240,14 +240,14 @@ class StockMomentumStrategy:
         # - Long-term momentum (20d change): 20%
         # - RSI (not oversold/overbought): 15%
         # - Volume confirmation: 15%
-        
+
         # Normalize each component to 0-100
         short_score = min(100, max(0, 50 + price_1d * 10))
         medium_score = min(100, max(0, 50 + price_5d * 5))
         long_score = min(100, max(0, 50 + price_20d * 2))
         rsi_score = rsi  # Already 0-100
         volume_score = min(100, vol_ratio * 50)  # 2x volume = 100
-        
+
         momentum_score = (
             short_score * 0.20 +
             medium_score * 0.30 +
@@ -255,7 +255,7 @@ class StockMomentumStrategy:
             rsi_score * 0.15 +
             volume_score * 0.15
         )
-        
+
         # Determine signal
         if momentum_score >= 80 and rsi < 70:
             signal = MomentumSignal.STRONG_BUY
@@ -267,7 +267,7 @@ class StockMomentumStrategy:
             signal = MomentumSignal.SELL
         else:
             signal = MomentumSignal.HOLD
-        
+
         return MomentumScore(
             symbol=symbol,
             price=current_price,
@@ -279,23 +279,23 @@ class StockMomentumStrategy:
             momentum_score=momentum_score,
             signal=signal,
         )
-    
+
     async def _enter_position(
         self, score: MomentumScore
     ) -> Optional[MomentumPosition]:
         """Enter a new momentum position."""
         if len(self.positions) >= self.max_positions:
             return None
-        
+
         if score.symbol in self.positions:
             return None
-        
+
         quantity = int(self.max_position_size / score.price)
         if quantity <= 0:
             return None
-        
+
         trailing_stop = score.price * (1 - self.trailing_stop_pct / 100)
-        
+
         position = MomentumPosition(
             symbol=score.symbol,
             entry_price=score.price,
@@ -306,7 +306,7 @@ class StockMomentumStrategy:
             trailing_stop=trailing_stop,
             highest_price=score.price,
         )
-        
+
         # Execute trade
         if not self.dry_run:
             try:
@@ -320,11 +320,11 @@ class StockMomentumStrategy:
             except Exception as e:
                 logger.error(f"Failed to place order: {e}")
                 return None
-        
+
         self.positions[score.symbol] = position
         self.stats.trades_entered += 1
         self.stats.current_positions = len(self.positions)
-        
+
         mode = "[DRY RUN] " if self.dry_run else ""
         logger.info(
             f"{mode}🚀 ENTERED LONG {score.symbol} | "
@@ -333,9 +333,9 @@ class StockMomentumStrategy:
             f"RSI: {score.rsi_14:.0f} | "
             f"Trail Stop: ${trailing_stop:.2f}"
         )
-        
+
         return position
-    
+
     async def _update_position(
         self, position: MomentumPosition, current_price: float
     ) -> bool:
@@ -345,25 +345,25 @@ class StockMomentumStrategy:
             position.highest_price = current_price
             new_stop = current_price * (1 - self.trailing_stop_pct / 100)
             position.trailing_stop = max(position.trailing_stop, new_stop)
-        
+
         # Calculate current P&L
         pnl = (current_price - position.entry_price) * position.quantity
         position.current_pnl = pnl
-        
+
         should_exit = False
         exit_reason = ""
-        
+
         # Check trailing stop
         if current_price <= position.trailing_stop:
             should_exit = True
             exit_reason = "TRAILING STOP"
-        
+
         # Check momentum fade
         score = self._calculate_momentum_score(position.symbol)
         if score and score.momentum_score < 40:
             should_exit = True
             exit_reason = "MOMENTUM FADE"
-        
+
         if should_exit:
             # Execute exit
             if not self.dry_run:
@@ -378,7 +378,7 @@ class StockMomentumStrategy:
                 except Exception as e:
                     logger.error(f"Failed to exit position: {e}")
                     return False
-            
+
             # Update stats
             if pnl > 0:
                 self.stats.trades_won += 1
@@ -386,15 +386,15 @@ class StockMomentumStrategy:
             else:
                 self.stats.trades_lost += 1
                 self.stats.worst_trade = min(self.stats.worst_trade, pnl)
-            
+
             self.stats.total_pnl += pnl
             del self.positions[position.symbol]
             self.stats.current_positions = len(self.positions)
-            
+
             hold_hours = (
                 datetime.now(timezone.utc) - position.entry_time
             ).total_seconds() / 3600
-            
+
             mode = "[DRY RUN] " if self.dry_run else ""
             emoji = "✅" if pnl > 0 else "❌"
             logger.info(
@@ -406,23 +406,23 @@ class StockMomentumStrategy:
                 f"Held: {hold_hours:.1f}h"
             )
             return True
-        
+
         return False
-    
+
     async def scan_opportunities(self) -> List[MomentumScore]:
         """Scan universe for momentum opportunities."""
         opportunities = []
         self.stats.total_scans += 1
-        
+
         try:
             # Get current prices and update data
             tickers = await self.alpaca.get_tickers(self.universe)
-            
+
             for symbol in self.universe:
                 ticker = tickers.get(symbol)
                 if not ticker:
                     continue
-                
+
                 # Update price data
                 if symbol in self.price_data:
                     self.price_data[symbol].append({
@@ -435,7 +435,7 @@ class StockMomentumStrategy:
                     })
                     # Keep only recent data
                     self.price_data[symbol] = self.price_data[symbol][-25:]
-                
+
                 score = self._calculate_momentum_score(symbol)
                 if score and score.signal in (
                     MomentumSignal.STRONG_BUY, MomentumSignal.BUY
@@ -443,19 +443,19 @@ class StockMomentumStrategy:
                     if score.momentum_score >= self.min_momentum_score:
                         opportunities.append(score)
                         self.stats.signals_generated += 1
-            
+
         except Exception as e:
             logger.error(f"Error scanning opportunities: {e}")
-        
+
         # Sort by momentum score
         opportunities.sort(key=lambda x: x.momentum_score, reverse=True)
         return opportunities
-    
+
     async def run(self, duration_seconds: int = 3600):
         """Run the strategy for specified duration."""
         self._running = True
         end_time = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
-        
+
         while self._running and datetime.now(timezone.utc) < end_time:
             try:
                 # Update existing positions
@@ -469,15 +469,15 @@ class StockMomentumStrategy:
                         pass  # Position was closed
                     except Exception as e:
                         logger.error(f"Error updating {symbol}: {e}")
-                
+
                 # Scan for new opportunities
                 opportunities = await self.scan_opportunities()
-                
+
                 # Enter best opportunities
                 for score in opportunities[:3]:  # Top 3 only
                     if len(self.positions) < self.max_positions:
                         await self._enter_position(score)
-                
+
                 # Log status
                 if self.positions:
                     total_pnl = sum(p.current_pnl for p in self.positions.values())
@@ -487,18 +487,18 @@ class StockMomentumStrategy:
                         f"Open P&L: ${total_pnl:+.2f} | "
                         f"Realized: ${self.stats.total_pnl:+.2f}"
                     )
-                
+
                 # Wait before next scan (5 minutes for intraday)
                 await asyncio.sleep(300)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Error in momentum loop: {e}")
                 await asyncio.sleep(60)
-        
+
         self._running = False
-    
+
     async def run_cycle(self):
         """Run one iteration of the strategy (called by bot_runner)."""
         try:
@@ -513,15 +513,15 @@ class StockMomentumStrategy:
                     pass  # Position was closed
                 except Exception as e:
                     logger.error(f"Error updating {symbol}: {e}")
-            
+
             # Scan for new opportunities
             opportunities = await self.scan_opportunities()
-            
+
             # Enter best opportunities (top 3 only)
             for score in opportunities[:3]:
                 if len(self.positions) < self.max_positions:
                     await self._enter_position(score)
-            
+
             # Log status
             total_pnl = sum(p.current_pnl for p in self.positions.values())
             logger.info(
@@ -531,11 +531,11 @@ class StockMomentumStrategy:
                 f"Open P&L: ${total_pnl:+.2f} | "
                 f"Realized: ${self.stats.total_pnl:+.2f}"
             )
-            
+
         except Exception as e:
             logger.error(f"Error in momentum cycle: {e}")
             raise
-    
+
     async def stop(self):
         """Stop the strategy."""
         self._running = False

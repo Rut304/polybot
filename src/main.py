@@ -43,18 +43,18 @@ async def run_single_instance(user_id: Optional[str] = None):
     """Run a single instance of PolyBot."""
     # Setup logging with user context
     setup_database_logging(user_id=user_id)
-    
+
     logger.info(f"🚀 Starting PolyBot single instance (User: {user_id or 'Global'})...")
 
     # Run Startup Cleanup to remove zombie records
     await cleanup_stale_data()
-    
+
     runner = PolybotRunner(user_id=user_id)
-    
+
     # Handle shutdown
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
-    
+
     def signal_handler():
         logger.info("Shutdown signal received")
         stop_event.set()
@@ -62,7 +62,7 @@ async def run_single_instance(user_id: Optional[str] = None):
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, signal_handler)
-        
+
     try:
         # runner.run() is an infinite loop that waits for shutdown
         await runner.run()
@@ -81,27 +81,27 @@ async def main():
     parser.add_argument("--user-id", type=str, help="Run for specific User ID")
     parser.add_argument("--manager", action="store_true", help="Run in Multi-Tenant Manager mode")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    
+
     args = parser.parse_args()
-    
+
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-        
+
     if args.manager:
         logger.info("🔵 Starting Bot Manager Service...")
         manager = BotManager()
-        
+
         # Handle shutdown for manager
         loop = asyncio.get_running_loop()
         def signal_handler():
             logger.info("Manager shutdown signal received")
             manager.stop()
-            
+
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, signal_handler)
-            
+
         await manager.run()
-        
+
     else:
         await run_single_instance(user_id=args.user_id)
 

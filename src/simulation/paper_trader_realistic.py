@@ -76,7 +76,7 @@ class SimulatedTrade:
     outcome: TradeOutcome = TradeOutcome.PENDING
     outcome_reason: str = ""
     resolved_at: Optional[datetime] = None
-    
+
     # Arbitrage strategy type
     arbitrage_type: str = ""  # e.g., "polymarket_single", "kalshi_single", "cross_platform"
 
@@ -180,7 +180,7 @@ class RealisticPaperTrader:
     CRITICAL DISTINCTION:
     - CROSS-PLATFORM (Polymarket ↔ Kalshi): TRUE arbitrage, same event, low risk
     - SAME-PLATFORM OVERLAP: NOT arbitrage, correlation-based, HIGH risk
-    
+
     Key realistic factors:
     1. FALSE POSITIVE FILTER: Rejects spreads > 12% as likely false correlations
     2. CROSS-PLATFORM PREFERENCE: Skip same-platform "overlap" trades by default
@@ -196,7 +196,7 @@ class RealisticPaperTrader:
     # REALISTIC AGGRESSIVE: High risk tolerance but real-world execution rates
     # Based on actual prediction market trading data and research
     MAX_REALISTIC_SPREAD_PCT = 35.0  # Allow high spreads - they DO exist
-    
+
     # NOTE: Min profit thresholds are REMOVED from paper trader!
     # They are now handled ONLY by the strategy-specific scanners in config.py:
     # - poly_single_min_profit_pct (0.3%) in scanner
@@ -211,7 +211,7 @@ class RealisticPaperTrader:
     # Based on actual prediction market execution data:
     # - Polymarket: ~0.3-0.8% slippage typical, 5-10% failure on volatile markets
     # - Kalshi: ~0.5-1.2% slippage, 8-15% failure (less liquid)
-    # 
+    #
     # These match what you'll see in LIVE trading!
     SLIPPAGE_MIN_PCT = 0.3   # Real: 0.3% minimum slippage
     SLIPPAGE_MAX_PCT = 1.2   # Real: Up to 1.2% on larger orders
@@ -237,7 +237,7 @@ class RealisticPaperTrader:
     # =========================================================================
     # COMPREHENSIVE FEE STRUCTURES - ALL PLATFORMS (as of December 2025)
     # =========================================================================
-    # 
+    #
     # PREDICTION MARKETS:
     # - Polymarket: 0% trading fees (peer-to-peer, no house)
     #   Source: https://docs.polymarket.com/polymarket-learn/trading/fees
@@ -263,11 +263,11 @@ class RealisticPaperTrader:
     # - Bybit Derivatives: 0.01% maker / 0.06% taker
     # - OKX Perps: 0.02% maker / 0.05% taker
     # =========================================================================
-    
+
     # Prediction Markets
     POLYMARKET_FEE_PCT = 0.0      # 0% trading fees
     KALSHI_FEE_PCT = 7.0          # 7% on profits at settlement
-    
+
     # Crypto Spot Exchanges (as percentage of trade value)
     BINANCE_US_MAKER_FEE_PCT = 0.10
     BINANCE_US_TAKER_FEE_PCT = 0.10
@@ -282,7 +282,7 @@ class RealisticPaperTrader:
     OKX_TAKER_FEE_PCT = 0.10
     KUCOIN_MAKER_FEE_PCT = 0.10
     KUCOIN_TAKER_FEE_PCT = 0.10
-    
+
     # Crypto Futures/Perpetuals
     BINANCE_FUTURES_MAKER_FEE_PCT = 0.02
     BINANCE_FUTURES_TAKER_FEE_PCT = 0.04
@@ -290,7 +290,7 @@ class RealisticPaperTrader:
     BYBIT_FUTURES_TAKER_FEE_PCT = 0.06
     OKX_FUTURES_MAKER_FEE_PCT = 0.02
     OKX_FUTURES_TAKER_FEE_PCT = 0.05
-    
+
     # Stock Brokers
     ALPACA_COMMISSION_USD = 0.0       # $0 commission
     ALPACA_SEC_FEE_PER_SHARE = 0.000008  # SEC fee on sells only
@@ -302,12 +302,12 @@ class RealisticPaperTrader:
     MAX_POSITION_PCT = 5.0      # REDUCED from 8% - smaller = less slippage
     MAX_POSITION_USD = 25.0     # REDUCED from 100 - quality over quantity
     MIN_POSITION_USD = 5.0      # Minimum trade size
-    
+
     # ========== COOLDOWN / DEDUPLICATION ==========
     # Aggressive but realistic - real traders do trade same market multiple times
     MARKET_COOLDOWN_SECONDS = 600  # 10 min cooldown (realistic for active trading)
     MAX_TRADES_PER_MARKET_PER_DAY = 8  # Up to 8 trades per market per day
-    
+
     # ========== DAILY TRADE LIMITS ==========
     # TUNED 2024-12-26: Quality over quantity - focus on high-conviction trades
     MAX_DAILY_TRADES = 50       # Total trades per day across all strategies
@@ -316,7 +316,7 @@ class RealisticPaperTrader:
     # Realistic execution delays based on API response times
     EXECUTION_DELAY_MIN_SEC = 0.5  # Real: ~500ms minimum (API + network)
     EXECUTION_DELAY_MAX_SEC = 2.0  # Real: Up to 2s on congested networks
-    
+
     # Price drift during delay (Volatile markets move fast!)
     # % movement per second of delay
     DRIFT_VOLATILITY_PCT_PER_SEC = 0.2
@@ -333,50 +333,50 @@ class RealisticPaperTrader:
         )
         self.trades: Dict[str, SimulatedTrade] = {}
         self._trade_counter = 0
-        
+
         # Cooldown tracking - CRITICAL to prevent unrealistic repeated trades
         self._market_trade_times: Dict[str, list] = {}  # market_id -> [trade_times]
-        
+
         # Daily trade limit tracking
         self._daily_trade_count = 0
         self._daily_trade_date: Optional[datetime] = None
-        
+
         # Load config from database (overrides class defaults)
         self._load_config_from_db()
-        
+
         # Validate data integrity on startup
         self._validate_data_integrity()
 
     def _validate_data_integrity(self):
         """
         Check for data inconsistencies between stats and trades tables.
-        
+
         CRITICAL: This catches the bug where reset created a new stats row
         but paper_trader continued updating the old id=1 row.
         """
         try:
             if not self.db or not hasattr(self.db, '_client') or not self.db._client:
                 return
-            
+
             # Get current stats from id=1
             stats_result = self.db._client.table("polybot_simulation_stats").select(
                 "id, total_trades, stats_json"
             ).eq("id", 1).execute()
-            
+
             if not stats_result.data:
                 logger.warning("⚠️ No stats row with id=1 found - will create on first save")
                 return
-            
+
             stats_row = stats_result.data[0]
             stats_json = stats_row.get("stats_json", {})
             stats_total_trades = stats_json.get("total_simulated_trades", 0)
-            
+
             # Get actual trade count from trades table
             trades_result = self.db._client.table("polybot_simulated_trades").select(
                 "id", count="exact"
             ).execute()
             actual_trade_count = trades_result.count or 0
-            
+
             # Check for mismatch
             if stats_total_trades > 0 and actual_trade_count == 0:
                 logger.error(
@@ -395,7 +395,7 @@ class RealisticPaperTrader:
                     )
             else:
                 logger.info(f"✓ Data integrity check passed: {actual_trade_count} trades")
-                
+
         except Exception as e:
             logger.warning(f"Data integrity check failed: {e}")
 
@@ -410,7 +410,7 @@ class RealisticPaperTrader:
             if not config:
                 logger.info("No database config found, using defaults")
                 return
-            
+
             # Map database columns to instance attributes
             # NOTE: min_profit_threshold_pct REMOVED - handled by strategy scanners
             config_mapping = {
@@ -428,7 +428,7 @@ class RealisticPaperTrader:
                 'max_position_usd': 'MAX_POSITION_USD',
                 'min_position_usd': 'MIN_POSITION_USD',
             }
-            
+
             loaded_count = 0
             for db_col, attr_name in config_mapping.items():
                 if db_col in config and config[db_col] is not None:
@@ -436,12 +436,12 @@ class RealisticPaperTrader:
                     setattr(self, attr_name, value)
                     loaded_count += 1
                     logger.debug(f"Loaded {attr_name} = {value} from database")
-            
+
             # max_trade_size maps to MAX_POSITION_USD (global limit)
             if config.get('max_trade_size') is not None:
                 self.MAX_POSITION_USD = float(config['max_trade_size'])
                 loaded_count += 1
-            
+
             # Load skip_same_platform_overlap setting
             # False = ALLOW overlapping arb, True = SKIP overlapping arb
             if 'skip_same_platform_overlap' in config:
@@ -450,15 +450,15 @@ class RealisticPaperTrader:
                 loaded_count += 1
                 status = 'DISABLED' if self.SKIP_SAME_PLATFORM_OVERLAP else 'ENABLED'
                 logger.info(f"  Overlapping arb: {status}")
-            
+
             logger.info(f"✓ Loaded {loaded_count} config values from database")
-            
+
             # Log current settings (removed min profit - handled by scanners)
             logger.info(f"  Max spread: {self.MAX_REALISTIC_SPREAD_PCT}%")
             logger.info(f"  Max position: ${self.MAX_POSITION_USD}")
             logger.info(f"  Exec failure rate: {self.EXECUTION_FAILURE_RATE*100:.0f}%")
             logger.info(f"  Resolution loss rate: {self.RESOLUTION_LOSS_RATE*100:.0f}%")
-            
+
         except Exception as e:
             logger.warning(f"Failed to load config from database: {e}")
             logger.info("Using default configuration values")
@@ -472,53 +472,53 @@ class RealisticPaperTrader:
     def _is_market_on_cooldown(self, market_id: str, platform: str) -> tuple:
         """
         Check if a market is on cooldown (recently traded).
-        
+
         CRITICAL: This prevents unrealistic repeated trades on the same market.
         In real trading, you can't infinitely buy/sell the same position.
-        
+
         Returns: (is_on_cooldown: bool, reason: str)
         """
         key = f"{platform}:{market_id}"
         now = datetime.now(timezone.utc)
-        
+
         if key not in self._market_trade_times:
             return False, ""
-        
+
         trade_times = self._market_trade_times[key]
-        
+
         # Clean up old entries (older than 48 hours)
         cutoff = now - timedelta(seconds=172800)
         trade_times = [t for t in trade_times if t > cutoff]
         self._market_trade_times[key] = trade_times
-        
+
         if not trade_times:
             return False, ""
-        
+
         # Check cooldown since last trade
         last_trade = max(trade_times)
         elapsed = (now - last_trade).total_seconds()
-        
+
         if elapsed < self.MARKET_COOLDOWN_SECONDS:
             remaining = int(self.MARKET_COOLDOWN_SECONDS - elapsed)
             return True, f"Cooldown: {remaining}s remaining"
-        
+
         # Check daily trade limit
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_trades = sum(1 for t in trade_times if t >= day_start)
-        
+
         if today_trades >= self.MAX_TRADES_PER_MARKET_PER_DAY:
             return True, f"Daily limit: {today_trades} trades today"
-        
+
         return False, ""
-    
+
     def _mark_market_traded(self, market_id: str, platform: str) -> None:
         """Mark a market as recently traded (starts cooldown)."""
         key = f"{platform}:{market_id}"
         now = datetime.now(timezone.utc)
-        
+
         if key not in self._market_trade_times:
             self._market_trade_times[key] = []
-        
+
         self._market_trade_times[key].append(now)
 
     async def _simulate_network_latency(self) -> Decimal:
@@ -528,23 +528,23 @@ class RealisticPaperTrader:
         """
         # 1. Calculate random delay
         delay = random.uniform(self.EXECUTION_DELAY_MIN_SEC, self.EXECUTION_DELAY_MAX_SEC)
-        
+
         # 2. ASYNC SLEEP (The "Second Delay")
         await asyncio.sleep(delay)
-        
+
         # 3. Calculate Price Drift during delay
         # Markets usually move against arb opportunities (others taking them)
         # 70% chance of adverse drift (spread worsens)
         # 30% chance of neutral/favorable (noise)
         base_drift = delay * self.DRIFT_VOLATILITY_PCT_PER_SEC
-        
+
         if random.random() > 0.3:
             # Adverse: Spread shrinks by random amount up to base_drift
             drift_impact = random.uniform(0.05, base_drift)
         else:
             # Noise: Spread fluctuates +/- small amount
             drift_impact = random.uniform(-0.05, 0.05)
-            
+
         return Decimal(str(drift_impact))
 
     def _log_skipped_opportunity(
@@ -574,11 +574,11 @@ class RealisticPaperTrader:
                 "buy_price": float(opportunity_info.get("price_a", 0)),
                 "sell_price": float(opportunity_info.get("price_b", 0)),
             }
-            
+
             # Use Database client to log
             # NOTE: log_opportunity handles internal ID generation if needed
             self.db.log_opportunity(opp)
-            
+
         except Exception as e:
             logger.warning(f"Failed to log skipped opportunity: {e}")
 
@@ -604,7 +604,7 @@ class RealisticPaperTrader:
     ) -> Decimal:
         """
         Calculate trading fee for a specific platform.
-        
+
         Args:
             platform: Platform name (polymarket, kalshi, binance, etc)
             trade_value: Total trade value in USD
@@ -612,38 +612,38 @@ class RealisticPaperTrader:
             is_maker: True if maker order, False if taker (crypto)
             is_futures: True if futures/perpetuals trade
             asset_type: Type of asset (prediction, crypto, stock)
-        
+
         Returns:
             Fee amount in USD
         """
         platform_lower = platform.lower().replace(" ", "").replace("-", "")
-        
+
         # ========== PREDICTION MARKETS ==========
         if platform_lower in ("polymarket", "poly"):
             return Decimal("0")  # 0% fees
-        
+
         if platform_lower == "kalshi":
             # 7% on profits only, at settlement
             if gross_profit > 0:
                 return gross_profit * Decimal("0.07")
             return Decimal("0")
-        
+
         # ========== CRYPTO SPOT EXCHANGES ==========
         if platform_lower in ("binance", "binanceus"):
             rate = self.BINANCE_US_MAKER_FEE_PCT if is_maker else \
                    self.BINANCE_US_TAKER_FEE_PCT
             return trade_value * Decimal(str(rate / 100))
-        
+
         if platform_lower in ("coinbase", "coinbasepro", "coinbaseadvanced"):
             rate = self.COINBASE_MAKER_FEE_PCT if is_maker else \
                    self.COINBASE_TAKER_FEE_PCT
             return trade_value * Decimal(str(rate / 100))
-        
+
         if platform_lower == "kraken":
             rate = self.KRAKEN_MAKER_FEE_PCT if is_maker else \
                    self.KRAKEN_TAKER_FEE_PCT
             return trade_value * Decimal(str(rate / 100))
-        
+
         if platform_lower == "bybit":
             if is_futures:
                 rate = self.BYBIT_FUTURES_MAKER_FEE_PCT if is_maker else \
@@ -652,7 +652,7 @@ class RealisticPaperTrader:
                 rate = self.BYBIT_MAKER_FEE_PCT if is_maker else \
                        self.BYBIT_TAKER_FEE_PCT
             return trade_value * Decimal(str(rate / 100))
-        
+
         if platform_lower == "okx":
             if is_futures:
                 rate = self.OKX_FUTURES_MAKER_FEE_PCT if is_maker else \
@@ -661,22 +661,22 @@ class RealisticPaperTrader:
                 rate = self.OKX_MAKER_FEE_PCT if is_maker else \
                        self.OKX_TAKER_FEE_PCT
             return trade_value * Decimal(str(rate / 100))
-        
+
         if platform_lower == "kucoin":
             rate = self.KUCOIN_MAKER_FEE_PCT if is_maker else \
                    self.KUCOIN_TAKER_FEE_PCT
             return trade_value * Decimal(str(rate / 100))
-        
+
         # ========== STOCK BROKERS ==========
         if platform_lower == "alpaca":
             # Commission-free, but SEC fee on sells
             # SEC fee is ~$0.000008 per share sold
             # For simplicity, apply 0.0008% on sell value
             return trade_value * Decimal("0.000008")
-        
+
         if platform_lower in ("ibkr", "interactivebrokers"):
             return Decimal(str(self.IBKR_COMMISSION_USD))
-        
+
         # ========== DEFAULT / UNKNOWN ==========
         # Default to 0.1% if platform unknown (conservative estimate)
         logger.warning(f"Unknown platform '{platform}', using 0.1% fee")
@@ -694,17 +694,17 @@ class RealisticPaperTrader:
         Returns: (success, reason, actual_profit_multiplier, is_loss)
 
         STRATEGY-SPECIFIC RISK PROFILES:
-        
+
         1. SINGLE-PLATFORM ARBITRAGE (YES+NO=$1): LOWEST RISK
            - You're buying ALL outcomes on the SAME market
            - Only risk is execution timing (spread closes before both legs)
            - Expected win rate: 85-95%
-        
+
         2. CROSS-PLATFORM ARBITRAGE (Poly↔Kalshi): LOW RISK
            - Same event, different platforms
            - Risk: timing mismatch, latency
            - Expected win rate: 70-85%
-        
+
         3. SAME-PLATFORM OVERLAP: HIGH RISK
            - Different events, correlation assumed
            - Risk: correlation often fails
@@ -714,7 +714,7 @@ class RealisticPaperTrader:
             "polymarket_single", "kalshi_single", "poly_single",
             "single_platform_polymarket", "single_platform_kalshi"
         )
-        
+
         # ========== STRATEGY-SPECIFIC RISK PROFILES ==========
         if is_single_platform:
             # SINGLE-PLATFORM ARBITRAGE: Buying YES+NO on same market
@@ -766,7 +766,7 @@ class RealisticPaperTrader:
                 "Markets diverged instead of converging",
                 "Same-platform overlap is NOT risk-free arbitrage",
             ]
-        
+
         # Check if opportunity still exists (execution failure)
         if random.random() < exec_failure_rate:
             reasons = [
@@ -788,7 +788,7 @@ class RealisticPaperTrader:
         slippage_range = (slippage_min + slippage_max) / 2
         avg_slippage = Decimal(str(slippage_range))
         spread_cost = Decimal(str(self.SPREAD_COST_PCT))
-        
+
         # Platform-specific fee handling
         # Polymarket: 0% fees, Kalshi: 7% on profits
         if is_single_platform:
@@ -870,7 +870,7 @@ class RealisticPaperTrader:
         on_cooldown_b, reason_b = self._is_market_on_cooldown(
             market_b_id, platform_b
         )
-        
+
         if on_cooldown_a or on_cooldown_b:
             self.stats.opportunities_skipped_too_small += 1
             reason = reason_a or reason_b
@@ -879,8 +879,8 @@ class RealisticPaperTrader:
             )
             # LOG MISSED OPPORTUNITY
             self._log_skipped_opportunity(
-                market_title=market_a_title, 
-                spread_pct=spread_pct, 
+                market_title=market_a_title,
+                spread_pct=spread_pct,
                 reason=f"Cooldown: {reason}",
                 opportunity_info={
                     "market_a_id": market_a_id,
@@ -900,7 +900,7 @@ class RealisticPaperTrader:
         if self._daily_trade_date != today:
             self._daily_trade_date = today
             self._daily_trade_count = 0
-        
+
         if self._daily_trade_count >= self.MAX_DAILY_TRADES:
             logger.info(
                 f"🚫 SKIPPED (daily limit): {self._daily_trade_count}/"
@@ -929,7 +929,7 @@ class RealisticPaperTrader:
             "polymarket_single", "kalshi_single"
         )
         is_cross_platform = (platform_a != platform_b)
-        
+
         if not is_cross_platform and not is_single_platform_arb and self.SKIP_SAME_PLATFORM_OVERLAP:
             self.stats.opportunities_skipped_too_small += 1
             logger.info(
@@ -1013,11 +1013,11 @@ class RealisticPaperTrader:
         # ========== SIMULATE LATENCY & DRIFT ==========
         # "Do we need to delay the sale?" - YES.
         drift_impact_pct = await self._simulate_network_latency()
-        
+
         # Adjust spread for drift
         original_spread = spread_pct
         spread_pct = spread_pct - drift_impact_pct
-        
+
         # Log if drift killed the trade
         if spread_pct <= 0:
             self.stats.failed_executions += 1
@@ -1039,16 +1039,16 @@ class RealisticPaperTrader:
         # Cross-platform (Polymarket ↔ Kalshi) = TRUE arbitrage = LOW RISK
         # Single-platform arb (YES/NO spread on same market) = TRUE arbitrage = LOW RISK
         # Same-platform overlap (different markets) = NOT true arbitrage = HIGH RISK
-        
+
         is_single_platform_arb = arbitrage_type in (
             "polymarket_single", "kalshi_single", "poly_single"
         )
         is_cross_platform = (platform_a != platform_b)
-        
+
         # Single-platform arb IS true arbitrage (YES/NO spread on same market)
         # Treat it the same as cross-platform for risk purposes
         is_true_arbitrage = is_cross_platform or is_single_platform_arb
-        
+
         if not is_true_arbitrage:
             logger.warning(
                 f"⚠️ SAME-PLATFORM OVERLAP detected ({platform_a}↔{platform_b}) - "
@@ -1071,7 +1071,7 @@ class RealisticPaperTrader:
             is_cross_platform=is_true_arbitrage,
             arbitrage_type=arbitrage_type,
         )
-        
+
         # Create trade record
         trade = SimulatedTrade(
             id=self._generate_trade_id(),
@@ -1127,7 +1127,7 @@ class RealisticPaperTrader:
                     "polymarket", "kalshi", "poly"
                 ) else "crypto"
             )
-            
+
             trade.fee_b_usd = self.calculate_platform_fee(
                 platform=platform_b,
                 trade_value=position_size / 2,
@@ -1201,10 +1201,10 @@ class RealisticPaperTrader:
 
         # Store trade
         self.trades[trade.id] = trade
-        
+
         # ========== INCREMENT DAILY TRADE COUNTER ==========
         self._daily_trade_count += 1
-        
+
         # ========== MARK MARKETS AS TRADED (COOLDOWN) ==========
         # CRITICAL: This prevents unrealistic repeated trades
         self._mark_market_traded(trade.market_a_id, trade.platform_a)
@@ -1260,7 +1260,7 @@ class RealisticPaperTrader:
                 "resolved_at": trade.resolved_at.isoformat() if trade.resolved_at else None,
                 "resolution_notes": trade.outcome_reason,
             }
-            
+
             # Extended fields for enhanced tracking (may not exist in older schemas)
             extended_data = {
                 "strategy_type": strategy_type,
@@ -1268,14 +1268,14 @@ class RealisticPaperTrader:
                 "platform": trade.platform_a,
                 "session_label": "simulation_v1",  # Session tracking for continuous data
             }
-            
+
             # Multi-tenant: Add user_id if database has it
             if self.db and hasattr(self.db, 'user_id') and self.db.user_id:
                 extended_data["user_id"] = self.db.user_id
 
             # Try multiple ways to save to database
             saved = False
-            
+
             # Method 1: Use is_connected property
             if self.db and hasattr(self.db, 'is_connected') and self.db.is_connected:
                 # Try with extended data first
@@ -1299,7 +1299,7 @@ class RealisticPaperTrader:
                             logger.warning(f"Method 1 failed (core): {e2}")
                     else:
                         logger.warning(f"Method 1 failed: {e}")
-            
+
             # Method 2: Direct _client check
             if not saved and self.db and hasattr(self.db, '_client') and self.db._client:
                 try:
@@ -1312,7 +1312,7 @@ class RealisticPaperTrader:
                     saved = True
                 except Exception as e:
                     logger.warning(f"Method 2 failed: {e}")
-            
+
             if not saved:
                 # Log detailed debug info
                 db_exists = bool(self.db)
@@ -1343,7 +1343,7 @@ class RealisticPaperTrader:
             }
 
             saved = False
-            
+
             # Method 1: Use is_connected property
             if self.db and hasattr(self.db, 'is_connected') and self.db.is_connected:
                 try:
@@ -1357,7 +1357,7 @@ class RealisticPaperTrader:
                     saved = True
                 except Exception as e:
                     logger.warning(f"Stats save method 1 failed: {e}")
-            
+
             # Method 2: Direct _client check
             if not saved and self.db and hasattr(self.db, '_client') and self.db._client:
                 try:
@@ -1371,7 +1371,7 @@ class RealisticPaperTrader:
                     saved = True
                 except Exception as e:
                     logger.warning(f"Stats save method 2 failed: {e}")
-            
+
             if not saved:
                 # Log diagnostic info
                 db_exists = bool(self.db)
@@ -1402,7 +1402,7 @@ class RealisticPaperTrader:
     ) -> Optional[SimulatedTrade]:
         """
         Simulate a crypto trade with realistic fees.
-        
+
         Args:
             symbol: Trading pair (e.g., "BTC/USDT")
             exchange: Exchange name (binance, coinbase, etc.)
@@ -1413,26 +1413,26 @@ class RealisticPaperTrader:
             strategy: Strategy name for tracking
             is_futures: True if perpetual/futures trade
             is_maker: True if maker order (lower fees)
-        
+
         Returns:
             SimulatedTrade object or None if execution fails
         """
         now = datetime.now(timezone.utc)
         self.stats.opportunities_seen += 1
-        
+
         # Check balance
         if self.stats.current_balance < size_usd:
             logger.warning(f"Insufficient balance for crypto trade")
             return None
-        
+
         # Calculate P&L
         if side == "buy":
             pnl_pct = (exit_price - entry_price) / entry_price * 100
         else:
             pnl_pct = (entry_price - exit_price) / entry_price * 100
-        
+
         gross_pnl = size_usd * pnl_pct / Decimal("100")
-        
+
         # Calculate fees using comprehensive method
         entry_fee = self.calculate_platform_fee(
             platform=exchange,
@@ -1452,7 +1452,7 @@ class RealisticPaperTrader:
         )
         total_fees = entry_fee + exit_fee
         net_pnl = gross_pnl - total_fees
-        
+
         # Create trade record
         trade = SimulatedTrade(
             id=self._generate_trade_id(),
@@ -1481,20 +1481,20 @@ class RealisticPaperTrader:
             resolved_at=now,
             arbitrage_type=f"crypto_{strategy}",
         )
-        
+
         # Update stats
         self._update_stats_from_trade(trade)
-        
+
         logger.info(
             f"{'✅' if net_pnl > 0 else '❌'} CRYPTO: {symbol} {side} "
             f"${size_usd:.2f} | Net: ${net_pnl:+.2f} | "
             f"Fees: ${total_fees:.4f} ({exchange})"
         )
-        
+
         return trade
 
     # =========================================================================
-    # STOCK TRADE SIMULATION  
+    # STOCK TRADE SIMULATION
     # Supports: Alpaca ($0 commission), IBKR
     # =========================================================================
     async def simulate_stock_trade(
@@ -1509,7 +1509,7 @@ class RealisticPaperTrader:
     ) -> Optional[SimulatedTrade]:
         """
         Simulate a stock trade with realistic fees.
-        
+
         Args:
             symbol: Stock ticker (e.g., "AAPL")
             broker: Broker name (alpaca, ibkr)
@@ -1518,33 +1518,33 @@ class RealisticPaperTrader:
             entry_price: Entry price per share
             exit_price: Exit price per share
             strategy: Strategy name for tracking
-        
+
         Returns:
             SimulatedTrade object or None if execution fails
         """
         now = datetime.now(timezone.utc)
         self.stats.opportunities_seen += 1
-        
+
         size_usd = Decimal(str(shares)) * entry_price
-        
+
         # Check balance
         if self.stats.current_balance < size_usd:
             logger.warning(f"Insufficient balance for stock trade")
             return None
-        
+
         # Calculate P&L
         if side == "buy":
             pnl_pct = (exit_price - entry_price) / entry_price * 100
         else:
             pnl_pct = (entry_price - exit_price) / entry_price * 100
-        
+
         gross_pnl = size_usd * pnl_pct / Decimal("100")
-        
+
         # Calculate fees (Alpaca: $0 commission, SEC fee on sells)
         # SEC fee: ~$0.000008 per share sold
         entry_fee = Decimal("0")  # No fee on buys for most brokers
         exit_fee = Decimal("0")
-        
+
         if broker.lower() == "alpaca":
             # SEC fee only on sells
             if side == "sell":
@@ -1552,11 +1552,11 @@ class RealisticPaperTrader:
         elif broker.lower() in ("ibkr", "interactivebrokers"):
             # IBKR Lite is $0, Pro is $0.005/share
             exit_fee = Decimal("0")  # Assume Lite
-        
+
         total_fees = entry_fee + exit_fee
         net_pnl = gross_pnl - total_fees
         exit_value = Decimal(str(shares)) * exit_price
-        
+
         # Create trade record
         trade = SimulatedTrade(
             id=self._generate_trade_id(),
@@ -1585,16 +1585,16 @@ class RealisticPaperTrader:
             resolved_at=now,
             arbitrage_type=f"stock_{strategy}",
         )
-        
+
         # Update stats
         self._update_stats_from_trade(trade)
-        
+
         logger.info(
             f"{'✅' if net_pnl > 0 else '❌'} STOCK: {symbol} {shares}sh {side} "
             f"${size_usd:.2f} | Net: ${net_pnl:+.2f} | "
             f"Fees: ${total_fees:.4f} ({broker})"
         )
-        
+
         return trade
 
     # =========================================================================
@@ -1611,32 +1611,32 @@ class RealisticPaperTrader:
     ) -> Optional[SimulatedTrade]:
         """
         Simulate a funding rate arbitrage position.
-        
+
         Funding arb is delta-neutral: long spot + short perp
         Profit comes from collecting positive funding payments.
-        
+
         Args:
             symbol: Trading pair (e.g., "BTC/USDT")
             exchange: Exchange name
             position_size_usd: Position size
             funding_rate_pct: Funding rate per 8h as percentage
             hours_held: Hours position was held
-        
+
         Returns:
             SimulatedTrade object
         """
         now = datetime.now(timezone.utc)
         self.stats.opportunities_seen += 1
-        
+
         if self.stats.current_balance < position_size_usd:
             return None
-        
+
         # Calculate funding collected
         funding_periods = hours_held / 8.0
         funding_collected = position_size_usd * (
             funding_rate_pct / 100
         ) * Decimal(str(funding_periods))
-        
+
         # Fees for opening position (entry)
         # Need to buy spot AND short futures
         spot_entry_fee = self.calculate_platform_fee(
@@ -1653,7 +1653,7 @@ class RealisticPaperTrader:
             is_futures=True,
             asset_type="crypto"
         )
-        
+
         # Fees for closing (exit)
         spot_exit_fee = self.calculate_platform_fee(
             platform=exchange,
@@ -1669,11 +1669,11 @@ class RealisticPaperTrader:
             is_futures=True,
             asset_type="crypto"
         )
-        
+
         total_fees = spot_entry_fee + futures_entry_fee + \
                      spot_exit_fee + futures_exit_fee
         net_pnl = funding_collected - total_fees
-        
+
         # Create trade record
         trade = SimulatedTrade(
             id=self._generate_trade_id(),
@@ -1700,16 +1700,16 @@ class RealisticPaperTrader:
             resolved_at=now,
             arbitrage_type="funding_rate_arb",
         )
-        
+
         self._update_stats_from_trade(trade)
-        
+
         logger.info(
             f"{'✅' if net_pnl > 0 else '❌'} FUNDING: {symbol} "
             f"${position_size_usd:.0f} x {hours_held}h | "
             f"Collected: ${funding_collected:.4f} | "
             f"Net: ${net_pnl:+.4f} | Fees: ${total_fees:.4f}"
         )
-        
+
         return trade
 
     def _update_stats_from_trade(self, trade: SimulatedTrade) -> None:
@@ -1718,7 +1718,7 @@ class RealisticPaperTrader:
         self.stats.opportunities_traded += 1
         self.stats.successful_executions += 1
         self.stats.total_fees_paid += trade.total_fees_usd
-        
+
         if trade.outcome == TradeOutcome.WON:
             self.stats.winning_trades += 1
             self.stats.total_gross_profit += trade.gross_profit_usd
@@ -1733,14 +1733,14 @@ class RealisticPaperTrader:
             self.stats.current_balance -= loss_amount
             if trade.net_profit_usd < self.stats.worst_trade_pnl:
                 self.stats.worst_trade_pnl = trade.net_profit_usd
-        
+
         # Update average
         total_trades = self.stats.winning_trades + self.stats.losing_trades
         if total_trades > 0:
             self.stats.avg_trade_pnl = (
                 self.stats.total_net_profit - self.stats.total_losses
             ) / total_trades
-        
+
         if not self.stats.first_trade_at:
             self.stats.first_trade_at = trade.created_at
         self.stats.last_trade_at = trade.created_at

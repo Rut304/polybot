@@ -71,11 +71,11 @@ class OptionContract:
     gamma: float
     theta: float
     vega: float
-    
+
     @property
     def mid_price(self) -> float:
         return (self.bid + self.ask) / 2
-    
+
     @property
     def days_to_expiry(self) -> int:
         return (self.expiration - datetime.now(timezone.utc)).days
@@ -112,7 +112,7 @@ class OptionsStrategyStats:
 
 class BaseOptionsStrategy(ABC):
     """Base class for options strategies."""
-    
+
     def __init__(
         self,
         alpaca_client,
@@ -124,29 +124,29 @@ class BaseOptionsStrategy(ABC):
         self.max_position_size = max_position_size
         self.positions: Dict[str, OptionPosition] = {}
         self.stats = OptionsStrategyStats()
-        
+
     @abstractmethod
     async def find_opportunities(self, symbols: List[str]) -> List[dict]:
         """Find trading opportunities."""
         pass
-    
+
     @abstractmethod
     async def execute_strategy(self, opportunity: dict) -> Optional[OptionPosition]:
         """Execute the strategy for an opportunity."""
         pass
-    
+
     async def get_option_chain(self, symbol: str, expiry_range_days: int = 45) -> List[OptionContract]:
         """Fetch option chain for a symbol."""
         try:
             # Get options contracts from Alpaca
             expiry_date = datetime.now(timezone.utc) + timedelta(days=expiry_range_days)
-            
+
             response = await self.alpaca.get_options_contracts(
                 symbol,
                 expiration_date_gte=datetime.now(timezone.utc).strftime('%Y-%m-%d'),
                 expiration_date_lte=expiry_date.strftime('%Y-%m-%d'),
             )
-            
+
             contracts = []
             for contract in response:
                 contracts.append(OptionContract(
@@ -166,12 +166,12 @@ class BaseOptionsStrategy(ABC):
                     theta=float(contract.theta or 0),
                     vega=float(contract.vega or 0),
                 ))
-            
+
             return contracts
         except Exception as e:
             logger.error(f"Error fetching option chain for {symbol}: {e}")
             return []
-    
+
     def calculate_annualized_return(self, premium: float, strike: float, days_to_expiry: int) -> float:
         """Calculate annualized return from premium."""
         if strike == 0 or days_to_expiry == 0:
@@ -182,15 +182,15 @@ class BaseOptionsStrategy(ABC):
 class CoveredCallStrategy(BaseOptionsStrategy):
     """
     Covered Call Strategy
-    
+
     Own 100 shares of stock, sell an OTM call to collect premium.
     - If stock stays below strike: Keep premium, keep shares
     - If stock rises above strike: Get assigned, sell shares at strike + keep premium
-    
+
     Best for: Stocks you want to hold long-term with neutral to slightly bullish outlook
     Risk: Opportunity cost if stock rallies significantly
     """
-    
+
     def __init__(
         self,
         alpaca_client,
@@ -202,35 +202,35 @@ class CoveredCallStrategy(BaseOptionsStrategy):
         self.delta_target = delta_target
         self.min_premium_pct = min_premium_pct
         self.dte_range = days_to_expiry
-        
+
     async def find_opportunities(self, symbols: List[str]) -> List[dict]:
         """Find covered call opportunities for owned stocks."""
         opportunities = []
-        
+
         for symbol in symbols:
             try:
                 # Get current stock price
                 quote = await self.alpaca.get_quote(symbol)
                 stock_price = float(quote.bid_price + quote.ask_price) / 2
-                
+
                 # Get option chain
                 chain = await self.get_option_chain(symbol, self.dte_range[1])
-                
+
                 # Filter for OTM calls in DTE range
                 calls = [
-                    c for c in chain 
-                    if c.option_type == OptionType.CALL 
+                    c for c in chain
+                    if c.option_type == OptionType.CALL
                     and c.strike > stock_price  # OTM
                     and self.dte_range[0] <= c.days_to_expiry <= self.dte_range[1]
                     and abs(c.delta - self.delta_target) < 0.10  # Near target delta
                 ]
-                
+
                 for call in calls:
                     premium_pct = call.mid_price / stock_price
                     annualized = self.calculate_annualized_return(
                         call.mid_price, stock_price, call.days_to_expiry
                     )
-                    
+
                     if premium_pct >= self.min_premium_pct and annualized >= self.min_premium:
                         opportunities.append({
                             'symbol': symbol,
@@ -241,19 +241,19 @@ class CoveredCallStrategy(BaseOptionsStrategy):
                             'upside_potential': (call.strike - stock_price) / stock_price,
                             'strategy': OptionStrategy.COVERED_CALL,
                         })
-                        
+
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
-        
+
         # Sort by annualized return
         return sorted(opportunities, key=lambda x: x['annualized_return'], reverse=True)
-    
+
     async def execute_strategy(self, opportunity: dict) -> Optional[OptionPosition]:
         """Execute covered call by selling the call option."""
         try:
             contract = opportunity['contract']
-            
+
             # Sell the call
             order = await self.alpaca.submit_option_order(
                 symbol=contract.symbol,
@@ -263,7 +263,7 @@ class CoveredCallStrategy(BaseOptionsStrategy):
                 limit_price=contract.bid,  # Sell at bid
                 time_in_force='day',
             )
-            
+
             if order.status in ['filled', 'partially_filled']:
                 position = OptionPosition(
                     contract=contract,
@@ -273,32 +273,32 @@ class CoveredCallStrategy(BaseOptionsStrategy):
                     strategy=OptionStrategy.COVERED_CALL,
                     underlying_position=100,  # Assuming 100 shares owned
                 )
-                
+
                 self.positions[contract.symbol] = position
                 self.stats.total_trades += 1
                 self.stats.total_premium_collected += position.entry_price * 100
-                
+
                 logger.info(f"Covered call opened: {contract.symbol} @ ${position.entry_price}")
                 return position
-                
+
         except Exception as e:
             logger.error(f"Error executing covered call: {e}")
-        
+
         return None
 
 
 class CashSecuredPutStrategy(BaseOptionsStrategy):
     """
     Cash-Secured Put Strategy
-    
+
     Sell OTM puts on stocks you want to own at lower prices.
     - If stock stays above strike: Keep premium, no shares bought
     - If stock falls below strike: Get assigned, buy shares at strike - premium
-    
+
     Best for: Building positions in quality stocks at discount prices
     Risk: Buying stock at higher than market price if it crashes
     """
-    
+
     def __init__(
         self,
         alpaca_client,
@@ -310,38 +310,38 @@ class CashSecuredPutStrategy(BaseOptionsStrategy):
         self.delta_target = delta_target
         self.min_premium_pct = min_premium_pct
         self.dte_range = days_to_expiry
-        
+
     async def find_opportunities(self, symbols: List[str]) -> List[dict]:
         """Find cash-secured put opportunities."""
         opportunities = []
-        
+
         for symbol in symbols:
             try:
                 quote = await self.alpaca.get_quote(symbol)
                 stock_price = float(quote.bid_price + quote.ask_price) / 2
-                
+
                 chain = await self.get_option_chain(symbol, self.dte_range[1])
-                
+
                 # Filter for OTM puts
                 puts = [
-                    p for p in chain 
-                    if p.option_type == OptionType.PUT 
+                    p for p in chain
+                    if p.option_type == OptionType.PUT
                     and p.strike < stock_price  # OTM
                     and self.dte_range[0] <= p.days_to_expiry <= self.dte_range[1]
                     and abs(p.delta - self.delta_target) < 0.10
                 ]
-                
+
                 for put in puts:
                     premium_pct = put.mid_price / put.strike
                     annualized = self.calculate_annualized_return(
                         put.mid_price, put.strike, put.days_to_expiry
                     )
-                    
+
                     if premium_pct >= self.min_premium_pct:
                         # Calculate break-even price
                         break_even = put.strike - put.mid_price
                         discount = (stock_price - break_even) / stock_price
-                        
+
                         opportunities.append({
                             'symbol': symbol,
                             'contract': put,
@@ -352,18 +352,18 @@ class CashSecuredPutStrategy(BaseOptionsStrategy):
                             'effective_discount': discount,
                             'strategy': OptionStrategy.CASH_SECURED_PUT,
                         })
-                        
+
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
-        
+
         return sorted(opportunities, key=lambda x: x['annualized_return'], reverse=True)
-    
+
     async def execute_strategy(self, opportunity: dict) -> Optional[OptionPosition]:
         """Execute cash-secured put by selling the put option."""
         try:
             contract = opportunity['contract']
-            
+
             order = await self.alpaca.submit_option_order(
                 symbol=contract.symbol,
                 qty=1,
@@ -372,7 +372,7 @@ class CashSecuredPutStrategy(BaseOptionsStrategy):
                 limit_price=contract.bid,
                 time_in_force='day',
             )
-            
+
             if order.status in ['filled', 'partially_filled']:
                 position = OptionPosition(
                     contract=contract,
@@ -381,37 +381,37 @@ class CashSecuredPutStrategy(BaseOptionsStrategy):
                     entry_time=datetime.now(timezone.utc),
                     strategy=OptionStrategy.CASH_SECURED_PUT,
                 )
-                
+
                 self.positions[contract.symbol] = position
                 self.stats.total_trades += 1
                 self.stats.total_premium_collected += position.entry_price * 100
-                
+
                 logger.info(f"CSP opened: {contract.symbol} @ ${position.entry_price}")
                 return position
-                
+
         except Exception as e:
             logger.error(f"Error executing CSP: {e}")
-        
+
         return None
 
 
 class IronCondorStrategy(BaseOptionsStrategy):
     """
     Iron Condor Strategy
-    
+
     Sell an OTM put spread and OTM call spread simultaneously.
     Profit when stock stays within a range until expiration.
-    
+
     Structure:
     - Buy OTM put (lower strike)
     - Sell OTM put (higher strike, closer to ATM)
     - Sell OTM call (lower strike, closer to ATM)
     - Buy OTM call (higher strike)
-    
+
     Best for: Range-bound markets with high IV
     Risk: Max loss is spread width - premium received
     """
-    
+
     def __init__(
         self,
         alpaca_client,
@@ -423,39 +423,39 @@ class IronCondorStrategy(BaseOptionsStrategy):
         self.wing_width = wing_width
         self.target_credit = target_credit
         self.dte_range = days_to_expiry
-        
+
     async def find_opportunities(self, symbols: List[str]) -> List[dict]:
         """Find iron condor opportunities."""
         opportunities = []
-        
+
         for symbol in symbols:
             try:
                 quote = await self.alpaca.get_quote(symbol)
                 stock_price = float(quote.bid_price + quote.ask_price) / 2
-                
+
                 chain = await self.get_option_chain(symbol, self.dte_range[1])
-                
+
                 # Calculate strike levels
                 put_short_strike = stock_price * (1 - self.wing_width)
                 put_long_strike = put_short_strike * (1 - self.wing_width)
                 call_short_strike = stock_price * (1 + self.wing_width)
                 call_long_strike = call_short_strike * (1 + self.wing_width)
-                
+
                 # Find matching contracts
                 put_short = self._find_nearest_strike(chain, OptionType.PUT, put_short_strike, self.dte_range)
                 put_long = self._find_nearest_strike(chain, OptionType.PUT, put_long_strike, self.dte_range)
                 call_short = self._find_nearest_strike(chain, OptionType.CALL, call_short_strike, self.dte_range)
                 call_long = self._find_nearest_strike(chain, OptionType.CALL, call_long_strike, self.dte_range)
-                
+
                 if all([put_short, put_long, call_short, call_long]):
                     # Calculate net credit
-                    credit = (put_short.mid_price - put_long.mid_price + 
+                    credit = (put_short.mid_price - put_long.mid_price +
                              call_short.mid_price - call_long.mid_price)
-                    
+
                     # Max loss is spread width minus credit
                     spread_width = put_short.strike - put_long.strike
                     max_loss = spread_width - credit
-                    
+
                     if credit / spread_width >= self.target_credit:
                         opportunities.append({
                             'symbol': symbol,
@@ -470,32 +470,32 @@ class IronCondorStrategy(BaseOptionsStrategy):
                             'prob_profit': 1 - abs(put_short.delta) - abs(call_short.delta),
                             'strategy': OptionStrategy.IRON_CONDOR,
                         })
-                        
+
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
-        
+
         return sorted(opportunities, key=lambda x: x['return_on_risk'], reverse=True)
-    
+
     def _find_nearest_strike(
-        self, 
-        chain: List[OptionContract], 
-        opt_type: OptionType, 
+        self,
+        chain: List[OptionContract],
+        opt_type: OptionType,
         target_strike: float,
         dte_range: Tuple[int, int]
     ) -> Optional[OptionContract]:
         """Find contract nearest to target strike."""
         matching = [
-            c for c in chain 
-            if c.option_type == opt_type 
+            c for c in chain
+            if c.option_type == opt_type
             and dte_range[0] <= c.days_to_expiry <= dte_range[1]
         ]
-        
+
         if not matching:
             return None
-            
+
         return min(matching, key=lambda c: abs(c.strike - target_strike))
-    
+
     async def execute_strategy(self, opportunity: dict) -> Optional[OptionPosition]:
         """Execute iron condor by placing all 4 legs."""
         # This would require a multi-leg order, simplified here
@@ -507,51 +507,51 @@ class IronCondorStrategy(BaseOptionsStrategy):
 class WheelStrategy(BaseOptionsStrategy):
     """
     The Wheel Strategy
-    
+
     A systematic approach combining CSPs and covered calls:
-    
+
     Phase 1: Sell cash-secured puts
     - If not assigned: Collect premium, repeat
     - If assigned: Move to Phase 2
-    
+
     Phase 2: Hold shares, sell covered calls
     - If not assigned: Collect premium, repeat
     - If assigned: Shares sold, return to Phase 1
-    
+
     Best for: Generating income on stocks you want to own
     Risk: Getting stuck in a falling stock
     """
-    
+
     def __init__(self, alpaca_client, symbols: List[str]):
         super().__init__(alpaca_client)
         self.target_symbols = symbols
         self.wheel_positions: Dict[str, WheelPhase] = {s: WheelPhase.SELLING_PUTS for s in symbols}
         self.csp_strategy = CashSecuredPutStrategy(alpaca_client)
         self.cc_strategy = CoveredCallStrategy(alpaca_client)
-        
+
     async def run_wheel(self) -> Dict[str, any]:
         """Run one iteration of the wheel strategy."""
         results = {}
-        
+
         for symbol in self.target_symbols:
             phase = self.wheel_positions[symbol]
-            
+
             if phase == WheelPhase.SELLING_PUTS:
                 # Find and execute CSP
                 opportunities = await self.csp_strategy.find_opportunities([symbol])
                 if opportunities:
                     position = await self.csp_strategy.execute_strategy(opportunities[0])
                     results[symbol] = {'phase': 'csp', 'position': position}
-                    
+
             elif phase == WheelPhase.SELLING_CALLS:
                 # Find and execute covered call
                 opportunities = await self.cc_strategy.find_opportunities([symbol])
                 if opportunities:
                     position = await self.cc_strategy.execute_strategy(opportunities[0])
                     results[symbol] = {'phase': 'cc', 'position': position}
-                    
+
         return results
-    
+
     def handle_assignment(self, symbol: str, assigned: bool, is_put: bool):
         """Handle option assignment and update phase."""
         if is_put and assigned:
@@ -565,18 +565,18 @@ class WheelStrategy(BaseOptionsStrategy):
 class VerticalSpreadStrategy(BaseOptionsStrategy):
     """
     Vertical Spread Strategies
-    
+
     Bull Call Spread: Buy lower strike call, sell higher strike call
     - Max profit: Strike difference - debit paid
     - Max loss: Debit paid
-    
+
     Bear Put Spread: Buy higher strike put, sell lower strike put
     - Max profit: Strike difference - debit paid
     - Max loss: Debit paid
-    
+
     Best for: Directional bets with defined risk
     """
-    
+
     def __init__(
         self,
         alpaca_client,
@@ -588,30 +588,30 @@ class VerticalSpreadStrategy(BaseOptionsStrategy):
         self.spread_width_pct = spread_width_pct
         self.max_debit_pct = max_debit_pct
         self.dte_range = days_to_expiry
-        
+
     async def find_bull_call_spreads(self, symbols: List[str]) -> List[dict]:
         """Find bull call spread opportunities."""
         opportunities = []
-        
+
         for symbol in symbols:
             try:
                 quote = await self.alpaca.get_quote(symbol)
                 stock_price = float(quote.bid_price + quote.ask_price) / 2
-                
+
                 chain = await self.get_option_chain(symbol, self.dte_range[1])
-                
+
                 # Look for ATM/OTM call spreads
                 lower_strike = stock_price * 0.98  # Slightly ITM
                 upper_strike = lower_strike * (1 + self.spread_width_pct)
-                
+
                 long_call = self._find_nearest_strike(chain, OptionType.CALL, lower_strike, self.dte_range)
                 short_call = self._find_nearest_strike(chain, OptionType.CALL, upper_strike, self.dte_range)
-                
+
                 if long_call and short_call:
                     debit = long_call.mid_price - short_call.mid_price
                     spread_width = short_call.strike - long_call.strike
                     max_profit = spread_width - debit
-                    
+
                     if debit / spread_width <= self.max_debit_pct:
                         opportunities.append({
                             'symbol': symbol,
@@ -625,30 +625,30 @@ class VerticalSpreadStrategy(BaseOptionsStrategy):
                             'break_even': long_call.strike + debit,
                             'strategy': OptionStrategy.BULL_CALL_SPREAD,
                         })
-                        
+
             except Exception as e:
                 logger.error(f"Error analyzing {symbol}: {e}")
                 continue
-        
+
         return sorted(opportunities, key=lambda x: x['risk_reward'], reverse=True)
-    
+
     def _find_nearest_strike(
-        self, 
-        chain: List[OptionContract], 
-        opt_type: OptionType, 
+        self,
+        chain: List[OptionContract],
+        opt_type: OptionType,
         target_strike: float,
         dte_range: Tuple[int, int]
     ) -> Optional[OptionContract]:
         """Find contract nearest to target strike."""
         matching = [
-            c for c in chain 
-            if c.option_type == opt_type 
+            c for c in chain
+            if c.option_type == opt_type
             and dte_range[0] <= c.days_to_expiry <= dte_range[1]
         ]
-        
+
         if not matching:
             return None
-            
+
         return min(matching, key=lambda c: abs(c.strike - target_strike))
 
 
@@ -667,11 +667,11 @@ def create_options_strategy(
         OptionStrategy.BULL_CALL_SPREAD: VerticalSpreadStrategy,
         OptionStrategy.BEAR_PUT_SPREAD: VerticalSpreadStrategy,
     }
-    
+
     strategy_class = strategies.get(strategy_type)
     if not strategy_class:
         raise ValueError(f"Unknown strategy: {strategy_type}")
-    
+
     return strategy_class(alpaca_client, **kwargs)
 
 

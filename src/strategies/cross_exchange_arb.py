@@ -45,11 +45,11 @@ class CryptoArbOpportunity:
     sell_price: Decimal
     spread_pct: Decimal
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    
+
     @property
     def gross_profit_pct(self) -> Decimal:
         return self.spread_pct
-    
+
     def to_dict(self) -> Dict:
         return {
             "symbol": self.symbol,
@@ -65,7 +65,7 @@ class CrossExchangeArbStrategy:
     """
     Arbitrage strategy between multiple crypto exchanges.
     """
-    
+
     def __init__(
         self,
         exchanges: List[CCXTClient],
@@ -77,30 +77,30 @@ class CrossExchangeArbStrategy:
         self.config = config
         self.dry_run = dry_run
         self.on_opportunity = on_opportunity
-        
+
         self.is_running = False
         self._loop_task: Optional[asyncio.Task] = None
-        
+
         # Stats
         self.opportunities_found = 0
         self.trades_executed = 0
-        
+
     async def start(self):
         """Start the arbitrage loop."""
         if self.is_running:
             return
-            
+
         logger.info(f"🚀 Starting Cross-Exchange Arbitrage ({len(self.exchanges)} exchanges)")
-        
+
         # Ensure exchanges are initialized
         for ex_id, client in self.exchanges.items():
             if not client._initialized:
                 logger.info(f"Initializing {ex_id}...")
                 await client.initialize()
-                
+
         self.is_running = True
         self._loop_task = asyncio.create_task(self._run_loop())
-        
+
     async def stop(self):
         """Stop the arbitrage loop."""
         self.is_running = False
@@ -129,7 +129,7 @@ class CrossExchangeArbStrategy:
         tasks = []
         for symbol in self.config.symbols:
             tasks.append(self._check_symbol(symbol))
-        
+
         await asyncio.gather(*tasks)
 
     async def _check_symbol(self, symbol: str):
@@ -138,10 +138,10 @@ class CrossExchangeArbStrategy:
         ticker_tasks = {}
         for ex_id, client in self.exchanges.items():
             ticker_tasks[ex_id] = client.get_ticker(symbol)
-            
+
         # Execute fetches, handle failures gracefully
         results = await asyncio.gather(*ticker_tasks.values(), return_exceptions=True)
-        
+
         tickers = {}
         for ex_id, result in zip(ticker_tasks.keys(), results):
             if isinstance(result, Exception):
@@ -155,22 +155,22 @@ class CrossExchangeArbStrategy:
         # 2. Find Best Buy (Lowest Ask) and Best Sell (Highest Bid)
         best_buy_ex = None
         best_buy_price = Decimal("Infinity")
-        
+
         best_sell_ex = None
         best_sell_price = Decimal("0")
 
         for ex_id, ticker in tickers.items():
             ask = Decimal(str(ticker.ask))
             bid = Decimal(str(ticker.bid))
-            
+
             if ask > 0 and ask < best_buy_price:
                 best_buy_price = ask
                 best_buy_ex = ex_id
-            
+
             if bid > 0 and bid > best_sell_price:
                 best_sell_price = bid
                 best_sell_ex = ex_id
-                
+
         if not best_buy_ex or not best_sell_ex or best_buy_ex == best_sell_ex:
             return
 
@@ -178,7 +178,7 @@ class CrossExchangeArbStrategy:
         # Spread = (Sell - Buy) / Buy
         spread = (best_sell_price - best_buy_price)
         spread_pct = (spread / best_buy_price) * 100
-        
+
         if spread_pct > self.config.min_profit_pct:
             opp = CryptoArbOpportunity(
                 symbol=symbol,
@@ -188,16 +188,16 @@ class CrossExchangeArbStrategy:
                 sell_price=best_sell_price,
                 spread_pct=spread_pct
             )
-            
+
             self.opportunities_found += 1
             logger.info(
                  f"🎯 ARB FOUND: {symbol} | Spread: {spread_pct:.2f}% | "
                  f"Buy {best_buy_ex} @ {best_buy_price} -> Sell {best_sell_ex} @ {best_sell_price}"
             )
-            
+
             if self.on_opportunity:
                 self.on_opportunity(opp)
-            
+
             # Execute if not dry run (TODO)
             if not self.dry_run:
                 # self._execute_arb(opp)

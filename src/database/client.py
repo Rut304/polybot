@@ -22,7 +22,7 @@ def _get_supabase_credentials():
     """
     Get Supabase credentials from environment variables.
     Works in both Docker (Lightsail) and local development.
-    
+
     NOTE: Only uses SUPABASE_SERVICE_ROLE_KEY (not SUPABASE_KEY/anon key)
     to ensure full database access with RLS bypass.
     """
@@ -35,22 +35,22 @@ def _get_supabase_credentials():
 class Database:
     """
     Supabase database client for PolyBot.
-    
+
     Tables:
     - polybot_opportunities: Detected arbitrage opportunities
     - polybot_trades: Executed trades
     - polybot_status: Bot status and configuration
     """
-    
+
     def __init__(self, url: Optional[str] = None, key: Optional[str] = None, user_id: Optional[str] = None):
         """
         Initialize Supabase database client.
-        
+
         Args:
             url: Supabase URL (falls back to env var SUPABASE_URL)
             key: Supabase key (falls back to env var SUPABASE_SERVICE_ROLE_KEY)
             user_id: UUID of the user context (for multi-tenancy)
-        
+
         NOTE: Always uses SERVICE_ROLE_KEY for full database access.
         The anon key (SUPABASE_KEY) is NOT supported as it causes RLS issues.
         """
@@ -58,12 +58,12 @@ class Database:
         # This prevents AttributeError when get_secret() is called without DB connection
         self._secrets_cache: Dict[str, str] = {}
         self._secrets_loaded = False
-        
+
         # Get credentials - prefer params, fallback to env vars
         self.url = url or os.getenv("SUPABASE_URL", "")
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         self.user_id = user_id
-        
+
         if not self.url or not self.key:
             logger.warning("Supabase credentials not found in environment variables")
             self._client = None
@@ -75,32 +75,32 @@ class Database:
         except Exception as e:
             logger.error(f"Failed to initialize Supabase client: {e}")
             self._client = None
-    
+
     @property
     def is_connected(self) -> bool:
         return self._client is not None
-    
+
     # ==================== Secrets Management ====================
     # Single source of truth for all API keys - reads from polybot_secrets table
-    
+
     def load_secrets(self, force_refresh: bool = False) -> Dict[str, str]:
         """
         Load all secrets from Supabase polybot_secrets table.
         Caches results to avoid repeated DB calls.
-        
+
         Args:
             force_refresh: If True, bypass cache and reload from DB
-            
+
         Returns:
             Dict of key_name -> key_value for all configured secrets
         """
         if self._secrets_loaded and not force_refresh:
             return self._secrets_cache
-        
+
         if not self._client:
             logger.warning("Database not connected, falling back to environment variables")
             return {}
-        
+
         try:
             # Table: polybot_key_vault (SaaS) or polybot_secrets (Legacy)
             # Prefer Vault if user_id is present
@@ -108,9 +108,9 @@ class Database:
                 query = self._client.table("polybot_key_vault").select(
                     "key_name, encrypted_value"
                 ).eq("user_id", self.user_id)
-                
+
                 result = query.execute()
-                
+
                 # Decrypt values
                 self._secrets_cache = {}
                 for row in (result.data or []):
@@ -121,76 +121,76 @@ class Database:
                         self._secrets_cache[key_name] = decrypted
                     except Exception as e:
                         logger.error(f"Failed to decrypt secret {key_name}: {e}")
-                        
+
             else:
                 # Legacy fallback
                 query = self._client.table("polybot_secrets").select(
                     "key_name, key_value"
                 ).eq("is_configured", True)
-                
+
                 result = query.execute()
-                
+
                 self._secrets_cache = {
                     row["key_name"]: row["key_value"]
                     for row in (result.data or [])
                     if row.get("key_value")
                 }
-                
+
             self._secrets_loaded = True
             logger.info(f"✓ Loaded {len(self._secrets_cache)} secrets from Supabase (User: {self.user_id or 'Global'})")
             return self._secrets_cache
-            
+
         except Exception as e:
             logger.error(f"Failed to load secrets from Supabase: {e}")
             return {}
-    
+
     def get_secret(self, key_name: str, default: Optional[str] = None) -> Optional[str]:
         """
         Get a single secret by key name.
         Falls back to environment variable if not in Supabase.
-        
+
         Args:
             key_name: The secret key name (e.g., 'BINANCE_API_KEY')
             default: Default value if not found
-            
+
         Returns:
             The secret value or default
         """
         # Load secrets if not already loaded
         if not self._secrets_loaded:
             self.load_secrets()
-        
+
         # Check Supabase cache first
         value = self._secrets_cache.get(key_name)
         if value:
             return value
-        
+
         # Fall back to environment variable
         env_value = os.getenv(key_name)
         if env_value:
             logger.debug(f"Secret {key_name} loaded from environment (not in Supabase)")
             return env_value
-        
+
         return default
-    
+
     def get_alpaca_credentials(self, is_paper: bool = True) -> Dict[str, Optional[str]]:
         """
         Get Alpaca API credentials based on trading mode.
-        
+
         Args:
             is_paper: If True, return paper trading keys; else return live keys
-            
+
         Returns:
             Dict with 'api_key', 'api_secret', 'base_url'
         """
         if is_paper:
             return {
                 'api_key': (
-                    self.get_secret('ALPACA_PAPER_API_KEY') or 
+                    self.get_secret('ALPACA_PAPER_API_KEY') or
                     self.get_secret('ALPACA_API_KEY')
                 ),
                 'api_secret': (
-                    self.get_secret('ALPACA_PAPER_API_SECRET') or 
+                    self.get_secret('ALPACA_PAPER_API_SECRET') or
                     self.get_secret('ALPACA_API_SECRET')
                 ),
                 'base_url': 'https://paper-api.alpaca.markets',
@@ -198,30 +198,30 @@ class Database:
         else:
             return {
                 'api_key': (
-                    self.get_secret('ALPACA_LIVE_API_KEY') or 
+                    self.get_secret('ALPACA_LIVE_API_KEY') or
                     self.get_secret('ALPACA_API_KEY')
                 ),
                 'api_secret': (
-                    self.get_secret('ALPACA_LIVE_API_SECRET') or 
+                    self.get_secret('ALPACA_LIVE_API_SECRET') or
                     self.get_secret('ALPACA_API_SECRET')
                 ),
                 'base_url': 'https://api.alpaca.markets',
             }
-    
+
     def get_binance_credentials(self) -> Dict[str, Optional[str]]:
         """Get Binance API credentials."""
         return {
             'api_key': self.get_secret('BINANCE_API_KEY'),
             'api_secret': self.get_secret('BINANCE_API_SECRET'),
         }
-    
+
     def get_bybit_credentials(self) -> Dict[str, Optional[str]]:
         """Get Bybit API credentials."""
         return {
             'api_key': self.get_secret('BYBIT_API_KEY'),
             'api_secret': self.get_secret('BYBIT_API_SECRET'),
         }
-    
+
     def get_okx_credentials(self) -> Dict[str, Optional[str]]:
         """Get OKX API credentials."""
         return {
@@ -229,21 +229,21 @@ class Database:
             'api_secret': self.get_secret('OKX_API_SECRET'),
             'password': self.get_secret('OKX_PASSPHRASE'),
         }
-    
+
     def get_kraken_credentials(self) -> Dict[str, Optional[str]]:
         """Get Kraken API credentials."""
         return {
             'api_key': self.get_secret('KRAKEN_API_KEY'),
             'api_secret': self.get_secret('KRAKEN_API_SECRET'),
         }
-    
+
     def get_coinbase_credentials(self) -> Dict[str, Optional[str]]:
         """Get Coinbase API credentials."""
         return {
             'api_key': self.get_secret('COINBASE_API_KEY'),
             'api_secret': self.get_secret('COINBASE_API_SECRET'),
         }
-    
+
     def get_kucoin_credentials(self) -> Dict[str, Optional[str]]:
         """Get KuCoin API credentials."""
         return {
@@ -251,7 +251,7 @@ class Database:
             'api_secret': self.get_secret('KUCOIN_API_SECRET'),
             'password': self.get_secret('KUCOIN_PASSPHRASE'),
         }
-    
+
     def get_exchange_credentials(self, exchange: str) -> Dict[str, Optional[str]]:
         """Get API credentials for any supported exchange."""
         exchange = exchange.lower()
@@ -266,7 +266,7 @@ class Database:
         if exchange in credentials_map:
             return credentials_map[exchange]()
         return {'api_key': None, 'api_secret': None}
-    
+
     def get_polymarket_credentials(self) -> Dict[str, Optional[str]]:
         """Get Polymarket API credentials."""
         return {
@@ -275,14 +275,14 @@ class Database:
             'private_key': self.get_secret('POLYMARKET_PRIVATE_KEY'),
             'wallet_address': self.get_secret('WALLET_ADDRESS'),
         }
-    
+
     def get_kalshi_credentials(self) -> Dict[str, Optional[str]]:
         """Get Kalshi API credentials."""
         return {
             'api_key': self.get_secret('KALSHI_API_KEY'),
             'private_key': self.get_secret('KALSHI_PRIVATE_KEY'),
         }
-    
+
     def get_news_api_credentials(self) -> Dict[str, Optional[str]]:
         """Get news/sentiment API credentials."""
         return {
@@ -290,7 +290,7 @@ class Database:
             'newsapi_key': self.get_secret('NEWSAPI_KEY') or self.get_secret('NEWS_API_KEY'),
             'twitter_bearer': self.get_secret('TWITTER_BEARER_TOKEN'),
         }
-    
+
     def refresh_secrets(self) -> Dict[str, str]:
         """Force refresh secrets from database."""
         return self.load_secrets(force_refresh=True)
@@ -298,21 +298,21 @@ class Database:
     # ==================== Multi-Tenant Credentials ====================
     # Per-user API credentials stored in user_exchange_credentials table
     # These take precedence over global secrets when user_id is set
-    
+
     def get_user_exchange_credentials(
-        self, 
-        exchange: str, 
+        self,
+        exchange: str,
         user_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Get per-user exchange credentials from user_exchange_credentials table.
-        
+
         This is the preferred method for multi-tenant operation.
-        
+
         Args:
             exchange: Exchange name (alpaca, binance, coinbase, etc.)
             user_id: User UUID (defaults to self.user_id)
-            
+
         Returns:
             Dict with api_key, api_secret, and other exchange-specific fields
             Returns None if no credentials found
@@ -320,7 +320,7 @@ class Database:
         uid = user_id or self.user_id
         if not uid or not self._client:
             return None
-            
+
         try:
             result = self._client.table(
                 'user_exchange_credentials'
@@ -329,7 +329,7 @@ class Database:
             ).eq(
                 'exchange', exchange.lower()
             ).single().execute()
-            
+
             if result.data:
                 data = result.data
                 # Map common fields - credentials stored in access_token/refresh_token columns
@@ -344,14 +344,14 @@ class Database:
                     'last_authenticated': data.get('last_authenticated'),
                 }
             return None
-            
+
         except Exception as e:
             # Single() throws if no match - that's expected for unconfigured exchanges
             if 'PGRST116' in str(e):  # No rows returned
                 return None
             logger.debug(f"No {exchange} credentials for user {uid}: {e}")
             return None
-    
+
     async def save_user_exchange_credentials(
         self,
         exchange: str,
@@ -364,7 +364,7 @@ class Database:
     ) -> bool:
         """
         Save per-user exchange credentials.
-        
+
         Args:
             exchange: Exchange name (alpaca, binance, etc.)
             api_key: API key
@@ -373,7 +373,7 @@ class Database:
             password: Passphrase (for OKX, KuCoin, etc.)
             account_id: Exchange account ID
             is_paper: Whether this is for paper trading
-            
+
         Returns:
             True if saved successfully
         """
@@ -381,7 +381,7 @@ class Database:
         if not uid or not self._client:
             logger.error("Cannot save credentials: no user_id or database client")
             return False
-            
+
         try:
             data = {
                 'user_id': uid,
@@ -394,26 +394,26 @@ class Database:
                 'last_authenticated': datetime.now(timezone.utc).isoformat(),
                 'updated_at': datetime.now(timezone.utc).isoformat()
             }
-            
+
             self._client.table('user_exchange_credentials').upsert(
                 data, on_conflict='user_id,exchange'
             ).execute()
-            
+
             logger.info(f"✓ Saved {exchange} credentials for user {uid}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to save {exchange} credentials: {e}")
             return False
-    
+
     def get_alpaca_credentials_for_user(
-        self, 
+        self,
         user_id: Optional[str] = None,
         is_paper: bool = True
     ) -> Dict[str, Optional[str]]:
         """
         Get Alpaca credentials - tries per-user first, falls back to global.
-        
+
         Multi-tenant priority:
         1. user_exchange_credentials table (per-user)
         2. polybot_key_vault (per-user encrypted)
@@ -428,23 +428,23 @@ class Database:
                 'api_secret': user_creds['api_secret'],
                 'is_paper': user_creds.get('is_paper', is_paper),
                 'base_url': (
-                    'https://paper-api.alpaca.markets' 
+                    'https://paper-api.alpaca.markets'
                     if user_creds.get('is_paper', is_paper)
                     else 'https://api.alpaca.markets'
                 ),
             }
-        
+
         # Fall back to global credentials (legacy behavior)
         return self.get_alpaca_credentials(is_paper)
-    
+
     def get_ccxt_credentials_for_user(
-        self, 
+        self,
         exchange: str,
         user_id: Optional[str] = None
     ) -> Dict[str, Optional[str]]:
         """
         Get CCXT exchange credentials - tries per-user first, falls back to global.
-        
+
         Supports: binance, bybit, okx, kraken, coinbase, kucoin
         """
         # Try per-user credentials first
@@ -456,17 +456,17 @@ class Database:
                 'password': user_creds.get('password'),  # For OKX, KuCoin
                 'sandbox': user_creds.get('is_paper', False),
             }
-        
+
         # Fall back to global credentials
         return self.get_exchange_credentials(exchange)
 
     # ==================== Configuration ====================
     # Settings that can be changed via Admin UI (not secrets)
     # The polybot_config table uses a single-row structure with id=1
-    
+
     _config_cache: Dict[str, Any] = {}
     _config_loaded = False
-    
+
     def load_config(self, force_refresh: bool = False) -> Dict[str, Any]:
         """
         Load configuration from polybot_config table.
@@ -474,53 +474,53 @@ class Database:
         """
         if self._config_loaded and not force_refresh:
             return self._config_cache
-        
+
         if not self._client:
             return {}
-        
+
         try:
             # Multi-tenant config: Filter by user_id
             query = self._client.table("polybot_config").select("*")
-            
+
             if self.user_id:
                 query = query.eq("user_id", self.user_id)
             else:
                 # Legacy: id=1
                 query = query.eq("id", 1)
-                
+
             result = query.limit(1).single().execute()
-            
+
             if result.data:
                 self._config_cache = result.data
             self._config_loaded = True
             return self._config_cache
-            
+
         except Exception as e:
             logger.debug(f"Config table not available: {e}")
             return {}
-    
+
     def get_config(self, key: str, default: Any = None) -> Any:
         """Get a config value by key from the single-row config."""
         if not self._config_loaded:
             self.load_config()
         return self._config_cache.get(key, default)
-    
+
     def set_config(self, key: str, value: Any) -> bool:
         """Set a config value in the single-row config."""
         if not self._client:
             return False
-        
+
         try:
             # Update config row
             query = self._client.table("polybot_config").update({
                 key: value,
             })
-            
+
             if self.user_id:
                 query = query.eq("user_id", self.user_id)
             else:
                 query = query.eq("id", 1)
-                
+
             query.execute()
             self._config_cache[key] = value
             return True
@@ -529,21 +529,21 @@ class Database:
             return False
 
     # ==================== Opportunities ====================
-    
+
     def log_opportunity(self, opportunity: Dict[str, Any]) -> Optional[int]:
         """
         Log a detected arbitrage opportunity.
-        
+
         Args:
             opportunity: Opportunity dict from Opportunity.to_dict()
-            
+
         Returns:
             Inserted row ID or None if failed
         """
         if not self._client:
             logger.debug("Database not connected, skipping opportunity log")
             return None
-        
+
         try:
             insert_data = {
                 "opportunity_id": opportunity.get("id"),
@@ -564,20 +564,20 @@ class Database:
                 "status": opportunity.get("status", "detected"),
                 "skip_reason": opportunity.get("skip_reason"),
             }
-            
+
             if self.user_id:
                 insert_data["user_id"] = self.user_id
-                
+
             result = self._client.table("polybot_opportunities").insert(insert_data).execute()
-            
+
             if result.data:
                 return result.data[0].get("id")
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to log opportunity: {e}")
             return None
-    
+
     def update_opportunity_status(
         self,
         opportunity_id: str,
@@ -589,7 +589,7 @@ class Database:
         """Update opportunity status (detected, executed, missed, failed)."""
         if not self._client:
             return False
-        
+
         try:
             update_data = {"status": status}
             if executed_at:
@@ -598,56 +598,56 @@ class Database:
                 update_data["skip_reason"] = skip_reason
             if execution_result:
                 update_data["execution_result"] = execution_result
-            
+
             self._client.table("polybot_opportunities").update(
                 update_data
             ).eq("opportunity_id", opportunity_id).execute()
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update opportunity status: {e}")
             return False
-    
+
     def get_recent_opportunities(self, limit: int = 50) -> List[Dict]:
         """Get recent opportunities."""
         if not self._client:
             return []
-        
+
         try:
             query = self._client.table("polybot_opportunities").select(
                 "*"
             )
-            
+
             if self.user_id:
                 query = query.eq("user_id", self.user_id)
-            
+
             result = query.order(
                 "detected_at", desc=True
             ).limit(limit).execute()
-            
+
             return result.data or []
-            
+
         except Exception as e:
             logger.error(f"Failed to get opportunities: {e}")
             return []
-    
+
     # ==================== Trades ====================
-    
+
     def log_trade(self, trade: Dict[str, Any]) -> Optional[int]:
         """
         Log an executed trade.
-        
+
         Args:
             trade: Trade dict from Trade.to_dict()
-            
+
         Returns:
             Inserted row ID or None if failed
         """
         if not self._client:
             logger.debug("Database not connected, skipping trade log")
             return None
-        
+
         try:
             insert_data = {
                 "trade_id": trade.get("id"),
@@ -666,16 +666,16 @@ class Database:
                 "error_message": trade.get("error_message"),
                 "fees": trade.get("fees"),
             }
-            
+
             if self.user_id:
                 insert_data["user_id"] = self.user_id
-                
+
             result = self._client.table("polybot_trades").insert(insert_data).execute()
-            
+
             if result.data:
                 return result.data[0].get("id")
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to log trade: {e}")
             return None
@@ -683,10 +683,10 @@ class Database:
     def log_live_trade(self, trade_data: Dict[str, Any]) -> Optional[int]:
         """
         Log a LIVE (non-simulation) trade execution.
-        
+
         This is separate from log_trade which is used for paper trading.
         Live trades need additional tracking for order management.
-        
+
         Args:
             trade_data: Dict with keys:
                 - opportunity_id: str
@@ -697,17 +697,17 @@ class Database:
                 - expected_profit_pct: float
                 - order_ids: List[str]
                 - status: str ("open", "filled", "partial", "cancelled")
-            
+
         Returns:
             Inserted row ID or None if failed
         """
         if not self._client:
             logger.debug("Database not connected, skipping live trade log")
             return None
-        
+
         try:
             import json
-            
+
             insert_data = {
                 "opportunity_id": trade_data.get("opportunity_id"),
                 "platform": trade_data.get("platform"),
@@ -721,53 +721,53 @@ class Database:
                 "is_simulation": False,
                 "trading_mode": "live",  # Explicit live trading mode
             }
-            
+
             if self.user_id:
                 insert_data["user_id"] = self.user_id
-                
+
             result = self._client.table(
                 "polybot_live_trades"
             ).insert(insert_data).execute()
-            
+
             if result.data:
                 return result.data[0].get("id")
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to log live trade: {e}")
             return None
-    
+
     def get_recent_trades(self, limit: int = 50) -> List[Dict]:
         """Get recent trades."""
         if not self._client:
             return []
-        
+
         try:
             query = self._client.table("polybot_trades").select(
                 "*"
             )
-            
+
             if self.user_id:
                 query = query.eq("user_id", self.user_id)
-                
+
             result = query.order(
                 "executed_at", desc=True
             ).limit(limit).execute()
-            
+
             return result.data or []
-            
+
         except Exception as e:
             logger.error(f"Failed to get trades: {e}")
             return []
-    
+
     def get_daily_pnl(self) -> float:
         """Calculate today's P&L from trades."""
         if not self._client:
             return 0.0
-        
+
         try:
             today = datetime.utcnow().date().isoformat()
-            
+
             result = self._client.table("polybot_trades").select(
                 "side, fill_price, filled_size, fees"
             ).gte(
@@ -775,34 +775,34 @@ class Database:
             ).eq(
                 "status", "filled"
             ).execute()
-            
+
             pnl = 0.0
             for trade in result.data or []:
                 value = trade["fill_price"] * trade["filled_size"]
                 fees = trade.get("fees", 0) or 0
-                
+
                 if trade["side"] == "sell":
                     pnl += value - fees
                 else:
                     pnl -= value + fees
-            
+
             return pnl
-            
+
         except Exception as e:
             logger.error(f"Failed to calculate daily P&L: {e}")
             return 0.0
-    
+
     # ==================== Audit Logs ====================
 
     def log_audit_event(
-        self, 
-        action: str, 
-        details: Dict[str, Any], 
+        self,
+        action: str,
+        details: Dict[str, Any],
         user_id: str = "system"
     ) -> None:
         """
         Log an administrative action or critical system event.
-        
+
         Args:
             action: Type of action (e.g. "SETTINGS_UPDATE", "BOT_STOPPED")
             details: JSON-serializable details
@@ -825,7 +825,7 @@ class Database:
             logger.warning(f"Failed to log audit event: {e}")
 
     # ==================== Bot Status ====================
-    
+
     def update_bot_status(
         self,
         is_running: bool = True,
@@ -838,7 +838,7 @@ class Database:
         """Update bot status record."""
         if not self._client:
             return False
-        
+
         try:
             update_data = {
                 "is_running": is_running,
@@ -852,38 +852,38 @@ class Database:
                 update_data["min_profit_threshold"] = min_profit_threshold
             if version is not None:
                 update_data["version"] = version
-            
+
             # Update the first (and only) status row
             result = self._client.table("polybot_status").select("id").limit(1).execute()
             if result.data:
                 self._client.table("polybot_status").update(
                     update_data
                 ).eq("id", result.data[0]["id"]).execute()
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update bot status: {e}")
             return False
-    
+
     def get_bot_status(self) -> Optional[Dict]:
         """Get current bot status."""
         if not self._client:
             return None
-        
+
         try:
             result = self._client.table("polybot_status").select(
                 "*"
             ).eq("id", 1).single().execute()
-            
+
             return result.data
-            
+
         except Exception as e:
             logger.error(f"Failed to get bot status: {e}")
             return None
-    
+
     def heartbeat(
-        self, 
+        self,
         version: str = None,
         scan_count: int = 0,
         active_strategies: list = None,
@@ -909,13 +909,13 @@ class Database:
             }
             if version:
                 update_data["version"] = version
-            
+
             result = self._client.table("polybot_status").select("id").limit(1).execute()
             if result.data:
                 self._client.table("polybot_status").update(
                     update_data
                 ).eq("id", result.data[0]["id"]).execute()
-            
+
             # New: Write detailed heartbeat to polybot_heartbeat table
             try:
                 import psutil
@@ -924,7 +924,7 @@ class Database:
             except Exception:
                 memory_mb = None
                 cpu_percent = None
-            
+
             heartbeat_data = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "version": version,
@@ -937,92 +937,92 @@ class Database:
                 "trades_last_hour": trades_last_hour,
                 "metadata": metadata or {}
             }
-            
+
             # Only add user_id if provided (for multi-tenant)
             if user_id:
                 heartbeat_data["user_id"] = user_id
-            
+
             self._client.table("polybot_heartbeat").insert(heartbeat_data).execute()
-            
+
         except Exception as e:
             logger.debug(f"Heartbeat failed: {e}")
-    
+
     # ==================== Trading Config ====================
-    
+
     def get_trading_config(self) -> Optional[Dict]:
         """
         Get trading configuration from polybot_config table.
-        
+
         Returns:
             Config dict with trading parameters, or None if not available
         """
         if not self._client:
             logger.debug("Database not connected, using default config")
             return None
-        
+
         try:
             result = self._client.table("polybot_config").select(
                 "*"
             ).eq("id", 1).single().execute()
-            
+
             if result.data:
                 logger.info("✓ Loaded trading config from database")
                 return result.data
             return None
-            
+
         except Exception as e:
             logger.warning(f"Failed to get trading config: {e}")
             return None
-    
+
     def update_trading_config(self, config_data: Dict[str, Any]) -> bool:
         """
         Update trading configuration in polybot_config table.
-        
+
         Args:
             config_data: Dict of config fields to update
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self._client:
             return False
-        
+
         try:
             # Add updated_at timestamp
             config_data["updated_at"] = datetime.utcnow().isoformat()
-            
+
             self._client.table("polybot_config").update(
                 config_data
             ).eq("id", 1).execute()
-            
+
             logger.info("✓ Updated trading config in database")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update trading config: {e}")
             return False    # ==================== Generic Async Operations ====================
-    
+
     async def insert(self, table: str, data: Dict[str, Any]) -> Optional[Dict]:
         """
         Insert a row into a table (async-compatible wrapper).
         Automatically adds user_id for multi-tenant tables.
-        
+
         Args:
             table: Table name
             data: Data to insert
-            
+
         Returns:
             Inserted row or None if failed
         """
         if not self._client:
             logger.debug(f"Database not connected, skipping insert to {table}")
             return None
-        
+
         try:
             # Multi-tenant tables should include user_id
             MULTI_TENANT_TABLES = {
                 'polybot_simulated_trades',
-                'polybot_opportunities', 
+                'polybot_opportunities',
                 'polybot_positions',
                 'polybot_manual_trades',
                 'polybot_disabled_markets',
@@ -1032,20 +1032,20 @@ class Database:
                 'polybot_market_alerts',
                 'polybot_overlap_opportunities',
             }
-            
+
             insert_data = data.copy()
             if self.user_id and table in MULTI_TENANT_TABLES and 'user_id' not in insert_data:
                 insert_data['user_id'] = self.user_id
-            
+
             result = self._client.table(table).insert(insert_data).execute()
             if result.data:
                 return result.data[0]
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to insert into {table}: {e}")
             return None
-    
+
     async def update(
         self,
         table: str,
@@ -1054,30 +1054,30 @@ class Database:
     ) -> bool:
         """
         Update rows in a table (async-compatible wrapper).
-        
+
         Args:
             table: Table name
             data: Data to update
             filters: Column filters (equality matches)
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self._client:
             logger.debug(f"Database not connected, skipping update to {table}")
             return False
-        
+
         try:
             query = self._client.table(table).update(data)
             for col, val in filters.items():
                 query = query.eq(col, val)
             query.execute()
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update {table}: {e}")
             return False
-    
+
     async def upsert(
         self,
         table: str,
@@ -1085,28 +1085,28 @@ class Database:
     ) -> Optional[Dict[str, Any]]:
         """
         Upsert a row into a table (insert or update on conflict).
-        
+
         Args:
             table: Table name
             data: Data to upsert (must include primary key)
-            
+
         Returns:
             Upserted row or None if failed
         """
         if not self._client:
             logger.debug(f"Database not connected, skipping upsert to {table}")
             return None
-        
+
         try:
             result = self._client.table(table).upsert(data).execute()
             if result.data:
                 return result.data[0]
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to upsert into {table}: {e}")
             return None
-    
+
     async def select(
         self,
         table: str,
@@ -1118,7 +1118,7 @@ class Database:
     ) -> List[Dict]:
         """
         Select rows from a table (async-compatible wrapper).
-        
+
         Args:
             table: Table name
             columns: Columns to select
@@ -1126,90 +1126,90 @@ class Database:
             order_by: Optional column to order by
             desc: Descending order if True
             limit: Max rows to return
-            
+
         Returns:
             List of matching rows
         """
         if not self._client:
             return []
-        
+
         try:
             query = self._client.table(table).select(columns)
-            
+
             if filters:
                 for col, val in filters.items():
                     query = query.eq(col, val)
-            
+
             if order_by:
                 query = query.order(order_by, desc=desc)
-            
+
             query = query.limit(limit)
             result = query.execute()
-            
+
             return result.data or []
-            
+
         except Exception as e:
             logger.error(f"Failed to select from {table}: {e}")
             return []
 
     # ==================== Multitenancy Methods ====================
     # Per-user configuration, secrets, and profile management
-    
+
     def get_user_profile(self) -> Optional[Dict]:
         """
         Get profile for current user (subscription, limits, features).
-        
+
         Returns:
             User profile dict or None if not found
         """
         if not self._client or not self.user_id:
             return None
-        
+
         try:
             result = self._client.table("polybot_user_profiles").select(
                 "*"
             ).eq("id", self.user_id).single().execute()
-            
+
             return result.data
-            
+
         except Exception as e:
             logger.debug(f"Could not get user profile: {e}")
             return None
-    
+
     def get_user_config(self) -> Optional[Dict]:
         """
         Get trading configuration for current user.
-        
+
         Returns:
             User config dict or None if not found
         """
         if not self._client or not self.user_id:
             return None
-        
+
         try:
             result = self._client.table("polybot_user_config").select(
                 "*"
             ).eq("user_id", self.user_id).single().execute()
-            
+
             return result.data
-            
+
         except Exception as e:
             logger.debug(f"Could not get user config: {e}")
             return None
-    
+
     def get_user_secrets(self, is_paper: bool = True) -> Dict[str, Dict]:
         """
         Get API secrets for current user by platform.
-        
+
         Args:
             is_paper: If True, get paper/sandbox keys. If False, get live keys.
-            
+
         Returns:
             Dict mapping platform -> secret details
         """
         if not self._client or not self.user_id:
             return {}
-        
+
         try:
             result = self._client.table("polybot_user_secrets").select(
                 "platform, api_key_encrypted, api_secret_encrypted, "
@@ -1222,7 +1222,7 @@ class Database:
             ).eq(
                 "is_paper", is_paper
             ).execute()
-            
+
             secrets = {}
             for row in (result.data or []):
                 platform = row["platform"]
@@ -1236,83 +1236,83 @@ class Database:
                     "validation_status": row.get("validation_status"),
                     **(row.get("additional_config") or {}),
                 }
-            
+
             return secrets
-            
+
         except Exception as e:
             logger.error(f"Failed to get user secrets: {e}")
             return {}
-    
+
     def update_user_config(self, config_updates: Dict[str, Any]) -> bool:
         """
         Update trading configuration for current user.
-        
+
         Args:
             config_updates: Dict of config fields to update
-            
+
         Returns:
             True if successful, False otherwise
         """
         if not self._client or not self.user_id:
             return False
-        
+
         try:
             config_updates["updated_at"] = datetime.utcnow().isoformat()
-            
+
             self._client.table("polybot_user_config").upsert({
                 "user_id": self.user_id,
                 **config_updates
             }, on_conflict="user_id").execute()
-            
+
             logger.info(f"Updated user config for {self.user_id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to update user config: {e}")
             return False
-    
+
     def increment_trade_count(self) -> Dict:
         """
         Increment monthly trade count for billing/limits.
-        
+
         Returns:
             Dict with success status and current counts
         """
         if not self._client or not self.user_id:
             return {"success": False, "error": "No user context"}
-        
+
         try:
             result = self._client.rpc(
                 "increment_user_trades",
                 {"p_user_id": self.user_id}
             ).execute()
-            
+
             return result.data if result.data else {"success": True}
-            
+
         except Exception as e:
             logger.error(f"Failed to increment trade count: {e}")
             return {"success": False, "error": str(e)}
-    
+
     def check_subscription_limits(self) -> Dict[str, Any]:
         """
         Check if user is within subscription limits.
-        
+
         Returns:
             Dict with limit status and details
         """
         profile = self.get_user_profile()
-        
+
         if not profile:
             return {
                 "allowed": False,
                 "reason": "Profile not found",
                 "tier": "unknown",
             }
-        
+
         tier = profile.get("subscription_tier", "free")
         trades = profile.get("trades_this_month", 0)
         limit = profile.get("monthly_trade_limit", 100)
-        
+
         return {
             "allowed": trades < limit,
             "reason": None if trades < limit else "Monthly limit reached",
@@ -1321,30 +1321,30 @@ class Database:
             "monthly_limit": limit,
             "remaining": max(0, limit - trades),
         }
-    
+
     def get_active_users(self) -> List[Dict]:
         """
         Get all active users for BotManager (admin operation).
-        
+
         Returns:
             List of active user profiles
         """
         if not self._client:
             return []
-        
+
         try:
             # Get users who have been active recently and aren't paused
             from datetime import timedelta
             cutoff = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            
+
             result = self._client.table("polybot_user_profiles").select(
                 "id, display_name, subscription_tier, features_enabled"
             ).gte(
                 "last_active_at", cutoff
             ).execute()
-            
+
             return result.data or []
-            
+
         except Exception as e:
             logger.error(f"Failed to get active users: {e}")
             return []
@@ -1376,7 +1376,7 @@ CREATE TABLE IF NOT EXISTS polybot_opportunities (
 );
 
 -- Index for recent opportunities
-CREATE INDEX IF NOT EXISTS idx_polybot_opportunities_detected 
+CREATE INDEX IF NOT EXISTS idx_polybot_opportunities_detected
     ON polybot_opportunities(detected_at DESC);
 
 -- PolyBot Trades Table
@@ -1401,7 +1401,7 @@ CREATE TABLE IF NOT EXISTS polybot_trades (
 );
 
 -- Index for recent trades
-CREATE INDEX IF NOT EXISTS idx_polybot_trades_executed 
+CREATE INDEX IF NOT EXISTS idx_polybot_trades_executed
     ON polybot_trades(executed_at DESC);
 
 -- PolyBot Status Table (single row)
@@ -1434,25 +1434,25 @@ CREATE TABLE IF NOT EXISTS polybot_simulated_trades (
     id BIGSERIAL PRIMARY KEY,
     position_id TEXT UNIQUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
+
     -- Market info
     polymarket_token_id TEXT,
     polymarket_market_title TEXT,
     kalshi_ticker TEXT,
     kalshi_market_title TEXT,
-    
+
     -- Prices at detection
     polymarket_yes_price NUMERIC(10, 6),
     polymarket_no_price NUMERIC(10, 6),
     kalshi_yes_price NUMERIC(10, 6),
     kalshi_no_price NUMERIC(10, 6),
-    
+
     -- Trade details
     trade_type TEXT,
     position_size_usd NUMERIC(10, 2),
     expected_profit_usd NUMERIC(10, 4),
     expected_profit_pct NUMERIC(10, 4),
-    
+
     -- Resolution
     outcome TEXT DEFAULT 'pending',
     actual_profit_usd NUMERIC(10, 4),
@@ -1461,7 +1461,7 @@ CREATE TABLE IF NOT EXISTS polybot_simulated_trades (
     resolution_notes TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_polybot_simulated_trades_created 
+CREATE INDEX IF NOT EXISTS idx_polybot_simulated_trades_created
     ON polybot_simulated_trades(created_at DESC);
 
 -- PolyBot Simulation Stats Snapshots
@@ -1475,7 +1475,7 @@ CREATE TABLE IF NOT EXISTS polybot_simulation_stats (
     win_rate NUMERIC(5, 2)
 );
 
-CREATE INDEX IF NOT EXISTS idx_polybot_simulation_stats_snapshot 
+CREATE INDEX IF NOT EXISTS idx_polybot_simulation_stats_snapshot
     ON polybot_simulation_stats(snapshot_at DESC);
 
 -- PolyBot Market Pairs (matched markets between platforms)

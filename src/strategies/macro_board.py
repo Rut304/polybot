@@ -14,7 +14,7 @@ Strategy:
 
 Key Categories:
 - Interest Rates / Fed Policy
-- Treasury / Bond Markets  
+- Treasury / Bond Markets
 - Elections / Politics
 - Crypto-adjacent (MSTR, BTC ETF)
 - Geopolitical Events
@@ -51,23 +51,23 @@ class MacroTheme:
     id: str
     name: str
     category: MacroCategory
-    
+
     # Thesis
     thesis: str
     direction: str  # "bullish", "bearish", "neutral"
     conviction: float  # 0-100
-    
+
     # Markets in this theme
     market_ids: List[str] = field(default_factory=list)
     market_titles: List[str] = field(default_factory=list)
-    
+
     # Position
     total_exposure_usd: Decimal = Decimal("0")
     target_exposure_usd: Decimal = Decimal("0")
-    
+
     # Keywords to match markets
     keywords: List[str] = field(default_factory=list)
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -87,34 +87,34 @@ class MacroOpportunity:
     """A macro trading opportunity"""
     id: str
     detected_at: datetime
-    
+
     # Theme
     theme_id: str
     theme_name: str
     category: MacroCategory
-    
+
     # Market info
     platform: str
     market_id: str
     market_title: str
-    
+
     # Opportunity
     current_price: Decimal
     fair_value: Decimal  # Based on thesis
     edge_pct: Decimal
-    
+
     # Action
     recommended_side: str  # "YES" or "NO"
     recommended_size_usd: Decimal
     conviction: float
-    
+
     def __str__(self) -> str:
         return (
             f"Macro: {self.theme_name} | {self.market_title[:40]} | "
             f"{self.recommended_side} @ {self.current_price:.0%} | "
             f"Edge: {self.edge_pct:.1f}%"
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -144,7 +144,7 @@ class MacroBoardStats:
     positions_entered: int = 0
     total_pnl: Decimal = Decimal("0")
     best_theme_pnl: Decimal = Decimal("0")
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "themes_active": self.themes_active,
@@ -224,23 +224,23 @@ DEFAULT_MACRO_THEMES = [
 class MacroBoardStrategy:
     """
     Macro Board Strategy
-    
+
     Build a portfolio of positions across related macro themes:
     1. Define macro themes (Fed, elections, crypto, etc.)
     2. Find markets matching each theme
     3. Size positions based on conviction
     4. Manage as a portfolio, not individual trades
-    
+
     Configuration:
     - themes: List of MacroTheme objects
     - max_theme_exposure: Max exposure per theme
     - max_total_exposure: Max total portfolio exposure
     - min_edge_pct: Minimum edge to enter position
     """
-    
+
     POLYMARKET_API = "https://gamma-api.polymarket.com"
     KALSHI_API = "https://api.elections.kalshi.com/trade-api/v2"
-    
+
     def __init__(
         self,
         themes: Optional[List[MacroTheme]] = None,
@@ -260,19 +260,19 @@ class MacroBoardStrategy:
         self.scan_interval = scan_interval_seconds
         self.on_opportunity = on_opportunity
         self.db = db_client
-        
+
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
         self.stats = MacroBoardStats()
-        
+
         # Theme lookup
         self._themes_by_id: Dict[str, MacroTheme] = {
             t.id: t for t in self.themes
         }
-        
+
         # Market to theme mapping
         self._market_themes: Dict[str, str] = {}
-    
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
         if self._session is None or self._session.closed:
@@ -280,36 +280,36 @@ class MacroBoardStrategy:
                 timeout=aiohttp.ClientTimeout(total=30)
             )
         return self._session
-    
+
     async def close(self):
         """Close the session"""
         if self._session and not self._session.closed:
             await self._session.close()
-    
+
     def _match_theme(self, title: str) -> Optional[MacroTheme]:
         """Match a market title to a macro theme"""
         title_lower = title.lower()
-        
+
         best_match = None
         best_score = 0
-        
+
         for theme in self.themes:
             score = 0
             for keyword in theme.keywords:
                 if keyword.lower() in title_lower:
                     score += len(keyword)  # Longer keywords = stronger match
-            
+
             if score > best_score:
                 best_score = score
                 best_match = theme
-        
+
         return best_match if best_score > 0 else None
-    
+
     async def fetch_macro_markets(self) -> List[Dict]:
         """Fetch markets matching macro themes"""
         session = await self._get_session()
         matched_markets = []
-        
+
         try:
             # Fetch from Polymarket
             url = f"{self.POLYMARKET_API}/markets"
@@ -318,37 +318,37 @@ class MacroBoardStrategy:
                 "closed": "false",
                 "limit": 200,
             }
-            
+
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     markets = data if isinstance(data, list) else data.get("data", [])
-                    
+
                     for market in markets:
                         title = market.get("question", "")
                         theme = self._match_theme(title)
-                        
+
                         if theme:
                             market["_theme"] = theme
                             market["_platform"] = "polymarket"
                             matched_markets.append(market)
-                            
+
                             # Track mapping
                             market_id = market.get("conditionId") or market.get("id")
                             self._market_themes[market_id] = theme.id
-                            
+
                             # Add to theme
                             if market_id not in theme.market_ids:
                                 theme.market_ids.append(market_id)
                                 theme.market_titles.append(title)
-            
+
             logger.info(f"Found {len(matched_markets)} macro-relevant markets")
-            
+
         except Exception as e:
             logger.error(f"Error fetching macro markets: {e}")
-        
+
         return matched_markets
-    
+
     def calculate_fair_value(
         self,
         theme: MacroTheme,
@@ -357,13 +357,13 @@ class MacroBoardStrategy:
     ) -> Decimal:
         """
         Calculate fair value based on theme thesis.
-        
+
         This is simplified - in production you'd use more
         sophisticated models based on thesis analysis.
         """
         # Base fair value on conviction and direction
         base = Decimal("0.5")
-        
+
         if theme.direction == "bullish":
             # Bullish on YES
             adjustment = Decimal(str(theme.conviction / 200))  # Up to +0.5
@@ -375,69 +375,69 @@ class MacroBoardStrategy:
         else:
             # Neutral - fair value close to current
             fair = current_price
-        
+
         # Clamp to valid range
         fair = max(Decimal("0.10"), min(fair, Decimal("0.90")))
-        
+
         return fair
-    
+
     async def analyze_market(
         self,
         market: Dict,
     ) -> Optional[MacroOpportunity]:
         """Analyze a macro market for opportunity"""
-        
+
         try:
             import json
-            
+
             theme = market.get("_theme")
             platform = market.get("_platform", "polymarket")
-            
+
             if not theme:
                 return None
-            
+
             market_id = market.get("conditionId") or market.get("id")
             title = market.get("question", "Unknown")
-            
+
             # Get current price
             prices_str = market.get("outcomePrices")
             if not prices_str:
                 return None
-            
+
             prices = json.loads(prices_str) if isinstance(prices_str, str) else prices_str
             if not prices:
                 return None
-            
+
             current_price = Decimal(str(prices[0]))
-            
+
             # Calculate fair value
             fair_value = self.calculate_fair_value(theme, title, current_price)
-            
+
             # Calculate edge
             edge = abs(fair_value - current_price) * 100
-            
+
             if edge < self.min_edge_pct:
                 return None
-            
+
             # Determine side and size
             if fair_value > current_price:
                 recommended_side = "YES"
             else:
                 recommended_side = "NO"
-            
+
             # Size based on theme target
             available = theme.target_exposure_usd - theme.total_exposure_usd
             position_size = min(
                 available * self.position_size_pct / 100,
                 Decimal("500"),  # Cap single position
             )
-            
+
             if position_size < Decimal("10"):
                 return None  # Too small
-            
+
             # Create opportunity
             opp_id = f"MACRO-{datetime.utcnow().strftime('%H%M%S')}-{market_id[:8]}"
-            
+
             opportunity = MacroOpportunity(
                 id=opp_id,
                 detected_at=datetime.now(timezone.utc),
@@ -454,76 +454,76 @@ class MacroBoardStrategy:
                 recommended_size_usd=position_size,
                 conviction=theme.conviction,
             )
-            
+
             return opportunity
-            
+
         except Exception as e:
             logger.error(f"Error analyzing macro market: {e}")
             return None
-    
+
     async def scan_for_opportunities(self) -> List[MacroOpportunity]:
         """Scan for macro opportunities"""
         opportunities = []
-        
+
         # Fetch macro markets
         markets = await self.fetch_macro_markets()
-        
+
         # Update stats
         self.stats.themes_active = len([t for t in self.themes if t.market_ids])
         self.stats.markets_tracked = len(markets)
-        
+
         # Analyze each market
         for market in markets:
             opp = await self.analyze_market(market)
             if opp:
                 opportunities.append(opp)
                 self.stats.opportunities_found += 1
-        
+
         # Sort by edge
         opportunities.sort(key=lambda x: x.edge_pct, reverse=True)
-        
+
         if opportunities:
             logger.info(f"🎯 Found {len(opportunities)} macro opportunities!")
             for opp in opportunities[:5]:
                 logger.info(f"   {opp}")
-        
+
         return opportunities
-    
+
     async def run(self):
         """Run continuous scanning"""
         self._running = True
         logger.info("🌍 Starting Macro Board Strategy")
         logger.info(f"   Themes: {len(self.themes)}")
         logger.info(f"   Max exposure: ${self.max_total_exposure:,.0f}")
-        
+
         while self._running:
             try:
                 opportunities = await self.scan_for_opportunities()
-                
+
                 # Callback
                 if self.on_opportunity and opportunities:
                     for opp in opportunities:
                         await self.on_opportunity(opp)
-                
+
                 await asyncio.sleep(self.scan_interval)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Macro board error: {e}")
                 await asyncio.sleep(30)
-        
+
         await self.close()
-    
+
     def stop(self):
         """Stop the strategy"""
         self._running = False
-    
+
     def add_theme(self, theme: MacroTheme):
         """Add a macro theme"""
         self.themes.append(theme)
         self._themes_by_id[theme.id] = theme
-    
+
     def get_portfolio_summary(self) -> Dict[str, Any]:
         """Get summary of macro portfolio"""
         summary = {
@@ -531,7 +531,7 @@ class MacroBoardStrategy:
             "total_exposure": float(self.stats.total_exposure_usd),
             "total_markets": self.stats.markets_tracked,
         }
-        
+
         for theme in self.themes:
             summary["themes"].append({
                 "name": theme.name,
@@ -542,7 +542,7 @@ class MacroBoardStrategy:
                 "exposure": float(theme.total_exposure_usd),
                 "target": float(theme.target_exposure_usd),
             })
-        
+
         return summary
 
 

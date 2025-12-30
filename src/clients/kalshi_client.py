@@ -51,26 +51,26 @@ class OrderBook:
     no_bids: Dict[float, int] = field(default_factory=dict)
     no_asks: Dict[float, int] = field(default_factory=dict)
     last_update: float = 0.0
-    
+
     def best_yes_bid(self) -> Optional[tuple]:
         """Get best YES bid (highest price)."""
         if not self.yes_bids:
             return None
         price = max(self.yes_bids.keys())
         return (price, self.yes_bids[price])
-    
+
     def best_yes_ask(self) -> Optional[tuple]:
         """Get best YES ask (lowest price)."""
         if not self.yes_asks:
             return None
         price = min(self.yes_asks.keys())
         return (price, self.yes_asks[price])
-    
+
     def get_sorted_bids(self, side: str = "yes") -> List[tuple]:
         """Get sorted bids (highest to lowest price)."""
         bids = self.yes_bids if side == "yes" else self.no_bids
         return sorted([(p, q) for p, q in bids.items()], key=lambda x: x[0], reverse=True)
-    
+
     def get_sorted_asks(self, side: str = "yes") -> List[tuple]:
         """Get sorted asks (lowest to highest price)."""
         asks = self.yes_asks if side == "yes" else self.no_asks
@@ -89,7 +89,7 @@ class Market:
     volume: int
     open_interest: int
     status: str
-    
+
 
 class KalshiClient:
     """
@@ -150,17 +150,17 @@ class KalshiClient:
 
         # WebSocket state
         self._is_running = False
-        
+
         # Stats
         self._update_count = 0
         self._last_update_time = 0.0
-    
+
     def _load_private_key(self):
         """Load RSA private key for authentication."""
         if not CRYPTO_AVAILABLE:
             logger.error("cryptography package required for Kalshi authentication")
             return
-        
+
         try:
             # Check if it's a file path or the key content itself
             key_content = self.private_key_content
@@ -170,7 +170,7 @@ class KalshiClient:
                     key_content = f.read()
             else:
                 key_content = key_content.encode() if isinstance(key_content, str) else key_content
-            
+
             self._private_key = serialization.load_pem_private_key(
                 key_content,
                 password=None,
@@ -350,16 +350,16 @@ class KalshiClient:
             logger.error(f"Failed to discover Kalshi markets: {e}")
             return []
             return []
-    
+
     def subscribe(self, tickers: List[str]):
         """Set market tickers to subscribe to."""
         self._subscribed_tickers = tickers
-        
+
         # Initialize order books
         for ticker in tickers:
             if ticker not in self._order_books:
                 self._order_books[ticker] = OrderBook()
-    
+
     def _update_order_book(
         self,
         ticker: str,
@@ -369,21 +369,21 @@ class KalshiClient:
         """Update order book from snapshot or delta message."""
         if ticker not in self._order_books:
             self._order_books[ticker] = OrderBook()
-        
+
         book = self._order_books[ticker]
-        
+
         if snapshot:
             # Full snapshot - replace entire order book
             book.yes_bids = {price: qty for price, qty in snapshot.get("yes", [])}
             book.no_bids = {price: qty for price, qty in snapshot.get("no", [])}
             # Note: Kalshi provides bids/asks differently - may need adjustment
-        
+
         elif delta:
             # Delta update - modify existing order book
             side = delta.get("side", "yes")
             price = delta.get("price", 0)
             delta_qty = delta.get("delta", 0)
-            
+
             if side == "yes":
                 current_qty = book.yes_bids.get(price, 0)
                 new_qty = current_qty + delta_qty
@@ -398,23 +398,23 @@ class KalshiClient:
                     book.no_bids.pop(price, None)
                 else:
                     book.no_bids[price] = new_qty
-        
+
         book.last_update = time.time()
         self._update_count += 1
         self._last_update_time = time.time()
-    
+
     async def run(self):
         """Run WebSocket connection (async)."""
         if not WEBSOCKETS_AVAILABLE:
             logger.error("websockets package required for Kalshi WebSocket")
             return
-        
+
         if not self._private_key or not self.api_key:
             logger.error("Kalshi API credentials required for WebSocket connection")
             return
-        
+
         headers = self._get_auth_headers()
-        
+
         try:
             # Use additional_headers for newer websockets versions
             async with websockets.connect(
@@ -424,7 +424,7 @@ class KalshiClient:
             ) as websocket:
                 self._is_running = True
                 logger.info("Kalshi WebSocket connected")
-                
+
                 # Subscribe to order book updates
                 subscription = {
                     "id": 1,
@@ -436,50 +436,50 @@ class KalshiClient:
                 }
                 await websocket.send(json.dumps(subscription))
                 logger.info(f"Subscribed to {len(self._subscribed_tickers)} Kalshi markets")
-                
+
                 # Process messages
                 async for message in websocket:
                     try:
                         data = json.loads(message)
                         msg_type = data.get("type")
-                        
+
                         if msg_type == "orderbook_snapshot":
                             ticker = data["msg"]["market_ticker"]
                             self._update_order_book(ticker, snapshot=data["msg"])
                             logger.debug(f"Kalshi snapshot: {ticker}")
-                        
+
                         elif msg_type == "orderbook_delta":
                             ticker = data["msg"]["market_ticker"]
                             self._update_order_book(ticker, delta=data["msg"])
                             logger.debug(f"Kalshi delta: {ticker}")
-                        
+
                     except (json.JSONDecodeError, KeyError) as e:
                         logger.debug(f"Skipping message: {e}")
                         continue
-        
+
         except Exception as e:
             logger.error(f"Kalshi WebSocket error: {e}")
         finally:
             self._is_running = False
-    
+
     def get_order_book(self, ticker: str) -> Optional[OrderBook]:
         """Get order book for a market ticker."""
         return self._order_books.get(ticker)
-    
+
     def get_all_order_books(self) -> Dict[str, OrderBook]:
         """Get all order books."""
         return dict(self._order_books)
-    
+
     @property
     def is_connected(self) -> bool:
         """Check if WebSocket is connected."""
         return self._is_running
-    
+
     @property
     def is_authenticated(self) -> bool:
         """Check if API credentials are configured."""
         return bool(self._private_key and self.api_key)
-    
+
     @property
     def stats(self) -> dict:
         """Get client statistics."""
@@ -629,7 +629,7 @@ class KalshiClient:
     ) -> Dict:
         """
         Place a live order on Kalshi.
-        
+
         Args:
             ticker: Market ticker (e.g., "KXBTCUSD-25JAN03-B101500")
             side: 'yes' or 'no'
@@ -639,7 +639,7 @@ class KalshiClient:
             order_type: 'limit' or 'market'
             time_in_force: Order duration
             client_order_id: Optional client-side order ID
-            
+
         Returns:
             Dict with order result:
             {
@@ -662,16 +662,16 @@ class KalshiClient:
                 "fees_cents": 0,
                 "error": "Not authenticated - API key and private key required",
             }
-        
+
         try:
             # Apply rate limiting
             self._wait_for_rate_limit()
-            
+
             logger.info(
                 f"🔴 LIVE ORDER: {action.upper()} {count} {side.upper()} "
                 f"contracts of {ticker} @ {price_cents}¢"
             )
-            
+
             # Build order payload
             order_payload = {
                 "ticker": ticker,
@@ -681,23 +681,23 @@ class KalshiClient:
                 "type": order_type,
                 "time_in_force": time_in_force,
             }
-            
+
             # Add price for limit orders
             if order_type == "limit":
                 if side.lower() == "yes":
                     order_payload["yes_price"] = price_cents
                 else:
                     order_payload["no_price"] = price_cents
-            
+
             # Add client order ID if provided
             if client_order_id:
                 order_payload["client_order_id"] = client_order_id
-            
+
             # Get auth headers for POST
             path = "/trade-api/v2/portfolio/orders"
             headers = self._get_auth_headers(path)
             headers["Content-Type"] = "application/json"
-            
+
             # Submit order
             response = requests.post(
                 f"{self.api_url}/portfolio/orders",
@@ -705,10 +705,10 @@ class KalshiClient:
                 json=order_payload,
                 timeout=15,
             )
-            
+
             # Handle rate limiting
             self._handle_rate_limit_response(response.status_code)
-            
+
             if response.status_code == 429:
                 return {
                     "success": False,
@@ -719,7 +719,7 @@ class KalshiClient:
                     "fees_cents": 0,
                     "error": "Rate limited (429) - try again later",
                 }
-            
+
             if response.status_code == 201:
                 data = response.json()
                 order = data.get("order", {})
@@ -729,12 +729,12 @@ class KalshiClient:
                 remaining = order.get("remaining_count", count)
                 taker_fees = order.get("taker_fees", 0)
                 maker_fees = order.get("maker_fees", 0)
-                
+
                 logger.info(
                     f"✅ Order placed: {order_id} | "
                     f"Status: {status} | Filled: {filled}/{count}"
                 )
-                
+
                 return {
                     "success": True,
                     "order_id": order_id,
@@ -760,7 +760,7 @@ class KalshiClient:
                     "fees_cents": 0,
                     "error": error_msg,
                 }
-                
+
         except Exception as e:
             logger.error(f"❌ Order execution error: {e}")
             return {
@@ -776,37 +776,37 @@ class KalshiClient:
     async def cancel_order(self, order_id: str) -> Dict:
         """
         Cancel an existing order on Kalshi.
-        
+
         Args:
             order_id: The order ID to cancel
-            
+
         Returns:
             Dict with cancel result
         """
         if not self.is_authenticated:
             return {"success": False, "error": "Not authenticated"}
-        
+
         try:
             self._wait_for_rate_limit()
-            
+
             path = f"/trade-api/v2/portfolio/orders/{order_id}"
             headers = self._get_auth_headers(path)
-            
+
             response = requests.delete(
                 f"{self.api_url}/portfolio/orders/{order_id}",
                 headers=headers,
                 timeout=10,
             )
-            
+
             self._handle_rate_limit_response(response.status_code)
-            
+
             if response.status_code in [200, 204]:
                 logger.info(f"✅ Order {order_id} cancelled")
                 return {"success": True, "error": None}
             else:
                 error_msg = response.json().get("message", "Cancel failed")
                 return {"success": False, "error": error_msg}
-                
+
         except Exception as e:
             logger.error(f"Cancel error: {e}")
             return {"success": False, "error": str(e)}
@@ -815,26 +815,26 @@ class KalshiClient:
         """Get all open orders for the account."""
         if not self.is_authenticated:
             return []
-        
+
         try:
             self._wait_for_rate_limit()
-            
+
             path = "/trade-api/v2/portfolio/orders"
             headers = self._get_auth_headers(path)
-            
+
             response = requests.get(
                 f"{self.api_url}/portfolio/orders",
                 headers=headers,
                 params={"status": "resting"},
                 timeout=10,
             )
-            
+
             self._handle_rate_limit_response(response.status_code)
-            
+
             if response.status_code == 200:
                 return response.json().get("orders", [])
             return []
-            
+
         except Exception as e:
             logger.error(f"Failed to get open orders: {e}")
             return []
@@ -843,25 +843,25 @@ class KalshiClient:
         """Get details of a specific order."""
         if not self.is_authenticated:
             return None
-        
+
         try:
             self._wait_for_rate_limit()
-            
+
             path = f"/trade-api/v2/portfolio/orders/{order_id}"
             headers = self._get_auth_headers(path)
-            
+
             response = requests.get(
                 f"{self.api_url}/portfolio/orders/{order_id}",
                 headers=headers,
                 timeout=10,
             )
-            
+
             self._handle_rate_limit_response(response.status_code)
-            
+
             if response.status_code == 200:
                 return response.json().get("order")
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get order {order_id}: {e}")
             return None

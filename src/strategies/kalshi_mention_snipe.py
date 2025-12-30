@@ -56,16 +56,16 @@ class MentionMarket:
     title: str
     keyword: str  # The word being tracked
     event_title: str  # e.g., "Trump Speech"
-    
+
     status: MentionStatus = MentionStatus.PENDING
     yes_bid: Decimal = Decimal("0")
     yes_ask: Decimal = Decimal("0")
-    
+
     # Timestamps
     event_start: Optional[datetime] = None
     event_end: Optional[datetime] = None
     word_detected_at: Optional[datetime] = None
-    
+
     def is_snipeable(self) -> bool:
         """Check if market is in snipeable state (word said but not settled)"""
         return (
@@ -75,37 +75,37 @@ class MentionMarket:
         )
 
 
-@dataclass  
+@dataclass
 class SnipeOpportunity:
     """A mention market snipe opportunity"""
     id: str
     detected_at: datetime
-    
+
     # Market info
     ticker: str
     title: str
     keyword: str
     event_title: str
-    
+
     # Pricing
     bid_price: Decimal  # What we're offering
     expected_fill_price: Decimal  # What we expect to pay
     expected_profit_pct: Decimal  # Expected profit percentage
-    
+
     # Size
     max_size_contracts: int
     max_size_usd: Decimal
-    
+
     # Confidence
     confidence_score: float  # How confident we are word was said
-    
+
     def __str__(self) -> str:
         return (
             f"Snipe: {self.keyword} in {self.event_title} | "
             f"Bid {self.bid_price:.0%} | "
             f"Expected profit: {self.expected_profit_pct:.1f}%"
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -130,7 +130,7 @@ class SnipeStats:
     snipes_filled: int = 0
     total_profit_usd: Decimal = Decimal("0")
     avg_fill_price: Decimal = Decimal("0")
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "markets_tracked": self.markets_tracked,
@@ -148,18 +148,18 @@ class SnipeStats:
 class KalshiMentionSnipeStrategy:
     """
     Kalshi Mention Market Sniping
-    
+
     Strategy for capturing profit on "mention" markets:
     - Markets that resolve YES if a specific word is said
     - After word is detected, market is effectively resolved
     - But impatient holders sell at 99¢ instead of waiting
     - We bid 99¢, get filled, wait for settlement, collect $1.00
-    
+
     Requirements:
     1. Real-time news/speech feed (Twitter API, NewsAPI, etc.)
     2. Kalshi API access for order placement
     3. Fast execution capability
-    
+
     Flow:
     1. Monitor Kalshi for mention markets
     2. Subscribe to relevant news feeds
@@ -167,9 +167,9 @@ class KalshiMentionSnipeStrategy:
     4. If YES < 100¢, place aggressive bid
     5. Wait for settlement
     """
-    
+
     KALSHI_API = "https://api.elections.kalshi.com/trade-api/v2"
-    
+
     # Mention market patterns
     MENTION_PATTERNS = [
         r"say.*word",
@@ -178,7 +178,7 @@ class KalshiMentionSnipeStrategy:
         r"use.*term",
         r"utter",
     ]
-    
+
     # Common mention market keywords
     TRACKED_KEYWORDS = [
         "inflation", "tariff", "china", "russia", "ukraine",
@@ -186,7 +186,7 @@ class KalshiMentionSnipeStrategy:
         "jobs", "economy", "recession", "fed", "rate",
         "war", "peace", "deal", "winning", "tremendous",
     ]
-    
+
     def __init__(
         self,
         bid_price: float = 0.99,  # Bid 99¢
@@ -402,22 +402,22 @@ class KalshiMentionSnipeStrategy:
         if self.newsapi_key:
             news_words = await self._check_news_api()
             triggered.update(news_words)
-        
+
         return triggered
-    
+
     async def _check_twitter(self) -> Set[str]:
         """Check Twitter for keyword mentions"""
         triggered = set()
-        
+
         if not self.twitter_token:
             return triggered
-        
+
         session = await self._get_session()
-        
+
         try:
             # Search for recent tweets about tracked keywords
             headers = {"Authorization": f"Bearer {self.twitter_token}"}
-            
+
             for keyword in self.TRACKED_KEYWORDS[:10]:  # Limit API calls
                 url = "https://api.twitter.com/2/tweets/search/recent"
                 params = {
@@ -425,28 +425,28 @@ class KalshiMentionSnipeStrategy:
                     "max_results": 10,
                     "tweet.fields": "created_at",
                 }
-                
+
                 async with session.get(url, headers=headers, params=params) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         if data.get("data"):
                             triggered.add(keyword)
                             logger.info(f"🎯 Keyword detected on Twitter: {keyword}")
-                
+
         except Exception as e:
             logger.debug(f"Twitter check error: {e}")
-        
+
         return triggered
-    
+
     async def _check_news_api(self) -> Set[str]:
         """Check NewsAPI for keyword mentions"""
         triggered = set()
-        
+
         if not self.newsapi_key:
             return triggered
-        
+
         session = await self._get_session()
-        
+
         try:
             url = "https://newsapi.org/v2/everything"
             params = {
@@ -455,73 +455,73 @@ class KalshiMentionSnipeStrategy:
                 "pageSize": 10,
                 "apiKey": self.newsapi_key,
             }
-            
+
             async with session.get(url, params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     articles = data.get("articles", [])
-                    
+
                     for article in articles:
-                        content = (article.get("title", "") + " " + 
+                        content = (article.get("title", "") + " " +
                                    article.get("description", "")).lower()
-                        
+
                         for keyword in self.TRACKED_KEYWORDS:
                             if keyword in content:
                                 triggered.add(keyword)
-        
+
         except Exception as e:
             logger.debug(f"NewsAPI check error: {e}")
-        
+
         return triggered
-    
+
     async def analyze_market(
         self,
         market: Dict,
     ) -> Optional[SnipeOpportunity]:
         """Analyze a mention market for snipe opportunity"""
-        
+
         try:
             ticker = market.get("ticker", "unknown")
             title = market.get("title", "Unknown")
             event_title = market.get("event_title", "")
-            
+
             # Extract keyword
             keyword = self._extract_keyword(title)
             if not keyword:
                 return None
-            
+
             # Get prices (Kalshi uses cents)
             yes_bid = Decimal(str(market.get("yes_bid", 0) or 0)) / 100
             yes_ask = Decimal(str(market.get("yes_ask", 0) or 0)) / 100
-            
+
             # Check if word was triggered
             if keyword not in self._triggered_words:
                 return None  # Word not detected yet
-            
+
             # Check if snipeable (YES ask between 95-99¢)
             if yes_ask < Decimal("0.95") or yes_ask > Decimal("0.995"):
                 return None  # Not in snipeable range
-            
+
             # Calculate expected profit
             expected_fill = yes_ask
             expected_profit_pct = (Decimal("1.0") - expected_fill) * 100
-            
+
             if expected_profit_pct < self.min_profit_pct:
                 return None
-            
+
             # Calculate size
             volume = int(market.get("volume", 0) or 0)
             max_contracts = min(
                 int(self.max_per_market / expected_fill),
                 volume // 10,  # Don't take more than 10% of volume
             )
-            
+
             if max_contracts < 1:
                 return None
-            
+
             # Create opportunity
             opp_id = f"SNIPE-{datetime.utcnow().strftime('%H%M%S')}-{ticker}"
-            
+
             opportunity = SnipeOpportunity(
                 id=opp_id,
                 detected_at=datetime.now(timezone.utc),
@@ -536,72 +536,72 @@ class KalshiMentionSnipeStrategy:
                 max_size_usd=Decimal(str(max_contracts)) * expected_fill,
                 confidence_score=0.9,  # High confidence if word detected
             )
-            
+
             return opportunity
-            
+
         except Exception as e:
             logger.error(f"Error analyzing mention market: {e}")
             return None
-    
+
     async def scan_for_opportunities(self) -> List[SnipeOpportunity]:
         """Scan for snipe opportunities"""
         opportunities = []
-        
+
         # Check news for triggered keywords
         newly_triggered = await self.check_news_for_keywords()
-        
+
         for word in newly_triggered:
             if word not in self._triggered_words:
                 self._triggered_words.add(word)
                 self.stats.words_detected += 1
                 logger.info(f"🎯 NEW WORD TRIGGERED: {word}")
-        
+
         # Fetch mention markets
         markets = await self.fetch_mention_markets()
         self.stats.markets_tracked = len(markets)
-        
+
         # Analyze each market
         for market in markets:
             opp = await self.analyze_market(market)
             if opp:
                 opportunities.append(opp)
-        
+
         # Sort by profit
         opportunities.sort(key=lambda x: x.expected_profit_pct, reverse=True)
-        
+
         if opportunities:
             logger.info(f"🎯 Found {len(opportunities)} snipe opportunities!")
             for opp in opportunities[:3]:
                 logger.info(f"   {opp}")
-        
+
         return opportunities
-    
+
     async def run(self):
         """Run continuous scanning"""
         self._running = True
         logger.info("🔍 Starting Kalshi Mention Snipe Strategy")
         logger.info(f"   Bid price: {self.bid_price:.0%}")
         logger.info(f"   Scan interval: {self.scan_interval}s")
-        
+
         while self._running:
             try:
                 opportunities = await self.scan_for_opportunities()
-                
+
                 # Callback
                 if self.on_opportunity and opportunities:
                     for opp in opportunities:
                         await self.on_opportunity(opp)
-                
+
                 await asyncio.sleep(self.scan_interval)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error(f"Mention snipe error: {e}")
                 await asyncio.sleep(5)
-        
+
         await self.close()
-    
+
     def stop(self):
         """Stop the scanner"""
         self._running = False

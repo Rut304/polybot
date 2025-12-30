@@ -14,55 +14,55 @@ load_dotenv()
 @dataclass
 class TradingConfig:
     """Trading parameters and risk limits."""
-    
+
     # Dry run mode - no real trades executed
     dry_run: bool = True
-    
+
     # Simulation starting balance for paper trading (USD)
     simulation_starting_balance: float = 10000.0
-    
+
     # Minimum profit threshold (percentage) to execute a trade
     min_profit_percent: float = 2.0  # RAISED from 1.0% - tiny spreads = slippage eats profit
-    
+
     # Maximum trade size in USD
     max_trade_size: float = 25.0  # REDUCED from 100 - smaller size = less slippage impact
-    
+
     # Maximum daily loss before circuit breaker triggers (USD)
     max_daily_loss: float = 50.0
-    
+
     # Maximum number of consecutive failed trades before pause
     max_consecutive_failures: int = 3
-    
+
     # Slippage tolerance - reject if price moved more than this (percentage)
     slippage_tolerance: float = 0.5
-    
+
     # Time to wait between opportunity checks (seconds)
     scan_interval: float = 2.0
-    
+
     # Require manual approval for first N trades (0 = fully autonomous)
     manual_approval_trades: int = 10
-    
+
     # =========================================================================
     # ARBITRAGE STRATEGY TOGGLES
     # Enable/disable each of the 3 arbitrage types independently
     # =========================================================================
-    
+
     # Single-platform arbitrage on Polymarket (intra-market price imbalances)
     # This is where the REAL money is - $40M extracted in 1 year!
     enable_polymarket_single_arb: bool = True
-    
+
     # Single-platform arbitrage on Kalshi (intra-market price imbalances)
     enable_kalshi_single_arb: bool = True
-    
+
     # Cross-platform arbitrage (Polymarket ↔ Kalshi same-market price differences)
     # Rare but real - ~$95K in opportunities found historically
     enable_cross_platform_arb: bool = True
-    
+
     # =========================================================================
     # PER-STRATEGY SETTINGS (Independent thresholds!)
     # Each strategy type can have its own profit thresholds and position sizes
     # =========================================================================
-    
+
     # =========================================================================
     # POLYMARKET SINGLE - PhD Research Optimized (Saguillo et al., 2025)
     # Academic data: $40M extracted at 0.3-2% margins, 0% trading fees
@@ -73,7 +73,7 @@ class TradingConfig:
     poly_single_max_position_usd: float = 35.0 # REDUCED from 100 - underperforming (40% WR)
     poly_single_scan_interval_sec: int = 5     # Every 5 seconds - catch all edges
     poly_single_min_conditions: int = 2        # Prioritize 3+ condition markets
-    
+
     # =========================================================================
     # KALSHI SINGLE - Fee-Adjusted (7% on profits = need 8%+ gross)
     # Only profitable if spread exceeds fee drag significantly
@@ -83,7 +83,7 @@ class TradingConfig:
     kalshi_single_max_spread_pct: float = 30.0 # RAISED from 15% - big spreads are real!
     kalshi_single_max_position_usd: float = 75.0  # RAISED from 50 - best performer gets 60% allocation
     kalshi_single_scan_interval_sec: int = 5   # FASTEST: every 5 seconds
-    
+
     # =========================================================================
     # CROSS-PLATFORM - Asymmetric by buy platform (fee optimization)
     # Buy Poly = 0% fee, Buy Kalshi = 7% fee → different thresholds
@@ -94,7 +94,7 @@ class TradingConfig:
     cross_plat_max_position_usd: float = 75.0   # Reduced from 100 - execution risk
     cross_plat_scan_interval_sec: int = 3       # ULTRA-FAST: 3 seconds (Twitter-derived)
     cross_plat_min_similarity: float = 0.35     # Stricter matching (fewer false positives)
-    
+
     # =========================================================================
     # MARKET MAKING STRATEGY (HIGH CONFIDENCE - 10-20% APR)
     # Post liquidity, earn bid-ask spread + Polymarket rewards
@@ -110,7 +110,7 @@ class TradingConfig:
     mm_quote_refresh_sec: int = 5               # How often to update quotes
     mm_min_volume_24h: float = 10000.0          # Only make markets with volume
     mm_max_markets: int = 5                     # Concurrent markets to quote
-    
+
     # =========================================================================
     # NEWS ARBITRAGE STRATEGY (MEDIUM CONFIDENCE - Event-driven)
     # Exploit Polymarket→Kalshi price lag during news events
@@ -121,7 +121,7 @@ class TradingConfig:
     news_position_size_usd: float = 50.0        # Position size per event
     news_scan_interval_sec: int = 30            # How often to check for events
     news_keywords: str = "election,fed,trump,bitcoin,crypto,verdict"  # Keywords
-    
+
     # =========================================================================
     # FUNDING RATE ARBITRAGE (85% CONFIDENCE - HIGHEST PRIORITY)
     # Delta-neutral funding collection on crypto perpetuals
@@ -138,7 +138,7 @@ class TradingConfig:
     funding_max_basis_pct: float = 1.0          # Max basis (futures premium)
     funding_max_leverage: int = 3               # Max leverage on futures leg
     funding_scan_interval_sec: int = 300        # 5 minute scans
-    
+
     # =========================================================================
     # GRID TRADING STRATEGY (75% CONFIDENCE)
     # Profit from sideways price oscillation
@@ -153,7 +153,7 @@ class TradingConfig:
     grid_stop_loss_pct: float = 15.0            # Close if price breaks out
     grid_take_profit_pct: float = 50.0          # Close if profit target hit
     grid_check_interval_sec: int = 30           # Order check interval
-    
+
     # =========================================================================
     # PAIRS TRADING / STATISTICAL ARBITRAGE (65% CONFIDENCE)
     # Mean reversion on correlated asset pairs
@@ -168,7 +168,7 @@ class TradingConfig:
     pairs_max_hold_hours: float = 72.0          # Max 3 days
     pairs_max_loss_pct: float = 5.0             # Max loss per trade
     pairs_scan_interval_sec: int = 60           # Scan interval
-    
+
     # =========================================================================
     # STOCK MEAN REVERSION STRATEGY (70% CONFIDENCE)
     # Buy stocks that deviate significantly from moving average
@@ -185,7 +185,7 @@ class TradingConfig:
     stock_mr_max_hold_days: int = 3             # Max hold time
     stock_mr_scan_interval_sec: int = 300       # 5 minute scans
     stock_mr_watchlist: str = "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,JPM,V,MA"  # Default stocks
-    
+
     # =========================================================================
     # STOCK MOMENTUM STRATEGY (70% CONFIDENCE)
     # Ride trends in high-momentum stocks
@@ -205,14 +205,14 @@ class TradingConfig:
     stock_mom_stop_loss_pct: float = 7.0        # Wider stop for momentum
     stock_mom_scan_interval_sec: int = 300      # 5 minute scans
     stock_mom_watchlist: str = "AAPL,MSFT,GOOGL,AMZN,META,NVDA,TSLA,AMD,CRM,NFLX"  # Momentum stocks
-    
+
     # =========================================================================
     # EXCHANGE ENABLEMENT (which platforms to trade on)
     # =========================================================================
     # Prediction Markets
     enable_polymarket: bool = True              # Polymarket (0% fees)
     enable_kalshi: bool = True                  # Kalshi (7% fees on profit)
-    
+
     # Crypto Exchanges (via CCXT)
     enable_binance: bool = False                # Binance Spot & Futures (Georestricted often)
     enable_bybit: bool = False                  # Bybit Unified
@@ -220,23 +220,23 @@ class TradingConfig:
     enable_kraken: bool = True                  # Kraken
     enable_coinbase: bool = True                # Coinbase Pro
     enable_kucoin: bool = True                  # KuCoin
-    
+
     # Stock Brokers
     enable_alpaca: bool = True                 # Alpaca (commission-free)
     enable_ibkr: bool = True                   # Interactive Brokers
-    
+
     # =========================================================================
     # ADVANCED FRAMEWORK - PHASE 1 (Risk Management)
     # These enhance ALL strategies with better position sizing & risk control
     # =========================================================================
-    
+
     # Kelly Criterion Position Sizing
     # Academic basis: Kelly (1956) - optimal bet sizing for max geometric growth
     kelly_sizing_enabled: bool = False          # OFF by default (advanced)
     kelly_fraction_cap: float = 0.25            # Half-Kelly (safer than full)
     kelly_min_confidence: float = 0.60          # Min confidence to size with Kelly
     kelly_max_position_pct: float = 10.0        # Max position % of portfolio
-    
+
     # Market Regime Detection
     # Academic basis: Hamilton (1989) - regime-switching models
     regime_detection_enabled: bool = True       # ON by default
@@ -244,7 +244,7 @@ class TradingConfig:
     regime_vix_high_threshold: float = 25.0     # VIX > 25 = HIGH_VOLATILITY
     regime_vix_crisis_threshold: float = 35.0   # VIX > 35 = CRISIS
     regime_auto_adjust: bool = True             # Auto-adjust strategy params
-    
+
     # Autonomous RSI/Strategy Tuning (Pro+ Feature)
     # When enabled, bot automatically adjusts RSI thresholds based on performance
     autonomous_rsi_enabled: bool = False         # OFF by default - Pro feature
@@ -259,11 +259,11 @@ class TradingConfig:
     circuit_breaker_level2_pct: float = 5.0     # Level 2: 5% drawdown → 25% size
     circuit_breaker_level3_pct: float = 10.0    # Level 3: 10% drawdown → HALT
     circuit_breaker_reset_hours: int = 24       # Auto-reset after 24 hours
-    
+
     # =========================================================================
     # STRATEGY ENHANCEMENTS - PHASE 2
     # =========================================================================
-    
+
     # Time Decay Analysis (Prediction Markets)
     # Theta-style decay as markets approach resolution
     time_decay_enabled: bool = True             # ON by default
@@ -271,40 +271,40 @@ class TradingConfig:
     time_decay_avoid_entry_hours: int = 48      # Don't enter < 48h to resolution
     time_decay_mid_prob_low: float = 0.35       # Mid-prob range start
     time_decay_mid_prob_high: float = 0.65      # Mid-prob range end
-    
+
     # Order Flow Analysis
     # Real-time order book imbalance signals
     order_flow_enabled: bool = False            # OFF by default (requires data)
     order_flow_signal_threshold: float = 0.30   # OFI level for weak signal
     order_flow_strong_threshold: float = 0.60   # OFI level for strong signal
     order_flow_lookback_seconds: int = 300      # 5 minute lookback
-    
+
     # Stablecoin Depeg Detection
     # Alert and arbitrage on stablecoin deviations
     depeg_detection_enabled: bool = True        # ON by default
     depeg_alert_threshold_pct: float = 0.30     # Alert at 0.3% deviation
     depeg_arbitrage_threshold_pct: float = 0.50 # Arb opportunity at 0.5%
     depeg_critical_threshold_pct: float = 5.0   # Critical at 5% (exit all)
-    
+
     # Correlation Position Limits
     # Prevent over-concentration in correlated assets
     correlation_limits_enabled: bool = True     # ON by default
     correlation_max_cluster_pct: float = 30.0   # Max 30% in one cluster
     correlation_max_correlated_pct: float = 50.0  # Max 50% in correlated assets
     correlation_high_threshold: float = 0.70    # Correlation > 0.7 = "high"
-    
+
     # =========================================================================
     # TWITTER-DERIVED STRATEGIES (2024)
     # High-conviction strategies from analyzing top traders on X/Twitter
     # =========================================================================
-    
+
     # BTC Bracket Arbitrage (85% CONFIDENCE - $20K-200K/month potential)
     # Buy YES + NO when combined < $1.00 for guaranteed profit
     enable_btc_bracket_arb: bool = True         # ON by default for simulation
     btc_bracket_min_discount_pct: float = 0.5   # Min combined discount (0.5%)
     btc_bracket_max_position_usd: float = 50.0  # Max position per bracket
     btc_bracket_scan_interval_sec: int = 2      # ULTRA-FAST: 2 seconds
-    
+
     # Bracket Compression (70% CONFIDENCE - 15-30% APY)
     # Mean reversion on stretched bracket prices
     enable_bracket_compression: bool = True     # ON by default for simulation
@@ -312,14 +312,14 @@ class TradingConfig:
     bracket_take_profit_pct: float = 3.0        # Take profit at 3%
     bracket_stop_loss_pct: float = 10.0         # Stop loss at 10%
     bracket_max_position_usd: float = 100.0     # Max position size
-    
+
     # Kalshi Mention Market Sniping (80% CONFIDENCE - $120+/event)
     # Fast execution on resolved mention markets
     enable_kalshi_mention_snipe: bool = True    # ON by default for simulation
     kalshi_snipe_min_profit_cents: int = 2      # Min profit (2¢)
     kalshi_snipe_max_position_usd: float = 100.0  # Max position
     kalshi_snipe_max_latency_ms: int = 1000     # Max acceptable latency
-    
+
     # Whale Copy Trading (75% CONFIDENCE - 25-50% APY)
     # Track and copy high win-rate wallets
     enable_whale_copy_trading: bool = True      # ON by default for simulation
@@ -327,14 +327,14 @@ class TradingConfig:
     whale_copy_delay_seconds: int = 30          # Delay before copying
     whale_copy_max_size_usd: float = 50.0       # Max copy size
     whale_copy_max_concurrent: int = 5          # Max concurrent copies
-    
+
     # Macro Board Strategy (65% CONFIDENCE - $62K/month potential)
     # Heavy weighted exposure to macro events
     enable_macro_board: bool = True             # ON by default for simulation
     macro_max_exposure_usd: float = 5000.0      # Max total exposure
     macro_min_conviction_score: int = 70        # Min conviction (0-100)
     macro_rebalance_interval_hours: int = 24    # Rebalance every 24h
-    
+
     # Fear Premium Contrarian (70% CONFIDENCE - 25-60% APY)
     # Trade against extreme sentiment - 91.4% win rate approach
     enable_fear_premium_contrarian: bool = True   # ON by default for simulation
@@ -445,48 +445,48 @@ class TradingConfig:
 @dataclass
 class PolymarketConfig:
     """Polymarket API configuration."""
-    
+
     # WebSocket URL for order book updates
     ws_url: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
-    
+
     # REST API base URL
     api_url: str = "https://clob.polymarket.com"
-    
+
     # Gamma API for market discovery
     gamma_url: str = "https://gamma-api.polymarket.com"
-    
+
     # Chain ID (Polygon mainnet)
     chain_id: int = 137
-    
+
     # API credentials for CLOB API
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
-    
+
     # Optional: Private key for on-chain signing (wallet trades)
     private_key: Optional[str] = None
-    
+
     def __post_init__(self):
         self.api_key = os.getenv("POLYMARKET_API_KEY")
         self.api_secret = os.getenv("POLYMARKET_SECRET")
         self.private_key = os.getenv("POLYMARKET_PRIVATE_KEY")
 
 
-@dataclass  
+@dataclass
 class KalshiConfig:
     """Kalshi API configuration."""
-    
+
     # WebSocket URL for order book updates
     ws_url: str = "wss://api.elections.kalshi.com/trade-api/ws/v2"
-    
+
     # REST API base URL
     api_url: str = "https://api.elections.kalshi.com/trade-api/v2"
-    
+
     # API Key ID (loaded from env)
     api_key: Optional[str] = None
-    
+
     # Path to private key file or the key content itself
     private_key: Optional[str] = None
-    
+
     def __post_init__(self):
         self.api_key = os.getenv("KALSHI_API_KEY")
         # Try direct key first, then file path
@@ -502,20 +502,20 @@ class KalshiConfig:
 class DatabaseConfig:
     """
     Supabase configuration.
-    
+
     IMPORTANT: Only uses SUPABASE_SERVICE_ROLE_KEY (not SUPABASE_KEY/anon key)
     to ensure full database access with RLS bypass.
     """
-    
+
     url: Optional[str] = None
     key: Optional[str] = None
-    
+
     def __post_init__(self):
         # Get Supabase credentials from environment
         # ONLY use SERVICE_ROLE_KEY - anon key causes permission issues
         self.url = os.getenv("SUPABASE_URL")
         self.key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    
+
     @property
     def is_configured(self) -> bool:
         return bool(self.url and self.key)
@@ -524,11 +524,11 @@ class DatabaseConfig:
 @dataclass
 class NotificationsConfig:
     """Discord/Telegram notification configuration."""
-    
+
     discord_webhook: Optional[str] = None
     telegram_bot_token: Optional[str] = None
     telegram_chat_id: Optional[str] = None
-    
+
     def __post_init__(self):
         self.discord_webhook = os.getenv("DISCORD_WEBHOOK")
         self.telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -538,22 +538,22 @@ class NotificationsConfig:
 class Config:
     """
     Main configuration container.
-    
+
     Configuration Priority:
     1. Supabase polybot_config table (for autonomous cloud operation)
     2. Environment variables (fallback for local dev)
     3. Hardcoded defaults
-    
+
     This ensures the bot can run autonomously on AWS Lightsail without
     depending on local .env files.
     """
-    
+
     _supabase_config: Optional[dict] = None
-    
+
     def __init__(self, db_client=None):
         """
         Initialize config.
-        
+
         Args:
             db_client: Optional Database client to load config from Supabase
         """
@@ -566,7 +566,7 @@ class Config:
                 logging.getLogger(__name__).info(
                     "✅ Loaded config from Supabase (autonomous mode)"
                 )
-        
+
         # Build trading config from Supabase or env vars
         self.trading = TradingConfig(
             dry_run=self._get_bool("dry_run", "DRY_RUN", True),
@@ -593,18 +593,18 @@ class Config:
             ),
             # Arbitrage strategy toggles (from Supabase for autonomous operation)
             enable_polymarket_single_arb=self._get_bool(
-                "enable_polymarket_single_arb", 
-                "ENABLE_POLYMARKET_SINGLE_ARB", 
+                "enable_polymarket_single_arb",
+                "ENABLE_POLYMARKET_SINGLE_ARB",
                 True
             ),
             enable_kalshi_single_arb=self._get_bool(
-                "enable_kalshi_single_arb", 
-                "ENABLE_KALSHI_SINGLE_ARB", 
+                "enable_kalshi_single_arb",
+                "ENABLE_KALSHI_SINGLE_ARB",
                 True
             ),
             enable_cross_platform_arb=self._get_bool(
-                "enable_cross_platform_arb", 
-                "ENABLE_CROSS_PLATFORM_ARB", 
+                "enable_cross_platform_arb",
+                "ENABLE_CROSS_PLATFORM_ARB",
                 True
             ),
             # ============================================================
@@ -1313,7 +1313,7 @@ class Config:
         self.kalshi = KalshiConfig()
         self.database = DatabaseConfig()
         self.notifications = NotificationsConfig()
-    
+
     def _get_bool(
         self, supabase_key: str, env_key: str, default: bool
     ) -> bool:
@@ -1330,7 +1330,7 @@ class Config:
         if env_val is not None:
             return env_val.lower() == "true"
         return default
-    
+
     def _get_float(
         self, supabase_key: str, env_key: str, default: float
     ) -> float:
@@ -1343,7 +1343,7 @@ class Config:
         if env_val is not None:
             return float(env_val)
         return default
-    
+
     def _get_int(
         self, supabase_key: str, env_key: str, default: int
     ) -> int:
@@ -1369,11 +1369,11 @@ class Config:
         if env_val is not None:
             return env_val
         return default
-    
+
     def reload_from_supabase(self, db_client) -> bool:
         """
         Reload config from Supabase.
-        
+
         Call this periodically to pick up config changes without restart.
         Returns True if config was updated.
         """
@@ -1382,18 +1382,18 @@ class Config:
             self._supabase_config = new_config
             # Update ALL trading strategy enable flags
             self.trading.enable_polymarket_single_arb = self._get_bool(
-                "enable_polymarket_single_arb", 
-                "ENABLE_POLYMARKET_SINGLE_ARB", 
+                "enable_polymarket_single_arb",
+                "ENABLE_POLYMARKET_SINGLE_ARB",
                 True
             )
             self.trading.enable_kalshi_single_arb = self._get_bool(
-                "enable_kalshi_single_arb", 
-                "ENABLE_KALSHI_SINGLE_ARB", 
+                "enable_kalshi_single_arb",
+                "ENABLE_KALSHI_SINGLE_ARB",
                 True
             )
             self.trading.enable_cross_platform_arb = self._get_bool(
-                "enable_cross_platform_arb", 
-                "ENABLE_CROSS_PLATFORM_ARB", 
+                "enable_cross_platform_arb",
+                "ENABLE_CROSS_PLATFORM_ARB",
                 True
             )
             self.trading.enable_market_making = self._get_bool(
@@ -1459,25 +1459,25 @@ class Config:
             )
             return True
         return False
-    
+
     def validate(self) -> list[str]:
         """Validate configuration and return list of errors."""
         errors = []
-        
+
         if not self.trading.dry_run:
             if not self.polymarket.private_key:
                 errors.append("POLYMARKET_PRIVATE_KEY required for live trading")
             if not self.kalshi.api_key or not self.kalshi.private_key:
                 errors.append("KALSHI_API_KEY and KALSHI_PRIVATE_KEY required for live trading")
-        
+
         if self.trading.max_trade_size <= 0:
             errors.append("MAX_TRADE_SIZE must be positive")
-        
+
         if self.trading.min_profit_percent < 0:
             errors.append("MIN_PROFIT_PERCENT cannot be negative")
-        
+
         return errors
-    
+
     def print_summary(self):
         """Print configuration summary (hiding sensitive values)."""
         print("=" * 50)

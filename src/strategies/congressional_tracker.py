@@ -68,22 +68,22 @@ class Politician:
     state: str
     district: Optional[str] = None  # House only
     committees: List[str] = field(default_factory=list)
-    
+
     # Performance tracking
     total_trades: int = 0
     winning_trades: int = 0
     total_pnl_usd: Decimal = Decimal("0")
     avg_return_pct: float = 0.0
-    
+
     # Copy settings
     copy_enabled: bool = False
     copy_scale_pct: float = 100.0  # % of their trade to copy
     max_copy_size_usd: Decimal = Decimal("1000")
-    
+
     # Metadata
     first_tracked_at: Optional[datetime] = None
     last_trade_at: Optional[datetime] = None
-    
+
     def win_rate(self) -> float:
         if self.total_trades == 0:
             return 0.0
@@ -98,28 +98,28 @@ class CongressionalTrade:
     chamber: Chamber
     party: Party
     state: str
-    
+
     # Trade details
     ticker: str
     asset_name: str
     transaction_type: TransactionType
     transaction_date: datetime
     disclosure_date: datetime
-    
+
     # Amount (usually a range like "$1,001 - $15,000")
     amount_range_low: Decimal
     amount_range_high: Decimal
     amount_estimated: Decimal  # Midpoint estimate
-    
+
     # Price at disclosure (for tracking delayed impact)
     price_at_trade: Optional[float] = None
     price_at_disclosure: Optional[float] = None
     price_current: Optional[float] = None
-    
+
     # Source info
     source: str = "house_stock_watcher"
     disclosure_url: Optional[str] = None
-    
+
     # Copy info
     copied: bool = False
     copy_trade_id: Optional[str] = None
@@ -131,16 +131,16 @@ class CopySignal:
     signal_id: str
     politician: Politician
     original_trade: CongressionalTrade
-    
+
     # Copy parameters
     ticker: str
     direction: str  # "buy" or "sell"
     position_size_usd: Decimal
-    
+
     # Confidence scoring
     confidence_score: float  # 0-1
     reasoning: List[str]
-    
+
     # Timing
     created_at: datetime = field(default_factory=datetime.utcnow)
     execute_after: Optional[datetime] = None
@@ -158,7 +158,7 @@ class CongressionalTrackerStats:
     total_copy_pnl: Decimal = Decimal("0")
     best_politician: Optional[str] = None
     best_return_pct: float = 0.0
-    
+
     def win_rate(self) -> float:
         total = self.copy_wins + self.copy_losses
         return (self.copy_wins / total * 100) if total > 0 else 0.0
@@ -167,10 +167,10 @@ class CongressionalTrackerStats:
 class CongressionalTrackerStrategy:
     """
     Congressional Tracker Strategy
-    
+
     Monitors stock trades by members of Congress and copies them,
     scaled to your bankroll.
-    
+
     Configuration:
     - tracked_politicians: List of politician names to track
     - chambers: Which chamber(s) to monitor (house, senate, both)
@@ -179,7 +179,7 @@ class CongressionalTrackerStrategy:
     - copy_scale_pct: What % of their trade to copy (scaled to your bankroll)
     - max_position_usd: Maximum position size
     - delay_hours: How long to wait after disclosure before copying
-    
+
     Features:
     - Auto-discover top-performing politicians
     - Real-time trade monitoring via API
@@ -188,12 +188,12 @@ class CongressionalTrackerStrategy:
     - Supabase persistence (polybot_tracked_politicians, etc.)
     - Admin UI integration for politician management
     """
-    
+
     # API endpoints (all free)
     HOUSE_API = "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json"
     SENATE_API = "https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json"
     QUIVER_API = "https://api.quiverquant.com/beta/live/congresstrading"
-    
+
     # Amount range mapping (Congress uses ranges, not exact amounts)
     AMOUNT_RANGES = {
         "$1,001 - $15,000": (1001, 15000),
@@ -207,7 +207,7 @@ class CongressionalTrackerStrategy:
         "$25,000,001 - $50,000,000": (25000001, 50000000),
         "Over $50,000,000": (50000001, 100000000),
     }
-    
+
     # Known high-performers (based on public analysis)
     # These are examples - actual performance varies
     DEFAULT_WATCHLIST = [
@@ -219,7 +219,7 @@ class CongressionalTrackerStrategy:
         "Tommy Tuberville",
         "Ro Khanna",
     ]
-    
+
     def __init__(
         self,
         tracked_politicians: Optional[List[str]] = None,
@@ -247,26 +247,26 @@ class CongressionalTrackerStrategy:
         self.bankroll = Decimal(str(bankroll_usd))
         self.on_signal = on_signal
         self.db = db_client
-        
+
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
         self.stats = CongressionalTrackerStats()
-        
+
         # Tracked politicians with profiles
         self._politicians: Dict[str, Politician] = {}
-        
+
         # Recent trades (to avoid duplicates)
         self._seen_trades: Set[str] = set()
-        
+
         # Pending copy signals
         self._pending_signals: List[CopySignal] = []
-        
+
         # Cache for API responses
         self._house_cache: Optional[List[Dict]] = None
         self._senate_cache: Optional[List[Dict]] = None
         self._cache_time: Optional[datetime] = None
         self._cache_ttl = timedelta(hours=1)
-    
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
         if self._session is None or self._session.closed:
@@ -274,23 +274,23 @@ class CongressionalTrackerStrategy:
                 timeout=aiohttp.ClientTimeout(total=60)
             )
         return self._session
-    
+
     async def close(self):
         """Close the session"""
         if self._session and not self._session.closed:
             await self._session.close()
-    
+
     def _parse_amount_range(self, amount_str: str) -> tuple[Decimal, Decimal, Decimal]:
         """Parse amount range string to low, high, and estimated midpoint"""
         amount_str = amount_str.strip()
-        
+
         for range_str, (low, high) in self.AMOUNT_RANGES.items():
             if amount_str.lower() == range_str.lower():
                 low_d = Decimal(str(low))
                 high_d = Decimal(str(high))
                 mid = (low_d + high_d) / 2
                 return low_d, high_d, mid
-        
+
         # Try to parse numeric values
         numbers = re.findall(r'[\d,]+', amount_str)
         if len(numbers) >= 2:
@@ -300,19 +300,19 @@ class CongressionalTrackerStrategy:
         elif len(numbers) == 1:
             val = Decimal(numbers[0].replace(',', ''))
             return val, val, val
-        
+
         # Default fallback
         return Decimal("1000"), Decimal("15000"), Decimal("8000")
-    
+
     async def fetch_house_trades(self) -> List[Dict]:
         """Fetch trades from House Stock Watcher"""
         # Check cache
-        if (self._house_cache and self._cache_time and 
+        if (self._house_cache and self._cache_time and
             datetime.utcnow() - self._cache_time < self._cache_ttl):
             return self._house_cache
-        
+
         session = await self._get_session()
-        
+
         try:
             async with session.get(self.HOUSE_API) as resp:
                 if resp.status == 200:
@@ -327,11 +327,11 @@ class CongressionalTrackerStrategy:
         except Exception as e:
             logger.error(f"Error fetching House trades: {e}")
             return self._house_cache or []
-    
+
     async def fetch_senate_trades(self) -> List[Dict]:
         """Fetch trades from Senate Stock Watcher"""
         session = await self._get_session()
-        
+
         try:
             async with session.get(self.SENATE_API) as resp:
                 if resp.status == 200:
@@ -345,7 +345,7 @@ class CongressionalTrackerStrategy:
         except Exception as e:
             logger.error(f"Error fetching Senate trades: {e}")
             return self._senate_cache or []
-    
+
     def _parse_house_trade(self, raw: Dict) -> Optional[CongressionalTrade]:
         """Parse a raw House trade into our dataclass"""
         try:
@@ -360,11 +360,11 @@ class CongressionalTrackerStrategy:
             party = raw.get('party', '')
             state = raw.get('state', '')
             district = raw.get('district', '')
-            
+
             # Skip if no ticker or invalid
             if not ticker or ticker == '--' or len(ticker) > 6:
                 return None
-            
+
             # Parse transaction type
             if 'purchase' in tx_type_str:
                 tx_type = TransactionType.PURCHASE
@@ -372,30 +372,30 @@ class CongressionalTrackerStrategy:
                 tx_type = TransactionType.SALE
             else:
                 tx_type = TransactionType.EXCHANGE
-            
+
             # Parse dates
             try:
                 tx_date = datetime.strptime(tx_date_str, '%Y-%m-%d')
             except:
                 tx_date = datetime.utcnow()
-            
+
             try:
                 disc_date = datetime.strptime(disc_date_str, '%Y-%m-%d')
             except:
                 disc_date = datetime.utcnow()
-            
+
             # Parse amount
             low, high, estimated = self._parse_amount_range(amount_str)
-            
+
             # Parse party
             party_enum = Party.DEMOCRAT if party == 'D' else (
                 Party.REPUBLICAN if party == 'R' else Party.INDEPENDENT
             )
-            
+
             # Generate unique ID
             trade_id = f"house_{politician_name}_{ticker}_{tx_date_str}_{tx_type.value}"
             trade_id = re.sub(r'[^a-zA-Z0-9_]', '', trade_id)
-            
+
             return CongressionalTrade(
                 id=trade_id,
                 politician_name=politician_name,
@@ -415,7 +415,7 @@ class CongressionalTrackerStrategy:
         except Exception as e:
             logger.debug(f"Error parsing House trade: {e}")
             return None
-    
+
     def _parse_senate_trade(self, raw: Dict) -> Optional[CongressionalTrade]:
         """Parse a raw Senate trade into our dataclass"""
         try:
@@ -428,36 +428,36 @@ class CongressionalTrackerStrategy:
             disc_date_str = raw.get('disclosure_date', '')
             party = raw.get('party', '')
             state = raw.get('state', '')
-            
+
             if not ticker or ticker == '--' or len(ticker) > 6:
                 return None
-            
+
             if 'purchase' in tx_type_str:
                 tx_type = TransactionType.PURCHASE
             elif 'sale' in tx_type_str:
                 tx_type = TransactionType.SALE
             else:
                 tx_type = TransactionType.EXCHANGE
-            
+
             try:
                 tx_date = datetime.strptime(tx_date_str, '%Y-%m-%d')
             except:
                 tx_date = datetime.utcnow()
-            
+
             try:
                 disc_date = datetime.strptime(disc_date_str, '%Y-%m-%d')
             except:
                 disc_date = datetime.utcnow()
-            
+
             low, high, estimated = self._parse_amount_range(amount_str)
-            
+
             party_enum = Party.DEMOCRAT if party == 'D' else (
                 Party.REPUBLICAN if party == 'R' else Party.INDEPENDENT
             )
-            
+
             trade_id = f"senate_{politician_name}_{ticker}_{tx_date_str}_{tx_type.value}"
             trade_id = re.sub(r'[^a-zA-Z0-9_]', '', trade_id)
-            
+
             return CongressionalTrade(
                 id=trade_id,
                 politician_name=politician_name,
@@ -477,32 +477,32 @@ class CongressionalTrackerStrategy:
         except Exception as e:
             logger.debug(f"Error parsing Senate trade: {e}")
             return None
-    
+
     async def fetch_all_trades(self, days_back: int = 30) -> List[CongressionalTrade]:
         """Fetch all trades from configured chambers"""
         trades = []
         cutoff = datetime.utcnow() - timedelta(days=days_back)
-        
+
         if self.chambers in [Chamber.HOUSE, Chamber.BOTH]:
             house_raw = await self.fetch_house_trades()
             for raw in house_raw:
                 trade = self._parse_house_trade(raw)
                 if trade and trade.disclosure_date >= cutoff:
                     trades.append(trade)
-        
+
         if self.chambers in [Chamber.SENATE, Chamber.BOTH]:
             senate_raw = await self.fetch_senate_trades()
             for raw in senate_raw:
                 trade = self._parse_senate_trade(raw)
                 if trade and trade.disclosure_date >= cutoff:
                     trades.append(trade)
-        
+
         # Sort by disclosure date (newest first)
         trades.sort(key=lambda t: t.disclosure_date, reverse=True)
-        
+
         logger.info(f"Fetched {len(trades)} total trades from last {days_back} days")
         return trades
-    
+
     def should_copy_trade(self, trade: CongressionalTrade) -> tuple[bool, float, List[str]]:
         """
         Determine if we should copy this trade.
@@ -510,24 +510,24 @@ class CongressionalTrackerStrategy:
         """
         reasons = []
         confidence = 0.5  # Base confidence
-        
+
         # Check if politician is tracked
         is_tracked = trade.politician_name in self.tracked_politicians
         if not is_tracked and not self.auto_discover:
             return False, 0.0, ["Politician not in tracked list"]
-        
+
         if is_tracked:
             confidence += 0.2
             reasons.append(f"Tracked politician: {trade.politician_name}")
-        
+
         # Check party filter
         if self.parties != Party.ANY and trade.party != self.parties:
             return False, 0.0, [f"Party filter: {trade.party.value} not in {self.parties.value}"]
-        
+
         # Check minimum amount
         if trade.amount_estimated < self.min_trade_amount:
             return False, 0.0, [f"Trade amount ${trade.amount_estimated} below minimum ${self.min_trade_amount}"]
-        
+
         # Boost confidence for larger trades (indicates conviction)
         if trade.amount_estimated >= Decimal("100000"):
             confidence += 0.15
@@ -535,14 +535,14 @@ class CongressionalTrackerStrategy:
         elif trade.amount_estimated >= Decimal("50000"):
             confidence += 0.1
             reasons.append(f"Significant trade: ${trade.amount_estimated:,.0f}")
-        
+
         # Check politician's historical performance
         if trade.politician_name in self._politicians:
             pol = self._politicians[trade.politician_name]
             if pol.win_rate() >= 60:
                 confidence += 0.15
                 reasons.append(f"{trade.politician_name} win rate: {pol.win_rate():.1f}%")
-        
+
         # Only copy purchases (more reliable signal)
         if trade.transaction_type == TransactionType.PURCHASE:
             confidence += 0.1
@@ -550,7 +550,7 @@ class CongressionalTrackerStrategy:
         elif trade.transaction_type == TransactionType.SALE:
             confidence -= 0.1
             reasons.append("Sale (bearish signal)")
-        
+
         # Recent disclosure is better
         days_since_disclosure = (datetime.utcnow() - trade.disclosure_date).days
         if days_since_disclosure <= 3:
@@ -559,60 +559,60 @@ class CongressionalTrackerStrategy:
         elif days_since_disclosure > 30:
             confidence -= 0.2
             reasons.append(f"Stale disclosure ({days_since_disclosure} days old)")
-        
+
         # Minimum confidence threshold
         min_confidence = 0.5
         if confidence < min_confidence:
             return False, confidence, reasons + [f"Confidence {confidence:.2f} below threshold {min_confidence}"]
-        
+
         return True, min(confidence, 1.0), reasons
-    
+
     def calculate_position_size(self, trade: CongressionalTrade, confidence: float) -> Decimal:
         """Calculate position size based on trade, confidence, and bankroll"""
         # Base: scale their trade by copy_scale_pct
         base_size = trade.amount_estimated * Decimal(str(self.copy_scale_pct / 100))
-        
+
         # Scale by confidence
         confidence_adjusted = base_size * Decimal(str(confidence))
-        
+
         # Scale by bankroll ratio (don't risk more than 5% of bankroll per trade)
         max_bankroll_risk = self.bankroll * Decimal("0.05")
-        
+
         # Apply maximum position size
         position_size = min(confidence_adjusted, self.max_position, max_bankroll_risk)
-        
+
         # Minimum position size
         min_position = Decimal("10")
         position_size = max(position_size, min_position)
-        
+
         return position_size.quantize(Decimal("0.01"))
-    
+
     async def generate_signals(self, days_back: int = 7) -> List[CopySignal]:
         """Generate copy signals from recent congressional trades"""
         trades = await self.fetch_all_trades(days_back=days_back)
         signals = []
-        
+
         for trade in trades:
             # Skip if already seen
             if trade.id in self._seen_trades:
                 continue
-            
+
             # Check if we should copy
             should_copy, confidence, reasons = self.should_copy_trade(trade)
-            
+
             if not should_copy:
                 logger.debug(f"Skipping trade {trade.id}: {reasons}")
                 continue
-            
+
             # Mark as seen
             self._seen_trades.add(trade.id)
-            
+
             # Calculate position size
             position_size = self.calculate_position_size(trade, confidence)
-            
+
             # Determine direction
             direction = "buy" if trade.transaction_type == TransactionType.PURCHASE else "sell"
-            
+
             # Get or create politician profile
             if trade.politician_name not in self._politicians:
                 self._politicians[trade.politician_name] = Politician(
@@ -622,10 +622,10 @@ class CongressionalTrackerStrategy:
                     state=trade.state,
                     first_tracked_at=datetime.utcnow(),
                 )
-            
+
             pol = self._politicians[trade.politician_name]
             pol.last_trade_at = trade.disclosure_date
-            
+
             # Create signal
             signal = CopySignal(
                 signal_id=f"cong_{trade.id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
@@ -640,64 +640,64 @@ class CongressionalTrackerStrategy:
                 execute_after=datetime.utcnow() + timedelta(hours=self.delay_hours),
                 expires_at=datetime.utcnow() + timedelta(days=7),
             )
-            
+
             signals.append(signal)
             logger.info(
                 f"Generated congressional copy signal: {direction.upper()} ${position_size} {trade.ticker} "
                 f"(following {trade.politician_name}, confidence: {confidence:.2f})"
             )
-            
+
             # Update stats
             self.stats.trades_detected += 1
-        
+
         return signals
-    
+
     async def run_scan(self) -> List[CopySignal]:
         """Run a single scan cycle"""
         logger.info("Running congressional trade scan...")
-        
+
         signals = await self.generate_signals()
-        
+
         for signal in signals:
             self._pending_signals.append(signal)
-            
+
             # Emit signal if callback registered
             if self.on_signal:
                 await self.on_signal(signal)
-        
+
         # Update politician count
         self.stats.politicians_tracked = len(self._politicians)
-        
+
         logger.info(f"Scan complete: {len(signals)} new signals generated")
         return signals
-    
+
     async def start(self):
         """Start the tracking loop"""
         self._running = True
         logger.info("Starting Congressional Tracker Strategy")
-        
+
         # Load persisted data from DB if available
         await self._load_from_db()
-        
+
         while self._running:
             try:
                 await self.run_scan()
             except Exception as e:
                 logger.error(f"Error in scan cycle: {e}")
-            
+
             await asyncio.sleep(self.scan_interval)
-    
+
     async def stop(self):
         """Stop the tracking loop"""
         self._running = False
         await self.close()
         logger.info("Congressional Tracker Strategy stopped")
-    
+
     async def _load_from_db(self):
         """Load tracked politicians from database"""
         if not self.db:
             return
-        
+
         try:
             # Load politicians
             result = self.db.table('polybot_tracked_politicians').select('*').execute()
@@ -719,23 +719,23 @@ class CongressionalTrackerStrategy:
                     self._politicians[pol.name] = pol
                     if pol.copy_enabled:
                         self.tracked_politicians.add(pol.name)
-                
+
                 logger.info(f"Loaded {len(self._politicians)} politicians from DB")
-            
+
             # Load seen trades
             result = self.db.table('polybot_congressional_trades').select('id').execute()
             if result.data:
                 self._seen_trades = {row['id'] for row in result.data}
                 logger.info(f"Loaded {len(self._seen_trades)} seen trade IDs")
-                
+
         except Exception as e:
             logger.warning(f"Could not load from DB: {e}")
-    
+
     async def save_signal_to_db(self, signal: CopySignal):
         """Save a copy signal to the database"""
         if not self.db:
             return
-        
+
         try:
             # Save the original trade
             trade = signal.original_trade
@@ -757,7 +757,7 @@ class CongressionalTrackerStrategy:
                 'copied': True,
                 'copy_trade_id': signal.signal_id,
             }).execute()
-            
+
             # Save the copy signal
             self.db.table('polybot_congressional_copy_trades').insert({
                 'id': signal.signal_id,
@@ -772,12 +772,12 @@ class CongressionalTrackerStrategy:
                 'execute_after': signal.execute_after.isoformat() if signal.execute_after else None,
                 'status': 'pending',
             }).execute()
-            
+
             logger.info(f"Saved signal {signal.signal_id} to database")
-            
+
         except Exception as e:
             logger.error(f"Error saving signal to DB: {e}")
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Get current strategy statistics"""
         return {
@@ -814,7 +814,7 @@ async def main():
         max_position_usd=500.0,
         bankroll_usd=10000.0,
     )
-    
+
     try:
         signals = await tracker.run_scan()
         print(f"\nGenerated {len(signals)} signals:")

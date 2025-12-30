@@ -21,19 +21,19 @@ class LiquidationConfig:
 class PolymarketLiquidationStrategy(BaseStrategy):
     """
     Polymarket Liquidation Bot (Capital Recycling).
-    
+
     Scans for owned positions that are trading near $1.00 (winning)
     or near $0.00 (losing) and liquidates them early to free up capital
     if the IRR of selling now > holding to expiry.
-    
+
     Primary use case:
     - You bought YES at 0.50.
     - Price is now 0.99.
     - Expiry is in 2 weeks.
-    - Sell now at 0.99 to reinvest the capital immediately rather than 
+    - Sell now at 0.99 to reinvest the capital immediately rather than
       checking 1% yield over 2 weeks (26% APY).
     """
-    
+
     def __init__(
         self,
         polymarket_client: PolymarketClient,
@@ -61,7 +61,7 @@ class PolymarketLiquidationStrategy(BaseStrategy):
                     await self.recycle_capital()
                 except Exception as e:
                     logger.error(f"Error in capital recycling: {e}")
-            
+
             await asyncio.sleep(self.scan_interval)
 
     async def stop(self):
@@ -70,53 +70,53 @@ class PolymarketLiquidationStrategy(BaseStrategy):
     async def recycle_capital(self):
         """Scan positions and liquidate if eligible."""
         logger.info("♻️ Scanning for capital recycling opportunities...")
-        
+
         # 1. Get all positions
         positions = await self.poly.get_portfolio()
         if not positions:
             return
-            
+
         liquidated_count = 0
-        
+
         for pos in positions:
             # Skip if position size is dust
             if float(pos.get('size', 0)) < 1.0:
                 continue
-                
+
             market_slug = pos.get('market_slug')
             outcome = pos.get('outcome') # YES/NO
-            
+
             # 2. Check current market price
             # Assuming get_market returns { 'best_bid': ..., 'end_date': ... }
             market = await self.poly.get_market(market_slug)
             if not market:
                 continue
-                
+
             current_price = float(market.get(f'{outcome.lower()}_bid', 0))
             end_date_iso = market.get('end_date_iso')
-            
+
             if not end_date_iso:
                 continue
-                
+
             # Calculate days to expiry
             try:
                 end_dt = datetime.fromisoformat(end_date_iso.replace('Z', '+00:00'))
                 days_to_expiry = (end_dt - datetime.now(timezone.utc)).days
             except:
                 days_to_expiry = 0
-                
+
             # 3. Evaluate Logic
             # Condition A: Price is very high (Winning) and expiry is far
             should_sell = False
             reason = ""
-            
+
             if current_price >= self.config.min_price and days_to_expiry >= self.config.min_days_to_expiry:
                 should_sell = True
                 reason = f"High probability ({current_price:.2f}) with {days_to_expiry}d lockup"
-                
+
             if should_sell:
                 logger.info(f"💰 LIQUIDATING {market_slug} ({outcome}): {reason}")
-                
+
                 # Execute Sell
                 # await self.poly.create_order(...)
                 # For now, just log opportunity since execution needs safety checks
@@ -133,6 +133,6 @@ class PolymarketLiquidationStrategy(BaseStrategy):
                     "detected_at": datetime.now(timezone.utc).isoformat()
                 })
                 liquidated_count += 1
-                
+
         if liquidated_count > 0:
             logger.info(f"Recycling Pass: Identified {liquidated_count} positions to exit")
