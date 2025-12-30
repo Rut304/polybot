@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
   
   // Auth verification - admin only
   const authResult = await verifyAuth(request);
-  if (!authResult?.is_admin) {
+  if (!authResult || authResult.role !== 'admin') {
     return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
   }
 
@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
     await logAuditEvent({
       user_id: authResult.user_id,
       user_email: authResult.user_email,
-      action: 'admin.redeploy_dashboard',
-      resource_type: 'deployment',
-      resource_id: result.job?.id || 'unknown',
+      action: 'bot.redeploy',
+      resource_type: 'bot',
+      resource_id: result.job?.id || 'admin-dashboard',
       details: { 
         triggered_by: authResult.user_email,
         deploy_hook_response: result 
