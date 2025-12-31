@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   X,
   Check,
+  TrendingUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,7 +32,7 @@ import { SubscriptionTier } from '@/lib/privy';
 interface User {
   id: string;
   email: string;
-  role: 'admin' | 'viewer';
+  role: 'admin' | 'trader' | 'viewer';
   display_name?: string;
   created_at: string;
   last_sign_in_at?: string;
@@ -51,6 +52,7 @@ const TIER_BADGES = {
 
 const ROLE_OPTIONS = [
   { value: 'viewer', label: 'Read Only', icon: Eye, description: 'Can view dashboards but cannot trade' },
+  { value: 'trader', label: 'Trader', icon: TrendingUp, description: 'Can trade and view, but no admin access' },
   { value: 'admin', label: 'Admin', icon: Shield, description: 'Full access to all features and settings' },
 ];
 
@@ -420,6 +422,8 @@ export default function UsersPage() {
                     "w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold",
                     user.role === 'admin' 
                       ? 'bg-neon-purple/20 text-neon-purple' 
+                      : user.role === 'trader'
+                      ? 'bg-neon-blue/20 text-neon-blue'
                       : 'bg-gray-500/20 text-gray-400'
                   )}>
                     {user.display_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'}
@@ -434,10 +438,12 @@ export default function UsersPage() {
                         "inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium",
                         user.role === 'admin' 
                           ? 'bg-neon-purple/20 text-neon-purple' 
+                          : user.role === 'trader'
+                          ? 'bg-neon-blue/20 text-neon-blue'
                           : 'bg-gray-500/20 text-gray-400'
                       )}>
-                        {user.role === 'admin' ? <Shield className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                        {user.role === 'admin' ? 'Admin' : 'Viewer'}
+                        {user.role === 'admin' ? <Shield className="w-3 h-3" /> : user.role === 'trader' ? <TrendingUp className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {user.role === 'admin' ? 'Admin' : user.role === 'trader' ? 'Trader' : 'Viewer'}
                       </div>
                       {/* Tier Badge */}
                       {(() => {
@@ -503,7 +509,8 @@ export default function UsersPage() {
                     className="flex-1 bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="viewer">Viewer (Read Only)</option>
-                    <option value="admin">Admin</option>
+                    <option value="trader">Trader (Can Trade)</option>
+                    <option value="admin">Admin (Full Access)</option>
                   </select>
                 </div>
                 {/* Tier dropdown */}
@@ -593,11 +600,15 @@ export default function UsersPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="flex items-center justify-center gap-8 py-4 text-sm text-gray-500"
+          className="flex items-center justify-center gap-6 py-4 text-sm text-gray-500 flex-wrap"
         >
           <div className="flex items-center gap-2">
             <Shield className="w-4 h-4 text-neon-purple" />
             <span>{users.filter(u => u.role === 'admin').length} Admins</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-neon-blue" />
+            <span>{users.filter(u => u.role === 'trader').length} Traders</span>
           </div>
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4 text-gray-400" />
@@ -675,6 +686,7 @@ export default function UsersPage() {
                       className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple"
                     >
                       <option value="viewer">Viewer</option>
+                      <option value="trader">Trader</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>

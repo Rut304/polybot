@@ -660,6 +660,7 @@ export default function MarketplacePage() {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as any)}
+          title="Sort strategies by"
           className="px-4 py-3 bg-dark-card border border-dark-border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-neon-blue/50"
         >
           <option value="featured">Featured First</option>

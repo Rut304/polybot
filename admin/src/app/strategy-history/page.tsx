@@ -185,6 +185,7 @@ function StrategyHistoryPageContent() {
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
+          title="Filter change history"
           className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
         >
           <option value="all">All Changes</option>
@@ -249,6 +250,7 @@ function StrategyHistoryPageContent() {
                 <select
                   value={newChange.parameter_name}
                   onChange={(e) => setNewChange({...newChange, parameter_name: e.target.value})}
+                  title="Select parameter to change"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2"
                 >
                   <option value="">Select parameter...</option>
@@ -295,6 +297,7 @@ function StrategyHistoryPageContent() {
                 <select
                   value={newChange.change_type}
                   onChange={(e) => setNewChange({...newChange, change_type: e.target.value})}
+                  title="Select change type"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2"
                 >
                   <option value="manual">Manual Change</option>

@@ -286,6 +286,7 @@ export default function AdminDashboardPage() {
         <select
           value={tierFilter}
           onChange={(e) => setTierFilter(e.target.value)}
+          title="Filter by subscription tier"
           className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg focus:outline-none"
         >
           <option value="all">All Tiers</option>
@@ -296,6 +297,7 @@ export default function AdminDashboardPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
+          title="Filter by subscription status"
           className="px-4 py-2 bg-dark-card border border-dark-border rounded-lg focus:outline-none"
         >
           <option value="all">All Status</option>
@@ -395,6 +397,7 @@ export default function AdminDashboardPage() {
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => { setSelectedUser(customer); setShowUserModal(true); }}
+                          title="View user details"
                           className="p-2 hover:bg-dark-border rounded-lg transition-colors"
                         >
                           <MoreVertical className="w-4 h-4 text-gray-400" />
@@ -453,6 +456,7 @@ export default function AdminDashboardPage() {
                     <select
                       value={selectedUser.subscription_tier}
                       onChange={(e) => setSelectedUser({ ...selectedUser, subscription_tier: e.target.value as any })}
+                      title="Select subscription tier"
                       className="w-full px-3 py-2 bg-dark-border border border-dark-border rounded-lg"
                     >
                       <option value="free">Free</option>
@@ -466,6 +470,7 @@ export default function AdminDashboardPage() {
                     <select
                       value={selectedUser.subscription_status}
                       onChange={(e) => setSelectedUser({ ...selectedUser, subscription_status: e.target.value as any })}
+                      title="Select subscription status"
                       className="w-full px-3 py-2 bg-dark-border border border-dark-border rounded-lg"
                     >
                       <option value="active">Active</option>

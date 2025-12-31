@@ -77,6 +77,8 @@ function ToggleSwitch({ enabled, onToggle, disabled, size = 'md' }: ToggleSwitch
     <button
       onClick={onToggle}
       disabled={disabled}
+      title={enabled ? 'Click to disable' : 'Click to enable'}
+      aria-label={enabled ? 'Enabled, click to disable' : 'Disabled, click to enable'}
       className={cn(
         "relative inline-flex items-center rounded-full transition-colors duration-200",
         s.track,
@@ -566,6 +568,9 @@ export default function SettingsPage() {
   const [kalshiEnabled, setKalshiEnabled] = useState(config?.kalshi_enabled ?? true);
   const [dryRunMode, setDryRunMode] = useState(status?.dry_run_mode ?? true);
   const [requireApproval, setRequireApproval] = useState(false); // Will be stored in localStorage until DB column is added
+  
+  // Multi-tenant Bot Manager - DISABLED by default (infrastructure change required)
+  const [botManagerEnabled, setBotManagerEnabled] = useState(config?.bot_manager_enabled ?? false);
 
   // Basic trading parameters
   const [minProfitPercent, setMinProfitPercent] = useState(config?.min_profit_percent ?? 1.0);
@@ -1837,6 +1842,50 @@ export default function SettingsPage() {
                     disabled={!isAdmin}
                   />
                 </div>
+
+                {/* Multi-Tenant Bot Manager - Admin Only */}
+                {isAdmin && (
+                  <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl border border-amber-500/20">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center",
+                        botManagerEnabled ? "bg-amber-500/20" : "bg-gray-500/20"
+                      )}>
+                        <Users className={cn("w-6 h-6", botManagerEnabled ? "text-amber-500" : "text-gray-500")} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">Multi-Tenant Bot Manager</h3>
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
+                            botManagerEnabled ? "bg-amber-500/20 text-amber-400" : "bg-gray-500/20 text-gray-400"
+                          )}>
+                            {botManagerEnabled ? 'ENABLED' : 'DISABLED'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-400 max-w-md">
+                          {botManagerEnabled
+                            ? 'Per-user bot containers are running. Each user has isolated trading.'
+                            : 'Single shared bot for all users. Enable to spawn dedicated bot per user.'}
+                        </p>
+                        <p className="text-xs text-amber-400/70 mt-1">
+                          ⚠️ Enabling requires infrastructure changes (~$7/user/month). Contact DevOps before enabling.
+                        </p>
+                      </div>
+                    </div>
+                    <ToggleSwitch
+                      enabled={botManagerEnabled}
+                      onToggle={() => {
+                        if (!botManagerEnabled) {
+                          setShowConfirm('bot-manager');
+                        } else {
+                          setBotManagerEnabled(false);
+                        }
+                      }}
+                      size="lg"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1970,19 +2019,19 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <LabelWithTooltip label="Min Profit %" tooltip="Minimum profit required to execute a trade." />
-                  <input type="number" step="0.1" value={minProfitPercent} onChange={e => setMinProfitPercent(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                  <input type="number" step="0.1" value={minProfitPercent} onChange={e => setMinProfitPercent(Number(e.target.value))} title="Minimum profit percentage" placeholder="1.0" className="w-full bg-dark-border rounded-lg p-3 mt-1" />
                 </div>
                 <div>
                   <LabelWithTooltip label="Max Trade Size ($)" tooltip="Maximum capital per trade." />
-                  <input type="number" value={maxTradeSize} onChange={e => setMaxTradeSize(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                  <input type="number" value={maxTradeSize} onChange={e => setMaxTradeSize(Number(e.target.value))} title="Maximum trade size in dollars" placeholder="100" className="w-full bg-dark-border rounded-lg p-3 mt-1" />
                 </div>
                 <div>
                   <LabelWithTooltip label="Max Daily Loss (%)" tooltip="Stop trading if daily loss exceeds this %." />
-                  <input type="number" value={maxDailyLoss} onChange={e => setMaxDailyLoss(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                  <input type="number" value={maxDailyLoss} onChange={e => setMaxDailyLoss(Number(e.target.value))} title="Maximum daily loss percentage" placeholder="50" className="w-full bg-dark-border rounded-lg p-3 mt-1" />
                 </div>
                 <div>
                   <LabelWithTooltip label="Scan Interval (sec)" tooltip="How often to scan markets." />
-                  <input type="number" value={scanInterval} onChange={e => setScanInterval(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3 mt-1" />
+                  <input type="number" value={scanInterval} onChange={e => setScanInterval(Number(e.target.value))} title="Market scan interval in seconds" placeholder="2" className="w-full bg-dark-border rounded-lg p-3 mt-1" />
                 </div>
               </div>
             </div>
@@ -2030,15 +2079,15 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <LabelWithTooltip label="Slippage Min %" tooltip="Minimum simulated slippage percentage." />
-                  <input type="number" step="0.1" value={slippageMinPct} onChange={e => setSlippageMinPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
+                  <input type="number" step="0.1" value={slippageMinPct} onChange={e => setSlippageMinPct(Number(e.target.value))} title="Minimum slippage percentage" placeholder="0.3" className="w-full bg-dark-border rounded-lg p-3" />
                 </div>
                 <div>
                   <LabelWithTooltip label="Slippage Max %" tooltip="Maximum simulated slippage percentage." />
-                  <input type="number" step="0.1" value={slippageMaxPct} onChange={e => setSlippageMaxPct(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
+                  <input type="number" step="0.1" value={slippageMaxPct} onChange={e => setSlippageMaxPct(Number(e.target.value))} title="Maximum slippage percentage" placeholder="1.0" className="w-full bg-dark-border rounded-lg p-3" />
                 </div>
                 <div>
                   <LabelWithTooltip label="Execution Failure Rate (0-1)" tooltip="Probability (0-1) that an order fails to execute." />
-                  <input type="number" step="0.05" value={executionFailureRate} onChange={e => setExecutionFailureRate(Number(e.target.value))} className="w-full bg-dark-border rounded-lg p-3" />
+                  <input type="number" step="0.05" value={executionFailureRate} onChange={e => setExecutionFailureRate(Number(e.target.value))} title="Execution failure rate" placeholder="0.15" className="w-full bg-dark-border rounded-lg p-3" />
                 </div>
               </div>
 
@@ -2059,27 +2108,27 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Polymarket</label>
-                  <input type="number" value={polymarketStartingBalance} onChange={e => setPolymarketStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={polymarketStartingBalance} onChange={e => setPolymarketStartingBalance(Number(e.target.value))} title="Polymarket starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Kalshi</label>
-                  <input type="number" value={kalshiStartingBalance} onChange={e => setKalshiStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={kalshiStartingBalance} onChange={e => setKalshiStartingBalance(Number(e.target.value))} title="Kalshi starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Binance</label>
-                  <input type="number" value={binanceStartingBalance} onChange={e => setBinanceStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={binanceStartingBalance} onChange={e => setBinanceStartingBalance(Number(e.target.value))} title="Binance starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Coinbase</label>
-                  <input type="number" value={coinbaseStartingBalance} onChange={e => setCoinbaseStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={coinbaseStartingBalance} onChange={e => setCoinbaseStartingBalance(Number(e.target.value))} title="Coinbase starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Alpaca</label>
-                  <input type="number" value={alpacaStartingBalance} onChange={e => setAlpacaStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={alpacaStartingBalance} onChange={e => setAlpacaStartingBalance(Number(e.target.value))} title="Alpaca starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">IBKR</label>
-                  <input type="number" value={ibkrStartingBalance} onChange={e => setIbkrStartingBalance(Number(e.target.value))} className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={ibkrStartingBalance} onChange={e => setIbkrStartingBalance(Number(e.target.value))} title="IBKR starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
               </div>
             </div>
@@ -2122,6 +2171,46 @@ export default function SettingsPage() {
               <div className="flex gap-4">
                 <button onClick={() => setShowConfirm(null)} className="flex-1 py-3 rounded-xl bg-dark-border hover:bg-dark-border/80 font-bold">Cancel</button>
                 <button onClick={handleResetSimulation} className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold">Reset All</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showConfirm === 'bot-manager' && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-dark-card border border-amber-500/50 rounded-2xl p-6 max-w-lg w-full shadow-2xl">
+              <h3 className="text-xl font-bold text-amber-500 mb-2 flex items-center gap-2">
+                <Users className="w-6 h-6" />
+                Enable Multi-Tenant Bot Manager?
+              </h3>
+              <div className="text-gray-300 mb-4 space-y-3">
+                <p><strong>What this does:</strong></p>
+                <ul className="list-disc list-inside text-sm space-y-1 text-gray-400">
+                  <li>Spawns a dedicated Docker container for each active user</li>
+                  <li>Each user gets isolated trading environment</li>
+                  <li>Users cannot see each other's trades or data</li>
+                  <li>Enables per-user live/simulation mode switching</li>
+                </ul>
+                <p className="text-amber-400 text-sm mt-3">
+                  <strong>⚠️ Infrastructure Impact:</strong>
+                </p>
+                <ul className="list-disc list-inside text-sm space-y-1 text-amber-400/80">
+                  <li>~$7/month per active user (Lightsail container)</li>
+                  <li>Requires AWS ECS or Lightsail container service</li>
+                  <li>Increases monitoring complexity</li>
+                </ul>
+              </div>
+              <div className="flex gap-4">
+                <button onClick={() => setShowConfirm(null)} className="flex-1 py-3 rounded-xl bg-dark-border hover:bg-dark-border/80 font-bold">Cancel</button>
+                <button 
+                  onClick={() => { 
+                    setBotManagerEnabled(true); 
+                    setShowConfirm(null); 
+                    // TODO: Trigger infrastructure provisioning via API
+                  }} 
+                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold"
+                >
+                  Enable Bot Manager
+                </button>
               </div>
             </div>
           </div>

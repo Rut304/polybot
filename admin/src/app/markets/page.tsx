@@ -354,6 +354,7 @@ export default function MarketsPage() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
+                title="Previous page"
                 className="p-2 bg-dark-card rounded-lg disabled:opacity-50 hover:bg-dark-border transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -364,6 +365,7 @@ export default function MarketsPage() {
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
+                title="Next page"
                 className="p-2 bg-dark-card rounded-lg disabled:opacity-50 hover:bg-dark-border transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -643,6 +645,7 @@ export default function MarketsPage() {
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
+              title="Previous page"
               className="p-2 bg-dark-card rounded-lg disabled:opacity-50 hover:bg-dark-border transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -671,6 +674,7 @@ export default function MarketsPage() {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
+              title="Next page"
               className="p-2 bg-dark-card rounded-lg disabled:opacity-50 hover:bg-dark-border transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
