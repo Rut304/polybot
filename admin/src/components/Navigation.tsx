@@ -111,6 +111,7 @@ const navSections: NavSection[] = [
   {
     title: 'Settings',
     items: [
+      { href: '/account', label: 'Account', icon: Eye },
       { href: '/settings', label: 'Settings', icon: Settings },
       { href: '/secrets', label: 'API Keys', icon: Key },
       { href: '/team', label: 'Team', icon: Users },

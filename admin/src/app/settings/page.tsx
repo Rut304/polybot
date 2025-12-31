@@ -143,6 +143,10 @@ interface PlatformsSectionProps {
     setEnableAlpaca: (v: boolean) => void;
     enableIbkr: boolean;
     setEnableIbkr: (v: boolean) => void;
+    enableRobinhood: boolean;
+    setEnableRobinhood: (v: boolean) => void;
+    enableWebull: boolean;
+    setEnableWebull: (v: boolean) => void;
   };
 }
 
@@ -163,6 +167,8 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
     { id: 'hyperliquid', name: 'Hyperliquid', type: 'Crypto Exchange', enabled: config.enableHyperliquid, setEnabled: config.setEnableHyperliquid },
     { id: 'alpaca', name: 'Alpaca', type: 'Stock Broker', enabled: config.enableAlpaca, setEnabled: config.setEnableAlpaca },
     { id: 'ibkr', name: 'Interactive Brokers', type: 'Options Broker', enabled: config.enableIbkr, setEnabled: config.setEnableIbkr },
+    { id: 'robinhood', name: 'Robinhood', type: 'Stock Broker', enabled: config.enableRobinhood, setEnabled: config.setEnableRobinhood },
+    { id: 'webull', name: 'Webull', type: 'Stock Broker', enabled: config.enableWebull, setEnabled: config.setEnableWebull },
   ];
 
   // Group by type
@@ -275,7 +281,7 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
           {stockBrokers.map(renderPlatformRow)}
         </div>
         <p className="text-xs text-gray-500 mt-4">
-          Note: Robinhood & Webull support coming soon
+          💡 Connect your broker credentials in API Keys to enable live trading
         </p>
       </div>
     </>
@@ -410,7 +416,7 @@ function SubscriptionSection() {
           </div>
           
           <div className="flex gap-2">
-            {!isFree && profile?.stripeCustomerId && (
+            {!isFree && (
               <button
                 onClick={handleManageSubscription}
                 disabled={loading}
@@ -978,6 +984,8 @@ export default function SettingsPage() {
   // Stock Brokers
   const [enableAlpaca, setEnableAlpaca] = useState(config?.enable_alpaca ?? false);
   const [enableIbkr, setEnableIbkr] = useState(config?.enable_ibkr ?? false);
+  const [enableRobinhood, setEnableRobinhood] = useState(config?.enable_robinhood ?? false);
+  const [enableWebull, setEnableWebull] = useState(config?.enable_webull ?? false);
 
   // =========================================================================
   // STARTING BALANCES (for P&L tracking - not secrets)
@@ -1257,6 +1265,8 @@ export default function SettingsPage() {
       if (config.enable_hyperliquid !== undefined) setEnableHyperliquid(config.enable_hyperliquid);
       if (config.enable_alpaca !== undefined) setEnableAlpaca(config.enable_alpaca);
       if (config.enable_ibkr !== undefined) setEnableIbkr(config.enable_ibkr);
+      if (config.enable_robinhood !== undefined) setEnableRobinhood(config.enable_robinhood);
+      if (config.enable_webull !== undefined) setEnableWebull(config.enable_webull);
 
       // Starting Balances (for P&L tracking)
       if (config.polymarket_starting_balance !== undefined) setPolymarketStartingBalance(config.polymarket_starting_balance);
@@ -1375,6 +1385,8 @@ export default function SettingsPage() {
     if (enableCoinbase !== (config.enable_coinbase ?? false)) return true;
     if (enableAlpaca !== (config.enable_alpaca ?? false)) return true;
     if (enableIbkr !== (config.enable_ibkr ?? false)) return true;
+    if (enableRobinhood !== (config.enable_robinhood ?? false)) return true;
+    if (enableWebull !== (config.enable_webull ?? false)) return true;
 
     // Check trading params
     if (minProfitPercent !== (config.min_profit_percent ?? 1.0)) return true;
@@ -1395,6 +1407,7 @@ export default function SettingsPage() {
     config, status,
     botEnabled, dryRunMode, requireApproval,
     polymarketEnabled, kalshiEnabled, enableBinance, enableCoinbase, enableAlpaca, enableIbkr,
+    enableRobinhood, enableWebull,
     minProfitPercent, maxTradeSize, maxDailyLoss, scanInterval,
     polymarketStartingBalance, kalshiStartingBalance, binanceStartingBalance,
     coinbaseStartingBalance, alpacaStartingBalance, ibkrStartingBalance
@@ -1424,6 +1437,8 @@ export default function SettingsPage() {
         enable_coinbase: enableCoinbase,
         enable_alpaca: enableAlpaca,
         enable_ibkr: enableIbkr,
+        enable_robinhood: enableRobinhood,
+        enable_webull: enableWebull,
 
         min_profit_percent: minProfitPercent,
         max_trade_size: maxTradeSize,
@@ -2072,6 +2087,8 @@ export default function SettingsPage() {
                 enableHyperliquid, setEnableHyperliquid,
                 enableAlpaca, setEnableAlpaca,
                 enableIbkr, setEnableIbkr,
+                enableRobinhood, setEnableRobinhood,
+                enableWebull, setEnableWebull,
               }}
             />
           </motion.div>

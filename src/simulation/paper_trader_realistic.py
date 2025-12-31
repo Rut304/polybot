@@ -561,7 +561,8 @@ class RealisticPaperTrader:
             # Construct opportunity record for DB
             # Use 'skipped' status so it shows up in Missed Revenue queries
             opp = {
-                "market_name": market_title,
+                "buy_market_name": market_title,
+                "sell_market_name": opportunity_info.get("market_b_title", ""),
                 "profit_percent": float(spread_pct),
                 "status": "skipped",
                 "skip_reason": reason,
@@ -868,7 +869,8 @@ class RealisticPaperTrader:
             if self.db:
                 self.db.log_opportunity({
                     "opportunity_id": opportunity_id,
-                    "market_name": market_a_title,
+                    "buy_market_name": market_a_title,
+                    "sell_market_name": market_b_title or f"Resolution: {market_a_title[:100]}",
                     "buy_platform": platform_a,
                     "sell_platform": platform_b,
                     "buy_market_id": market_a_id,

@@ -20,11 +20,13 @@ import {
   RefreshCw,
   PlayCircle,
   Banknote,
+  Shield,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { ProFeature } from '@/components/FeatureGate';
+import { useAuth } from '@/lib/auth';
 
 interface CostItem {
   category: string;
@@ -146,6 +148,7 @@ type TimeFrame = 'day' | 'week' | 'month' | 'year' | 'all';
 type DataMode = 'simulated' | 'live';
 
 export default function BusinessPage() {
+  const { isAdmin } = useAuth();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('month');
   const [showCostBreakdown, setShowCostBreakdown] = useState(true);
   const [dataMode, setDataMode] = useState<DataMode>('simulated');
@@ -561,21 +564,31 @@ export default function BusinessPage() {
         </div>
       </div>
 
-      {/* Infrastructure Costs Breakdown */}
-      <div className="card">
-        <button
-          onClick={() => setShowCostBreakdown(!showCostBreakdown)}
-          className="w-full p-4 flex items-center justify-between hover:bg-gray-800/50 transition-colors"
-        >
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <Server className="text-orange-400" />
-            Infrastructure Cost Breakdown
-            <span className="text-sm font-normal text-gray-400">
-              (${infraCosts.monthlyRate}/month)
-            </span>
-          </h2>
-          <RefreshCw className={`w-5 h-5 text-gray-400 transition-transform ${showCostBreakdown ? 'rotate-180' : ''}`} />
-        </button>
+      {/* ==================== ADMIN-ONLY SECTION ==================== */}
+      {isAdmin && (
+        <>
+          {/* Admin Section Header */}
+          <div className="flex items-center gap-3 mt-8 mb-4">
+            <Shield className="w-5 h-5 text-yellow-500" />
+            <h2 className="text-lg font-semibold text-yellow-400">Admin Analytics</h2>
+            <div className="flex-1 h-px bg-yellow-500/20" />
+          </div>
+
+          {/* Infrastructure Costs Breakdown */}
+          <div className="card border-yellow-500/20">
+            <button
+              onClick={() => setShowCostBreakdown(!showCostBreakdown)}
+              className="w-full p-4 flex items-center justify-between hover:bg-gray-800/50 transition-colors"
+            >
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Server className="text-orange-400" />
+                Infrastructure Cost Breakdown
+                <span className="text-sm font-normal text-gray-400">
+                  (${infraCosts.monthlyRate}/month)
+                </span>
+              </h2>
+              <RefreshCw className={`w-5 h-5 text-gray-400 transition-transform ${showCostBreakdown ? 'rotate-180' : ''}`} />
+            </button>
         
         {showCostBreakdown && (
           <div className="p-4 pt-0 border-t border-gray-700">
@@ -725,6 +738,9 @@ export default function BusinessPage() {
           * Projections based on current {infraCosts.days}-day performance. Actual results may vary.
         </p>
       </div>
+        </>
+      )}
+      {/* ==================== END ADMIN-ONLY SECTION ==================== */}
     </div>
     </ProFeature>
   );
