@@ -32,8 +32,100 @@ import {
   Flame,
   Award,
   Percent,
+  HelpCircle,
+  Info,
 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
+
+// ============================================
+// TOOLTIP EXPLANATIONS
+// ============================================
+const METRIC_TOOLTIPS = {
+  sharpeRatio: {
+    title: "Sharpe Ratio",
+    explanation: "Measures risk-adjusted returns. It tells you how much extra return you're getting for each unit of risk taken.",
+    interpretation: "• Above 2.0 = Excellent (hedge fund level)\n• 1.0-2.0 = Good\n• 0.5-1.0 = Average\n• Below 0.5 = Poor",
+    actionable: "If low, you may be taking too much risk for your returns. Consider reducing position sizes or using less volatile strategies."
+  },
+  sortinoRatio: {
+    title: "Sortino Ratio", 
+    explanation: "Like Sharpe but only penalizes downside volatility. Upside volatility (big wins) doesn't count against you.",
+    interpretation: "• Above 2.0 = Excellent\n• 1.0-2.0 = Good\n• Below 1.0 = Needs improvement",
+    actionable: "Better than Sharpe for strategies with asymmetric returns. If Sortino >> Sharpe, your wins are larger than your losses."
+  },
+  calmarRatio: {
+    title: "Calmar Ratio",
+    explanation: "Annual return divided by maximum drawdown. Shows how well returns compensate for the worst-case scenario.",
+    interpretation: "• Above 3.0 = Excellent\n• 1.0-3.0 = Good\n• Below 1.0 = Returns don't justify the risk",
+    actionable: "If low, your max drawdown is too large relative to returns. Consider tighter stop losses."
+  },
+  maxDrawdown: {
+    title: "Maximum Drawdown",
+    explanation: "The largest peak-to-trough decline in your account. This is your worst-case historical loss.",
+    interpretation: "• Under 10% = Conservative\n• 10-25% = Moderate\n• 25-50% = Aggressive\n• Over 50% = Dangerous",
+    actionable: "Can you emotionally handle this drawdown? Most traders quit after 30%+ drawdowns. Set this as your risk tolerance limit."
+  },
+  expectancy: {
+    title: "Expectancy",
+    explanation: "The average amount you expect to win (or lose) per trade. This is your true edge.",
+    interpretation: "• Positive = You have an edge\n• Negative = You're losing money on average\n• Higher = Better system",
+    actionable: "Multiply by your average trades per month to estimate monthly profits. Focus on strategies with highest expectancy."
+  },
+  riskOfRuin: {
+    title: "Risk of Ruin",
+    explanation: "Probability of losing your entire account based on your win rate, average win/loss, and position sizing.",
+    interpretation: "• Under 1% = Very safe\n• 1-5% = Acceptable\n• 5-20% = Risky\n• Over 20% = Reduce size immediately",
+    actionable: "If high, reduce position sizes or improve win rate. This should be your #1 priority to fix."
+  },
+  profitFactor: {
+    title: "Profit Factor",
+    explanation: "Total gross profits divided by total gross losses. Shows how many dollars you win for every dollar lost.",
+    interpretation: "• Above 2.0 = Excellent\n• 1.5-2.0 = Good\n• 1.0-1.5 = Marginal\n• Below 1.0 = Losing money",
+    actionable: "Aim for at least 1.5. If below 1.0, your losses outweigh wins - stop trading and review your strategy."
+  },
+  kellyCriterion: {
+    title: "Kelly Criterion",
+    explanation: "The mathematically optimal percentage of your bankroll to bet on each trade to maximize long-term growth.",
+    interpretation: "• This is the theoretical max - most pros use 25-50% of Kelly\n• Higher Kelly = more aggressive growth but more volatility",
+    actionable: "Use Half-Kelly (divide by 2) for a safer approach. Full Kelly is too aggressive for most traders."
+  },
+  rMultiple: {
+    title: "R-Multiple",
+    explanation: "Your profit/loss expressed as multiples of your initial risk (R). If you risk $100 and make $300, that's +3R.",
+    interpretation: "• Positive R = Winning trade\n• Negative R = Losing trade\n• Avg R shows your system's edge",
+    actionable: "Track every trade in R. Aim for average R > 0.5. The best traders average 1R+ per trade."
+  },
+  totalR: {
+    title: "Total R",
+    explanation: "Sum of all R-multiples from your trades. Represents your total risk-adjusted profit.",
+    interpretation: "• Higher is better\n• Shows cumulative edge over all trades\n• Easy to compare strategies",
+    actionable: "Divide by number of trades to get your average R per trade - your true performance metric."
+  },
+  winStreak: {
+    title: "Win Streak",
+    explanation: "Maximum consecutive winning trades. Shows your best hot streak.",
+    interpretation: "Long streaks suggest strong edge or favorable market conditions.",
+    actionable: "Don't get overconfident during streaks. Stick to your position sizing rules."
+  },
+  lossStreak: {
+    title: "Loss Streak", 
+    explanation: "Maximum consecutive losing trades. This is your worst cold streak.",
+    interpretation: "Expect loss streaks of 5+ even with 60% win rate. It's normal.",
+    actionable: "Your position size should survive your worst expected streak. If streak > 10, review strategy."
+  },
+  avgWin: {
+    title: "Average Win",
+    explanation: "The average dollar amount you make on winning trades.",
+    interpretation: "Compare to Avg Loss to understand your risk/reward profile.",
+    actionable: "Ideally 1.5x-2x your average loss. If smaller, you need higher win rate to be profitable."
+  },
+  avgLoss: {
+    title: "Average Loss",
+    explanation: "The average dollar amount you lose on losing trades.",
+    interpretation: "Should be consistently smaller than your average win for positive expectancy.",
+    actionable: "Keep losses small with stop losses. Cutting losses is the #1 skill for profitable trading."
+  }
+};
 
 // ============================================
 // TYPES
@@ -294,36 +386,83 @@ function calculateAdvancedMetrics(trades: Trade[], startingBalance: number) {
 // COMPONENTS
 // ============================================
 
-// Risk Metrics Card
+// Tooltip Component for Metrics
+function MetricTooltip({ tooltip }: { tooltip: { title: string; explanation: string; interpretation: string; actionable: string } }) {
+  return (
+    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 p-4 bg-dark-bg border border-dark-border rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none">
+      <div className="text-sm font-bold text-white mb-2">{tooltip.title}</div>
+      <div className="text-xs text-gray-300 mb-3">{tooltip.explanation}</div>
+      <div className="text-xs text-gray-400 mb-2 whitespace-pre-line">
+        <span className="text-neon-blue font-medium">📊 How to read:</span>
+        <br />{tooltip.interpretation}
+      </div>
+      <div className="text-xs text-gray-400 whitespace-pre-line">
+        <span className="text-neon-green font-medium">💡 Action:</span>
+        <br />{tooltip.actionable}
+      </div>
+      {/* Arrow */}
+      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-8 border-transparent border-t-dark-border" />
+    </div>
+  );
+}
+
+// Risk Metrics Card with Enhanced Tooltip
 function RiskMetricCard({ 
   label, 
   value, 
   icon: Icon, 
   color, 
   subtext,
-  tooltip 
+  tooltipData 
 }: { 
   label: string; 
   value: string | number; 
   icon: React.ElementType;
   color: string;
   subtext?: string;
-  tooltip?: string;
+  tooltipData?: { title: string; explanation: string; interpretation: string; actionable: string };
 }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="bg-dark-card rounded-xl p-4 border border-dark-border relative group"
-      title={tooltip}
+      className="bg-dark-card rounded-xl p-4 border border-dark-border relative group cursor-help"
     >
+      {tooltipData && <MetricTooltip tooltip={tooltipData} />}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+          {label}
+          {tooltipData && <Info className="w-3 h-3 text-gray-600 group-hover:text-neon-blue transition-colors" />}
+        </span>
         <Icon className={cn("w-4 h-4", color)} />
       </div>
       <div className={cn("text-2xl font-bold", color)}>{value}</div>
       {subtext && <div className="text-xs text-gray-500 mt-1">{subtext}</div>}
     </motion.div>
+  );
+}
+
+// Mini Metric Card with Tooltip for Additional Metrics Row
+function MiniMetricCard({
+  label,
+  value,
+  color,
+  tooltip
+}: {
+  label: string;
+  value: string;
+  color: string;
+  tooltip: { title: string; explanation: string; interpretation: string; actionable: string };
+}) {
+  return (
+    <div className="bg-dark-card rounded-lg p-3 border border-dark-border relative group cursor-help">
+      <MetricTooltip tooltip={tooltip} />
+      <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+        {label}
+        <Info className="w-3 h-3 text-gray-600 group-hover:text-neon-blue transition-colors" />
+      </div>
+      <div className={cn("text-lg font-bold", color)}>{value}</div>
+    </div>
   );
 }
 
@@ -596,7 +735,7 @@ export function AdvancedAnalytics({ trades, startingBalance }: AdvancedAnalytics
             icon={Target}
             color={metrics.sharpeRatio >= 1 ? "text-green-400" : metrics.sharpeRatio >= 0 ? "text-yellow-400" : "text-red-400"}
             subtext={metrics.sharpeRatio >= 2 ? "Excellent" : metrics.sharpeRatio >= 1 ? "Good" : "Needs work"}
-            tooltip="Risk-adjusted return. >1 is good, >2 is excellent"
+            tooltipData={METRIC_TOOLTIPS.sharpeRatio}
           />
           
           <RiskMetricCard
@@ -605,7 +744,7 @@ export function AdvancedAnalytics({ trades, startingBalance }: AdvancedAnalytics
             icon={Shield}
             color={metrics.sortinoRatio >= 1.5 ? "text-green-400" : metrics.sortinoRatio >= 0.5 ? "text-yellow-400" : "text-red-400"}
             subtext="Downside risk focus"
-            tooltip="Like Sharpe but only considers downside volatility"
+            tooltipData={METRIC_TOOLTIPS.sortinoRatio}
           />
           
           <RiskMetricCard
@@ -614,7 +753,7 @@ export function AdvancedAnalytics({ trades, startingBalance }: AdvancedAnalytics
             icon={TrendingUp}
             color={metrics.calmarRatio >= 1 ? "text-green-400" : "text-yellow-400"}
             subtext="Return vs drawdown"
-            tooltip="Annual return divided by max drawdown"
+            tooltipData={METRIC_TOOLTIPS.calmarRatio}
           />
           
           <RiskMetricCard
@@ -623,7 +762,7 @@ export function AdvancedAnalytics({ trades, startingBalance }: AdvancedAnalytics
             icon={TrendingDown}
             color={metrics.maxDrawdownPercent < 10 ? "text-green-400" : metrics.maxDrawdownPercent < 25 ? "text-yellow-400" : "text-red-400"}
             subtext={formatCurrency(metrics.maxDrawdown)}
-            tooltip="Largest peak-to-trough decline"
+            tooltipData={METRIC_TOOLTIPS.maxDrawdown}
           />
           
           <RiskMetricCard
@@ -632,7 +771,7 @@ export function AdvancedAnalytics({ trades, startingBalance }: AdvancedAnalytics
             icon={Zap}
             color={metrics.expectancy > 0 ? "text-green-400" : "text-red-400"}
             subtext="Expected $/trade"
-            tooltip="Average expected profit per trade"
+            tooltipData={METRIC_TOOLTIPS.expectancy}
           />
           
           <RiskMetricCard
@@ -641,77 +780,68 @@ export function AdvancedAnalytics({ trades, startingBalance }: AdvancedAnalytics
             icon={AlertTriangle}
             color={metrics.riskOfRuin < 5 ? "text-green-400" : metrics.riskOfRuin < 20 ? "text-yellow-400" : "text-red-400"}
             subtext={metrics.riskOfRuin < 5 ? "Very low" : metrics.riskOfRuin < 20 ? "Moderate" : "High risk!"}
-            tooltip="Probability of catastrophic loss"
+            tooltipData={METRIC_TOOLTIPS.riskOfRuin}
           />
         </div>
       </motion.div>
 
       {/* === ADDITIONAL METRICS ROW === */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Profit Factor</div>
-          <div className={cn(
-            "text-lg font-bold",
-            metrics.profitFactor >= 1.5 ? "text-green-400" : metrics.profitFactor >= 1 ? "text-yellow-400" : "text-red-400"
-          )}>
-            {metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Profit Factor"
+          value={metrics.profitFactor === Infinity ? '∞' : metrics.profitFactor.toFixed(2)}
+          color={metrics.profitFactor >= 1.5 ? "text-green-400" : metrics.profitFactor >= 1 ? "text-yellow-400" : "text-red-400"}
+          tooltip={METRIC_TOOLTIPS.profitFactor}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Kelly %</div>
-          <div className="text-lg font-bold text-neon-blue">
-            {metrics.kellyCriterion.toFixed(1)}%
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Kelly %"
+          value={`${metrics.kellyCriterion.toFixed(1)}%`}
+          color="text-neon-blue"
+          tooltip={METRIC_TOOLTIPS.kellyCriterion}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Avg R-Multiple</div>
-          <div className={cn(
-            "text-lg font-bold",
-            metrics.avgR >= 0 ? "text-green-400" : "text-red-400"
-          )}>
-            {metrics.avgR >= 0 ? '+' : ''}{metrics.avgR.toFixed(2)}R
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Avg R-Multiple"
+          value={`${metrics.avgR >= 0 ? '+' : ''}${metrics.avgR.toFixed(2)}R`}
+          color={metrics.avgR >= 0 ? "text-green-400" : "text-red-400"}
+          tooltip={METRIC_TOOLTIPS.rMultiple}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Total R</div>
-          <div className={cn(
-            "text-lg font-bold",
-            metrics.totalR >= 0 ? "text-green-400" : "text-red-400"
-          )}>
-            {metrics.totalR >= 0 ? '+' : ''}{metrics.totalR.toFixed(1)}R
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Total R"
+          value={`${metrics.totalR >= 0 ? '+' : ''}${metrics.totalR.toFixed(1)}R`}
+          color={metrics.totalR >= 0 ? "text-green-400" : "text-red-400"}
+          tooltip={METRIC_TOOLTIPS.totalR}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Win Streak</div>
-          <div className="text-lg font-bold text-green-400">
-            {metrics.maxConsecutiveWins}
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Win Streak"
+          value={metrics.maxConsecutiveWins.toString()}
+          color="text-green-400"
+          tooltip={METRIC_TOOLTIPS.winStreak}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Loss Streak</div>
-          <div className="text-lg font-bold text-red-400">
-            {metrics.maxConsecutiveLosses}
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Loss Streak"
+          value={metrics.maxConsecutiveLosses.toString()}
+          color="text-red-400"
+          tooltip={METRIC_TOOLTIPS.lossStreak}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Avg Win</div>
-          <div className="text-lg font-bold text-green-400">
-            {formatCurrency(metrics.avgWin)}
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Avg Win"
+          value={formatCurrency(metrics.avgWin)}
+          color="text-green-400"
+          tooltip={METRIC_TOOLTIPS.avgWin}
+        />
         
-        <div className="bg-dark-card rounded-lg p-3 border border-dark-border">
-          <div className="text-xs text-gray-500 mb-1">Avg Loss</div>
-          <div className="text-lg font-bold text-red-400">
-            {formatCurrency(metrics.avgLoss)}
-          </div>
-        </div>
+        <MiniMetricCard
+          label="Avg Loss"
+          value={formatCurrency(metrics.avgLoss)}
+          color="text-red-400"
+          tooltip={METRIC_TOOLTIPS.avgLoss}
+        />
       </div>
 
       {/* === EQUITY & DRAWDOWN CHARTS === */}
