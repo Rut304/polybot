@@ -167,6 +167,7 @@ class SinglePlatformScanner:
         # Deduplication: track recently traded markets
         self.market_cooldown_seconds = market_cooldown_seconds
         self._recently_traded: Dict[str, datetime] = {}  # market_id -> last_trade_time
+        self._cooldown_lock = asyncio.Lock()  # CRITICAL: Prevent race conditions
 
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
@@ -255,42 +256,45 @@ class SinglePlatformScanner:
     # COOLDOWN / DEDUPLICATION
     # =========================================================================
 
-    def _is_on_cooldown(self, market_id: str, platform: str) -> bool:
-        """Check if a market is on cooldown (recently traded)."""
-        key = f"{platform}:{market_id}"
-        if key not in self._recently_traded:
-            return False
+    async def _is_on_cooldown(self, market_id: str, platform: str) -> bool:
+        """Check if a market is on cooldown (recently traded). Thread-safe."""
+        async with self._cooldown_lock:
+            key = f"{platform}:{market_id}"
+            if key not in self._recently_traded:
+                return False
 
-        last_trade = self._recently_traded[key]
-        elapsed = (datetime.now() - last_trade).total_seconds()
-        return elapsed < self.market_cooldown_seconds
+            last_trade = self._recently_traded[key]
+            elapsed = (datetime.now() - last_trade).total_seconds()
+            return elapsed < self.market_cooldown_seconds
 
-    def mark_traded(self, market_id: str, platform: str) -> None:
-        """Mark a market as recently traded (starts cooldown)."""
-        key = f"{platform}:{market_id}"
-        self._recently_traded[key] = datetime.now()
+    async def mark_traded(self, market_id: str, platform: str) -> None:
+        """Mark a market as recently traded (starts cooldown). Thread-safe."""
+        async with self._cooldown_lock:
+            key = f"{platform}:{market_id}"
+            self._recently_traded[key] = datetime.now()
 
-        # Cleanup old entries (older than 2x cooldown)
-        cutoff = datetime.now() - timedelta(
-            seconds=self.market_cooldown_seconds * 2
-        )
-        self._recently_traded = {
-            k: v for k, v in self._recently_traded.items()
-            if v > cutoff
-        }
+            # Cleanup old entries (older than 2x cooldown)
+            cutoff = datetime.now() - timedelta(
+                seconds=self.market_cooldown_seconds * 2
+            )
+            self._recently_traded = {
+                k: v for k, v in self._recently_traded.items()
+                if v > cutoff
+            }
 
-    def get_cooldown_stats(self) -> Dict[str, Any]:
-        """Get cooldown statistics."""
-        now = datetime.now()
-        active = sum(
-            1 for v in self._recently_traded.values()
-            if (now - v).total_seconds() < self.market_cooldown_seconds
-        )
-        return {
-            "markets_on_cooldown": active,
-            "total_tracked": len(self._recently_traded),
-            "cooldown_seconds": self.market_cooldown_seconds,
-        }
+    async def get_cooldown_stats(self) -> Dict[str, Any]:
+        """Get cooldown statistics. Thread-safe."""
+        async with self._cooldown_lock:
+            now = datetime.now()
+            active = sum(
+                1 for v in self._recently_traded.values()
+                if (now - v).total_seconds() < self.market_cooldown_seconds
+            )
+            return {
+                "markets_on_cooldown": active,
+                "total_tracked": len(self._recently_traded),
+                "cooldown_seconds": self.market_cooldown_seconds,
+            }
 
     # =========================================================================
     # POLYMARKET SCANNING
@@ -384,7 +388,7 @@ class SinglePlatformScanner:
         event_id = event.get("id", "unknown")
 
         # Check cooldown first - skip if recently traded
-        if self._is_on_cooldown(event_id, "polymarket"):
+        if await self._is_on_cooldown(event_id, "polymarket"):
             self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_on_cooldown"] += 1
             return None  # Skip without logging (reduces noise)
 
@@ -595,7 +599,7 @@ class SinglePlatformScanner:
         market_title = market.get("question", "Unknown")
 
         # Check cooldown first - skip if recently traded
-        if self._is_on_cooldown(market_id, "polymarket"):
+        if await self._is_on_cooldown(market_id, "polymarket"):
             self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_on_cooldown"] += 1
             return None  # Skip without logging (reduces noise)
 
@@ -885,7 +889,7 @@ class SinglePlatformScanner:
         profit_pct_float = None
 
         # Check cooldown first - skip if recently traded
-        if self._is_on_cooldown(market_id, "kalshi"):
+        if await self._is_on_cooldown(market_id, "kalshi"):
             self.stats[ArbitrageType.KALSHI_SINGLE]["markets_on_cooldown"] += 1
             return None  # Skip without logging (reduces noise)
 

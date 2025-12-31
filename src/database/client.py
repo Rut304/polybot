@@ -899,6 +899,9 @@ class Database:
             logger.error(f"Failed to get bot status: {e}")
             return None
 
+    # Track consecutive heartbeat failures for escalation
+    _heartbeat_failures: int = 0
+
     def heartbeat(
         self,
         version: str = None,
@@ -913,21 +916,33 @@ class Database:
         """
         Update heartbeat timestamp and detailed metrics.
         Writes to both polybot_status (legacy) and polybot_heartbeat (new detailed table).
+        
+        CRITICAL: Must filter by user_id for multi-tenant support!
         """
         if not self._client:
             return
 
         try:
             # Legacy: Update polybot_status table
+            # CRITICAL FIX: Filter by user_id for multi-tenant support
             update_data = {
                 "last_heartbeat_at": datetime.now(timezone.utc).isoformat(),
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
                 "is_running": True,
             }
             if version:
                 update_data["version"] = version
 
-            result = self._client.table("polybot_status").select("id").limit(1).execute()
+            # Multi-tenant: Update status for THIS user only
+            effective_user_id = user_id or self.user_id
+            if effective_user_id:
+                result = self._client.table("polybot_status").select("id").eq(
+                    "user_id", effective_user_id
+                ).limit(1).execute()
+            else:
+                # Legacy single-tenant fallback
+                result = self._client.table("polybot_status").select("id").limit(1).execute()
+            
             if result.data:
                 self._client.table("polybot_status").update(
                     update_data
@@ -961,14 +976,27 @@ class Database:
 
             self._client.table("polybot_heartbeat").insert(heartbeat_data).execute()
 
+            # Reset failure counter on success
+            self._heartbeat_failures = 0
+
         except Exception as e:
-            logger.debug(f"Heartbeat failed: {e}")
+            # FIXED: Log as warning, not debug - this is important!
+            self._heartbeat_failures = getattr(self, '_heartbeat_failures', 0) + 1
+            if self._heartbeat_failures >= 5:
+                logger.error(
+                    f"CRITICAL: {self._heartbeat_failures} consecutive heartbeat "
+                    f"failures! Last error: {e}"
+                )
+            else:
+                logger.warning(f"Heartbeat failed ({self._heartbeat_failures}/5): {e}")
 
     # ==================== Trading Config ====================
 
     def get_trading_config(self) -> Optional[Dict]:
         """
         Get trading configuration from polybot_config table.
+        
+        MULTI-TENANT: Tries user-specific config first, falls back to global.
 
         Returns:
             Config dict with trading parameters, or None if not available
@@ -978,12 +1006,26 @@ class Database:
             return None
 
         try:
+            # Multi-tenant: Try user-specific config first
+            if self.user_id:
+                result = self._client.table("polybot_config").select(
+                    "*"
+                ).eq("user_id", self.user_id).limit(1).execute()
+                
+                if result.data and len(result.data) > 0:
+                    logger.info(
+                        f"✓ Loaded user-specific config for {self.user_id[:8]}..."
+                    )
+                    return result.data[0]
+                # Fall through to global config
+            
+            # Legacy/fallback: Global config (id=1)
             result = self._client.table("polybot_config").select(
                 "*"
             ).eq("id", 1).single().execute()
 
             if result.data:
-                logger.info("✓ Loaded trading config from database")
+                logger.info("✓ Loaded global trading config from database")
                 return result.data
             return None
 
@@ -994,6 +1036,8 @@ class Database:
     def update_trading_config(self, config_data: Dict[str, Any]) -> bool:
         """
         Update trading configuration in polybot_config table.
+        
+        MULTI-TENANT: Updates user-specific config if user_id is set.
 
         Args:
             config_data: Dict of config fields to update
@@ -1006,13 +1050,23 @@ class Database:
 
         try:
             # Add updated_at timestamp
-            config_data["updated_at"] = datetime.utcnow().isoformat()
+            config_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-            self._client.table("polybot_config").update(
-                config_data
-            ).eq("id", 1).execute()
-
-            logger.info("✓ Updated trading config in database")
+            # Multi-tenant: Update user-specific config
+            if self.user_id:
+                self._client.table("polybot_config").update(
+                    config_data
+                ).eq("user_id", self.user_id).execute()
+                logger.info(
+                    f"✓ Updated config for user {self.user_id[:8]}..."
+                )
+            else:
+                # Legacy: Update global config
+                self._client.table("polybot_config").update(
+                    config_data
+                ).eq("id", 1).execute()
+                logger.info("✓ Updated global trading config in database")
+            
             return True
 
         except Exception as e:
