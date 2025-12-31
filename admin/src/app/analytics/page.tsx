@@ -41,6 +41,7 @@ import { PageCTA } from '@/components/QuickStartGuide';
 import { CumulativePnLChart, DailyPnLChart, STRATEGY_COLORS } from '@/components/TradingViewChart';
 import { PlatformFilter, TimeRangeFilter, TIME_RANGES } from '@/components/PlatformFilter';
 import { usePlatforms } from '@/lib/PlatformContext';
+import { AdvancedAnalytics } from '@/components/AdvancedAnalytics';
 
 // Platform colors - comprehensive list supporting all potential platforms
 const PLATFORM_COLORS: Record<string, string> = {
@@ -858,6 +859,17 @@ export default function AnalyticsPage() {
           </h3>
         </div>
         <StrategyPerformanceTable tradingMode={tradingModeFilter} />
+      </motion.div>
+
+      {/* === ADVANCED ANALYTICS (PRO FEATURE) === */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
+        <div className="border-t border-dark-border pt-8">
+          <AdvancedAnalytics trades={trades} startingBalance={startingBalance} />
+        </div>
       </motion.div>
 
       {/* Page CTA */}
