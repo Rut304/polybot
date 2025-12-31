@@ -388,7 +388,6 @@ export default function PositionsPage() {
             </select>
           </>
         )}
-        )}
       </div>
 
       {/* Positions Table */}
