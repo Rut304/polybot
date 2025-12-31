@@ -34,6 +34,7 @@ This document covers setting up external monitoring for PolyBot using free servi
 ### Expected Responses
 
 **`/health` endpoint:**
+
 ```json
 {
   "status": "ok",
@@ -44,6 +45,7 @@ This document covers setting up external monitoring for PolyBot using free servi
 ```
 
 **`/status` endpoint:**
+
 ```json
 {
   "status": "running",
@@ -84,6 +86,7 @@ This document covers setting up external monitoring for PolyBot using free servi
 2. In Uptime Robot, add alert contact type: **Webhook**
 3. URL: Your Discord webhook URL
 4. Add POST body:
+
 ```json
 {
   "content": "🚨 *monitorFriendlyName* is *alertTypeFriendlyName*!"
@@ -142,6 +145,7 @@ Schedule via Supabase cron or external scheduler.
 PolyBot on Lightsail can use CloudWatch for monitoring:
 
 1. **Enable Container Monitoring**:
+
    ```bash
    aws lightsail update-container-service \
      --service-name polyparlay \
@@ -150,6 +154,7 @@ PolyBot on Lightsail can use CloudWatch for monitoring:
    ```
 
 2. **Create CloudWatch Alarm**:
+
    ```bash
    aws cloudwatch put-metric-alarm \
      --alarm-name "PolyBot-HealthCheck" \
@@ -199,6 +204,7 @@ WantedBy=multi-user.target
 ```
 
 Enable:
+
 ```bash
 sudo systemctl enable polybot
 sudo systemctl start polybot

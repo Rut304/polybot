@@ -90,10 +90,10 @@ Live trading IS completely wired up:
 - [ ] Discord webhook notifications
 - [ ] Forecast tournaments with prizes
 - [ ] Social proof (testimonials, live user count)
-- [ ] **Set up Uptime Robot** for external alerting (optional - internal monitoring works)
-  - Dashboard already has bot monitoring via `useBotStatus()` hook
-  - Uptime Robot adds external email/SMS alerts if entire system down
-  - Follow `docs/MONITORING_SETUP.md` if desired
+- [x] **Set up Uptime Robot** ✅ COMPLETE
+  - Status page: https://stats.uptimerobot.com/2bYfTzqSH4
+  - 3 monitors active: polyparlay.io, /health, /status
+  - API keys added to .env.local, GitHub secrets, Vercel
 
 ---
 

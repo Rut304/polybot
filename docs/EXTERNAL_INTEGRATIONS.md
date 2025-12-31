@@ -95,6 +95,7 @@ You can use these TradingView placeholders:
 ### Response Format
 
 **Success:**
+
 ```json
 {
   "success": true,
@@ -111,6 +112,7 @@ You can use these TradingView placeholders:
 ```
 
 **Error:**
+
 ```json
 {
   "success": false,
@@ -264,6 +266,7 @@ Most endpoints require authentication via Supabase:
 3. **Include in requests**: `Authorization: Bearer <token>`
 
 Public endpoints (no auth required):
+
 - `/api/live-feed`
 - `/api/webhooks/tradingview` (with optional secret)
 - `/robots.txt`, `/sitemap.xml`, `/llms.txt`
@@ -328,6 +331,7 @@ CREATE TABLE polybot_watchlist (
 ## 📈 Monitoring
 
 View integration stats at:
+
 - `/admin/diagnostics` - Webhook logs
 - `/dashboard` - Trade metrics
 - Database views: `v_tradingview_signal_stats`, `v_tradingview_signal_performance`
