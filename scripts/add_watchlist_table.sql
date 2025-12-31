@@ -3,7 +3,17 @@
 -- Run this in Supabase SQL Editor
 -- ============================================
 
--- Create watchlist table for tracking markets of interest
+-- Add user_id column if table exists but column is missing
+DO $$ 
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'polybot_watchlist') THEN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'polybot_watchlist' AND column_name = 'user_id') THEN
+            ALTER TABLE polybot_watchlist ADD COLUMN user_id UUID;
+        END IF;
+    END IF;
+END $$;
+
+-- Create watchlist table for tracking markets of interest (if it doesn't exist)
 CREATE TABLE IF NOT EXISTS polybot_watchlist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID,  -- Optional: for multi-tenant support

@@ -1098,6 +1098,250 @@ Chat: Business hours (PST)
 Discord: Community 24/7`,
     view_count: 0,
   },
+  // ========================================
+  // STRATEGY TIERS (NEW)
+  // ========================================
+  {
+    id: '14',
+    slug: 'strategy-tiers',
+    title: 'Strategies by Plan Tier',
+    category: 'strategies',
+    excerpt: 'Complete list of strategies available in Free, Pro, and Elite plans.',
+    content: `# Strategies by Plan Tier
+
+See exactly which strategies are included in each subscription tier.
+
+---
+
+## 🆓 Free Tier - $0/month
+
+**Paper Trading Only** - No live trading, but full simulation with real data.
+
+### Included Strategies (3)
+
+| Strategy | Type | Description |
+|----------|------|-------------|
+| **RSI Strategy** | Stocks | Buy oversold, sell overbought based on RSI |
+| **Grid Trading** | Crypto | Place buy/sell orders at intervals |
+| **Paper Arbitrage** | Prediction | Practice arbitrage detection (paper only) |
+
+### Free Tier Limits
+- ❌ No live trading
+- ✅ Unlimited paper trades
+- ✅ Real-time market data
+- ✅ Full analytics dashboard
+- ✅ Up to 3 strategies active
+
+---
+
+## 💼 Pro Tier - $29/month
+
+**Live Trading Unlocked** - Execute real trades across all platforms.
+
+### All Free Strategies PLUS:
+
+#### Prediction Market Strategies (6)
+| Strategy | Confidence | Expected Return |
+|----------|------------|-----------------|
+| **Single-Platform Arbitrage** | 95% | 50-200% APY |
+| **Cross-Platform Arbitrage** | 90% | 30-100% APY |
+| **Market Making** | 85% | 10-20% APY |
+| **News Arbitrage** | 75% | 5-30%/event |
+| **BTC Bracket Arbitrage** | 85% | Variable |
+| **Political Event Trading** | 80% | Event-based |
+
+#### Crypto Strategies (4)
+| Strategy | Confidence | Expected Return |
+|----------|------------|-----------------|
+| **Funding Rate Arbitrage** | 85% | 15-50% APY |
+| **15-Min Scalping** | 90% | 30-80% APY |
+| **Pairs Trading** | 65% | 10-25% APY |
+| **Grid Trading Pro** | 75% | 20-60% APY |
+
+#### Stock Strategies (5)
+| Strategy | Confidence | Expected Return |
+|----------|------------|-----------------|
+| **RSI Strategy Pro** | 70% | 15-30% APY |
+| **Stock Momentum** | 70% | 20-40% APY |
+| **Sector Rotation** | 70% | 15-25% APY |
+| **Dividend Growth** | 65% | 10-20% APY |
+| **Earnings Momentum** | 70% | 20-40% APY |
+
+### Pro Tier Limits
+- ✅ 1,000 live trades/month
+- ✅ All 18 strategies above
+- ✅ AI Market Insights
+- ✅ Whale Signal Alerts
+- ✅ Email support
+
+---
+
+## 👑 Elite Tier - $99/month
+
+**Unlimited Everything** - Full platform access with premium features.
+
+### All Pro Strategies PLUS:
+
+#### Elite-Only Strategies (7)
+| Strategy | Confidence | Expected Return |
+|----------|------------|-----------------|
+| **Congressional Tracker** | 75% | 15-30% APY |
+| **Whale Copy Trading** | 70% | Variable |
+| **Liquidation Sniper** | 80% | 20-50%/event |
+| **Multi-Leg Arbitrage** | 85% | 40-100% APY |
+| **Options: Covered Calls** | 75% | 15-25% APY |
+| **Options: Iron Condor** | 70% | 20-30% APY |
+| **Options: Wheel Strategy** | 80% | 20-35% APY |
+
+#### Elite-Only Features
+| Feature | Description |
+|---------|-------------|
+| **Strategy Builder** | Create your own custom strategies |
+| **Tax Center** | Automatic tax reports (8949 forms) |
+| **API Access** | Programmatic access to your data |
+| **Priority Support** | <4 hour response time |
+| **Dedicated Slack** | Direct channel with our team |
+
+### Elite Tier Limits
+- ✅ **Unlimited** live trades
+- ✅ All 25+ strategies
+- ✅ Priority support
+- ✅ Custom strategies
+- ✅ Full API access
+
+---
+
+## Plan Comparison Summary
+
+| Feature | Free | Pro | Elite |
+|---------|------|-----|-------|
+| **Price** | $0 | $29/mo | $99/mo |
+| **Paper Trading** | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
+| **Live Trades** | ❌ | 1,000/mo | Unlimited |
+| **Strategies** | 3 | 18 | 25+ |
+| **AI Insights** | ❌ | ✅ | ✅ |
+| **Whale Tracker** | ❌ | Alerts only | Full access |
+| **Congress Tracker** | ❌ | ❌ | ✅ |
+| **Tax Reports** | ❌ | ❌ | ✅ |
+| **Strategy Builder** | ❌ | ❌ | ✅ |
+| **Support** | Community | Email | Priority |
+
+---
+
+## Upgrading Your Plan
+
+1. Go to **Settings → Pricing**
+2. Select your desired plan
+3. Enter payment information
+4. New features unlock **immediately**
+
+## Questions?
+
+- **Can I try Pro before paying?** Yes! Paper trading shows you how all strategies work before going live.
+- **Do I lose my data if I downgrade?** No, your history is preserved. Strategies just pause.
+- **Annual discount?** Coming soon - save 2 months!`,
+    view_count: 0,
+  },
+  // ========================================
+  // FEATURES BY PLAN
+  // ========================================
+  {
+    id: '15',
+    slug: 'features-by-plan',
+    title: 'Features by Plan',
+    category: 'billing',
+    excerpt: 'Complete breakdown of features included in each subscription plan.',
+    content: `# Features by Plan
+
+Detailed comparison of what's included in each PolyParlay subscription.
+
+---
+
+## Dashboard & Analytics
+
+| Feature | Free | Pro | Elite |
+|---------|:----:|:---:|:-----:|
+| Main Dashboard | ✅ | ✅ | ✅ |
+| P&L Tracking | ✅ | ✅ | ✅ |
+| Trade History | ✅ | ✅ | ✅ |
+| Strategy Performance | ✅ | ✅ | ✅ |
+| Advanced Analytics | ❌ | ✅ | ✅ |
+| Export to CSV | ❌ | ✅ | ✅ |
+
+---
+
+## Trading
+
+| Feature | Free | Pro | Elite |
+|---------|:----:|:---:|:-----:|
+| Paper Trading | Unlimited | Unlimited | Unlimited |
+| Live Trading | ❌ | 1,000/mo | Unlimited |
+| Polymarket | Paper only | ✅ | ✅ |
+| Kalshi | Paper only | ✅ | ✅ |
+| Alpaca Stocks | Paper only | ✅ | ✅ |
+| Crypto Exchanges | Paper only | ✅ | ✅ |
+| IBKR Options | ❌ | ❌ | ✅ |
+
+---
+
+## Strategies
+
+| Feature | Free | Pro | Elite |
+|---------|:----:|:---:|:-----:|
+| Basic Strategies | 3 | All | All |
+| Arbitrage Strategies | Paper only | ✅ | ✅ |
+| Crypto Strategies | Paper only | ✅ | ✅ |
+| Stock Strategies | Paper only | ✅ | ✅ |
+| Options Strategies | ❌ | ❌ | ✅ |
+| Congressional Tracker | ❌ | ❌ | ✅ |
+| Strategy Builder | ❌ | ❌ | ✅ |
+
+---
+
+## Research & Insights
+
+| Feature | Free | Pro | Elite |
+|---------|:----:|:---:|:-----:|
+| News Feed | ✅ | ✅ | ✅ |
+| Market Browser | ✅ | ✅ | ✅ |
+| AI Market Insights | ❌ | ✅ | ✅ |
+| Whale Signals | ❌ | Alerts | Full |
+| Congress Tracker | ❌ | ❌ | ✅ |
+| Sentiment Analysis | ❌ | ✅ | ✅ |
+
+---
+
+## Automation
+
+| Feature | Free | Pro | Elite |
+|---------|:----:|:---:|:-----:|
+| Scheduled Trading | ❌ | ✅ | ✅ |
+| TradingView Webhooks | ❌ | ✅ | ✅ |
+| Auto-Rebalancing | ❌ | ✅ | ✅ |
+| Custom Workflows | ❌ | ❌ | ✅ |
+| API Access | ❌ | ❌ | ✅ |
+
+---
+
+## Support & Extras
+
+| Feature | Free | Pro | Elite |
+|---------|:----:|:---:|:-----:|
+| Help Center | ✅ | ✅ | ✅ |
+| Discord Community | ✅ | ✅ | ✅ |
+| Email Support | ❌ | ✅ | ✅ |
+| Priority Support | ❌ | ❌ | ✅ |
+| Dedicated Slack | ❌ | ❌ | ✅ |
+| Tax Reports | ❌ | ❌ | ✅ |
+| Referral Bonuses | ❌ | ✅ | 2x |
+
+---
+
+## Ready to Upgrade?
+
+[View Pricing →](/pricing)`,
+    view_count: 0,
+  },
 ];
 
 // GET - Get help articles or single article

@@ -12,41 +12,30 @@
   - Checks `polybot_status` table heartbeat
   - Shows running/stopped state on dashboard
   - Shows last heartbeat time
-- [ ] **Verify all exchange clients initialize** after secrets added
+- [x] **Verify all exchange clients initialize** ✅ Bot running v1.1.25
 
-### 2. Documentation Consolidation 🔴 IN PROGRESS
+### 2. Documentation Consolidation ✅ COMPLETE
 
-**Current Problem**: Documentation scattered across 4+ locations:
+- [x] **Add Strategy Docs by Tier** - Added "Strategies by Plan Tier" article
+- [x] **Add Features by Plan comparison** - Added "Features by Plan" article
+- [x] `/help` now has 15 comprehensive articles (public)
+- [ ] ~~Merge /workflows~~ - KEEP SEPARATE (good UX per user request)
+- [ ] **Move API Reference from /docs to /help** (P2 - low priority)
 
-- `/help` - 13 user articles (public) ✅
-- `/docs` - 1,648 lines admin-only API docs (redundant)
-- `/workflows` - Strategy workflow visuals ✅ KEEP SEPARATE (good UX)
-- `/strategies` - Enable/configure with inline descriptions
-- `docs/*.md` - 23+ internal developer files (not user-facing)
+### 3. AI Support Chatbot ✅ INTEGRATED
 
-**Solution**: Unified Help Center at `/help`:
+- [x] **Add Crisp chat widget** - Added to layout.tsx
+  - Widget loads from crisp.chat CDN
+  - Configured via NEXT_PUBLIC_CRISP_WEBSITE_ID env var
+  - Ready to activate once Crisp account created
+- [ ] **Create Crisp account** (manual - crisp.chat, free tier)
+- [ ] **Train on PolyParlay documentation** (Crisp has built-in FAQ bot)
 
-- [ ] **Add Strategy Docs by Tier** (Free/Pro/Elite breakdown)
-- [ ] **Merge /workflows content into /help**
-- [ ] **Move API Reference from /docs to /help**
-- [ ] **Remove/redirect /docs page** (consolidate)
-- [ ] **Add Features by Plan comparison**
+### 4. Database Tables ✅ COMPLETE
 
-### 3. AI Support Chatbot 🆕
-
-- [ ] **Add AI chat widget** (bottom-right corner)
-  - Answers deployment, setup, support questions
-  - Uses documentation as knowledge base
-  - Reduces manual support burden
-  - Options: Intercom, Crisp, or OpenAI custom
-- [ ] **Train on PolyParlay documentation**
-- [ ] **Add escalation to email** for complex issues
-
-### 4. Database Tables (Manual SQL)
-
-- [ ] Run `scripts/add_stripe_columns.sql` in Supabase
-- [ ] Run `scripts/add_watchlist_table.sql` in Supabase
-- [ ] Run `scripts/add_tradingview_signals_table.sql` in Supabase
+- [x] Run `scripts/add_stripe_columns.sql` in Supabase
+- [x] Run `scripts/add_watchlist_table.sql` in Supabase
+- [x] Run `scripts/add_tradingview_signals_table.sql` in Supabase
 
 ---
 
@@ -91,7 +80,7 @@ Live trading IS completely wired up:
 - [ ] Forecast tournaments with prizes
 - [ ] Social proof (testimonials, live user count)
 - [x] **Set up Uptime Robot** ✅ COMPLETE
-  - Status page: https://stats.uptimerobot.com/2bYfTzqSH4
+  - Status page: <https://stats.uptimerobot.com/2bYfTzqSH4>
   - 3 monitors active: polyparlay.io, /health, /status
   - API keys added to .env.local, GitHub secrets, Vercel
 
