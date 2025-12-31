@@ -63,6 +63,55 @@ export function useBotVersion() {
   });
 }
 
+// User's connected exchanges
+export interface UserExchange {
+  id: string;
+  name: string;
+  type: 'crypto' | 'stocks' | 'prediction_market' | 'broker';
+  connected: boolean;
+  last_connected?: string;
+  supports?: {
+    spot?: boolean;
+    futures?: boolean;
+    options?: boolean;
+    paper?: boolean;
+  };
+}
+
+export interface UserExchangesResponse {
+  exchanges: UserExchange[];
+  connected_exchange_ids: string[];
+  has_crypto: boolean;
+  has_stocks: boolean;
+  has_options: boolean;
+  has_prediction_markets: boolean;
+  total_connected: number;
+}
+
+export function useUserExchanges() {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ['userExchanges', user?.id],
+    queryFn: async (): Promise<UserExchangesResponse | null> => {
+      if (!user) return null;
+      
+      const response = await fetch('/api/user-exchanges', {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch user exchanges');
+      }
+      
+      return response.json();
+    },
+    enabled: !!user,
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 10000,
+  });
+}
+
 // Fetch latest simulation stats
 export function useSimulationStats() {
   return useQuery({
@@ -110,7 +159,10 @@ export function useSimulationHistory(hours: number = 24) {
 }
 
 // Fetch simulated trades with optional trading mode filter
-// Multi-tenant: Filters by user_id via RLS (Supabase automatically filters based on auth.uid())
+// Multi-tenant logic:
+// - Paper/Simulation trades: Show shared simulation (user_id IS NULL) OR user's own paper trades
+// - Live trades: ONLY show user's own trades (strict isolation)
+// - All: Show both shared simulation AND user's own trades
 export function useSimulatedTrades(limit: number = 50, tradingMode?: 'paper' | 'live') {
   const { user } = useAuth();
   
@@ -122,13 +174,19 @@ export function useSimulatedTrades(limit: number = 50, tradingMode?: 'paper' | '
       let query = supabase
         .from('polybot_simulated_trades')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(limit);
       
-      // Filter by trading mode if specified
-      if (tradingMode) {
-        query = query.eq('trading_mode', tradingMode);
+      // Apply trading mode filter with appropriate user filtering
+      if (tradingMode === 'live') {
+        // Live trades: STRICT user filtering - only show user's own trades
+        query = query.eq('user_id', user.id).eq('trading_mode', 'live');
+      } else if (tradingMode === 'paper') {
+        // Paper/simulation trades: Show shared simulation (user_id IS NULL) OR user's own paper trades
+        query = query.eq('trading_mode', 'paper').or(`user_id.is.null,user_id.eq.${user.id}`);
+      } else {
+        // All trades: Show simulation trades (user_id IS NULL) OR user's own trades
+        query = query.or(`user_id.is.null,user_id.eq.${user.id}`);
       }
       
       const { data, error } = await query;
@@ -145,7 +203,7 @@ export function useSimulatedTrades(limit: number = 50, tradingMode?: 'paper' | '
 }
 
 // Fetch opportunities (with optional timeframe filter)
-// Multi-tenant: Filters by user_id
+// Multi-tenant: Show shared opportunities (user_id IS NULL) OR user's own
 export function useOpportunities(limit: number = 100, timeframeHours?: number) {
   const { user } = useAuth();
   
@@ -157,7 +215,7 @@ export function useOpportunities(limit: number = 100, timeframeHours?: number) {
       let query = supabase
         .from('polybot_opportunities')
         .select('*')
-        .eq('user_id', user.id);
+        .or(`user_id.is.null,user_id.eq.${user.id}`);
       
       // Apply timeframe filter if specified (0 = all time)
       if (timeframeHours && timeframeHours > 0) {
@@ -195,7 +253,7 @@ export interface StrategyStats {
 }
 
 // Fetch server-side computed strategy performance (100% accurate across full history)
-// Multi-tenant: Uses user-filtered view
+// For simulation data: Uses the public view (not user-filtered) since simulation is shared
 export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
   const { user } = useAuth();
   
@@ -204,11 +262,11 @@ export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
     queryFn: async (): Promise<StrategyStats[]> => {
       if (!user) return [];
       
-      // Use the multi-tenant view which filters by user_id
+      // For paper/simulation mode, use the main view (aggregates all simulation trades)
+      // For live mode, would use user-filtered view (when implemented)
       let query = supabase
-        .from('polybot_strategy_performance_user')
-        .select('*')
-        .eq('user_id', user.id);
+        .from('polybot_strategy_performance')
+        .select('*');
       
       // Filter by trading mode if specified
       if (tradingMode) {
@@ -216,25 +274,6 @@ export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
       }
       
       const { data, error } = await query;
-      
-      // Fallback to old view if new one doesn't exist
-      if (error && error.code === '42P01') {
-        // Table doesn't exist, use old view
-        let oldQuery = supabase
-          .from('polybot_strategy_performance')
-          .select('*');
-        
-        if (tradingMode) {
-          oldQuery = oldQuery.eq('trading_mode', tradingMode);
-        }
-        
-        const { data: oldData, error: oldError } = await oldQuery;
-        if (oldError) {
-          console.error('Error fetching strategy stats:', oldError);
-          return [];
-        }
-        return oldData || [];
-      }
       
       if (error) {
         console.error('Error fetching strategy stats:', error);
@@ -331,38 +370,24 @@ export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' 
       
       const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
       
-      // Fetch accurate totals from database aggregate view (filtered by user_id and trading mode)
+      // Fetch accurate totals from database aggregate view (simulation data is shared)
       let strategyQuery = supabase
-        .from('polybot_strategy_performance_user')
-        .select('*')
-        .eq('user_id', user.id);
+        .from('polybot_strategy_performance')
+        .select('*');
       
       // Filter by trading mode if specified
       if (tradingMode) {
         strategyQuery = strategyQuery.eq('trading_mode', tradingMode);
       }
       
-      let strategyPerf: any[] | null = null;
-      const { data: strategyData, error: perfError } = await strategyQuery;
+      const { data: strategyPerf, error: perfError } = await strategyQuery;
       
-      // Fallback to old view if new one doesn't exist
-      if (perfError && perfError.code === '42P01') {
-        let oldQuery = supabase
-          .from('polybot_strategy_performance')
-          .select('*');
-        if (tradingMode) {
-          oldQuery = oldQuery.eq('trading_mode', tradingMode);
-        }
-        const { data: oldData } = await oldQuery;
-        strategyPerf = oldData;
-      } else if (perfError) {
+      if (perfError) {
         console.error('Error fetching strategy performance:', perfError);
-      } else {
-        strategyPerf = strategyData;
       }
       
       // Fetch ACTUAL opportunities count from database (not limited array)
-      // Multi-tenant: Filter by user_id
+      // Show shared opportunities (user_id IS NULL) OR user's own
       let opportunitiesCount = opportunities.length;
       if (timeframeHours && timeframeHours > 0) {
         const since = new Date();
@@ -370,7 +395,7 @@ export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' 
         const { count, error: countError } = await supabase
           .from('polybot_opportunities')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
+          .or(`user_id.is.null,user_id.eq.${user.id}`)
           .gte('detected_at', since.toISOString());
         if (!countError && count !== null) {
           opportunitiesCount = count;
@@ -380,7 +405,7 @@ export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' 
         const { count, error: countError } = await supabase
           .from('polybot_opportunities')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id);
+          .or(`user_id.is.null,user_id.eq.${user.id}`);
         if (!countError && count !== null) {
           opportunitiesCount = count;
         }
@@ -1722,3 +1747,95 @@ export function useConnectionSummary() {
   };
 }
 
+
+// ============================================================================
+// PLATFORM-FILTERED HOOKS
+// ============================================================================
+// These hooks automatically filter data based on user's trading mode:
+// - SIMULATION MODE: Returns ALL data (user exploring all platforms)
+// - LIVE MODE: Returns only data from connected platforms
+//
+// Import { usePlatformFilter } from PlatformContext to use in custom hooks
+// ============================================================================
+
+import { usePlatformFilter } from './PlatformContext';
+
+/**
+ * Platform-filtered simulated trades
+ * In simulation mode: ALL trades across all platforms
+ * In live mode: Only trades from connected platforms
+ */
+export function usePlatformFilteredTrades(limit: number = 50, tradingMode?: 'paper' | 'live') {
+  const filterByPlatform = usePlatformFilter();
+  const { data: trades, ...rest } = useSimulatedTrades(limit, tradingMode);
+  
+  return {
+    ...rest,
+    data: filterByPlatform(trades || []),
+    unfilteredData: trades, // Original data if needed
+  };
+}
+
+/**
+ * Platform-filtered opportunities
+ * In simulation mode: ALL opportunities across all platforms
+ * In live mode: Only opportunities from connected platforms
+ */
+export function usePlatformFilteredOpportunities(limit: number = 100, timeframeHours?: number) {
+  const filterByPlatform = usePlatformFilter();
+  const { data: opportunities, ...rest } = useOpportunities(limit, timeframeHours);
+  
+  return {
+    ...rest,
+    data: filterByPlatform(opportunities || []),
+    unfilteredData: opportunities,
+  };
+}
+
+/**
+ * Platform-filtered positions
+ * In simulation mode: ALL positions across all platforms
+ * In live mode: Only positions from connected platforms
+ */
+export function usePlatformFilteredPositions(tradingMode?: 'paper' | 'live') {
+  const filterByPlatform = usePlatformFilter();
+  const { data: positions, ...rest } = usePositions(tradingMode);
+  
+  return {
+    ...rest,
+    data: filterByPlatform(positions || []),
+    unfilteredData: positions,
+  };
+}
+
+/**
+ * Platform-filtered P&L history
+ * In simulation mode: ALL P&L from all platforms
+ * In live mode: Only P&L from connected platforms
+ */
+export function usePlatformFilteredPnLHistory(hours: number = 24, tradingMode?: 'paper' | 'live') {
+  const filterByPlatform = usePlatformFilter();
+  const { data: pnlHistory, ...rest } = usePnLHistory(hours, tradingMode);
+  
+  return {
+    ...rest,
+    data: filterByPlatform(pnlHistory || []),
+    unfilteredData: pnlHistory,
+  };
+}
+
+/**
+ * Platform-filtered manual trades
+ * In simulation mode: ALL manual trades
+ * In live mode: Only trades from connected platforms
+ */
+export function usePlatformFilteredManualTrades(limit: number = 50) {
+  const filterByPlatform = usePlatformFilter();
+  const { data: trades, ...rest } = useManualTrades(limit);
+  
+  return {
+    ...rest,
+    data: filterByPlatform(trades || []),
+    unfilteredData: trades,
+  };
+}

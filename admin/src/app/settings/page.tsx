@@ -31,10 +31,12 @@ import {
   Database,
   RefreshCw,
   Gift,
+  Link2,
+  Unlink,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { useBotStatus, useBotConfig, useDisabledMarkets, useResetSimulation, useUpdateBotConfig, useUpdateBotStatus } from '@/lib/hooks';
+import { useBotStatus, useBotConfig, useDisabledMarkets, useResetSimulation, useUpdateBotConfig, useUpdateBotStatus, useUserExchanges } from '@/lib/hooks';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -96,6 +98,183 @@ function ToggleSwitch({ enabled, onToggle, disabled, size = 'md' }: ToggleSwitch
 import { CircuitBreakerStatus } from '@/components/CircuitBreakerStatus';
 import { useTier } from '@/lib/useTier';
 import { Crown, Sparkles, CreditCard, ExternalLink } from 'lucide-react';
+
+// Exchange icons
+const EXCHANGE_ICONS: Record<string, string> = {
+  polymarket: '🔮',
+  kalshi: '📊',
+  alpaca: '🦙',
+  binance: '🟡',
+  bybit: '🔶',
+  okx: '⬡',
+  kraken: '🐙',
+  coinbase: '🔵',
+  kucoin: '🟢',
+  ibkr: '🏛️',
+  robinhood: '🪶',
+  webull: '🐂',
+};
+
+// Platforms Section Component with live connection status
+interface PlatformsSectionProps {
+  config: {
+    polymarketEnabled: boolean;
+    setPolymarketEnabled: (v: boolean) => void;
+    kalshiEnabled: boolean;
+    setKalshiEnabled: (v: boolean) => void;
+    enableBinance: boolean;
+    setEnableBinance: (v: boolean) => void;
+    enableBybit: boolean;
+    setEnableBybit: (v: boolean) => void;
+    enableOkx: boolean;
+    setEnableOkx: (v: boolean) => void;
+    enableKraken: boolean;
+    setEnableKraken: (v: boolean) => void;
+    enableCoinbase: boolean;
+    setEnableCoinbase: (v: boolean) => void;
+    enableKucoin: boolean;
+    setEnableKucoin: (v: boolean) => void;
+    enableAlpaca: boolean;
+    setEnableAlpaca: (v: boolean) => void;
+    enableIbkr: boolean;
+    setEnableIbkr: (v: boolean) => void;
+  };
+}
+
+function PlatformsSection({ config }: PlatformsSectionProps) {
+  const { data: exchangesData, isLoading } = useUserExchanges();
+  const connectedIds = exchangesData?.connected_exchange_ids || [];
+
+  // Define all platforms with their config bindings
+  const platforms = [
+    { id: 'polymarket', name: 'Polymarket', type: 'Prediction Market', enabled: config.polymarketEnabled, setEnabled: config.setPolymarketEnabled },
+    { id: 'kalshi', name: 'Kalshi', type: 'Prediction Market', enabled: config.kalshiEnabled, setEnabled: config.setKalshiEnabled },
+    { id: 'binance', name: 'Binance', type: 'Crypto Exchange', enabled: config.enableBinance, setEnabled: config.setEnableBinance },
+    { id: 'bybit', name: 'Bybit', type: 'Crypto Exchange', enabled: config.enableBybit, setEnabled: config.setEnableBybit },
+    { id: 'okx', name: 'OKX', type: 'Crypto Exchange', enabled: config.enableOkx, setEnabled: config.setEnableOkx },
+    { id: 'kraken', name: 'Kraken', type: 'Crypto Exchange', enabled: config.enableKraken, setEnabled: config.setEnableKraken },
+    { id: 'coinbase', name: 'Coinbase', type: 'Crypto Exchange', enabled: config.enableCoinbase, setEnabled: config.setEnableCoinbase },
+    { id: 'kucoin', name: 'KuCoin', type: 'Crypto Exchange', enabled: config.enableKucoin, setEnabled: config.setEnableKucoin },
+    { id: 'alpaca', name: 'Alpaca', type: 'Stock Broker', enabled: config.enableAlpaca, setEnabled: config.setEnableAlpaca },
+    { id: 'ibkr', name: 'Interactive Brokers', type: 'Options Broker', enabled: config.enableIbkr, setEnabled: config.setEnableIbkr },
+  ];
+
+  // Group by type
+  const predictionMarkets = platforms.filter(p => p.type === 'Prediction Market');
+  const cryptoExchanges = platforms.filter(p => p.type === 'Crypto Exchange');
+  const stockBrokers = platforms.filter(p => p.type.includes('Broker'));
+
+  const renderPlatformRow = (platform: typeof platforms[0]) => {
+    const isConnected = connectedIds.includes(platform.id);
+    return (
+      <div 
+        key={platform.id}
+        className={cn(
+          "flex justify-between items-center p-4 rounded-xl transition-colors",
+          isConnected ? "bg-neon-green/5 border border-neon-green/20" : "bg-dark-border/30"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{EXCHANGE_ICONS[platform.id] || '📦'}</span>
+          <div>
+            <span className="font-medium">{platform.name}</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              {isConnected ? (
+                <span className="text-xs text-neon-green flex items-center gap-1">
+                  <Link2 className="w-3 h-3" /> Connected
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <Unlink className="w-3 h-3" /> Not connected
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {!isConnected && (
+            <Link 
+              href="/secrets" 
+              className="text-xs text-neon-blue hover:underline"
+            >
+              Add credentials
+            </Link>
+          )}
+          <ToggleSwitch 
+            enabled={platform.enabled} 
+            onToggle={() => platform.setEnabled(!platform.enabled)} 
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      {/* Summary Card */}
+      <div className="card bg-gradient-to-r from-neon-green/10 to-neon-blue/10 border-neon-green/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Database className="w-5 h-5 text-neon-green" />
+              Platform Connections
+            </h3>
+            <p className="text-sm text-gray-400 mt-1">
+              {isLoading ? 'Loading...' : `${connectedIds.length} platforms connected with credentials`}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {exchangesData?.has_prediction_markets && (
+              <span className="px-2 py-1 bg-purple-500/20 rounded text-xs text-purple-400">Predictions</span>
+            )}
+            {exchangesData?.has_crypto && (
+              <span className="px-2 py-1 bg-yellow-500/20 rounded text-xs text-yellow-400">Crypto</span>
+            )}
+            {exchangesData?.has_stocks && (
+              <span className="px-2 py-1 bg-blue-500/20 rounded text-xs text-blue-400">Stocks</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Prediction Markets */}
+      <div className="card">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Target className="w-5 h-5 text-purple-400" />
+          Prediction Markets
+        </h2>
+        <div className="space-y-3">
+          {predictionMarkets.map(renderPlatformRow)}
+        </div>
+      </div>
+
+      {/* Crypto Exchanges */}
+      <div className="card">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-yellow-400" />
+          Crypto Exchanges
+        </h2>
+        <div className="space-y-3">
+          {cryptoExchanges.map(renderPlatformRow)}
+        </div>
+      </div>
+
+      {/* Stock & Options Brokers */}
+      <div className="card">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-blue-400" />
+          Stock & Options Brokers
+        </h2>
+        <div className="space-y-3">
+          {stockBrokers.map(renderPlatformRow)}
+        </div>
+        <p className="text-xs text-gray-500 mt-4">
+          Note: Robinhood & Webull support coming soon
+        </p>
+      </div>
+    </>
+  );
+}
 
 // Subscription Section Component
 function SubscriptionSection() {
@@ -1818,38 +1997,20 @@ export default function SettingsPage() {
             transition={{ duration: 0.2 }}
             className="space-y-6"
           >
-            <div className="card">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <Database className="w-5 h-5 text-neon-purple" />
-                Exchange Connections
-              </h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-dark-border/30 rounded-xl">
-                  <span>Polymarket</span>
-                  <ToggleSwitch enabled={polymarketEnabled} onToggle={() => setPolymarketEnabled(!polymarketEnabled)} />
-                </div>
-                <div className="flex justify-between items-center p-4 bg-dark-border/30 rounded-xl">
-                  <span>Kalshi</span>
-                  <ToggleSwitch enabled={kalshiEnabled} onToggle={() => setKalshiEnabled(!kalshiEnabled)} />
-                </div>
-                <div className="flex justify-between items-center p-4 bg-dark-border/30 rounded-xl">
-                  <span>Binance</span>
-                  <ToggleSwitch enabled={enableBinance} onToggle={() => setEnableBinance(!enableBinance)} />
-                </div>
-                <div className="flex justify-between items-center p-4 bg-dark-border/30 rounded-xl">
-                  <span>Coinbase</span>
-                  <ToggleSwitch enabled={enableCoinbase} onToggle={() => setEnableCoinbase(!enableCoinbase)} />
-                </div>
-                <div className="flex justify-between items-center p-4 bg-dark-border/30 rounded-xl">
-                  <span>Alpaca (Stocks)</span>
-                  <ToggleSwitch enabled={enableAlpaca} onToggle={() => setEnableAlpaca(!enableAlpaca)} />
-                </div>
-                <div className="flex justify-between items-center p-4 bg-dark-border/30 rounded-xl">
-                  <span>Interactive Brokers</span>
-                  <ToggleSwitch enabled={enableIbkr} onToggle={() => setEnableIbkr(!enableIbkr)} />
-                </div>
-              </div>
-            </div>
+            <PlatformsSection 
+              config={{
+                polymarketEnabled, setPolymarketEnabled,
+                kalshiEnabled, setKalshiEnabled,
+                enableBinance, setEnableBinance,
+                enableBybit, setEnableBybit,
+                enableOkx, setEnableOkx,
+                enableKraken, setEnableKraken,
+                enableCoinbase, setEnableCoinbase,
+                enableKucoin, setEnableKucoin,
+                enableAlpaca, setEnableAlpaca,
+                enableIbkr, setEnableIbkr,
+              }}
+            />
           </motion.div>
         )}
 

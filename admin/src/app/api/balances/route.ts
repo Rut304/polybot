@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAuth } from '@/lib/audit';
+
+// ============================================================================
+// Balances API - Returns balances for the authenticated user
+// Multi-tenant: Filters by user_id and user's connected exchanges
+// ============================================================================
 
 // Create Supabase admin client
 const getSupabaseClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!supabaseUrl || !supabaseServiceKey) {
     return null;
@@ -23,60 +29,34 @@ export async function GET(request: NextRequest) {
         success: true,
         data: {
           timestamp: new Date().toISOString(),
-          total_usd: 15420.50,
-          total_positions_usd: 8750.25,
-          total_cash_usd: 6670.25,
-          platforms: [
-            {
-              platform: 'Polymarket',
-              platform_type: 'prediction_market',
-              connected: true,
-              cash_balance: 1250.00,
-              positions_value: 3500.00,
-              total_balance: 4750.00,
-              positions_count: 5,
-              last_updated: new Date().toISOString(),
-            },
-            {
-              platform: 'Kalshi',
-              platform_type: 'prediction_market',
-              connected: true,
-              cash_balance: 2420.25,
-              positions_value: 1250.25,
-              total_balance: 3670.50,
-              positions_count: 3,
-              last_updated: new Date().toISOString(),
-            },
-            {
-              platform: 'Binance',
-              platform_type: 'crypto_exchange',
-              connected: true,
-              cash_balance: 2000.00,
-              positions_value: 3000.00,
-              total_balance: 5000.00,
-              positions_count: 2,
-              last_updated: new Date().toISOString(),
-            },
-            {
-              platform: 'Alpaca',
-              platform_type: 'stock_broker',
-              connected: false,
-              cash_balance: 0,
-              positions_value: 0,
-              total_balance: 0,
-              positions_count: 0,
-              last_updated: null,
-            },
-          ],
+          total_usd: 5000.00,
+          total_positions_usd: 0,
+          total_cash_usd: 5000.00,
+          platforms: [],
         },
         mock: true,
       });
     }
 
-    // Try to fetch from database
+    // Verify authentication and get user_id
+    const authResult = await verifyAuth(request);
+    if (!authResult?.user_id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // First, get user's connected exchanges
+    const { data: userExchanges } = await supabase
+      .from('user_exchange_credentials')
+      .select('exchange')
+      .eq('user_id', authResult.user_id);
+    
+    const connectedExchanges = userExchanges?.map(e => e.exchange) || [];
+
+    // Fetch balances filtered by user_id
     const { data: balancesData, error } = await supabase
       .from('polybot_balances')
       .select('*')
+      .eq('user_id', authResult.user_id)  // Multi-tenant filter
       .order('updated_at', { ascending: false });
 
     if (error) {
@@ -99,10 +79,11 @@ export async function GET(request: NextRequest) {
         total_usd: total_cash + total_positions,
         total_positions_usd: total_positions,
         total_cash_usd: total_cash,
+        connected_exchanges: connectedExchanges,
         platforms: platforms.map((p: any) => ({
           platform: p.platform,
           platform_type: p.platform_type || 'unknown',
-          connected: p.connected ?? true,
+          connected: connectedExchanges.includes(p.platform?.toLowerCase()),
           cash_balance: parseFloat(p.cash_balance) || 0,
           positions_value: parseFloat(p.positions_value) || 0,
           total_balance: (parseFloat(p.cash_balance) || 0) + (parseFloat(p.positions_value) || 0),

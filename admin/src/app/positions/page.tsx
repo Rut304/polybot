@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   BarChart3, 
   RefreshCw, 
@@ -23,8 +23,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
 import { usePositions } from '@/lib/hooks';
 import { useTier } from '@/lib/useTier';
+import { usePlatforms } from '@/lib/PlatformContext';
 import { Tooltip } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
+import { PlatformFilter, TimeRangeFilter } from '@/components/PlatformFilter';
 
 interface Position {
   id: string;
@@ -91,15 +93,19 @@ export default function PositionsPage() {
   const { isSimulation: isUserSimMode } = useTier();
   const tradingMode = isUserSimMode ? 'paper' : 'live';
   
+  // Platform filtering context
+  const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();
+  
   const { data: dbPositions, isLoading, refetch } = usePositions(tradingMode);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'prediction' | 'crypto' | 'stock'>('all');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
   
   // Use ONLY database positions - no sample data fallback (that creates confusion)
-  const positions: Position[] = (dbPositions && dbPositions.length > 0) 
+  const rawPositions: Position[] = (dbPositions && dbPositions.length > 0) 
     ? dbPositions.map((p: any) => ({
         id: p.id || p.position_id,
         platform: p.platform || 'Unknown',
@@ -116,6 +122,20 @@ export default function PositionsPage() {
         status: 'open' as const,
       }))
     : []; // Empty array - no fake sample data
+
+  // Apply platform filtering based on simulation/live mode
+  const positions = useMemo(() => {
+    let filtered = filterByPlatform(rawPositions, 'platform');
+    
+    // Apply user-selected platform filter
+    if (selectedPlatforms.length > 0) {
+      filtered = filtered.filter(p => 
+        selectedPlatforms.some(sp => p.platform.toLowerCase().includes(sp.toLowerCase()))
+      );
+    }
+    
+    return filtered;
+  }, [rawPositions, filterByPlatform, selectedPlatforms]);
 
   // Calculate stats
   const stats = {
@@ -310,9 +330,28 @@ export default function PositionsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
+        {/* Mode indicator */}
+        <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+          isSimulationMode 
+            ? 'bg-amber-500/20 text-amber-400' 
+            : 'bg-green-500/20 text-green-400'
+        }`}>
+          {isSimulationMode ? '🧪 Simulation - All Platforms' : '⚡ Live - Connected Only'}
+        </div>
+        
+        <div className="h-6 w-px bg-gray-700" />
+        
+        {/* Platform Filter */}
+        <PlatformFilter
+          selectedPlatforms={selectedPlatforms}
+          onPlatformChange={setSelectedPlatforms}
+        />
+        
+        <div className="h-6 w-px bg-gray-700" />
+        
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-500" />
-          <span className="text-sm text-gray-400">Filter:</span>
+          <span className="text-sm text-gray-400">Asset Type:</span>
         </div>
         <div className="flex gap-2">
           {(['all', 'prediction', 'crypto', 'stock'] as const).map((f) => (
@@ -348,6 +387,7 @@ export default function PositionsPage() {
               ))}
             </select>
           </>
+        )}
         )}
       </div>
 

@@ -49,7 +49,7 @@ import signal
 import sys
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict
 
 # Add src to path for imports when running as module
 src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -115,6 +115,17 @@ from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
 from src.strategies.ai_superforecasting import AISuperforecastingStrategy, AIForecast
 from src.strategies.news_arbitrage import NewsArbitrageStrategy, NewsArbOpportunity
 from src.strategies.high_conviction import HighConvictionStrategy, Signal
+# Stock strategies (require Alpaca)
+from src.strategies.sector_rotation import SectorRotationStrategy
+from src.strategies.dividend_growth import DividendGrowthStrategy
+from src.strategies.earnings_momentum import EarningsMomentumStrategy
+# Options strategies (require IBKR)
+from src.strategies.options_strategies import (
+    CoveredCallStrategy,
+    CashSecuredPutStrategy,
+    IronCondorStrategy,
+    WheelStrategy,
+)
 from src.exchanges.ccxt_client import CCXTClient
 from src.exchanges.alpaca_client import AlpacaClient
 from src.exchanges.ibkr_client import IBKRClient
@@ -152,7 +163,12 @@ class PolybotRunner:
         user_id: Optional[str] = None,
     ):
         self.simulation_mode = simulation_mode
-        self.user_id = user_id
+        
+        # Multi-tenant user_id: Use provided user_id, or fall back to BOT_USER_ID env var
+        # This ensures all trades are associated with a user for proper filtering
+        self.user_id = user_id or os.getenv("BOT_USER_ID")
+        if not self.user_id:
+            logger.warning("⚠️ No user_id set - trades will have user_id=NULL. Set BOT_USER_ID env var for multi-tenancy.")
 
         # Feature flags
         self.enable_copy_trading = enable_copy_trading
@@ -287,7 +303,10 @@ class PolybotRunner:
         # Correlation Tracker - position limit enforcement
         self.correlation_tracker: Optional[CorrelationTracker] = None
 
-        # CCXT client for crypto exchange access
+        # CCXT clients for crypto exchange access (multi-exchange support)
+        # Key: exchange_id (e.g., 'binance', 'okx'), Value: CCXTClient instance
+        self.ccxt_clients: Dict[str, CCXTClient] = {}
+        # Primary client for strategies that don't support multi-exchange yet
         self.ccxt_client: Optional[CCXTClient] = None
 
         # Balance aggregator for multi-platform balance tracking
@@ -681,88 +700,84 @@ class PolybotRunner:
                 enabled_exchanges.append("kucoin")
 
             if enabled_exchanges:
-                # Try each enabled exchange until one works
-                # Multi-tenant: per-user credentials first, then global fallback
+                # MULTI-EXCHANGE: Initialize ALL enabled exchanges (not just first success)
+                # This allows strategies to pick the best exchange for each trade
                 logger.info(
-                    f"🔍 Checking credentials for exchanges: {enabled_exchanges}"
+                    f"🔍 Initializing {len(enabled_exchanges)} exchanges: {enabled_exchanges}"
                 )
 
-                # First pass: try exchanges with per-user credentials
                 for exchange in enabled_exchanges:
-                    # Multi-tenant approach
+                    client = None
+
+                    # Multi-tenant: try per-user credentials first
                     if self.user_id:
-                        self.ccxt_client = await CCXTClient.create_for_user(
+                        client = await CCXTClient.create_for_user(
                             exchange_id=exchange,
                             user_id=self.user_id,
                             sandbox=False,
                             db_client=self.db
                         )
-                        if self.ccxt_client:
+                        if client:
+                            self.ccxt_clients[exchange] = client
                             logger.info(
-                                f"✓ CCXT Client initialized with {exchange} "
-                                f"(per-user credentials)"
+                                f"  ✓ {exchange} connected (user credentials)"
                             )
-                            break  # Success!
+                            continue  # Next exchange
 
                     # Fall back to global credentials
-                    if not self.ccxt_client:
-                        creds = self.db.get_exchange_credentials(exchange)
-                        has_key = bool(creds.get('api_key'))
-                        has_secret = bool(creds.get('api_secret'))
+                    creds = self.db.get_exchange_credentials(exchange)
+                    has_key = bool(creds.get('api_key'))
+                    has_secret = bool(creds.get('api_secret'))
+
+                    if has_key and has_secret:
+                        logger.info(f"  Attempting {exchange}...")
+                        client = CCXTClient(
+                            exchange_id=exchange,
+                            api_key=creds.get('api_key'),
+                            api_secret=creds.get('api_secret'),
+                            password=creds.get('password'),
+                            sandbox=False,
+                            user_id=self.user_id,
+                        )
+                        if await client.initialize():
+                            self.ccxt_clients[exchange] = client
+                            logger.info(f"  ✓ {exchange} connected")
+                        else:
+                            logger.warning(f"  ⚠️ {exchange} failed to connect")
+                    else:
                         logger.info(
-                            f"  {exchange}: api_key={'✓' if has_key else '✗'}, "
-                            f"api_secret={'✓' if has_secret else '✗'}"
+                            f"  ⏭️ {exchange} skipped (no credentials)"
                         )
 
-                        if has_key and has_secret:
-                            logger.info(f"  Attempting to connect to {exchange}...")
-                            self.ccxt_client = CCXTClient(
-                                exchange_id=exchange,
-                                api_key=creds.get('api_key'),
-                                api_secret=creds.get('api_secret'),
-                                password=creds.get('password'),
-                                sandbox=False,
-                                user_id=self.user_id,
-                            )
-                            ccxt_initialized = await self.ccxt_client.initialize()
-                            if ccxt_initialized:
-                                logger.info(
-                                    f"✓ CCXT Client initialized with {exchange}"
-                                )
-                                break  # Success!
-                            else:
-                                logger.warning(
-                                    f"  ⚠️ {exchange} failed to connect"
-                                )
-                                self.ccxt_client = None
-
-                # Second pass (simulation mode only): try without credentials
-                if not self.ccxt_client and self.simulation_mode:
-                    logger.info("  Trying exchanges without credentials (simulation mode)...")
-                    # Exchanges known to work without auth for public data
+                # Simulation mode fallback: try read-only exchanges if none connected
+                if not self.ccxt_clients and self.simulation_mode:
+                    logger.info("  Trying read-only exchanges (simulation mode)...")
                     fallback_exchanges = ["okx", "kraken", "kucoin", "gate"]
                     for exchange in fallback_exchanges:
-                        if exchange in enabled_exchanges or True:  # Try even if not enabled
-                            logger.info(f"  Attempting {exchange} without credentials...")
-                            self.ccxt_client = CCXTClient(
-                                exchange_id=exchange,
-                                api_key=None,
-                                api_secret=None,
-                                sandbox=False,
-                            )
-                            ccxt_initialized = await self.ccxt_client.initialize()
-                            if ccxt_initialized:
-                                logger.info(
-                                    f"✓ CCXT Client initialized with {exchange} (read-only)"
-                                )
-                                logger.info(
-                                    f"  ℹ️ Add {exchange.upper()} credentials in Admin → Secrets for live trading"
-                                )
-                                break
-                            else:
-                                self.ccxt_client = None
+                        logger.info(f"  Attempting {exchange} (read-only)...")
+                        client = CCXTClient(
+                            exchange_id=exchange,
+                            api_key=None,
+                            api_secret=None,
+                            sandbox=False,
+                        )
+                        if await client.initialize():
+                            self.ccxt_clients[exchange] = client
+                            logger.info(f"  ✓ {exchange} connected (read-only)")
+                            break  # One read-only fallback is enough
+                        else:
+                            client = None
 
-                if not self.ccxt_client:
+                # Summary
+                if self.ccxt_clients:
+                    logger.info(
+                        f"✓ CCXT Multi-Exchange: {len(self.ccxt_clients)} connected: "
+                        f"{list(self.ccxt_clients.keys())}"
+                    )
+                    # Set primary client for backward compatibility with strategies
+                    # that don't support multi-exchange yet
+                    self.ccxt_client = next(iter(self.ccxt_clients.values()))
+                else:
                     logger.error(
                         "❌ All CCXT exchanges failed - crypto strategies disabled"
                     )
@@ -992,6 +1007,63 @@ class PolybotRunner:
         else:
             logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
 
+        # =====================================================================
+        # ROBINHOOD CLIENT (Unofficial API - use at own risk)
+        # =====================================================================
+        if getattr(self.config.trading, 'enable_robinhood', False):
+            try:
+                from src.exchanges.robinhood_client import RobinhoodClient
+                if RobinhoodClient and self.user_id:
+                    self.robinhood_client = await RobinhoodClient.create_for_user(
+                        user_id=self.user_id,
+                        db_client=self.db
+                    )
+                    if self.robinhood_client:
+                        logger.info("✓ Robinhood client initialized")
+                    else:
+                        logger.info(
+                            "⏸️ Robinhood - no credentials for this user"
+                        )
+                else:
+                    logger.debug("Robinhood client not available")
+            except ImportError:
+                logger.info(
+                    "⏸️ Robinhood DISABLED "
+                    "(robin_stocks not installed)"
+                )
+            except Exception as e:
+                logger.error(f"Robinhood initialization failed: {e}")
+        else:
+            logger.info("⏸️ Robinhood Client DISABLED")
+
+        # =====================================================================
+        # WEBULL CLIENT
+        # =====================================================================
+        if getattr(self.config.trading, 'enable_webull', False):
+            try:
+                from src.exchanges.webull_client import WebullClient
+                if WebullClient and self.user_id:
+                    self.webull_client = await WebullClient.create_for_user(
+                        user_id=self.user_id,
+                        paper=self.simulation_mode,
+                        db_client=self.db
+                    )
+                    if self.webull_client:
+                        mode_str = 'PAPER' if self.simulation_mode else 'LIVE'
+                        logger.info(f"✓ Webull client initialized ({mode_str})")
+                    else:
+                        logger.info(
+                            "⏸️ Webull - no credentials for this user"
+                        )
+                else:
+                    logger.debug("Webull client not available")
+            except ImportError:
+                logger.info("⏸️ Webull DISABLED (webull not installed)")
+            except Exception as e:
+                logger.error(f"Webull initialization failed: {e}")
+        else:
+            logger.info("⏸️ Webull Client DISABLED")
+
         # Initialize IBKR Futures Momentum
         ibkr_futures_enabled = getattr(self.config.trading, 'enable_ibkr_futures_momentum', False)
         if ibkr_futures_enabled and self.ibkr_client:
@@ -1052,6 +1124,133 @@ class PolybotRunner:
             logger.info("⏸️ Stock Momentum DISABLED (no Alpaca client)")
         else:
             logger.info("⏸️ Stock Momentum DISABLED")
+
+        # =====================================================================
+        # ADDITIONAL STOCK STRATEGIES (Require Alpaca)
+        # =====================================================================
+
+        # Initialize Sector Rotation Strategy (70% CONFIDENCE - 15-25% APY)
+        sector_rotation_enabled = getattr(
+            self.config.trading, 'enable_sector_rotation', False
+        )
+        if sector_rotation_enabled and self.alpaca_client:
+            self.sector_rotation = SectorRotationStrategy(
+                alpaca_client=self.alpaca_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Sector Rotation initialized (70% CONFIDENCE)")
+            logger.info("  📊 Rotates into strongest sector ETFs")
+        elif sector_rotation_enabled:
+            logger.info("⏸️ Sector Rotation DISABLED (no Alpaca client)")
+        else:
+            logger.info("⏸️ Sector Rotation DISABLED")
+
+        # Initialize Dividend Growth Strategy (65% CONFIDENCE - 10-20% APY)
+        dividend_growth_enabled = getattr(
+            self.config.trading, 'enable_dividend_growth', False
+        )
+        if dividend_growth_enabled and self.alpaca_client:
+            self.dividend_growth = DividendGrowthStrategy(
+                alpaca_client=self.alpaca_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Dividend Growth initialized (65% CONFIDENCE)")
+            logger.info("  💰 Dividend aristocrats + growth")
+        elif dividend_growth_enabled:
+            logger.info("⏸️ Dividend Growth DISABLED (no Alpaca client)")
+        else:
+            logger.info("⏸️ Dividend Growth DISABLED")
+
+        # Initialize Earnings Momentum Strategy (70% CONFIDENCE - 20-40% APY)
+        earnings_momentum_enabled = getattr(
+            self.config.trading, 'enable_earnings_momentum', False
+        )
+        if earnings_momentum_enabled and self.alpaca_client:
+            self.earnings_momentum = EarningsMomentumStrategy(
+                alpaca_client=self.alpaca_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Earnings Momentum initialized (70% CONFIDENCE)")
+            logger.info("  📈 Post-earnings drift strategy")
+        elif earnings_momentum_enabled:
+            logger.info("⏸️ Earnings Momentum DISABLED (no Alpaca client)")
+        else:
+            logger.info("⏸️ Earnings Momentum DISABLED")
+
+        # =====================================================================
+        # OPTIONS STRATEGIES (Require IBKR)
+        # =====================================================================
+
+        # Initialize Covered Call Strategy (75% CONFIDENCE - 15-25% APY)
+        covered_call_enabled = getattr(
+            self.config.trading, 'enable_covered_calls', False
+        )
+        if covered_call_enabled and self.ibkr_client:
+            self.covered_call = CoveredCallStrategy(
+                ibkr_client=self.ibkr_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Covered Calls initialized (75% CONFIDENCE)")
+            logger.info("  📝 Sell calls against stock positions")
+        elif covered_call_enabled:
+            logger.info("⏸️ Covered Calls DISABLED (no IBKR client)")
+        else:
+            logger.info("⏸️ Covered Calls DISABLED")
+
+        # Initialize Cash Secured Put Strategy (75% CONFIDENCE - 15-25% APY)
+        csp_enabled = getattr(
+            self.config.trading, 'enable_cash_secured_puts', False
+        )
+        if csp_enabled and self.ibkr_client:
+            self.cash_secured_put = CashSecuredPutStrategy(
+                ibkr_client=self.ibkr_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Cash Secured Puts initialized (75% CONFIDENCE)")
+            logger.info("  💵 Sell puts with cash collateral")
+        elif csp_enabled:
+            logger.info("⏸️ Cash Secured Puts DISABLED (no IBKR client)")
+        else:
+            logger.info("⏸️ Cash Secured Puts DISABLED")
+
+        # Initialize Iron Condor Strategy (70% CONFIDENCE - 20-30% APY)
+        iron_condor_enabled = getattr(
+            self.config.trading, 'enable_iron_condor', False
+        )
+        if iron_condor_enabled and self.ibkr_client:
+            self.iron_condor = IronCondorStrategy(
+                ibkr_client=self.ibkr_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Iron Condor initialized (70% CONFIDENCE)")
+            logger.info("  🦅 Sell OTM call & put spreads")
+        elif iron_condor_enabled:
+            logger.info("⏸️ Iron Condor DISABLED (no IBKR client)")
+        else:
+            logger.info("⏸️ Iron Condor DISABLED")
+
+        # Initialize Wheel Strategy (80% CONFIDENCE - 20-35% APY)
+        wheel_enabled = getattr(
+            self.config.trading, 'enable_wheel_strategy', False
+        )
+        if wheel_enabled and self.ibkr_client:
+            self.wheel_strategy = WheelStrategy(
+                ibkr_client=self.ibkr_client,
+                db_client=self.db,
+                dry_run=self.simulation_mode,
+            )
+            logger.info("✓ Wheel Strategy initialized (80% CONFIDENCE)")
+            logger.info("  🎡 CSP → Assignment → CC cycle")
+        elif wheel_enabled:
+            logger.info("⏸️ Wheel Strategy DISABLED (no IBKR client)")
+        else:
+            logger.info("⏸️ Wheel Strategy DISABLED")
 
         # =====================================================================
         # TWITTER-DERIVED STRATEGIES (2024)
@@ -1494,10 +1693,13 @@ class PolybotRunner:
             db_client=self.db,
             polymarket_client=self.polymarket_client,
             kalshi_client=self.kalshi_client,
-            ccxt_clients={},  # TODO: Add CCXT clients when multiple exchanges
+            ccxt_clients=self.ccxt_clients,  # Multi-exchange support
             alpaca_client=self.alpaca_client,
         )
-        logger.info("✓ Balance Aggregator initialized (saves to DB)")
+        connected_count = len(self.ccxt_clients)
+        logger.info(
+            f"✓ Balance Aggregator initialized ({connected_count} CCXT exchanges)"
+        )
 
         # =====================================================================
         # ADVANCED FRAMEWORK MODULES (Phase 1)
@@ -3515,12 +3717,13 @@ class PolybotRunner:
             self.ai_superforecasting.stop()
 
         # Close exchange connections (prevents unclosed session warnings)
-        if self.ccxt_client:
+        # Close all CCXT clients (multi-exchange support)
+        for exchange_id, client in self.ccxt_clients.items():
             try:
-                await self.ccxt_client.close()
-                logger.debug("CCXT client closed")
+                await client.close()
+                logger.debug(f"CCXT client {exchange_id} closed")
             except Exception as e:
-                logger.debug(f"Error closing CCXT client: {e}")
+                logger.debug(f"Error closing CCXT client {exchange_id}: {e}")
 
         if self.alpaca_client:
             try:
@@ -3766,23 +3969,23 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
                 val = db.get_secret(key)
                 secrets_status[key] = "✅ Set" if val else "❌ Missing"
 
-            # Check CCXT client - show which exchange is connected
+            # Check CCXT clients - show all connected exchanges
             ccxt_status = "❌ Not initialized"
             ccxt_details = {}
-            if runner.ccxt_client:
-                ccxt_status = "✅ Initialized"
+            if runner.ccxt_clients:
+                ccxt_status = f"✅ {len(runner.ccxt_clients)} exchanges"
                 ccxt_details = {
-                    "exchange_id": getattr(runner.ccxt_client, 'exchange_id', 'unknown'),
-                    "has_futures": "unknown",
-                    "markets_loaded": 0,
+                    "connected_exchanges": list(runner.ccxt_clients.keys()),
+                    "exchange_details": {},
                 }
-                if runner.ccxt_client.exchange:
-                    ex = runner.ccxt_client.exchange
-                    ccxt_details["exchange_id"] = ex.id
-                    ccxt_details["markets_loaded"] = len(ex.markets) if ex.markets else 0
-                    ccxt_details["has_futures"] = ex.has.get('fetchFundingRate', False)
-                    ccxt_details["has_spot"] = ex.has.get('fetchTicker', False)
-                    ccxt_details["sandbox"] = getattr(ex, 'sandbox', False)
+                for ex_id, client in runner.ccxt_clients.items():
+                    if client.exchange:
+                        ex = client.exchange
+                        ccxt_details["exchange_details"][ex_id] = {
+                            "markets_loaded": len(ex.markets) if ex.markets else 0,
+                            "has_futures": ex.has.get('fetchFundingRate', False),
+                            "has_spot": ex.has.get('fetchTicker', False),
+                        }
 
             # Check Alpaca client
             alpaca_status = "✅ Initialized" if runner.alpaca_client else "❌ Not initialized"

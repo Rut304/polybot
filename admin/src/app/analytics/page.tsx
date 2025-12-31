@@ -39,6 +39,8 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
 import { PageCTA } from '@/components/QuickStartGuide';
 import { CumulativePnLChart, DailyPnLChart, STRATEGY_COLORS } from '@/components/TradingViewChart';
+import { PlatformFilter, TimeRangeFilter, TIME_RANGES } from '@/components/PlatformFilter';
+import { usePlatforms } from '@/lib/PlatformContext';
 
 // Platform colors - comprehensive list supporting all potential platforms
 const PLATFORM_COLORS: Record<string, string> = {
@@ -58,9 +60,13 @@ const PLATFORM_COLORS: Record<string, string> = {
 export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<number>(168); // 7 days default
   const [viewMode, setViewMode] = useState<'all' | 'paper' | 'live'>('all'); // Default to showing ALL data
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]); // Empty = all platforms
 
   // Get user context
   const { isAdmin } = useTier();
+  
+  // Get platform context for filtering
+  const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();
   
   // Get connected platforms dynamically from user's secrets
   const { data: connectedPlatforms = [] } = useConnectedPlatforms();
@@ -70,7 +76,23 @@ export default function AnalyticsPage() {
   
   const { data: serverStats, isLoading: statsLoading, refetch: refetchStats } = useStrategyPerformance(tradingModeFilter);
   const { data: config } = useBotConfig();
-  const { data: trades = [] } = useSimulatedTrades(5000, tradingModeFilter);
+  const { data: rawTrades = [] } = useSimulatedTrades(5000, tradingModeFilter);
+  
+  // Apply platform filtering to trades
+  const trades = useMemo(() => {
+    // First filter by platform context (simulation shows all, live shows connected)
+    let filtered = filterByPlatform(rawTrades, 'platform');
+    
+    // Then apply user-selected platform filter if any
+    if (selectedPlatforms.length > 0) {
+      filtered = filtered.filter(t => {
+        const platform = (t.platform || '').toLowerCase();
+        return selectedPlatforms.some(p => platform.includes(p.toLowerCase()));
+      });
+    }
+    
+    return filtered;
+  }, [rawTrades, filterByPlatform, selectedPlatforms]);
 
   // Starting balance calculation - dynamically include all connected platforms
   const startingBalance = useMemo(() => {
@@ -453,6 +475,22 @@ export default function AnalyticsPage() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
+          {/* Mode Indicator */}
+          <div className={cn(
+            "px-3 py-1.5 rounded-lg text-xs font-medium",
+            isSimulationMode 
+              ? "bg-amber-500/20 text-amber-400" 
+              : "bg-green-500/20 text-green-400"
+          )}>
+            {isSimulationMode ? '🧪 Simulation' : '⚡ Live'}
+          </div>
+          
+          {/* Platform Filter */}
+          <PlatformFilter
+            selectedPlatforms={selectedPlatforms}
+            onPlatformChange={setSelectedPlatforms}
+          />
+          
           {/* Trading Mode Filter */}
           <div className="flex rounded-lg border border-dark-border overflow-hidden">
             {(['all', 'paper', 'live'] as const).map((mode) => (
@@ -472,27 +510,7 @@ export default function AnalyticsPage() {
           </div>
           
           {/* Timeframe Filter */}
-          <div className="flex rounded-lg border border-dark-border overflow-hidden">
-            {[
-              { value: 24, label: '24H' },
-              { value: 168, label: '7D' },
-              { value: 720, label: '30D' },
-              { value: 0, label: 'All' },
-            ].map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => setTimeframe(value)}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium transition-colors",
-                  timeframe === value
-                    ? "bg-neon-green/20 text-neon-green"
-                    : "bg-dark-card text-gray-400 hover:text-white"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <TimeRangeFilter value={timeframe} onChange={setTimeframe} />
           
           <button
             onClick={() => refetchStats()}

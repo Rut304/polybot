@@ -1,51 +1,196 @@
 # PolyBot To-Do List
 
+## ✅ COMPLETED: Wire Up Robinhood & Webull Trading Clients (December 30, 2025)
+
+**Status**: ✅ COMPLETE  
+**Goal**: Full trading client support like other brokers
+
+### What Was Done
+
+1. **✅ Robinhood Client** (`src/exchanges/robinhood_client.py`)
+   - Created ~600 line client using `robin_stocks` library
+   - Methods: get_balance(), create_order(), get_positions(), get_ticker()
+   - Supports crypto trading via get_crypto_ticker(), get_crypto_positions()
+   - Multi-tenant via create_for_user() factory method
+
+2. **✅ Webull Client** (`src/exchanges/webull_client.py`)  
+   - Created ~650 line client using `webull` library
+   - Methods: get_balance(), create_order(), get_positions(), get_options_chain()
+   - Support paper trading via webull's paper trading mode
+   - Multi-tenant via create_for_user() factory method
+
+3. **✅ Added to Bot Runner**
+   - Added `enable_robinhood` and `enable_webull` config flags in config.py
+   - Added initialization in bot_runner.py alongside other brokers
+
+4. **✅ Exported from exchanges module**
+   - Added to `src/exchanges/__init__.py`
+
+---
+
+## ✅ COMPLETED: Platform Filtering & Analytics (December 30, 2025)
+
+### What Was Done
+
+1. **✅ PlatformContext Updated**
+   - Two-mode filtering: Simulation shows ALL, Live shows connected only
+   - `isSimulationMode`, `filterByPlatform()`, `getEffectivePlatformIds()`
+
+2. **✅ PlatformFilter Component** (`admin/src/components/PlatformFilter.tsx`)
+   - Dropdown filter for selecting platforms
+   - Shows mode indicator (🧪 Simulation vs ⚡ Live)
+   - Supports multi-select
+
+3. **✅ TimeRangeFilter Component**
+   - Options: 24h, 7D, 30D, 90D, 1Y, ALL
+   - Reusable across all data pages
+
+4. **✅ TradingModeBanner Component** (`admin/src/components/TradingModeBanner.tsx`)
+   - Shows clear indication of Simulation vs Live mode
+   - Expandable details showing connected platforms
+   - Links to settings/secrets pages
+
+5. **✅ Pages Updated with Platform Filtering**
+   - `/analytics` - Full platform filter, time range, mode indicator
+   - `/dashboard` - TradingModeBanner added
+   - `/positions` - Platform filter, mode indicator
+   - `/bets` - Platform filter, mode indicator
+   - `/balances` - Platform filter, filtered totals
+   - `/strategies` - Requirements badges showing "Requires Alpaca/IBKR"
+
+6. **✅ Platform-Filtered Hooks** (`admin/src/lib/hooks.ts`)
+   - `usePlatformFilteredTrades()`
+   - `usePlatformFilteredOpportunities()`
+   - `usePlatformFilteredPositions()`
+   - `usePlatformFilteredPnLHistory()`
+   - `usePlatformFilteredManualTrades()`
+
+7. **✅ E2E Tests Created** (`admin/e2e/platform-filtering.spec.ts`)
+   - Tests simulation vs live mode behavior
+   - Tests PlatformFilter component
+   - Tests TimeRangeFilter component
+   - Tests data accuracy with filters
+   - Tests cross-page consistency
+   - Tests strategy requirements badges
+
+---
+
+## ✅ COMPLETED: Strategy Backend Wiring (December 30, 2025)
+
+### Stock Strategies Wired
+
+- ✅ Sector Rotation Strategy - imported and initialized in bot_runner.py
+- ✅ Dividend Growth Strategy - imported and initialized in bot_runner.py
+- ✅ Earnings Momentum Strategy - imported and initialized in bot_runner.py
+
+### Options Strategies Wired
+
+- ✅ Covered Call Strategy - imported and initialized in bot_runner.py
+- ✅ Cash Secured Put Strategy - imported and initialized in bot_runner.py
+- ✅ Iron Condor Strategy - imported and initialized in bot_runner.py  
+- ✅ Wheel Strategy - imported and initialized in bot_runner.py
+
+### Config Flags Added
+
+- ✅ `enable_sector_rotation`
+- ✅ `enable_dividend_growth`
+- ✅ `enable_earnings_momentum`
+- ✅ `enable_covered_calls`
+- ✅ `enable_cash_secured_puts`
+- ✅ `enable_iron_condor`
+- ✅ `enable_wheel_strategy`
+
+---
+
+## 🎯 REMAINING WORK
+
+### 🔥 PRIORITY: Analytics Charts Improvement (December 31, 2025)
+
+- [ ] **Line Charts for Strategy Trending** - Add line charts showing P&L trends over time
+  - Each line/color represents a different strategy
+  - X-axis: Time (configurable range)
+  - Y-axis: Cumulative P&L
+  - Strategies: kalshi_single, polymarket_single, cross_platform, overlapping_arb, etc.
+  - Interactive legend to toggle strategies on/off
+
+### Charts & Visualization
+
+- [ ] Verify TradingView charts used where appropriate (price data, P&L curves)
+- [ ] Keep Recharts for bar charts, pie charts, histograms
+- [ ] Add more TradingView-style charts to positions page
+
+### Additional Pages to Update
+
+- [ ] `/insights` - Add platform filtering to AI insights
+- [ ] `/history` - Add platform filtering to session history
+- [ ] `/missed-opportunities` - Add platform filter
+- [ ] `/watchlist` - Add platform filter
+- [ ] `/whales` - Add multi-platform support (currently Polymarket only)
+- [ ] `/leaderboard` - Add multi-platform support
+
+### Testing
+
+- [ ] Run E2E test suite: `cd admin && npx playwright test`
+- [ ] Verify data accuracy tests pass
+- [ ] Add unit tests for platform filtering logic
+
+### Accessibility Fixes (Pre-existing)
+
+- [ ] Add title attributes to buttons in markets/page.tsx
+- [ ] Add labels to form inputs in settings/page.tsx
+- [ ] Add accessible names to selects in strategy-history/page.tsx
+
+---
+
 ## 🚨 CRITICAL: Full Multi-Tenant Platform Integration (December 30, 2025)
 
-**Status**: PARTIALLY IMPLEMENTED - Major Gaps Identified  
+**Status**: ✅ MAJOR PROGRESS - Core infrastructure complete  
 **Goal**: When a user connects an exchange, ALL data flows through the entire platform
 
-### 🔴 BLOCKING ISSUES DISCOVERED
+### ✅ COMPLETED (December 30, 2025)
 
-1. **Bot Only Initializes ONE Exchange** - Even if user connects Kucoin AND Bybit, only one is used
-   - Location: `bot_runner.py` lines 690-735
-   - Problem: `break` after first successful exchange connection
-   - Impact: User connects 3 exchanges but only gets data from 1
+1. **✅ Multi-Exchange Bot Runner** - Now initializes ALL connected exchanges
+   - Changed `self.ccxt_client` to `self.ccxt_clients: Dict[str, CCXTClient]`
+   - Removed `break` statement - now loops through all enabled exchanges
+   - Updated BalanceAggregator to use the dict
+   - Updated health endpoint to report all connected exchanges
 
-2. **Trades API Has No User Filter** - Shows ALL users' trades
-   - Location: `/admin/src/app/api/trades/route.ts`
-   - Problem: No `.eq('user_id', authResult.user_id)` filter
-   - Impact: Multi-tenant data leak
+2. **✅ Trades API Has User Filter** - Security fix
+   - Added `verifyAuth()` + `.eq('user_id', authResult.user_id)`
+   - Also added optional `exchange` query param
 
+3. **✅ Balances API Has User Filter**
+   - Added auth + user_id filter
+   - Now returns user's `connected_exchanges` from credentials table
+
+4. **✅ Exchange Discovery API Created** - `/api/user-exchanges`
+   - Returns all exchanges with connection status per user
+   - Includes metadata: type (crypto/stocks/broker), capabilities
+   - Returns: `has_crypto`, `has_stocks`, `has_prediction_markets`
+
+5. **✅ Auto-Enable on Credential Save**
+   - POST `/api/user-credentials` now auto-sets `polybot_config.enable_[exchange] = true`
+   - DELETE auto-sets `enable_[exchange] = false`
+
+6. **✅ useUserExchanges Hook** - Frontend can query connected exchanges
+
+7. **✅ ConnectedExchangesBadge Component** - Shows connection status on dashboard
+
+8. **✅ Settings Platform Status** - Shows live connection status with credentials link
+
+### 🔴 PREVIOUS BLOCKING ISSUES (Most Fixed)
+
+1. ~~**Bot Only Initializes ONE Exchange**~~ ✅ FIXED
+2. ~~**Trades API Has No User Filter**~~ ✅ FIXED  
 3. **10 Strategy Configs Were Missing from Python** - FIXED Dec 30
-   - Added: sector_rotation, dividend_growth, earnings_momentum, covered_calls, etc.
-   - Also fixed 8 marketplace configKey mismatches
+4. **7 Strategies Completely Disconnected** - UI exists, backend ignores (TODO)
+5. ~~**No Exchange Discovery for UI**~~ ✅ FIXED
 
-4. **7 Strategies Completely Disconnected** - UI exists, backend ignores
-   - Sector Rotation, Dividend Growth, Earnings Momentum
-   - Covered Calls, Cash Secured Puts, Iron Condor, Wheel Strategy
+### 🎯 REMAINING MULTI-TENANT WORK
 
-5. **No Exchange Discovery for UI** - UI doesn't know which exchanges user connected
-   - Need: API endpoint `/api/user-exchanges` that returns connected platforms
-   - Impact: Market data, charts, opportunities don't filter by user's exchanges
+#### Phase D: Wire Disconnected Strategies (Day 3-4)
 
-### 🎯 MULTI-TENANT PLATFORM INTEGRATION PHASES
-
-#### Phase A: Fix Data Flow (CRITICAL - Day 1-2)
-
-- [ ] **A1. Multi-Exchange Bot Runner** - Initialize ALL connected exchanges
-  ```python
-  # Change from: self.ccxt_client = single_client
-  # To: self.ccxt_clients: Dict[str, CCXTClient] = {}
-  ```
-  - File: `/src/bot_runner.py`
-  - Remove the `break` statement that stops after first exchange
-  - Store all connected exchanges in a dict
-
-- [ ] **A2. Add User Filtering to Trades API**
-  - File: `/admin/src/app/api/trades/route.ts`
-  - Add: `query = query.eq('user_id', authResult.user_id)`
-  - Also need to update: balances, opportunities, positions APIs
+- [ ] **D1. Enable Stock Strategies in Bot Runner**
 
 - [ ] **A3. Create Exchange Discovery API**
   - Create: `/admin/src/app/api/user-exchanges/route.ts`

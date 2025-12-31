@@ -224,6 +224,8 @@ class TradingConfig:
     # Stock Brokers
     enable_alpaca: bool = True                 # Alpaca (commission-free)
     enable_ibkr: bool = True                   # Interactive Brokers
+    enable_robinhood: bool = False             # Robinhood (unofficial API)
+    enable_webull: bool = False                # Webull
 
     # =========================================================================
     # ADVANCED FRAMEWORK - PHASE 1 (Risk Management)
@@ -858,6 +860,12 @@ class Config:
             enable_ibkr=self._get_bool(
                 "enable_ibkr", "ENABLE_IBKR", True
             ),
+            enable_robinhood=self._get_bool(
+                "enable_robinhood", "ENABLE_ROBINHOOD", False
+            ),
+            enable_webull=self._get_bool(
+                "enable_webull", "ENABLE_WEBULL", False
+            ),
             # ============================================================
             # STOCK MEAN REVERSION SETTINGS (70% confidence)
             # ============================================================
@@ -1454,6 +1462,43 @@ class Config:
             self.trading.enable_stock_momentum = self._get_bool(
                 "enable_stock_momentum",
                 "ENABLE_STOCK_MOMENTUM",
+                False
+            )
+            # Stock strategies (require Alpaca)
+            self.trading.enable_sector_rotation = self._get_bool(
+                "enable_sector_rotation",
+                "ENABLE_SECTOR_ROTATION",
+                False
+            )
+            self.trading.enable_dividend_growth = self._get_bool(
+                "enable_dividend_growth",
+                "ENABLE_DIVIDEND_GROWTH",
+                False
+            )
+            self.trading.enable_earnings_momentum = self._get_bool(
+                "enable_earnings_momentum",
+                "ENABLE_EARNINGS_MOMENTUM",
+                False
+            )
+            # Options strategies (require IBKR)
+            self.trading.enable_covered_calls = self._get_bool(
+                "enable_covered_calls",
+                "ENABLE_COVERED_CALLS",
+                False
+            )
+            self.trading.enable_cash_secured_puts = self._get_bool(
+                "enable_cash_secured_puts",
+                "ENABLE_CASH_SECURED_PUTS",
+                False
+            )
+            self.trading.enable_iron_condor = self._get_bool(
+                "enable_iron_condor",
+                "ENABLE_IRON_CONDOR",
+                False
+            )
+            self.trading.enable_wheel_strategy = self._get_bool(
+                "enable_wheel_strategy",
+                "ENABLE_WHEEL_STRATEGY",
                 False
             )
             # Exchange enables

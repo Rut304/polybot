@@ -25,6 +25,7 @@ import {
   useOpportunities,
   usePnLHistory,
   useRealTimeStats,
+  useUserExchanges,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, isRecent, cn } from '@/lib/utils';
 import { PnLChart } from '@/components/charts/PnLChart';
@@ -44,6 +45,9 @@ import { useTier } from '@/lib/useTier';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
 import { WelcomeBanner, QuickStartFAB, PageCTA } from '@/components/QuickStartGuide';
 import { BotHealthIndicator } from '@/components/BotHealthIndicator';
+import { ConnectedExchangesBadge } from '@/components/ConnectedExchangesBadge';
+import { TradingModeBanner } from '@/components/TradingModeBanner';
+import { usePlatforms } from '@/lib/PlatformContext';
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -198,6 +202,9 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
+      {/* Trading Mode Banner - explains Simulation vs Live data filtering */}
+      <TradingModeBanner />
+      
       {/* Welcome Banner for new users */}
       <WelcomeBanner />
       
@@ -243,8 +250,9 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Trading Mode Toggle + Global Timeframe Selector */}
-        <div className="flex items-center gap-3">
+        {/* Trading Mode Toggle + Connected Exchanges + Global Timeframe Selector */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <ConnectedExchangesBadge compact />
           <TradingModeToggle compact />
           <div className="flex items-center gap-2 bg-dark-card border border-dark-border rounded-xl px-4 py-2">
             <Clock className="w-4 h-4 text-gray-400" />
@@ -369,6 +377,16 @@ export default function Dashboard() {
         <MoneyStatsWidget timeframeHours={globalTimeframeHours} />
       </div>
       */}
+
+      {/* Connected Exchanges Widget */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="mb-8"
+      >
+        <ConnectedExchangesBadge showDetails />
+      </motion.div>
 
       {/* Bot Health Indicator */}
       <motion.div

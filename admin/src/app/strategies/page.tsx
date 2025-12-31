@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useTier } from '@/lib/useTier';
+import { usePlatforms } from '@/lib/PlatformContext';
 import Link from 'next/link';
 import { PageCTA } from '@/components/QuickStartGuide';
 
@@ -86,6 +87,7 @@ function ToggleSwitch({
     <button
       onClick={onToggle}
       disabled={disabled}
+      title={enabled ? 'Disable' : 'Enable'}
       className={cn(
         "relative inline-flex items-center rounded-full transition-colors duration-200",
         s.track,
@@ -1438,6 +1440,82 @@ export default function StrategiesPage() {
   const isAdmin = user?.role === 'admin';
   const { data: config, isLoading } = useBotConfig();
   
+  // Get connected platforms for requirements checking
+  const { platforms, connectedIds, isConnected } = usePlatforms();
+  
+  // Helper to check if strategy requirements are met
+  const checkRequirements = (strategy: Strategy): { met: boolean; missing: string[] } => {
+    const missing: string[] = [];
+    
+    // Map strategy platforms to our platform IDs
+    const platformMapping: Record<string, string> = {
+      'polymarket': 'polymarket',
+      'kalshi': 'kalshi',
+      'alpaca': 'alpaca',
+      'interactive brokers': 'ibkr',
+      'ibkr': 'ibkr',
+      'binance': 'binance',
+      'bybit': 'bybit',
+      'okx': 'okx',
+      'kraken': 'kraken',
+      'coinbase': 'coinbase',
+      'kucoin': 'kucoin',
+      'robinhood': 'robinhood',
+      'webull': 'webull',
+      'fidelity': 'fidelity', // Not supported yet
+    };
+    
+    // Check platform requirements from platforms array
+    if (strategy.platforms) {
+      for (const platform of strategy.platforms) {
+        const platformId = platformMapping[platform.toLowerCase()];
+        if (platformId && !isConnected(platformId)) {
+          missing.push(platform);
+        }
+      }
+    }
+    
+    // Check string requirements for common patterns
+    if (strategy.requirements) {
+      for (const req of strategy.requirements) {
+        const reqLower = req.toLowerCase();
+        
+        // Check for specific broker requirements
+        if (reqLower.includes('alpaca') && !isConnected('alpaca')) {
+          if (!missing.includes('Alpaca')) missing.push('Alpaca');
+        }
+        if ((reqLower.includes('ibkr') || reqLower.includes('interactive brokers')) && !isConnected('ibkr')) {
+          if (!missing.includes('Interactive Brokers')) missing.push('Interactive Brokers');
+        }
+        if (reqLower.includes('polymarket') && !isConnected('polymarket')) {
+          if (!missing.includes('Polymarket')) missing.push('Polymarket');
+        }
+        if (reqLower.includes('kalshi') && !isConnected('kalshi')) {
+          if (!missing.includes('Kalshi')) missing.push('Kalshi');
+        }
+        if (reqLower.includes('binance') && !isConnected('binance')) {
+          if (!missing.includes('Binance')) missing.push('Binance');
+        }
+        if (reqLower.includes('crypto exchange') || reqLower.includes('ccxt')) {
+          // Check if ANY crypto exchange is connected
+          const hasCrypto = ['binance', 'bybit', 'okx', 'kraken', 'coinbase', 'kucoin'].some(id => isConnected(id));
+          if (!hasCrypto && !missing.includes('Crypto Exchange')) {
+            missing.push('Crypto Exchange');
+          }
+        }
+        if (reqLower.includes('stock broker')) {
+          // Check if ANY stock broker is connected
+          const hasStock = ['alpaca', 'ibkr', 'robinhood', 'webull'].some(id => isConnected(id));
+          if (!hasStock && !missing.includes('Stock Broker')) {
+            missing.push('Stock Broker');
+          }
+        }
+      }
+    }
+    
+    return { met: missing.length === 0, missing: [...new Set(missing)] };
+  };
+  
   // Get tier info - handles case where context might not be available
   let tierInfo: { tier: string; isPro: boolean; isElite: boolean; isFree: boolean } = { 
     tier: 'free', isPro: false, isElite: false, isFree: true 
@@ -1724,12 +1802,15 @@ export default function StrategiesPage() {
                         const enabled = isStrategyEnabled(strategy);
                         const isStratExpanded = expandedStrategies.has(strategy.id);
                         const isLocked = isStrategyLocked(strategy);
+                        const reqs = checkRequirements(strategy);
+                        const cannotEnable = !reqs.met && !enabled;
 
                         return (
                           <div key={strategy.id} className={cn(
                             'transition-colors',
                             enabled ? 'bg-dark-bg/30' : '',
-                            isLocked ? 'opacity-60' : ''
+                            isLocked ? 'opacity-60' : '',
+                            cannotEnable ? 'opacity-70' : ''
                           )}>
                             {/* Strategy Row */}
                             <div className="px-4 py-3 flex items-center justify-between">
@@ -1753,6 +1834,17 @@ export default function StrategiesPage() {
                                         Pro
                                       </span>
                                     )}
+                                    {/* Platform Requirements Badge */}
+                                    {!reqs.met && reqs.missing.length > 0 && (
+                                      <Link
+                                        href="/settings/secrets"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 text-orange-400 text-xs rounded hover:bg-orange-500/30 transition-colors"
+                                        title={`Connect ${reqs.missing.join(' or ')} to enable this strategy`}
+                                      >
+                                        <AlertTriangle className="w-3 h-3" />
+                                        Requires {reqs.missing.join(' / ')}
+                                      </Link>
+                                    )}
                                   </div>
                                   <p className="text-xs text-dark-muted truncate">{strategy.description}</p>
                                 </div>
@@ -1773,7 +1865,7 @@ export default function StrategiesPage() {
                                 <ToggleSwitch
                                   enabled={enabled}
                                   onToggle={() => toggleStrategy(strategy)}
-                                  disabled={!isAdmin || isLocked}
+                                  disabled={!isAdmin || isLocked || cannotEnable}
                                   size="sm"
                                 />
                                 <button

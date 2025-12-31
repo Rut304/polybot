@@ -174,6 +174,18 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
+    // AUTO-ENABLE: When user saves credentials, automatically enable that exchange in their config
+    const exchangeConfigKey = `enable_${exchange.toLowerCase()}`;
+    const { error: configError } = await supabaseAdmin
+      .from('polybot_config')
+      .update({ [exchangeConfigKey]: true })
+      .eq('user_id', authResult.user_id);
+
+    if (configError) {
+      console.warn(`Could not auto-enable ${exchange} in config:`, configError.message);
+      // Don't fail - credentials are saved, config enable is a nice-to-have
+    }
+
     await logAuditEvent({
       user_id: authResult.user_id,
       user_email: authResult.user_email,
@@ -185,6 +197,7 @@ export async function POST(request: NextRequest) {
         is_paper, 
         has_password: !!password,
         has_secret: !!api_secret,
+        auto_enabled: !configError,
       },
       ip_address: metadata.ip_address,
       user_agent: metadata.user_agent,
@@ -193,7 +206,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `${exchange} credentials saved successfully`,
+      message: `${exchange} credentials saved and exchange enabled`,
       credential: {
         exchange: data.exchange,
         account_id: data.account_id,
@@ -201,6 +214,7 @@ export async function POST(request: NextRequest) {
         connected: true,
         last_authenticated: data.last_authenticated,
       },
+      auto_enabled: !configError,
     });
   } catch (error: any) {
     console.error('Error saving user credentials:', error);
@@ -254,13 +268,24 @@ export async function DELETE(request: NextRequest) {
 
     if (error) throw error;
 
+    // AUTO-DISABLE: When user deletes credentials, automatically disable that exchange in their config
+    const exchangeConfigKey = `enable_${exchange.toLowerCase()}`;
+    const { error: configError } = await supabaseAdmin
+      .from('polybot_config')
+      .update({ [exchangeConfigKey]: false })
+      .eq('user_id', authResult.user_id);
+
+    if (configError) {
+      console.warn(`Could not auto-disable ${exchange} in config:`, configError.message);
+    }
+
     await logAuditEvent({
       user_id: authResult.user_id,
       user_email: authResult.user_email,
       action: 'user_credentials.delete',
       resource_type: 'user_exchange_credentials',
       resource_id: exchange,
-      details: { exchange },
+      details: { exchange, auto_disabled: !configError },
       ip_address: metadata.ip_address,
       user_agent: metadata.user_agent,
       severity: 'info',
@@ -268,7 +293,8 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `${exchange} credentials deleted`,
+      message: `${exchange} credentials deleted and exchange disabled`,
+      auto_disabled: !configError,
     });
   } catch (error: any) {
     console.error('Error deleting user credentials:', error);

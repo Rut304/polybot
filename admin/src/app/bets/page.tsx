@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Wallet,
   TrendingUp,
@@ -23,11 +23,13 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSimulatedTrades, usePositions, useDisabledMarkets, useManualTrades } from '@/lib/hooks';
 import { useTier } from '@/lib/useTier';
+import { usePlatforms } from '@/lib/PlatformContext';
 import { formatCurrency, formatPercent, timeAgo, cn } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { ManualTradeModal } from '@/components/ManualTradeModal';
 import { useAuth } from '@/lib/auth';
+import { PlatformFilter, TimeRangeFilter } from '@/components/PlatformFilter';
 
 type FilterType = 'all' | 'automated' | 'manual' | 'polymarket' | 'kalshi';
 type StatusFilter = 'all' | 'pending' | 'won' | 'lost';
@@ -314,7 +316,10 @@ export default function BetsPage() {
   const { isSimulation: isUserSimMode } = useTier();
   const tradingMode = isUserSimMode ? 'paper' : 'live';
   
-  const { data: trades = [] } = useSimulatedTrades(2000, tradingMode); // Increased from 100 to show all trades
+  // Platform filtering context
+  const { filterByPlatform, isSimulationMode } = usePlatforms();
+  
+  const { data: rawTrades = [] } = useSimulatedTrades(2000, tradingMode);
   const { data: manualTrades = [] } = useManualTrades(50);
   const { data: disabledMarkets = [] } = useDisabledMarkets();
 
@@ -322,9 +327,31 @@ export default function BetsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [strategyFilter, setStrategyFilter] = useState<StrategyFilter>('all');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [confirmSell, setConfirmSell] = useState<BetCardProps['bet'] | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
+
+  // Apply platform filtering
+  const trades = useMemo(() => {
+    // First, add platform field to trades based on available data
+    const tradesWithPlatform = rawTrades.map((t: any) => ({
+      ...t,
+      platform: t.platform || (t.polymarket_token_id ? 'polymarket' : t.kalshi_ticker ? 'kalshi' : 'unknown')
+    }));
+    
+    // Filter by platform context (simulation shows all, live shows connected)
+    let filtered = filterByPlatform(tradesWithPlatform, 'platform');
+    
+    // Apply user-selected platform filter
+    if (selectedPlatforms.length > 0) {
+      filtered = filtered.filter((t: any) => 
+        selectedPlatforms.some(p => (t.platform || '').toLowerCase().includes(p.toLowerCase()))
+      );
+    }
+    
+    return filtered;
+  }, [rawTrades, filterByPlatform, selectedPlatforms]);
 
   const disabledIds = new Set(disabledMarkets.map((m: { market_id: string }) => m.market_id));
 
@@ -497,6 +524,15 @@ export default function BetsPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
+          {/* Mode indicator */}
+          <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+            isSimulationMode 
+              ? 'bg-amber-500/20 text-amber-400' 
+              : 'bg-green-500/20 text-green-400'
+          }`}>
+            {isSimulationMode ? '🧪 Simulation - All Platforms' : '⚡ Live - Connected Only'}
+          </div>
+          
           {/* Search */}
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -509,7 +545,13 @@ export default function BetsPage() {
             />
           </div>
 
-          {/* Platform filter */}
+          {/* Platform Filter - New Dynamic Component */}
+          <PlatformFilter
+            selectedPlatforms={selectedPlatforms}
+            onPlatformChange={setSelectedPlatforms}
+          />
+
+          {/* Legacy Platform filter - for backward compatibility */}
           <div className="flex bg-dark-card rounded-lg border border-dark-border p-1">
             {(['all', 'polymarket', 'kalshi'] as const).map((f) => (
               <button

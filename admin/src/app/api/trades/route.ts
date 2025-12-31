@@ -1,26 +1,32 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { verifyAuth } from '@/lib/audit';
 
 // ============================================================================
 // Trades API - Returns trade history for the authenticated user
-// Used by E2E tests for data verification and accuracy validation
+// Multi-tenant: Filters by user_id to prevent data leakage
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
 
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key) return null;
   return createClient(url, key);
 };
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase();
     if (!supabase) {
       return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    }
+
+    // Verify authentication and get user_id
+    const authResult = await verifyAuth(request);
+    if (!authResult?.user_id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -28,20 +34,39 @@ export async function GET(request: Request) {
     const offset = parseInt(searchParams.get('offset') || '0');
     const tradingMode = searchParams.get('trading_mode'); // 'paper' or 'live'
     const outcome = searchParams.get('outcome'); // 'won', 'lost', 'pending'
+    const exchange = searchParams.get('exchange'); // Filter by platform
+    const includeSimulation = searchParams.get('include_simulation') !== 'false'; // Default true
 
-    // Build query
+    // Build query with multi-tenant filtering
+    // For simulation/paper trades: Show trades where user_id IS NULL (shared simulation)
+    // For live trades: ONLY show trades belonging to the authenticated user
     let query = supabase
       .from('polybot_simulated_trades')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Apply filters
-    if (tradingMode) {
-      query = query.eq('trading_mode', tradingMode);
+    // Apply trading mode filter with appropriate user filtering
+    if (tradingMode === 'live') {
+      // Live trades: STRICT user filtering - only show user's own trades
+      query = query.eq('user_id', authResult.user_id).eq('trading_mode', 'live');
+    } else if (tradingMode === 'paper') {
+      // Paper/simulation trades: Show shared simulation trades (user_id IS NULL) OR user's own paper trades
+      query = query.eq('trading_mode', 'paper').or(`user_id.is.null,user_id.eq.${authResult.user_id}`);
+    } else {
+      // All trades: Show simulation trades (user_id IS NULL) OR user's own trades
+      if (includeSimulation) {
+        query = query.or(`user_id.is.null,user_id.eq.${authResult.user_id}`);
+      } else {
+        query = query.eq('user_id', authResult.user_id);
+      }
     }
     if (outcome) {
       query = query.eq('outcome', outcome);
+    }
+    if (exchange) {
+      // Filter by buy or sell platform
+      query = query.or(`buy_platform.eq.${exchange},sell_platform.eq.${exchange}`);
     }
 
     const { data: trades, count, error } = await query;

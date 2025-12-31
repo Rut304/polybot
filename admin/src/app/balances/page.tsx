@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Wallet, 
   RefreshCw, 
@@ -24,7 +24,9 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useConnectionSummary, useConnectedPlatforms, useBotStatus, useSimulationStats, useRealTimeStats } from '@/lib/hooks';
 import { useTier } from '@/lib/useTier';
+import { usePlatforms } from '@/lib/PlatformContext';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
+import { PlatformFilter } from '@/components/PlatformFilter';
 
 interface PlatformBalance {
   platform: string;
@@ -76,10 +78,14 @@ export default function BalancesPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
   // Get trading mode from tier context
   const { isSimulation: isUserSimMode } = useTier();
   const tradingMode = isUserSimMode ? 'paper' : 'live';
+  
+  // Platform filtering context
+  const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();
 
   // Get connected platforms from centralized secrets
   const { data: connectedPlatforms = [] } = useConnectedPlatforms();
@@ -152,10 +158,35 @@ export default function BalancesPage() {
     ? ((balance.total_portfolio_usd - lastBalance) / lastBalance) * 100 
     : 0;
 
-  // Group platforms by type
-  const predictionMarkets = balance?.platforms.filter(p => p.platform_type === 'prediction_market') || [];
-  const cryptoExchanges = balance?.platforms.filter(p => p.platform_type === 'crypto_exchange') || [];
-  const stockBrokers = balance?.platforms.filter(p => p.platform_type === 'stock_broker') || [];
+  // Group platforms by type - filtered by platform context
+  const filteredPlatforms = useMemo(() => {
+    if (!balance?.platforms) return [];
+    
+    // Filter by platform context (simulation shows all, live shows connected)
+    let platforms = filterByPlatform(balance.platforms, 'platform');
+    
+    // Apply user-selected platform filter
+    if (selectedPlatforms.length > 0) {
+      platforms = platforms.filter(p => 
+        selectedPlatforms.some(sp => p.platform.toLowerCase().includes(sp.toLowerCase()))
+      );
+    }
+    
+    return platforms;
+  }, [balance?.platforms, filterByPlatform, selectedPlatforms]);
+
+  const predictionMarkets = filteredPlatforms.filter(p => p.platform_type === 'prediction_market');
+  const cryptoExchanges = filteredPlatforms.filter(p => p.platform_type === 'crypto_exchange');
+  const stockBrokers = filteredPlatforms.filter(p => p.platform_type === 'stock_broker');
+
+  // Calculate filtered totals
+  const filteredTotals = useMemo(() => {
+    return {
+      total_portfolio_usd: filteredPlatforms.reduce((sum, p) => sum + (p.total_usd || 0), 0),
+      total_cash_usd: filteredPlatforms.reduce((sum, p) => sum + (p.cash_balance || 0), 0),
+      total_positions_usd: filteredPlatforms.reduce((sum, p) => sum + (p.positions_value || 0), 0),
+    };
+  }, [filteredPlatforms]);
 
   if (loading) {
     return (
@@ -175,27 +206,33 @@ export default function BalancesPage() {
             Portfolio Balances
             {/* Simulation/Live Badge */}
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-              isSimulation 
-                ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' 
+              isSimulationMode 
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
                 : 'bg-green-500/20 text-green-400 border border-green-500/30'
             }`}>
-              {isSimulation ? '📝 PAPER' : '💰 LIVE'}
+              {isSimulationMode ? '🧪 Simulation' : '⚡ Live'}
             </span>
           </h1>
           <p className="text-gray-400 mt-1">
-            {isSimulation 
-              ? 'Simulated balances - No real money at risk'
-              : 'Real exchange balances - Live trading enabled'}
+            {isSimulationMode 
+              ? 'Viewing all platform balances (simulation mode)'
+              : 'Viewing connected platform balances (live mode)'}
           </p>
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <PlatformFilter
+            selectedPlatforms={selectedPlatforms}
+            onPlatformChange={setSelectedPlatforms}
+          />
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Error State */}
