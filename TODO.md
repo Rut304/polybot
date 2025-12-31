@@ -102,12 +102,13 @@ Commit: `fix: Load global secrets before user-specific secrets`
 - [ ] Add filter: "Open Positions" vs "Trade History"
 - [ ] Clear status indicators
 
-### SEO & AI Discoverability
+### SEO & AI Discoverability ✅ COMPLETE
 
-- [ ] Create `/public/llms.txt` for AI search engines
-- [ ] Add structured data (JSON-LD)
-- [ ] Meta tags for all pages
-- [ ] Sitemap.xml
+- [x] Create `/public/llms.txt` for AI search engines
+- [x] Add structured data (JSON-LD) to layout
+- [x] Enhanced meta tags (OpenGraph, Twitter Cards)
+- [x] Created sitemap.xml
+- [x] Created robots.txt with AI agent rules
 
 ### Smart Money Indicators in AI Insights
 

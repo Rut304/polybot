@@ -1,0 +1,32 @@
+# PolyParlay Robots
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /diagnostics/
+Disallow: /settings/
+
+# Sitemaps
+Sitemap: https://polyparlay.io/sitemap.xml
+
+# AI Agents
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /llms.txt
+
+User-agent: Claude-Web
+Allow: /
+Allow: /llms.txt
+
+User-agent: Anthropic-AI
+Allow: /
+Allow: /llms.txt
+
+User-agent: Perplexity
+Allow: /
+Allow: /llms.txt
