@@ -440,10 +440,10 @@ class PolybotRunner:
             return True # Legacy/Global mode is always active
 
         try:
-            # Query polybot_profiles
+            # Query polybot_profiles - note: column is 'id' not 'user_id'
             response = self.db._client.table("polybot_profiles").select(
                 "subscription_status"
-            ).eq("user_id", self.user_id).single().execute()
+            ).eq("id", self.user_id).single().execute()
 
             if not response.data:
                 logger.warning(f"No profile found for user {self.user_id}")
@@ -4017,10 +4017,17 @@ async def main():
         logger.error(f"❌ CRITICAL: Failed to create PolybotRunner: {e}")
         import traceback
         traceback.print_exc()
-        # Keep health server running so container doesn't restart
-        logger.info("Health server will keep running - fix code and redeploy")
-        while True:
-            await asyncio.sleep(60)
+        # Mark as failed - health endpoint will now return 503
+        # This ensures container will be restarted by orchestrator
+        global_runner['instance'] = None
+        global_runner['failed'] = True
+        global_runner['error'] = str(e)
+        logger.error("Bot initialization failed - health endpoint will report unhealthy")
+        # Keep health server running briefly so we can see the error
+        # Then exit to trigger container restart
+        await asyncio.sleep(30)
+        logger.error("Exiting due to initialization failure")
+        return
 
     # Setup signal handlers for graceful shutdown
     loop = asyncio.get_event_loop()
@@ -4030,9 +4037,17 @@ async def main():
         await runner.run()
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
+    except Exception as e:
+        logger.error(f"❌ CRITICAL: Bot runner crashed: {e}")
+        import traceback
+        traceback.print_exc()
+        # Mark the runner as not running so health check fails
+        if runner:
+            runner._running = False
     finally:
         health_task.cancel()
-        await runner.shutdown()
+        if runner:
+            await runner.shutdown()
 
 
 def get_version():
@@ -4101,11 +4116,70 @@ async def start_health_server(port: int = 8080, bot_runner=None, runner_ref=None
         return None
 
     async def health_handler(request):
+        """
+        Health check that ACTUALLY verifies the bot is running.
+        Returns 503 if bot has stopped trading (even if web server is up).
+        """
+        # Check for initialization failure
+        if runner_ref and runner_ref.get('failed'):
+            error = runner_ref.get('error', 'Unknown error')
+            return web.Response(
+                text=f"UNHEALTHY: Bot failed to start - {error}",
+                status=503
+            )
+        
+        runner = get_runner()
+        
+        # Check 1: Is the runner initialized?
+        if not runner:
+            return web.Response(
+                text="UNHEALTHY: Bot runner not initialized",
+                status=503
+            )
+        
+        # Check 2: Is the bot still in running state?
+        if not runner._running:
+            return web.Response(
+                text="UNHEALTHY: Bot has stopped (_running=False)",
+                status=503
+            )
+        
+        # Check 3: Are there any active tasks?
+        if hasattr(runner, '_tasks') and runner._tasks:
+            active_tasks = [t for t in runner._tasks if not t.done()]
+            if len(active_tasks) == 0:
+                return web.Response(
+                    text="UNHEALTHY: All tasks have stopped",
+                    status=503
+                )
+        
         return web.Response(text="OK", status=200)
 
     async def status_handler(request):
+        """Status endpoint with detailed health info."""
+        runner = get_runner()
+        
+        # Determine actual health state
+        health_status = "unhealthy"
+        health_reason = "Bot not initialized"
+        
+        if runner:
+            if runner._running:
+                active_tasks = 0
+                if hasattr(runner, '_tasks') and runner._tasks:
+                    active_tasks = len([t for t in runner._tasks if not t.done()])
+                
+                if active_tasks > 0:
+                    health_status = "healthy"
+                    health_reason = f"{active_tasks} tasks running"
+                else:
+                    health_reason = "No active tasks"
+            else:
+                health_reason = "Bot stopped (_running=False)"
+        
         return web.json_response({
-            "status": "running",
+            "status": health_status,
+            "reason": health_reason,
             "service": "polybot",
             "version": version,
             "build": build,
