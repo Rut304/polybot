@@ -60,16 +60,19 @@ Live trading IS completely wired up:
 
 ### Analytics & Charts
 
-- [ ] Line charts for strategy P&L trending
+- [x] Line charts for strategy P&L trending - EquityCurveChart added
+- [x] Interactive metrics with detailed tooltips - All metrics explained
 - [ ] TradingView charts for price data
 - [ ] Interactive legend to toggle strategies
 
 ### Pages Needing Updates
 
-- [ ] `/insights` - Add platform filter
-- [ ] `/history` - Add platform filter
-- [ ] `/whales` - Multi-platform support
-- [ ] Merge Bets + Positions into "My Trades"
+- [x] `/insights` - Platform category filter already exists
+- [x] `/bets` - PlatformFilter component integrated
+- [x] `/positions` - PlatformFilter component integrated
+- [ ] `/history` - Session-based (platform filter N/A)
+- [ ] `/whales` - Add multi-platform support
+- [ ] Merge Bets + Positions into "My Trades" (nice-to-have)
 
 ---
 
