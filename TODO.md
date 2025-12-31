@@ -73,11 +73,13 @@ Commit: `fix: Load global secrets before user-specific secrets`
 - [ ] **Verify ALL frameworks are wired** (risk management, position sizing)
 - [ ] Create checklist of every strategy with enabled/disabled status
 
-### TradingView Integration
+### TradingView Integration ✅ COMPLETE
 
-- [ ] **Add TradingView webhook endpoint** `/api/webhook/tradingview`
-- [ ] Improve chart legibility and design
-- [ ] Better communicate VALUE through visuals
+- [x] **Add TradingView webhook endpoint** `/api/webhooks/tradingview`
+- [x] Created `scripts/add_tradingview_signals_table.sql` for signal storage
+- [x] Supports buy/sell/close actions, auto-detects asset type (stock/crypto/prediction)
+- [x] GET endpoint shows usage documentation
+- [ ] Improve chart legibility and design (future)
 
 ### Landing Page Improvements
 
