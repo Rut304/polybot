@@ -63,11 +63,10 @@ interface NavItem {
 
 const navSections: NavSection[] = [
   {
-    title: 'Overview',
+    title: 'Dashboard',
     items: [
-      { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/', label: 'Overview', icon: LayoutDashboard },
       { href: '/analytics', label: 'Analytics', icon: TrendingUp },
-      { href: '/missed-opportunities', label: 'Failed Trades', icon: AlertTriangle, requiredTier: 'pro' },
       { href: '/notifications', label: 'Notifications', icon: Bell },
     ],
   },
@@ -75,9 +74,9 @@ const navSections: NavSection[] = [
     title: 'Trading',
     items: [
       { href: '/markets', label: 'Markets', icon: Store },
-      { href: '/bets', label: 'My Bets', icon: Wallet },
-      { href: '/positions', label: 'Positions', icon: BarChart3 },
+      { href: '/positions', label: 'My Trades', icon: BarChart3 },
       { href: '/watchlist', label: 'Watchlist', icon: Star },
+      { href: '/backtesting', label: 'Backtesting', icon: History, isNew: true },
     ],
   },
   {
@@ -86,7 +85,6 @@ const navSections: NavSection[] = [
       { href: '/news', label: 'News Feed', icon: Newspaper },
       { href: '/insights', label: 'AI Insights', icon: Brain, requiredTier: 'pro' },
       { href: '/whales', label: 'Whale Tracker', icon: Fish, requiredTier: 'elite' },
-      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, adminOnly: true },
       { href: '/congress', label: 'Congress Tracker', icon: Landmark, requiredTier: 'elite' },
     ],
   },
@@ -102,11 +100,22 @@ const navSections: NavSection[] = [
   {
     title: 'Automation',
     items: [
+      { href: '/strategies', label: 'Strategies', icon: Target },
       { href: '/marketplace', label: 'Marketplace', icon: Store, isNew: true },
       { href: '/workflows', label: 'Workflows', icon: GitBranch },
-      { href: '/backtesting', label: 'Backtesting', icon: History, isNew: true },
       { href: '/strategy-history', label: 'Strategy History', icon: History, requiredTier: 'pro' },
       { href: '/strategy-builder', label: 'Strategy Builder', icon: Target, requiredTier: 'elite' },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { href: '/settings', label: 'Settings', icon: Settings },
+      { href: '/secrets', label: 'API Keys', icon: Key },
+      { href: '/team', label: 'Team', icon: Users },
+      { href: '/referrals', label: 'Referrals', icon: Users, isNew: true },
+      { href: '/pricing', label: 'Pricing', icon: Store },
+      { href: '/help', label: 'Help Center', icon: BookOpen },
     ],
   },
   {
@@ -116,22 +125,12 @@ const navSections: NavSection[] = [
       { href: '/admin/features', label: 'Feature Control', icon: Zap, adminOnly: true },
       { href: '/admin/subscriptions', label: 'Subscriptions', icon: Coins, adminOnly: true },
       { href: '/admin/support', label: 'AI Support', icon: Brain, adminOnly: true },
+      { href: '/users', label: 'User Management', icon: Users, adminOnly: true },
+      { href: '/leaderboard', label: 'Top Traders', icon: Trophy, adminOnly: true },
       { href: '/diagnostics', label: 'Diagnostics', icon: Activity, adminOnly: true },
-      { href: '/strategies', label: 'Strategies', icon: Target, adminOnly: true },
-      { href: '/secrets', label: 'API Keys', icon: Key, adminOnly: true },
-      { href: '/users', label: 'Users', icon: Users, adminOnly: true },
+      { href: '/missed-opportunities', label: 'Failed Trades', icon: AlertTriangle, adminOnly: true },
+      { href: '/docs', label: 'API Docs', icon: BookOpen, adminOnly: true },
       { href: '/admin/guide', label: 'Admin Guide', icon: BookOpen, adminOnly: true },
-    ],
-  },
-  {
-    title: 'Settings',
-    items: [
-      { href: '/settings', label: 'Settings', icon: Settings },
-      { href: '/team', label: 'Team', icon: Users },
-      { href: '/referrals', label: 'Referrals', icon: Users, isNew: true },
-      { href: '/pricing', label: 'Pricing', icon: Store },
-      { href: '/help', label: 'Help Center', icon: BookOpen },
-      { href: '/docs', label: 'API Docs', icon: BookOpen },
     ],
   },
 ];
@@ -220,10 +219,20 @@ export function Navigation() {
           const visibleItems = section.items.filter(item => !item.adminOnly || isAdmin);
           if (visibleItems.length === 0) return null;
 
+          // Add visual separator before Admin section
+          const isAdminSection = section.title === 'Admin';
+
           return (
             <div key={section.title} className={cn(sectionIndex > 0 && "mt-3")}>
+              {/* Admin section separator */}
+              {isAdminSection && isAdmin && !collapsed && (
+                <div className="mx-2 mb-3 border-t border-dashed border-gray-700" />
+              )}
               {!collapsed && (
-                <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                <div className={cn(
+                  "px-2 py-1 text-[10px] uppercase tracking-wider font-semibold",
+                  isAdminSection ? "text-yellow-500" : "text-gray-500"
+                )}>
                   {section.title}
                 </div>
               )}

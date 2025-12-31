@@ -25,7 +25,7 @@ import { useAuth } from '@/lib/auth';
 const MOBILE_NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/markets', label: 'Markets', icon: Store },
-  { href: '/bets', label: 'My Bets', icon: Wallet },
+  { href: '/positions', label: 'Trades', icon: Wallet },
   { href: '/history', label: 'History', icon: History },
   { href: '/notifications', label: 'Alerts', icon: Bell },
 ];
@@ -34,8 +34,9 @@ const MOBILE_MENU_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/analytics', label: 'Analytics', icon: TrendingUp },
   { href: '/markets', label: 'Markets', icon: Store },
-  { href: '/bets', label: 'My Bets', icon: Wallet },
+  { href: '/positions', label: 'My Trades', icon: Wallet },
   { href: '/history', label: 'Trade History', icon: History },
+  { href: '/strategies', label: 'Strategies', icon: Settings },
   { href: '/settings', label: 'Settings', icon: Settings },
   { href: '/profile', label: 'Profile', icon: User },
 ];
