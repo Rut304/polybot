@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Activity,
   TrendingUp,
@@ -28,26 +29,40 @@ import {
   useUserExchanges,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, isRecent, cn } from '@/lib/utils';
-import { PnLChart } from '@/components/charts/PnLChart';
-import { OpportunityChart } from '@/components/charts/OpportunityChart';
-import { TradesList } from '@/components/TradesList';
-import { OpportunitiesFeed } from '@/components/OpportunitiesFeed';
-import { StatusIndicator } from '@/components/StatusIndicator';
-import { StatDetailModal } from '@/components/StatDetailModal';
-import { StrategyPerformanceTable } from '@/components/StrategyPerformanceTable';
-
-
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
 import { Opportunity, SimulatedTrade } from '@/lib/supabase';
-import { MoneyStatsWidget } from '@/components/MoneyStatsWidget';
 import { useTier } from '@/lib/useTier';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
-import { WelcomeBanner, QuickStartFAB, PageCTA } from '@/components/QuickStartGuide';
-import { BotHealthIndicator } from '@/components/BotHealthIndicator';
-import { ConnectedExchangesBadge } from '@/components/ConnectedExchangesBadge';
-import { TradingModeBanner } from '@/components/TradingModeBanner';
 import { usePlatforms } from '@/lib/PlatformContext';
+
+// Lazy load heavy components to improve LCP
+const PnLChart = dynamic(() => import('@/components/charts/PnLChart').then(m => ({ default: m.PnLChart })), {
+  loading: () => <div className="h-64 bg-dark-border/30 rounded-lg animate-pulse" />,
+  ssr: false
+});
+const OpportunityChart = dynamic(() => import('@/components/charts/OpportunityChart').then(m => ({ default: m.OpportunityChart })), {
+  loading: () => <div className="h-64 bg-dark-border/30 rounded-lg animate-pulse" />,
+  ssr: false
+});
+const TradesList = dynamic(() => import('@/components/TradesList').then(m => ({ default: m.TradesList })), {
+  loading: () => <div className="h-48 bg-dark-border/30 rounded-lg animate-pulse" />
+});
+const OpportunitiesFeed = dynamic(() => import('@/components/OpportunitiesFeed').then(m => ({ default: m.OpportunitiesFeed })), {
+  loading: () => <div className="h-48 bg-dark-border/30 rounded-lg animate-pulse" />
+});
+const StatDetailModal = dynamic(() => import('@/components/StatDetailModal').then(m => ({ default: m.StatDetailModal })));
+const StrategyPerformanceTable = dynamic(() => import('@/components/StrategyPerformanceTable').then(m => ({ default: m.StrategyPerformanceTable })), {
+  loading: () => <div className="h-32 bg-dark-border/30 rounded-lg animate-pulse" />
+});
+const MoneyStatsWidget = dynamic(() => import('@/components/MoneyStatsWidget').then(m => ({ default: m.MoneyStatsWidget })));
+const WelcomeBanner = dynamic(() => import('@/components/QuickStartGuide').then(m => ({ default: m.WelcomeBanner })));
+const QuickStartFAB = dynamic(() => import('@/components/QuickStartGuide').then(m => ({ default: m.QuickStartFAB })));
+const PageCTA = dynamic(() => import('@/components/QuickStartGuide').then(m => ({ default: m.PageCTA })));
+const BotHealthIndicator = dynamic(() => import('@/components/BotHealthIndicator').then(m => ({ default: m.BotHealthIndicator })));
+const ConnectedExchangesBadge = dynamic(() => import('@/components/ConnectedExchangesBadge').then(m => ({ default: m.ConnectedExchangesBadge })));
+const TradingModeBanner = dynamic(() => import('@/components/TradingModeBanner').then(m => ({ default: m.TradingModeBanner })));
+const StatusIndicator = dynamic(() => import('@/components/StatusIndicator').then(m => ({ default: m.StatusIndicator })));
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [

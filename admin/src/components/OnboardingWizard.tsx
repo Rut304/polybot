@@ -69,6 +69,7 @@ const STEPS = [
 ];
 
 const PLATFORM_LINKS = [
+  // Prediction Markets
   {
     name: 'Polymarket',
     url: 'https://polymarket.com',
@@ -80,6 +81,7 @@ const PLATFORM_LINKS = [
     apiKeyLabel: 'API Key',
     secretKeyLabel: 'Secret',
     helpUrl: 'https://docs.polymarket.com/#api',
+    category: 'prediction',
   },
   {
     name: 'Kalshi',
@@ -92,18 +94,61 @@ const PLATFORM_LINKS = [
     apiKeyLabel: 'API Key',
     secretKeyLabel: 'Private Key (RSA)',
     helpUrl: 'https://trading-api.readme.io/reference/authentication',
+    category: 'prediction',
   },
+  // Crypto Exchanges
+  {
+    name: 'Hyperliquid',
+    url: 'https://hyperliquid.xyz',
+    description: 'Zero-fee perp DEX, fastest fills',
+    color: 'from-cyan-400 to-blue-500',
+    icon: '⚡',
+    apiKeyName: 'HYPERLIQUID_WALLET_ADDRESS',
+    secretKeyName: 'HYPERLIQUID_PRIVATE_KEY',
+    apiKeyLabel: 'Wallet Address',
+    secretKeyLabel: 'Private Key',
+    helpUrl: 'https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api',
+    category: 'crypto',
+  },
+  {
+    name: 'Binance',
+    url: 'https://binance.com',
+    description: 'Largest crypto exchange',
+    color: 'from-yellow-400 to-yellow-600',
+    icon: '🟡',
+    apiKeyName: 'BINANCE_API_KEY',
+    secretKeyName: 'BINANCE_API_SECRET',
+    apiKeyLabel: 'API Key',
+    secretKeyLabel: 'API Secret',
+    helpUrl: 'https://binance.com/en/support/faq/api',
+    category: 'crypto',
+  },
+  // Stock Brokers
   {
     name: 'Alpaca',
     url: 'https://alpaca.markets',
     description: 'Commission-free stocks',
     color: 'from-yellow-500 to-orange-500',
-    icon: '📈',
+    icon: '🦙',
     apiKeyName: 'ALPACA_API_KEY',
     secretKeyName: 'ALPACA_API_SECRET',
     apiKeyLabel: 'API Key',
     secretKeyLabel: 'API Secret',
     helpUrl: 'https://docs.alpaca.markets/docs/api-keys',
+    category: 'stocks',
+  },
+  {
+    name: 'IBKR',
+    url: 'https://interactivebrokers.com',
+    description: 'Professional trading platform',
+    color: 'from-red-500 to-red-700',
+    icon: '🏛️',
+    apiKeyName: 'IBKR_USERNAME',
+    secretKeyName: 'IBKR_PASSWORD',
+    apiKeyLabel: 'Username',
+    secretKeyLabel: 'Password',
+    helpUrl: 'https://www.interactivebrokers.com/en/trading/web-api.php',
+    category: 'stocks',
   },
 ];
 
@@ -116,24 +161,38 @@ const FREE_STRATEGIES = [
     risk: 'Low',
   },
   {
-    id: '15min_crypto_scalping',
-    name: '15-Min Crypto Scalping',
-    description: 'RSI-based crypto momentum trades',
-    expectedReturn: '10-25% APY',
-    risk: 'Medium',
-  },
-  {
-    id: 'market_making',
-    name: 'Market Making',
-    description: 'Capture bid-ask spreads',
-    expectedReturn: '10-20% APY',
+    id: 'cross_platform_arb',
+    name: 'Cross-Platform Arbitrage',
+    description: 'Exploit price differences across exchanges',
+    expectedReturn: '8-20% APY',
     risk: 'Low',
   },
   {
-    id: 'news_arbitrage',
-    name: 'News Arbitrage',
-    description: 'Trade price discrepancies after news',
-    expectedReturn: '5-30% per event',
+    id: 'whale_copy_trading',
+    name: 'Whale Copy Trading',
+    description: 'Follow top traders automatically',
+    expectedReturn: '15-40% APY',
+    risk: 'Medium',
+  },
+  {
+    id: 'congressional_tracker',
+    name: 'Congressional Tracker',
+    description: 'Trade based on politician disclosures',
+    expectedReturn: '10-30% APY',
+    risk: 'Medium',
+  },
+  {
+    id: 'funding_rate_arb',
+    name: 'Funding Rate Arbitrage',
+    description: 'Capture funding payments on perps',
+    expectedReturn: '15-25% APY',
+    risk: 'Low',
+  },
+  {
+    id: 'grid_trading',
+    name: 'Grid Trading',
+    description: 'Automated buy/sell grid orders',
+    expectedReturn: '10-20% APY',
     risk: 'Medium',
   },
 ];
@@ -143,8 +202,8 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([
     'single_platform_arb',
-    '15min_crypto_scalping',
-    'market_making',
+    'cross_platform_arb',
+    'whale_copy_trading',
   ]);
   const [isCompleting, setIsCompleting] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
@@ -240,10 +299,6 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
     setSelectedStrategies(prev => {
       if (prev.includes(strategyId)) {
         return prev.filter(id => id !== strategyId);
-      }
-      // Free tier: max 3 strategies
-      if (prev.length >= 3) {
-        return prev;
       }
       return [...prev, strategyId];
     });
@@ -473,29 +528,25 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           <div>
             <h3 className="text-xl font-semibold text-white mb-2 text-center">Choose Your Strategies</h3>
             <p className="text-gray-400 mb-2 text-center">
-              Select up to 3 strategies for your Free account.
+              Select which automated strategies to enable.
             </p>
             <p className="text-xs text-neon-green mb-6 text-center">
-              {selectedStrategies.length}/3 selected • Upgrade to Pro for all 15+ strategies
+              {selectedStrategies.length} selected • You can change these anytime in Settings
             </p>
 
-            <div className="grid gap-3">
+            <div className="grid gap-3 max-h-[400px] overflow-y-auto">
               {FREE_STRATEGIES.map((strategy) => {
                 const isSelected = selectedStrategies.includes(strategy.id);
-                const isDisabled = !isSelected && selectedStrategies.length >= 3;
 
                 return (
                   <button
                     key={strategy.id}
                     onClick={() => toggleStrategy(strategy.id)}
-                    disabled={isDisabled}
                     className={`
                       flex items-center gap-4 p-4 rounded-lg border text-left transition-all
                       ${isSelected
                         ? 'bg-neon-green/10 border-neon-green/50'
-                        : isDisabled
-                          ? 'bg-dark-bg/30 border-dark-border opacity-50 cursor-not-allowed'
-                          : 'bg-dark-bg/50 border-dark-border hover:border-gray-600'
+                        : 'bg-dark-bg/50 border-dark-border hover:border-gray-600'
                       }
                     `}
                   >

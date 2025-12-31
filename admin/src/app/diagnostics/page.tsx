@@ -588,17 +588,24 @@ export default function DiagnosticsPage() {
             message: `Last trade: ${Math.round(hoursAgo * 60)} minutes ago`,
             duration: Date.now() - start,
           });
-        } else if (hoursAgo < 6) {
+        } else if (hoursAgo < 12) {
+          updateTest(catIdx, testIdx, {
+            status: 'success',
+            message: `Last trade: ${hoursAgo.toFixed(1)} hours ago`,
+            details: 'Bot is active',
+            duration: Date.now() - start,
+          });
+        } else if (hoursAgo < 24) {
           updateTest(catIdx, testIdx, {
             status: 'warning',
-            message: `Last trade: ${hoursAgo.toFixed(1)} hours ago`,
-            details: 'Bot may be idle or no opportunities found',
+            message: `Last trade: ${hoursAgo.toFixed(0)} hours ago`,
+            details: 'Bot may be idle or waiting for opportunities',
             duration: Date.now() - start,
           });
         } else {
           updateTest(catIdx, testIdx, {
             status: 'error',
-            message: `No trades in ${hoursAgo.toFixed(0)} hours`,
+            message: `No trades in ${Math.round(hoursAgo / 24)} days`,
             details: 'Bot may have stopped or encountered errors',
             duration: Date.now() - start,
           });
@@ -1211,16 +1218,22 @@ export default function DiagnosticsPage() {
           
           {e2eStatus === 'error' && e2eResults && (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                <XCircle className="w-5 h-5 text-red-400" />
+              <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-400" />
                 <div>
-                  <p className="font-medium text-red-400">Some tests failed</p>
+                  <p className="font-medium text-yellow-400">
+                    {e2eResults.output?.includes('E2E tests can only be run') 
+                      ? 'E2E tests run via CI/CD' 
+                      : 'Some tests failed'}
+                  </p>
                   <p className="text-sm text-gray-400">
-                    {e2eResults.passed} passed, {e2eResults.failed} failed of {e2eResults.total} tests
+                    {e2eResults.output?.includes('E2E tests can only be run')
+                      ? 'For security, E2E tests run automatically in GitHub Actions on each deploy'
+                      : `${e2eResults.passed} passed, ${e2eResults.failed} failed of ${e2eResults.total} tests`}
                   </p>
                 </div>
               </div>
-              {e2eResults.output && (
+              {e2eResults.output && !e2eResults.output.includes('E2E tests can only be run') && (
                 <div className="bg-gray-900 rounded-lg p-3 overflow-x-auto">
                   <pre className="text-xs text-gray-400 whitespace-pre-wrap">{e2eResults.output}</pre>
                 </div>
