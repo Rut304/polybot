@@ -85,8 +85,14 @@ class Database:
 
     def load_secrets(self, force_refresh: bool = False) -> Dict[str, str]:
         """
-        Load all secrets from Supabase polybot_secrets table.
-        Caches results to avoid repeated DB calls.
+        Load all secrets from Supabase.
+        
+        Order of precedence:
+        1. Global secrets from polybot_secrets (always loaded first)
+        2. User-specific secrets from polybot_key_vault (if user_id set, overlays global)
+        
+        This ensures the bot always has access to global API keys while allowing
+        user-specific overrides for multi-tenant scenarios.
 
         Args:
             force_refresh: If True, bypass cache and reload from DB
@@ -102,42 +108,53 @@ class Database:
             return {}
 
         try:
-            # Table: polybot_key_vault (SaaS) or polybot_secrets (Legacy)
-            # Prefer Vault if user_id is present
-            if self.user_id:
-                query = self._client.table("polybot_key_vault").select(
-                    "key_name, encrypted_value"
-                ).eq("user_id", self.user_id)
-
-                result = query.execute()
-
-                # Decrypt values
-                self._secrets_cache = {}
-                for row in (result.data or []):
-                    key_name = row["key_name"]
-                    enc_value = row["encrypted_value"]
-                    try:
-                        decrypted = self.vault.decrypt(enc_value)
-                        self._secrets_cache[key_name] = decrypted
-                    except Exception as e:
-                        logger.error(f"Failed to decrypt secret {key_name}: {e}")
-
-            else:
-                # Legacy fallback
-                query = self._client.table("polybot_secrets").select(
+            self._secrets_cache = {}
+            
+            # STEP 1: Always load global secrets from polybot_secrets first
+            # These are the shared API keys configured by admin
+            try:
+                global_query = self._client.table("polybot_secrets").select(
                     "key_name, key_value"
                 ).eq("is_configured", True)
 
-                result = query.execute()
+                global_result = global_query.execute()
 
-                self._secrets_cache = {
-                    row["key_name"]: row["key_value"]
-                    for row in (result.data or [])
-                    if row.get("key_value")
-                }
+                for row in (global_result.data or []):
+                    if row.get("key_value"):
+                        self._secrets_cache[row["key_name"]] = row["key_value"]
+                
+                logger.info(f"✓ Loaded {len(self._secrets_cache)} global secrets from polybot_secrets")
+            except Exception as e:
+                logger.warning(f"Could not load global secrets: {e}")
+            
+            # STEP 2: If user_id is set, overlay with user-specific secrets from vault
+            # User secrets take precedence over global secrets
+            if self.user_id:
+                try:
+                    vault_query = self._client.table("polybot_key_vault").select(
+                        "key_name, encrypted_value"
+                    ).eq("user_id", self.user_id)
+
+                    vault_result = vault_query.execute()
+
+                    user_secrets_count = 0
+                    for row in (vault_result.data or []):
+                        key_name = row["key_name"]
+                        enc_value = row["encrypted_value"]
+                        try:
+                            decrypted = self.vault.decrypt(enc_value)
+                            self._secrets_cache[key_name] = decrypted
+                            user_secrets_count += 1
+                        except Exception as e:
+                            logger.error(f"Failed to decrypt secret {key_name}: {e}")
+                    
+                    if user_secrets_count > 0:
+                        logger.info(f"✓ Overlaid {user_secrets_count} user secrets from polybot_key_vault (user: {self.user_id})")
+                except Exception as e:
+                    logger.warning(f"Could not load user-specific secrets: {e}")
 
             self._secrets_loaded = True
-            logger.info(f"✓ Loaded {len(self._secrets_cache)} secrets from Supabase (User: {self.user_id or 'Global'})")
+            logger.info(f"✓ Total secrets available: {len(self._secrets_cache)}")
             return self._secrets_cache
 
         except Exception as e:
