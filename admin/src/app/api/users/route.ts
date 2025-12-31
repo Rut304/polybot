@@ -363,7 +363,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, role = 'viewer', display_name } = body;
+    const { email, password, role = 'viewer', displayName, subscription_tier = 'free' } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -387,17 +387,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create profile
+    // Create profile in polybot_user_profiles
     if (authData.user) {
-      await supabase
+      const { error: profileError } = await supabase
         .from('polybot_user_profiles')
         .upsert({
           id: authData.user.id,
           email: email,
           role: role,
-          display_name: display_name || email.split('@')[0],
+          display_name: displayName || email.split('@')[0],
           created_at: new Date().toISOString(),
         });
+      
+      if (profileError) {
+        console.error('Failed to create user profile:', profileError);
+      }
+
+      // Create SaaS profile in polybot_profiles
+      const { error: saasError } = await supabase
+        .from('polybot_profiles')
+        .upsert({
+          id: authData.user.id,
+          subscription_tier: subscription_tier,
+          subscription_status: 'active',
+          monthly_trades_used: 0,
+          monthly_trades_limit: subscription_tier === 'elite' ? -1 : 
+                                subscription_tier === 'pro' ? 1000 : 0,
+          is_simulation: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (saasError) {
+        console.error('Failed to create SaaS profile:', saasError);
+      }
     }
 
     return NextResponse.json({

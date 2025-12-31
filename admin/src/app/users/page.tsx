@@ -14,9 +14,15 @@ import {
   Crown,
   Zap,
   Settings,
+  Key,
+  Edit3,
+  User,
+  AlertTriangle,
+  X,
+  Check,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { UserTierEditor } from '@/components/UserTierEditor';
@@ -38,27 +44,45 @@ interface User {
 }
 
 const TIER_BADGES = {
-  free: { icon: Eye, color: 'bg-gray-500/20 text-gray-400', label: 'Free' },
+  free: { icon: User, color: 'bg-gray-500/20 text-gray-400', label: 'Free' },
   pro: { icon: Zap, color: 'bg-neon-blue/20 text-neon-blue', label: 'Pro' },
   elite: { icon: Crown, color: 'bg-neon-purple/20 text-neon-purple', label: 'Elite' },
 };
 
+const ROLE_OPTIONS = [
+  { value: 'viewer', label: 'Read Only', icon: Eye, description: 'Can view dashboards but cannot trade' },
+  { value: 'admin', label: 'Admin', icon: Shield, description: 'Full access to all features and settings' },
+];
+
+const TIER_OPTIONS = [
+  { value: 'free', label: 'Free', icon: User, description: 'Limited features, simulation only' },
+  { value: 'pro', label: 'Pro', icon: Zap, description: 'Advanced features, live trading enabled' },
+  { value: 'elite', label: 'Elite', icon: Crown, description: 'All features, priority support, unlimited trades' },
+];
+
 export default function UsersPage() {
   const { user: currentUser, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [createForm, setCreateForm] = useState({ email: '', password: '', displayName: '', role: 'viewer', tier: 'free' });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // Fetch users via API (uses service key to bypass RLS)
-  const { data: users = [], refetch, isLoading, error } = useQuery<User[]>({
+  const { data: users = [], refetch, isLoading, error, isFetching } = useQuery<User[]>({
     queryKey: ['users-page'],
     queryFn: async () => {
-      const response = await fetch('/api/users');
+      const response = await fetch('/api/users', { cache: 'no-store' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       return result.users || [];
     },
     staleTime: 0,
-    refetchOnMount: true,
+    refetchOnMount: 'always',
   });
 
   // Filter users by search
@@ -66,6 +90,16 @@ export default function UsersPage() {
     u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const showNotification = (message: string, isError = false) => {
+    if (isError) {
+      setActionError(message);
+      setTimeout(() => setActionError(null), 5000);
+    } else {
+      setActionSuccess(message);
+      setTimeout(() => setActionSuccess(null), 3000);
+    }
+  };
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
@@ -76,13 +110,102 @@ export default function UsersPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        console.error('Role update error:', data);
-        throw new Error(data.error || 'Failed to update');
+        throw new Error(data.error || 'Failed to update role');
       }
+      showNotification('Role updated successfully');
       refetch();
     } catch (err: any) {
-      console.error('Failed to update user role:', err);
-      alert(`Failed to update user role: ${err.message}`);
+      showNotification(err.message, true);
+    }
+  };
+
+  const handleTierChange = async (userId: string, newTier: string) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, updates: { subscription_tier: newTier } }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update tier');
+      }
+      showNotification('Subscription tier updated successfully');
+      refetch();
+    } catch (err: any) {
+      showNotification(err.message, true);
+    }
+  };
+
+  const handleEmailUpdate = async (userId: string) => {
+    if (!newEmail || !newEmail.includes('@')) {
+      showNotification('Please enter a valid email', true);
+      return;
+    }
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, updates: { email: newEmail } }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update email');
+      }
+      showNotification('Email updated successfully');
+      setEditingEmail(null);
+      setNewEmail('');
+      refetch();
+    } catch (err: any) {
+      showNotification(err.message, true);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!createForm.email || !createForm.password) {
+      showNotification('Email and password are required', true);
+      return;
+    }
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: createForm.email,
+          password: createForm.password,
+          displayName: createForm.displayName,
+          role: createForm.role,
+          subscription_tier: createForm.tier,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create user');
+      }
+      showNotification('User created successfully');
+      setShowCreateModal(false);
+      setCreateForm({ email: '', password: '', displayName: '', role: 'viewer', tier: 'free' });
+      refetch();
+    } catch (err: any) {
+      showNotification(err.message, true);
+    }
+  };
+
+  const handleResetMFA = async (userId: string) => {
+    if (!confirm('Reset MFA for this user? They will need to set up MFA again on next login.')) return;
+    try {
+      const res = await fetch('/api/users/reset-mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to reset MFA');
+      }
+      showNotification('MFA reset successfully');
+    } catch (err: any) {
+      showNotification(err.message, true);
     }
   };
 
@@ -111,6 +234,7 @@ export default function UsersPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to update tier');
+      showNotification('User settings updated successfully');
       refetch();
     } catch (err) {
       console.error('Failed to update user tier:', err);
@@ -127,10 +251,10 @@ export default function UsersPage() {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to delete');
+      showNotification('User deleted successfully');
       refetch();
     } catch (err) {
-      console.error('Failed to delete user:', err);
-      alert('Failed to delete user');
+      showNotification('Failed to delete user', true);
     }
   };
 
@@ -148,6 +272,31 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Notifications */}
+      <AnimatePresence>
+        {actionError && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 right-4 z-50 bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg flex items-center gap-2"
+          >
+            <AlertTriangle className="w-5 h-5" />
+            {actionError}
+          </motion.div>
+        )}
+        {actionSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 right-4 z-50 bg-green-500/20 border border-green-500/50 text-green-400 px-4 py-3 rounded-lg flex items-center gap-2"
+          >
+            <Check className="w-5 h-5" />
+            {actionSuccess}
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -165,14 +314,23 @@ export default function UsersPage() {
             Manage user access and permissions ({users.length} users)
           </p>
         </div>
-        <button
-          onClick={() => refetch()}
-          disabled={isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-dark-border transition-colors"
-        >
-          <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add User
+          </button>
+          <button
+            onClick={() => refetch()}
+            disabled={isLoading || isFetching}
+            className="flex items-center gap-2 px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-dark-border transition-colors"
+          >
+            <RefreshCw className={cn("w-4 h-4", (isLoading || isFetching) && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
       </motion.div>
 
       {/* Search */}
@@ -333,27 +491,96 @@ export default function UsersPage() {
               </div>
 
               {/* User Actions */}
-              <div className="flex items-center gap-2 pt-3 border-t border-dark-border">
-                <select
-                  value={user.role}
-                  onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                  disabled={user.id === currentUser?.id}
-                  title="Change user role"
-                  className="flex-1 bg-dark-border border border-dark-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="user">Standard User</option>
-                  <option value="viewer">Read Only</option>
-                </select>
-                {user.id !== currentUser?.id && (
-                  <button
-                    onClick={() => handleDeleteUser(user)}
-                    className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                    title="Delete user"
+              <div className="flex flex-col gap-2 pt-3 border-t border-dark-border">
+                {/* Role dropdown */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 w-12">Role:</label>
+                  <select
+                    value={user.role}
+                    onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                    disabled={user.id === currentUser?.id}
+                    title="Change user role"
+                    className="flex-1 bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-purple disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                    <option value="viewer">Viewer (Read Only)</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                {/* Tier dropdown */}
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-500 w-12">Tier:</label>
+                  <select
+                    value={user.subscription_tier || 'free'}
+                    onChange={(e) => handleTierChange(user.id, e.target.value)}
+                    title="Change subscription tier"
+                    className="flex-1 bg-dark-border border border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-blue"
+                  >
+                    <option value="free">Free</option>
+                    <option value="pro">Pro</option>
+                    <option value="elite">Elite</option>
+                  </select>
+                </div>
+                {/* Action buttons */}
+                <div className="flex items-center gap-1 mt-1">
+                  {editingEmail === user.id ? (
+                    <div className="flex items-center gap-1 flex-1">
+                      <input
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        placeholder="New email"
+                        className="flex-1 bg-dark-border border border-dark-border rounded px-2 py-1 text-sm focus:outline-none focus:border-neon-purple"
+                      />
+                      <button
+                        onClick={() => handleEmailUpdate(user.id)}
+                        className="p-1.5 text-green-400 hover:bg-green-500/10 rounded"
+                        title="Save"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => { setEditingEmail(null); setNewEmail(''); }}
+                        className="p-1.5 text-gray-400 hover:bg-gray-500/10 rounded"
+                        title="Cancel"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setEditingEmail(user.id); setNewEmail(user.email); }}
+                        className="p-1.5 text-gray-400 hover:text-neon-blue hover:bg-neon-blue/10 rounded-lg transition-colors"
+                        title="Edit email"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleResetMFA(user.id)}
+                        className="p-1.5 text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                        title="Reset MFA"
+                      >
+                        <Key className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setEditingUser(user)}
+                        className="p-1.5 text-gray-400 hover:text-neon-purple hover:bg-neon-purple/10 rounded-lg transition-colors"
+                        title="Advanced settings"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      {user.id !== currentUser?.id && (
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors ml-auto"
+                          title="Delete user"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}
@@ -386,6 +613,104 @@ export default function UsersPage() {
           </div>
         </motion.div>
       )}
+
+      {/* Create User Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-dark-card border border-dark-border rounded-xl p-6 w-full max-w-md"
+            >
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-neon-purple" />
+                Create New User
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Email *</label>
+                  <input
+                    type="email"
+                    value={createForm.email}
+                    onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                    placeholder="user@example.com"
+                    className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Password *</label>
+                  <input
+                    type="password"
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                    placeholder="••••••••"
+                    className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={createForm.displayName}
+                    onChange={(e) => setCreateForm({ ...createForm, displayName: e.target.value })}
+                    placeholder="John Doe"
+                    className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Role</label>
+                    <select
+                      value={createForm.role}
+                      onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                      title="Select user role"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-purple"
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Tier</label>
+                    <select
+                      value={createForm.tier}
+                      onChange={(e) => setCreateForm({ ...createForm, tier: e.target.value })}
+                      title="Select subscription tier"
+                      className="w-full bg-dark-border border border-dark-border rounded-lg px-3 py-2 focus:outline-none focus:border-neon-blue"
+                    >
+                      <option value="free">Free</option>
+                      <option value="pro">Pro</option>
+                      <option value="elite">Elite</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateUser}
+                  className="px-4 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors"
+                >
+                  Create User
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* User Tier Editor Modal */}
       {editingUser && (
