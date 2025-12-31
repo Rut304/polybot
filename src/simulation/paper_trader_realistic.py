@@ -861,6 +861,28 @@ class RealisticPaperTrader:
             self.stats.first_trade_at = now
         self.stats.last_trade_at = now
 
+        # ========== LOG OPPORTUNITY DETECTION ==========
+        # Log EVERY opportunity detected (will update status later)
+        opportunity_id = f"opp_{now.strftime('%Y%m%d_%H%M%S')}_{market_a_id[:8]}"
+        try:
+            if self.db:
+                self.db.log_opportunity({
+                    "opportunity_id": opportunity_id,
+                    "market_name": market_a_title,
+                    "buy_platform": platform_a,
+                    "sell_platform": platform_b,
+                    "buy_market_id": market_a_id,
+                    "sell_market_id": market_b_id,
+                    "buy_price": float(price_a),
+                    "sell_price": float(price_b),
+                    "profit_percent": float(spread_pct),
+                    "strategy": arbitrage_type or "simulation",
+                    "status": "detected",  # Will be updated to executed/skipped
+                    "detected_at": now.isoformat(),
+                })
+        except Exception as e:
+            logger.debug(f"Failed to log opportunity detection: {e}")
+
         # ========== COOLDOWN CHECK (CRITICAL!) ==========
         # Prevent unrealistic repeated trades on same market
         # In real trading, you can't infinitely buy/sell the same position
@@ -877,6 +899,9 @@ class RealisticPaperTrader:
             logger.info(
                 f"🚫 SKIPPED (cooldown): {market_a_title[:40]}... - {reason}"
             )
+            # Update opportunity status to skipped
+            if self.db:
+                self.db.update_opportunity_status(opportunity_id, "skipped", skip_reason=f"Cooldown: {reason}")
             # LOG MISSED OPPORTUNITY
             self._log_skipped_opportunity(
                 market_title=market_a_title,
