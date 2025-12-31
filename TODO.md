@@ -8,19 +8,24 @@
 
 - [x] **Fix secrets loading** - DONE
 - [x] **Add external monitoring** - Created `docs/MONITORING_SETUP.md`
-- [ ] **Set up Uptime Robot monitors** (manual - follow docs/MONITORING_SETUP.md)
+- [x] **Dashboard bot monitor** - Already works via `useBotStatus()` hook
+  - Checks `polybot_status` table heartbeat
+  - Shows running/stopped state on dashboard
+  - Shows last heartbeat time
 - [ ] **Verify all exchange clients initialize** after secrets added
 
 ### 2. Documentation Consolidation 🔴 IN PROGRESS
 
 **Current Problem**: Documentation scattered across 4+ locations:
+
 - `/help` - 13 user articles (public) ✅
 - `/docs` - 1,648 lines admin-only API docs (redundant)
-- `/workflows` - Strategy workflow visuals (should merge)
+- `/workflows` - Strategy workflow visuals ✅ KEEP SEPARATE (good UX)
 - `/strategies` - Enable/configure with inline descriptions
 - `docs/*.md` - 23+ internal developer files (not user-facing)
 
 **Solution**: Unified Help Center at `/help`:
+
 - [ ] **Add Strategy Docs by Tier** (Free/Pro/Elite breakdown)
 - [ ] **Merge /workflows content into /help**
 - [ ] **Move API Reference from /docs to /help**
@@ -50,6 +55,7 @@
 ### Live Trading ✅ FULLY WIRED
 
 Live trading IS completely wired up:
+
 - `dry_run_mode = false` enables live execution
 - Settings page has Live Trading toggle with confirmation
 - TradingModeBanner shows "🔴 LIVE" when active
@@ -57,6 +63,7 @@ Live trading IS completely wired up:
 - All exchange clients have live execution methods
 
 **To enable**:
+
 1. Upgrade to Pro/Elite plan
 2. Connect real exchange API keys
 3. Settings → Trading Mode → Enable Live
@@ -83,6 +90,10 @@ Live trading IS completely wired up:
 - [ ] Discord webhook notifications
 - [ ] Forecast tournaments with prizes
 - [ ] Social proof (testimonials, live user count)
+- [ ] **Set up Uptime Robot** for external alerting (optional - internal monitoring works)
+  - Dashboard already has bot monitoring via `useBotStatus()` hook
+  - Uptime Robot adds external email/SMS alerts if entire system down
+  - Follow `docs/MONITORING_SETUP.md` if desired
 
 ---
 
@@ -105,6 +116,7 @@ Live trading IS completely wired up:
 ---
 
 ## ✅ Navigation UX Overhaul COMPLETE
+
 - [ ] **Set up Uptime Robot monitors** (manual - follow docs/MONITORING_SETUP.md)
 - [x] **Add auto-restart** - Lightsail handles this, systemd guide in docs
 - [ ] **Verify all exchange clients initialize** after secrets added
