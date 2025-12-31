@@ -95,11 +95,13 @@ Commit: `fix: Load global secrets before user-specific secrets`
 - [ ] Social proof counters (need more real data)
 - [ ] Marketing messaging update (see below)
 
-### Parlay Builder
+### Parlay Builder ✅ COMPLETE
 
-- [ ] **Port poly-parlay code** from existing repo
-- [ ] Adjust for admin UI integration
-- [ ] Create `/parlays` route
+- [x] **Created `/parlays` route** with parlay builder UI
+- [x] Combined probability calculator
+- [x] Expected value analysis
+- [x] Risk level assessment
+- [x] Added to navigation under Trading section
 
 ### Combine My Bets + Positions
 

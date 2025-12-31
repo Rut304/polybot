@@ -76,7 +76,8 @@ const navSections: NavSection[] = [
       { href: '/markets', label: 'Markets', icon: Store },
       { href: '/positions', label: 'My Trades', icon: BarChart3 },
       { href: '/watchlist', label: 'Watchlist', icon: Star },
-      { href: '/backtesting', label: 'Backtesting', icon: History, isNew: true },
+      { href: '/parlays', label: 'Parlay Builder', icon: Target, isNew: true },
+      { href: '/backtesting', label: 'Backtesting', icon: History },
     ],
   },
   {
