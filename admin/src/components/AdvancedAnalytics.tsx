@@ -214,22 +214,34 @@ function calculateAdvancedMetrics(trades: Trade[], startingBalance: number) {
 
   // === RISK METRICS ===
   const totalPnl = runningBalance - startingBalance;
-  const returns = dailyReturns.length > 0 ? dailyReturns : sortedTrades.map(t => (t.actual_profit_usd || 0) / startingBalance);
+  
+  // Use daily returns if we have enough data (at least 5 days), otherwise use per-trade returns
+  // For per-trade returns, we don't annualize since trades can happen at any frequency
+  const useDailyReturns = dailyReturns.length >= 5;
+  const returns = useDailyReturns ? dailyReturns : sortedTrades.map(t => (t.actual_profit_usd || 0) / startingBalance);
   const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
   const stdDev = Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length);
   
   // Sharpe Ratio (assuming 0% risk-free rate for simplicity)
-  const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * Math.sqrt(252) : 0; // Annualized
+  // Only annualize if using daily returns; for per-trade, show raw ratio
+  const annualizationFactor = useDailyReturns ? Math.sqrt(252) : 1;
+  const sharpeRatio = stdDev > 0 ? (avgReturn / stdDev) * annualizationFactor : 0;
   
   // Sortino Ratio (downside deviation)
   const downsideReturns = returns.filter(r => r < 0);
   const downsideDeviation = Math.sqrt(
     downsideReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / (downsideReturns.length || 1)
   );
-  const sortinoRatio = downsideDeviation > 0 ? (avgReturn / downsideDeviation) * Math.sqrt(252) : 0;
+  const sortinoRatio = downsideDeviation > 0 ? (avgReturn / downsideDeviation) * annualizationFactor : 0;
   
   // Calmar Ratio (annual return / max drawdown)
-  const annualReturn = avgReturn * 252;
+  // For non-daily data, estimate annual return based on total return and time span
+  const tradingDays = useDailyReturns ? dailyReturns.length : 
+    Math.max(1, Math.ceil((new Date(sortedTrades[sortedTrades.length - 1].created_at).getTime() - 
+      new Date(sortedTrades[0].created_at).getTime()) / (1000 * 60 * 60 * 24)));
+  const annualReturn = useDailyReturns 
+    ? avgReturn * 252 
+    : (totalPnl / startingBalance) * (252 / tradingDays);
   const calmarRatio = maxDrawdownPercent > 0 ? (annualReturn * 100) / maxDrawdownPercent : 0;
 
   // === WIN/LOSS ANALYSIS ===
@@ -247,11 +259,20 @@ function calculateAdvancedMetrics(trades: Trade[], startingBalance: number) {
   const grossLoss = Math.abs(losses.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0));
   const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
 
-  // Risk of Ruin (simplified Kelly-based estimate)
-  const kellyCriterion = winRate > 0 && avgLoss > 0 
-    ? ((winRate / 100) - ((100 - winRate) / 100) / (avgWin / avgLoss)) 
-    : 0;
-  const riskOfRuin = kellyCriterion <= 0 ? 100 : Math.max(0, (1 - kellyCriterion) * 100);
+  // Kelly Criterion: K = W - (1-W)/R where W = win rate, R = win/loss ratio
+  // This gives the optimal fraction of bankroll to bet
+  const winLossRatio = avgLoss > 0 ? avgWin / avgLoss : avgWin > 0 ? Infinity : 0;
+  const kellyCriterion = winLossRatio > 0 && winLossRatio !== Infinity
+    ? ((winRate / 100) - ((100 - winRate) / 100) / winLossRatio) 
+    : winRate > 50 ? 1 : 0; // If always winning, full Kelly; otherwise 0
+
+  // Risk of Ruin - simplified estimate based on Kelly
+  // If Kelly is negative, risk is high (100%)
+  // If Kelly is positive, risk decreases exponentially
+  // This is a simplified approximation; real RoR requires more data
+  const riskOfRuin = kellyCriterion <= 0 
+    ? 100 
+    : Math.max(0, Math.min(100, 100 * Math.exp(-kellyCriterion * 5)));
 
   // === TIME-BASED ANALYSIS ===
   // Day of week performance
