@@ -68,6 +68,9 @@ EXCHANGE_MAPPING = {
     'mexc': 'mexc',
     'phemex': 'phemex',
     'deribit': 'deribit',  # Options exchange
+    # Hyperliquid - High-performance DEX with zero gas fees
+    'hyperliquid': 'hyperliquid',
+    'hyperliquid_testnet': 'hyperliquid',  # Uses sandbox=True for testnet
 }
 
 # Symbols for funding rate arbitrage

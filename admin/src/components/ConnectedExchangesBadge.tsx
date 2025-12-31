@@ -50,15 +50,9 @@ export function ConnectedExchangesBadge({
   }
 
   if (error || !exchangesData) {
-    return (
-      <Link 
-        href="/settings/exchanges"
-        className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-xl hover:bg-red-500/20 transition-colors"
-      >
-        <AlertCircle className="w-4 h-4 text-red-400" />
-        <span className="text-sm text-red-400">Connect exchanges</span>
-      </Link>
-    );
+    // Don't show scary error on dashboard - just show subtle "loading" or skip
+    // This prevents the red "Connect exchanges" banner when API is slow or has hiccups
+    return null;
   }
 
   const { 

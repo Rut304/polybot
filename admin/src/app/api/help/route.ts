@@ -464,7 +464,7 @@ With Alpaca connected, you can use:
     slug: 'connecting-crypto',
     title: 'Connecting Crypto Exchanges',
     category: 'integrations',
-    excerpt: 'Connect Binance, Coinbase, Kraken, and other crypto exchanges.',
+    excerpt: 'Connect Binance, Coinbase, Kraken, Hyperliquid, and other crypto exchanges.',
     content: `# Connecting Crypto Exchanges
 
 PolyParlay supports major crypto exchanges for automated trading.
@@ -473,6 +473,7 @@ PolyParlay supports major crypto exchanges for automated trading.
 
 | Exchange | Trading | Funding Rate Arb | Grid Trading |
 |----------|---------|------------------|--------------|
+| Hyperliquid | ✅ | ✅ | ✅ |
 | Binance | ✅ | ✅ | ✅ |
 | Coinbase | ✅ | ❌ | ✅ |
 | Kraken | ✅ | ❌ | ✅ |
@@ -487,6 +488,33 @@ PolyParlay supports major crypto exchanges for automated trading.
 3. Enable 2FA for security
 4. Generate API keys with trading permissions
 5. Add keys to PolyParlay
+
+## ⚡ Hyperliquid Setup (Recommended!)
+
+Hyperliquid is a **decentralized exchange** with:
+- **Zero gas fees** for trading
+- **Sub-second latency** (~200ms)
+- **No KYC required** - just connect wallet
+- **API wallets** for secure bot trading
+
+### Setup Steps:
+
+1. Go to [app.hyperliquid.xyz](https://app.hyperliquid.xyz)
+2. Connect your Ethereum wallet (MetaMask, etc.)
+3. Deposit USDC via Arbitrum bridge
+4. Create an **API Wallet** (Settings → API):
+   - This wallet can trade but NOT withdraw
+   - Perfect for bot security
+5. Add to PolyParlay:
+   - Settings → Secrets → HYPERLIQUID_WALLET_ADDRESS
+   - Settings → Secrets → HYPERLIQUID_PRIVATE_KEY (or API wallet key)
+
+### Why Hyperliquid?
+
+- Grid trading is **extremely profitable** (no fees eating your margins!)
+- Funding rate arbitrage works just like CEXs
+- Whale tracking shows top DEX traders
+- Testnet available for practice
 
 ## Binance Setup
 
@@ -517,6 +545,7 @@ PolyParlay supports major crypto exchanges for automated trading.
 - Use unique API keys for PolyParlay
 - Enable 2FA on exchange
 - Rotate keys periodically
+- Use **API Wallets** on Hyperliquid
 
 🚫 **DON'T**:
 - Enable withdrawal permissions

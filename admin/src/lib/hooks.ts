@@ -1640,6 +1640,12 @@ const PLATFORM_DEFINITIONS: Record<string, {
     icon: '🟢',
     requiredKeys: ['KUCOIN_API_KEY', 'KUCOIN_API_SECRET', 'KUCOIN_PASSPHRASE'],
   },
+  hyperliquid: {
+    type: 'crypto_exchange',
+    icon: '⚡',
+    requiredKeys: ['HYPERLIQUID_WALLET_ADDRESS', 'HYPERLIQUID_PRIVATE_KEY'],
+    alternateKeys: ['HYPERLIQUID_API_WALLET_ADDRESS', 'HYPERLIQUID_API_WALLET_KEY'],
+  },
   alpaca: {
     type: 'stock_broker',
     icon: '🦙',

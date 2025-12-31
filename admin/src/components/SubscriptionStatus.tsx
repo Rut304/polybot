@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Settings, CreditCard } from 'lucide-react';
+import { Settings, CreditCard, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 
 export default function SubscriptionStatus() {
     const { user, isLoading: authLoading } = useAuth();
     const [status, setStatus] = useState<string>('loading');
     const [tier, setTier] = useState<string>('Free');
     const [loading, setLoading] = useState(false);
+    const [showTooltip, setShowTooltip] = useState(false);
 
     useEffect(() => {
         if (!user) {
@@ -69,35 +71,46 @@ export default function SubscriptionStatus() {
 
     if (status === 'active' || status === 'trialing') {
         return (
-            <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-x-1.5 rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                    <svg className="h-1.5 w-1.5 fill-green-500" viewBox="0 0 6 6" aria-hidden="true">
-                        <circle cx={3} cy={3} r={3} />
-                    </svg>
-                    {tier || 'Pro'} Active
+            <div className="flex items-center gap-1 relative">
+                <span className="inline-flex items-center gap-x-1.5 rounded-full bg-neon-green/20 px-2.5 py-1 text-xs font-medium text-neon-green">
+                    <span className="w-1.5 h-1.5 rounded-full bg-neon-green animate-pulse" />
+                    {tier || 'elite'} Active
                 </span>
                 <button 
                     onClick={handleManage} 
                     disabled={loading}
-                    className="text-xs text-gray-500 hover:text-gray-900 underline"
+                    onMouseEnter={() => setShowTooltip(true)}
+                    onMouseLeave={() => setShowTooltip(false)}
+                    className="p-1.5 text-gray-400 hover:text-white hover:bg-dark-border rounded-lg transition-colors"
+                    title="Manage billing"
                 >
-                    {loading ? 'Loading...' : 'Manage'}
+                    {loading ? (
+                        <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                        <ExternalLink className="w-3.5 h-3.5" />
+                    )}
                 </button>
+                {showTooltip && (
+                    <div className="absolute top-full right-0 mt-1 px-2 py-1 bg-dark-bg border border-dark-border rounded text-xs text-gray-300 whitespace-nowrap z-50">
+                        Manage billing
+                    </div>
+                )}
             </div>
         );
     }
 
     return (
-        <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-x-1.5 rounded-md bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
-                <svg className="h-1.5 w-1.5 fill-yellow-500" viewBox="0 0 6 6" aria-hidden="true">
-                    <circle cx={3} cy={3} r={3} />
-                </svg>
-                Free / Inactive
+        <div className="flex items-center gap-1">
+            <span className="inline-flex items-center gap-x-1.5 rounded-full bg-yellow-500/20 px-2.5 py-1 text-xs font-medium text-yellow-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />
+                Free
             </span>
-            <a href="/pricing" className="text-xs text-indigo-600 hover:text-indigo-900 font-semibold underline">
+            <Link 
+                href="/pricing" 
+                className="px-2.5 py-1 text-xs font-medium bg-neon-green/20 text-neon-green hover:bg-neon-green/30 rounded-full transition-colors"
+            >
                 Upgrade
-            </a>
+            </Link>
         </div>
     );
 }

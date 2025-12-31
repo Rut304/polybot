@@ -3,7 +3,7 @@ Balance Aggregator Service
 
 Collects and aggregates balances from all connected trading platforms:
 - Prediction Markets: Polymarket, Kalshi
-- Crypto Exchanges: Binance, Bybit, OKX, Kraken, Coinbase, KuCoin (via CCXT)
+- Crypto Exchanges: Binance, Bybit, OKX, Kraken, Coinbase, KuCoin, Hyperliquid (via CCXT)
 - Stock Brokers: Alpaca, IBKR
 
 Stores aggregated balances in Supabase for Admin UI display.

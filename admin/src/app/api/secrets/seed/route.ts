@@ -46,6 +46,12 @@ const SECRETS_TO_SEED = [
   { key_name: 'KUCOIN_API_SECRET', description: 'KuCoin API Secret', category: 'crypto_exchanges' },
   { key_name: 'KUCOIN_PASSPHRASE', description: 'KuCoin API Passphrase', category: 'crypto_exchanges' },
   
+  // Hyperliquid DEX (Zero gas fees, sub-second latency)
+  { key_name: 'HYPERLIQUID_WALLET_ADDRESS', description: 'Ethereum wallet address (0x...) for Hyperliquid', category: 'crypto_exchanges' },
+  { key_name: 'HYPERLIQUID_PRIVATE_KEY', description: 'Ethereum private key for signing orders (never shared)', category: 'crypto_exchanges' },
+  { key_name: 'HYPERLIQUID_API_WALLET_ADDRESS', description: 'Optional: Dedicated API wallet for bot trading', category: 'crypto_exchanges' },
+  { key_name: 'HYPERLIQUID_API_WALLET_KEY', description: 'Optional: API wallet key (can trade but not withdraw)', category: 'crypto_exchanges' },
+  
   // Data Feeds / News
   { key_name: 'FINNHUB_API_KEY', description: 'Finnhub API key for stock/crypto market data', category: 'data_feeds' },
   { key_name: 'NEWS_API_KEY', description: 'NewsAPI.org API key for news sentiment', category: 'data_feeds' },

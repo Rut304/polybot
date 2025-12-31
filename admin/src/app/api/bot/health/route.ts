@@ -80,10 +80,18 @@ export async function GET() {
     const hasRecentHeartbeat = lastHeartbeat && 
       new Date(lastHeartbeat).getTime() > Date.now() - 2 * 60 * 1000;
     
+    // Check for VERY recent trades (within last hour) - this proves the bot is working
+    const hasVeryRecentTrade = lastTradeAt && 
+      new Date(lastTradeAt).getTime() > Date.now() - 60 * 60 * 1000;
+    
     let healthStatus: 'healthy' | 'warning' | 'critical' | 'offline' = 'offline';
     let healthMessage = 'Bot is offline';
     
-    if (isRunning) {
+    // If we have very recent trades, the bot is definitely active regardless of status row
+    if (hasVeryRecentTrade) {
+      healthStatus = 'healthy';
+      healthMessage = 'Bot is trading actively';
+    } else if (isRunning) {
       if (hasRecentActivity || hasRecentHeartbeat) {
         healthStatus = 'healthy';
         healthMessage = 'Bot is running normally';
@@ -103,6 +111,10 @@ export async function GET() {
         healthStatus = 'warning';
         healthMessage = 'Bot running but no trade history';
       }
+    } else if (hasRecentActivity) {
+      // Bot status says not running, but we have recent trades - it's likely just a stale status
+      healthStatus = 'healthy';
+      healthMessage = 'Bot is active (trades detected)';
     }
 
     // 6. Try to reach the bot's health endpoint directly (if on same network)

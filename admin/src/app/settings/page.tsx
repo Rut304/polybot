@@ -112,6 +112,7 @@ const EXCHANGE_ICONS: Record<string, string> = {
   kraken: '🐙',
   coinbase: '🔵',
   kucoin: '🟢',
+  hyperliquid: '⚡',
   ibkr: '🏛️',
   robinhood: '🪶',
   webull: '🐂',
@@ -136,6 +137,8 @@ interface PlatformsSectionProps {
     setEnableCoinbase: (v: boolean) => void;
     enableKucoin: boolean;
     setEnableKucoin: (v: boolean) => void;
+    enableHyperliquid: boolean;
+    setEnableHyperliquid: (v: boolean) => void;
     enableAlpaca: boolean;
     setEnableAlpaca: (v: boolean) => void;
     enableIbkr: boolean;
@@ -157,6 +160,7 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
     { id: 'kraken', name: 'Kraken', type: 'Crypto Exchange', enabled: config.enableKraken, setEnabled: config.setEnableKraken },
     { id: 'coinbase', name: 'Coinbase', type: 'Crypto Exchange', enabled: config.enableCoinbase, setEnabled: config.setEnableCoinbase },
     { id: 'kucoin', name: 'KuCoin', type: 'Crypto Exchange', enabled: config.enableKucoin, setEnabled: config.setEnableKucoin },
+    { id: 'hyperliquid', name: 'Hyperliquid', type: 'Crypto Exchange', enabled: config.enableHyperliquid, setEnabled: config.setEnableHyperliquid },
     { id: 'alpaca', name: 'Alpaca', type: 'Stock Broker', enabled: config.enableAlpaca, setEnabled: config.setEnableAlpaca },
     { id: 'ibkr', name: 'Interactive Brokers', type: 'Options Broker', enabled: config.enableIbkr, setEnabled: config.setEnableIbkr },
   ];
@@ -969,6 +973,7 @@ export default function SettingsPage() {
   const [enableKraken, setEnableKraken] = useState(config?.enable_kraken ?? false);
   const [enableCoinbase, setEnableCoinbase] = useState(config?.enable_coinbase ?? false);
   const [enableKucoin, setEnableKucoin] = useState(config?.enable_kucoin ?? false);
+  const [enableHyperliquid, setEnableHyperliquid] = useState(config?.enable_hyperliquid ?? false);
 
   // Stock Brokers
   const [enableAlpaca, setEnableAlpaca] = useState(config?.enable_alpaca ?? false);
@@ -1249,6 +1254,7 @@ export default function SettingsPage() {
       if (config.enable_kraken !== undefined) setEnableKraken(config.enable_kraken);
       if (config.enable_coinbase !== undefined) setEnableCoinbase(config.enable_coinbase);
       if (config.enable_kucoin !== undefined) setEnableKucoin(config.enable_kucoin);
+      if (config.enable_hyperliquid !== undefined) setEnableHyperliquid(config.enable_hyperliquid);
       if (config.enable_alpaca !== undefined) setEnableAlpaca(config.enable_alpaca);
       if (config.enable_ibkr !== undefined) setEnableIbkr(config.enable_ibkr);
 
@@ -2063,6 +2069,7 @@ export default function SettingsPage() {
                 enableKraken, setEnableKraken,
                 enableCoinbase, setEnableCoinbase,
                 enableKucoin, setEnableKucoin,
+                enableHyperliquid, setEnableHyperliquid,
                 enableAlpaca, setEnableAlpaca,
                 enableIbkr, setEnableIbkr,
               }}

@@ -169,6 +169,50 @@ export default function WhalesPage() {
     enabled: !!selectedWhale,
   });
 
+  // Fetch leaderboard from Hyperliquid via our API
+  const { data: hyperliquidWhales = [], isLoading: loadingHyperliquid } = useQuery({
+    queryKey: ['hyperliquidLeaderboard', timeFilter],
+    queryFn: async (): Promise<LeaderboardWhale[]> => {
+      try {
+        const timeMap: Record<TimeFilter, string> = {
+          week: 'week',
+          month: 'month',
+          year: 'all',
+          all: 'all',
+        };
+        
+        const response = await fetch(
+          `/api/whales/hyperliquid?limit=100&minVolume=100000&timeframe=${timeMap[timeFilter]}`
+        );
+        
+        if (!response.ok) {
+          throw new Error(`Hyperliquid API returned ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success && result.traders) {
+          return result.traders.map((t: any) => ({
+            address: t.address,
+            username: t.display_name,
+            volume: t.total_volume_usd,
+            win_rate: t.win_rate,
+            predictions: 0,
+            pnl: t.pnl,
+            rank: t.rank,
+            tier: t.tier,
+            platform: 'hyperliquid',
+          }));
+        }
+        return [];
+      } catch (error) {
+        console.error('Error fetching Hyperliquid leaderboard:', error);
+        return [];
+      }
+    },
+    enabled: platformFilter === 'hyperliquid' || platformFilter === 'all',
+  });
+
   // Fetch leaderboard from Polymarket via our API
   const { data: leaderboardWhales = [], isLoading: loadingLeaderboard, refetch: refetchLeaderboard } = useQuery({
     queryKey: ['polymarketLeaderboard', timeFilter],
@@ -334,9 +378,21 @@ export default function WhalesPage() {
 
   // Filter and sort whales
   const displayedWhales = useMemo(() => {
-    let whales: (TrackedWhale | LeaderboardWhale)[] = showTrackedOnly 
-      ? [...trackedWhales] 
-      : [...leaderboardWhales];
+    // Select source based on platform filter
+    let whales: (TrackedWhale | LeaderboardWhale)[] = [];
+    
+    if (showTrackedOnly) {
+      whales = [...trackedWhales];
+    } else if (platformFilter === 'hyperliquid') {
+      whales = [...hyperliquidWhales];
+    } else if (platformFilter === 'polymarket') {
+      whales = [...leaderboardWhales];
+    } else if (platformFilter === 'all') {
+      // Combine both platforms
+      whales = [...leaderboardWhales, ...hyperliquidWhales];
+    } else {
+      whales = [...leaderboardWhales];
+    }
     
     // Apply search filter
     if (searchQuery) {
@@ -387,7 +443,7 @@ export default function WhalesPage() {
     });
 
     return whales;
-  }, [leaderboardWhales, trackedWhales, showTrackedOnly, searchQuery, tierFilter, sortField, sortAsc]);
+  }, [leaderboardWhales, hyperliquidWhales, trackedWhales, showTrackedOnly, platformFilter, searchQuery, tierFilter, sortField, sortAsc]);
 
   // Stats summary
   const stats = useMemo(() => {
@@ -668,18 +724,16 @@ export default function WhalesPage() {
         </div>
       </div>
 
-      {/* Coming Soon for unsupported platforms */}
-      {(platformFilter === 'binance' || platformFilter === 'hyperliquid') && (
+      {/* Coming Soon for unsupported platforms (only Binance now) */}
+      {platformFilter === 'binance' && (
         <div className="card p-12 text-center">
           <div className="max-w-md mx-auto">
-            <div className="text-6xl mb-4">
-              {platformFilter === 'binance' ? '₿' : '⚡'}
-            </div>
+            <div className="text-6xl mb-4">₿</div>
             <h3 className="text-2xl font-bold mb-2">
-              {PLATFORM_CONFIG[platformFilter].label} Whale Tracking
+              {PLATFORM_CONFIG.binance.label} Whale Tracking
             </h3>
             <p className="text-gray-400 mb-6">
-              {PLATFORM_CONFIG[platformFilter].description}
+              {PLATFORM_CONFIG.binance.description}
             </p>
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 rounded-full text-sm text-gray-400">
               <span className="relative flex h-2 w-2">
@@ -696,7 +750,7 @@ export default function WhalesPage() {
       )}
 
       {/* Whale List - Only show for Polymarket or All */}
-      {(platformFilter === 'polymarket' || platformFilter === 'all') && (
+      {(platformFilter === 'polymarket' || platformFilter === 'hyperliquid' || platformFilter === 'all') && (
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-gray-700">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -708,7 +762,7 @@ export default function WhalesPage() {
           </h2>
         </div>
 
-        {loadingLeaderboard || loadingTracked ? (
+        {loadingLeaderboard || loadingTracked || loadingHyperliquid ? (
           <div className="p-8 text-center text-gray-400">
             <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
             Loading whales...
