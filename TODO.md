@@ -4,13 +4,14 @@
 
 ## ✅ RESOLVED: Bot Secrets Issue (December 31, 2025)
 
-**ROOT CAUSE**: Adding `BOT_USER_ID` to deployment caused `load_secrets()` to query 
+**ROOT CAUSE**: Adding `BOT_USER_ID` to deployment caused `load_secrets()` to query
 `polybot_key_vault` (empty user table) instead of `polybot_secrets` (34+ global keys).
 
-**FIX APPLIED**: Changed `load_secrets()` to always load global secrets first from 
+**FIX APPLIED**: Changed `load_secrets()` to always load global secrets first from
 `polybot_secrets`, then overlay with user-specific secrets from `polybot_key_vault`.
 
 **Current Status**:
+
 - ✅ BINANCE_API_KEY - Loaded
 - ✅ ALPACA_PAPER_API_KEY - Loaded
 - ✅ POLYMARKET_API_KEY - Loaded

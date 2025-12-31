@@ -16,13 +16,17 @@ CREATE TABLE IF NOT EXISTS polybot_watchlist (
     alert_below DECIMAL(10, 6),  -- Alert when price goes below
     added_at TIMESTAMPTZ DEFAULT now(),
     created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    
-    -- Ensure unique market per user (or globally if no user_id)
-    UNIQUE(market_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::UUID))
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Create indexes
+-- Create unique index to handle NULL user_id properly
+-- PostgreSQL treats NULLs as distinct in UNIQUE constraints, so we use a partial unique index
+CREATE UNIQUE INDEX IF NOT EXISTS idx_watchlist_market_user 
+    ON polybot_watchlist(market_id, user_id) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_watchlist_market_global 
+    ON polybot_watchlist(market_id) WHERE user_id IS NULL;
+
+-- Create other indexes
 CREATE INDEX IF NOT EXISTS idx_watchlist_market_id ON polybot_watchlist(market_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON polybot_watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_platform ON polybot_watchlist(platform);

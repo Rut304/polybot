@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy initialize Supabase client (only when needed)
+let supabase: SupabaseClient | null = null;
+
+function getSupabase(): SupabaseClient | null {
+  if (supabase) return supabase;
+  
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    console.warn('Supabase not configured for TradingView webhook');
+    return null;
+  }
+  
+  supabase = createClient(url, key);
+  return supabase;
+}
 
 // Optional webhook secret for verification
 const TRADINGVIEW_WEBHOOK_SECRET = process.env.TRADINGVIEW_WEBHOOK_SECRET;
@@ -100,30 +112,37 @@ export async function POST(request: NextRequest) {
     // Normalize the action
     const normalizedAction = normalizeAction(alert.action);
     
-    // Store the signal in the database
-    const { data: signal, error: dbError } = await supabase
-      .from('polybot_tradingview_signals')
-      .insert({
-        symbol: alert.symbol.toUpperCase(),
-        action: normalizedAction,
-        price: parseFloat(String(alert.price || 0)) || null,
-        exchange: alert.exchange || null,
-        strategy: alert.strategy || 'unknown',
-        interval: alert.interval || null,
-        quantity: alert.quantity || null,
-        take_profit: alert.take_profit || null,
-        stop_loss: alert.stop_loss || null,
-        comment: alert.comment || null,
-        raw_payload: alert,
-        processed: false,
-        received_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    // Store the signal in the database (if configured)
+    let signal: { id: string } | null = null;
+    const db = getSupabase();
+    
+    if (db) {
+      const { data, error: dbError } = await db
+        .from('polybot_tradingview_signals')
+        .insert({
+          symbol: alert.symbol.toUpperCase(),
+          action: normalizedAction,
+          price: parseFloat(String(alert.price || 0)) || null,
+          exchange: alert.exchange || null,
+          strategy: alert.strategy || 'unknown',
+          interval: alert.interval || null,
+          quantity: alert.quantity || null,
+          take_profit: alert.take_profit || null,
+          stop_loss: alert.stop_loss || null,
+          comment: alert.comment || null,
+          raw_payload: alert,
+          processed: false,
+          received_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-    if (dbError) {
-      // If table doesn't exist, just log it and continue
-      console.warn('[TradingView Webhook] DB insert warning:', dbError.message);
+      if (dbError) {
+        // If table doesn't exist, just log it and continue
+        console.warn('[TradingView Webhook] DB insert warning:', dbError.message);
+      } else {
+        signal = data;
+      }
     }
 
     // Determine if this is a stock, crypto, or prediction market signal
