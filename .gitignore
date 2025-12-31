@@ -91,3 +91,4 @@ admin/.env.local
 .env*.local
 .env.lightsail
 # SpecStory - ignore
+admin/test-results/
