@@ -156,24 +156,72 @@ function GlowCard({ children, className, glowColor = 'emerald' }: { children: Re
 // Live Trade Ticker Component  
 // ============================================================================
 
+interface LiveTrade {
+  id: string;
+  market: string;
+  action: string;
+  outcome: string;
+  platform: string;
+  profit: number;
+  timestamp: string;
+}
+
 function LiveTicker() {
-  const trades = [
-    { market: 'Will BTC hit $150k?', action: 'BUY YES', amount: '$500', profit: '+$127' },
-    { market: 'Fed Rate Cut Jan?', action: 'SELL NO', amount: '$250', profit: '+$89' },
-    { market: 'Trump Win 2024?', action: 'BUY YES', amount: '$1,000', profit: '+$340' },
-    { market: 'ETH/BTC Ratio > 0.05?', action: 'BUY NO', amount: '$300', profit: '+$156' },
-    { market: 'S&P 500 > 6000?', action: 'BUY YES', amount: '$750', profit: '+$203' },
-  ];
+  const [trades, setTrades] = useState<LiveTrade[]>([]);
+  const [isLive, setIsLive] = useState(false);
+  
+  useEffect(() => {
+    const fetchTrades = async () => {
+      try {
+        const response = await fetch('/api/live-feed');
+        const data = await response.json();
+        if (data.trades && data.trades.length > 0) {
+          setTrades(data.trades);
+          setIsLive(data.source === 'live');
+        }
+      } catch (error) {
+        console.error('Error fetching live feed:', error);
+        // Use fallback data
+        setTrades([
+          { id: '1', market: 'Will BTC hit $150k?', action: 'BUY YES', outcome: 'won', platform: 'polymarket', profit: 127, timestamp: new Date().toISOString() },
+          { id: '2', market: 'Fed Rate Cut Jan?', action: 'SELL NO', outcome: 'won', platform: 'kalshi', profit: 89, timestamp: new Date().toISOString() },
+          { id: '3', market: 'Trump Win 2024?', action: 'BUY YES', outcome: 'won', platform: 'polymarket', profit: 340, timestamp: new Date().toISOString() },
+          { id: '4', market: 'ETH/BTC Ratio > 0.05?', action: 'BUY NO', outcome: 'pending', platform: 'polymarket', profit: 156, timestamp: new Date().toISOString() },
+          { id: '5', market: 'S&P 500 > 6000?', action: 'BUY YES', outcome: 'won', platform: 'kalshi', profit: 203, timestamp: new Date().toISOString() },
+        ]);
+      }
+    };
+    
+    fetchTrades();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchTrades, 30000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Format profit for display
+  const formatProfit = (profit: number) => {
+    return profit >= 0 ? `+$${profit.toFixed(0)}` : `-$${Math.abs(profit).toFixed(0)}`;
+  };
   
   return (
     <div className="overflow-hidden py-4 bg-black/40 backdrop-blur border-y border-white/5">
+      <div className="flex items-center justify-between px-4 mb-2">
+        <div className="flex items-center gap-2">
+          {isLive && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+              <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+              LIVE
+            </span>
+          )}
+        </div>
+      </div>
       <motion.div
         className="flex gap-12 whitespace-nowrap"
         animate={{ x: [0, -1920] }}
         transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
       >
         {[...trades, ...trades, ...trades].map((trade, i) => (
-          <div key={i} className="flex items-center gap-4 text-sm">
+          <div key={`${trade.id}-${i}`} className="flex items-center gap-4 text-sm">
             <span className="text-gray-500">{trade.market}</span>
             <span className={cn(
               "px-2 py-0.5 rounded text-xs font-medium",
@@ -181,8 +229,13 @@ function LiveTicker() {
             )}>
               {trade.action}
             </span>
-            <span className="text-gray-400">{trade.amount}</span>
-            <span className="text-emerald-400 font-semibold">{trade.profit}</span>
+            <span className={cn(
+              "px-1.5 py-0.5 rounded text-[10px] uppercase",
+              trade.platform === 'kalshi' ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"
+            )}>
+              {trade.platform}
+            </span>
+            <span className="text-emerald-400 font-semibold">{formatProfit(trade.profit)}</span>
             <span className="text-gray-700">•</span>
           </div>
         ))}

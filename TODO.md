@@ -81,10 +81,13 @@ Commit: `fix: Load global secrets before user-specific secrets`
 - [x] GET endpoint shows usage documentation
 - [ ] Improve chart legibility and design (future)
 
-### Landing Page Improvements
+### Landing Page Improvements ✅ PARTIAL
 
-- [ ] **Real-time trade feed** showing live/recent trades
-- [ ] Social proof counters
+- [x] **Real-time trade feed** - `/api/live-feed` endpoint + dynamic ticker component
+- [x] Live feed shows LIVE indicator when connected to database
+- [x] Shows platform badges (Polymarket/Kalshi)
+- [x] Auto-refreshes every 30 seconds
+- [ ] Social proof counters (need more real data)
 - [ ] Marketing messaging update (see below)
 
 ### Parlay Builder
