@@ -2,6 +2,90 @@
 
 ---
 
+## 🔴 P0 - MUST FIX BEFORE LAUNCH (December 31, 2025)
+
+### 1. Bot Reliability & Monitoring
+
+- [x] **Fix secrets loading** - DONE
+- [x] **Add external monitoring** - Created `docs/MONITORING_SETUP.md`
+- [ ] **Set up Uptime Robot monitors** (manual - follow docs/MONITORING_SETUP.md)
+- [ ] **Verify all exchange clients initialize** after secrets added
+
+### 2. Documentation Consolidation 🔴 IN PROGRESS
+
+**Current Problem**: Documentation scattered across 4+ locations:
+- `/help` - 13 user articles (public) ✅
+- `/docs` - 1,648 lines admin-only API docs (redundant)
+- `/workflows` - Strategy workflow visuals (should merge)
+- `/strategies` - Enable/configure with inline descriptions
+- `docs/*.md` - 23+ internal developer files (not user-facing)
+
+**Solution**: Unified Help Center at `/help`:
+- [ ] **Add Strategy Docs by Tier** (Free/Pro/Elite breakdown)
+- [ ] **Merge /workflows content into /help**
+- [ ] **Move API Reference from /docs to /help**
+- [ ] **Remove/redirect /docs page** (consolidate)
+- [ ] **Add Features by Plan comparison**
+
+### 3. AI Support Chatbot 🆕
+
+- [ ] **Add AI chat widget** (bottom-right corner)
+  - Answers deployment, setup, support questions
+  - Uses documentation as knowledge base
+  - Reduces manual support burden
+  - Options: Intercom, Crisp, or OpenAI custom
+- [ ] **Train on PolyParlay documentation**
+- [ ] **Add escalation to email** for complex issues
+
+### 4. Database Tables (Manual SQL)
+
+- [ ] Run `scripts/add_stripe_columns.sql` in Supabase
+- [ ] Run `scripts/add_watchlist_table.sql` in Supabase
+- [ ] Run `scripts/add_tradingview_signals_table.sql` in Supabase
+
+---
+
+## 🟡 P1 - IMPORTANT (First 2 Weeks)
+
+### Live Trading ✅ FULLY WIRED
+
+Live trading IS completely wired up:
+- `dry_run_mode = false` enables live execution
+- Settings page has Live Trading toggle with confirmation
+- TradingModeBanner shows "🔴 LIVE" when active
+- Bot runner checks mode before executing real trades
+- All exchange clients have live execution methods
+
+**To enable**:
+1. Upgrade to Pro/Elite plan
+2. Connect real exchange API keys
+3. Settings → Trading Mode → Enable Live
+4. Confirm modal (type "CONFIRM")
+
+### Analytics & Charts
+
+- [ ] Line charts for strategy P&L trending
+- [ ] TradingView charts for price data
+- [ ] Interactive legend to toggle strategies
+
+### Pages Needing Updates
+
+- [ ] `/insights` - Add platform filter
+- [ ] `/history` - Add platform filter
+- [ ] `/whales` - Multi-platform support
+- [ ] Merge Bets + Positions into "My Trades"
+
+---
+
+## 🟢 P2 - NICE TO HAVE (Future)
+
+- [ ] Mobile app (iOS/Android)
+- [ ] Discord webhook notifications
+- [ ] Forecast tournaments with prizes
+- [ ] Social proof (testimonials, live user count)
+
+---
+
 ## ✅ RESOLVED: Bot Secrets Issue (December 31, 2025)
 
 **ROOT CAUSE**: Adding `BOT_USER_ID` to deployment caused `load_secrets()` to query
@@ -18,16 +102,9 @@
 - ✅ KALSHI_API_KEY - Loaded
 - ✅ All 34+ secrets - Loaded
 
-Commit: `fix: Load global secrets before user-specific secrets`
-
 ---
 
-## 🔴 P0 - MUST FIX BEFORE LAUNCH (December 31, 2025)
-
-### 1. Bot Reliability & Monitoring
-
-- [x] **Fix secrets loading** - DONE (see above)
-- [x] **Add external monitoring** - Created `docs/MONITORING_SETUP.md` with Uptime Robot setup
+## ✅ Navigation UX Overhaul COMPLETE
 - [ ] **Set up Uptime Robot monitors** (manual - follow docs/MONITORING_SETUP.md)
 - [x] **Add auto-restart** - Lightsail handles this, systemd guide in docs
 - [ ] **Verify all exchange clients initialize** after secrets added
