@@ -14,10 +14,14 @@ function getSupabaseClient() {
 }
 
 // Congressional data sources
-// Note: Most free APIs have been shut down. We try multiple sources.
+// Note: Most free APIs have restrictions. We try multiple sources.
 const CAPITOL_TRADES_API = 'https://bff.capitoltrades.com/trades';
-// Unusual Whales Congress API (requires API key for full access)
-const UNUSUAL_WHALES_API = 'https://api.unusualwhales.com/api/congress/trades';
+// Quiver Quant API - free tier available with rate limiting
+const QUIVER_QUANT_API = 'https://api.quiverquant.com/beta/live/congresstrading';
+// House Stock Watcher API (free)
+const HOUSE_STOCK_WATCHER_API = 'https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json';
+// Senate Stock Watcher API (free)
+const SENATE_STOCK_WATCHER_API = 'https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json';
 
 interface CongressionalTrade {
   id: string;
@@ -282,6 +286,155 @@ async function fetchCapitolTrades(limit: number): Promise<CongressionalTrade[]> 
   }
 }
 
+// Fetch from House Stock Watcher (S3 bucket - free, public)
+async function fetchHouseStockWatcher(limit: number): Promise<CongressionalTrade[]> {
+  try {
+    const response = await fetch(HOUSE_STOCK_WATCHER_API, {
+      headers: { 'Accept': 'application/json' },
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    });
+
+    if (!response.ok) {
+      console.error(`House Stock Watcher returned ${response.status}`);
+      return [];
+    }
+
+    const trades = await response.json();
+    
+    if (!Array.isArray(trades)) return [];
+    
+    // Sort by transaction date (newest first) and take limit
+    const sorted = trades
+      .sort((a: any, b: any) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime())
+      .slice(0, limit);
+    
+    return sorted.map((trade: any): CongressionalTrade => {
+      const amounts = parseAmountRange(trade.amount || '');
+      return {
+        id: `house-${trade.representative}-${trade.ticker}-${trade.transaction_date}`.replace(/[^a-zA-Z0-9-]/g, '_'),
+        politician: trade.representative || 'Unknown',
+        chamber: 'house',
+        party: trade.party || 'Unknown',
+        state: trade.state || '',
+        ticker: (trade.ticker || '').toUpperCase(),
+        assetName: trade.asset_description || '',
+        transactionType: (trade.type || '').toLowerCase().includes('sale') ? 'sale' : 'purchase',
+        transactionDate: trade.transaction_date || '',
+        disclosureDate: trade.disclosure_date || '',
+        amountLow: amounts.low,
+        amountHigh: amounts.high,
+        amountEstimated: amounts.estimated,
+        source: 'house_stock_watcher',
+        disclosureUrl: trade.ptr_link || '',
+      };
+    }).filter((t) => t.ticker && t.politician);
+  } catch (error) {
+    console.error('Error fetching House Stock Watcher:', error);
+    return [];
+  }
+}
+
+// Fetch from Senate Stock Watcher (S3 bucket - free, public)
+async function fetchSenateStockWatcher(limit: number): Promise<CongressionalTrade[]> {
+  try {
+    const response = await fetch(SENATE_STOCK_WATCHER_API, {
+      headers: { 'Accept': 'application/json' },
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    });
+
+    if (!response.ok) {
+      console.error(`Senate Stock Watcher returned ${response.status}`);
+      return [];
+    }
+
+    const trades = await response.json();
+    
+    if (!Array.isArray(trades)) return [];
+    
+    // Sort by transaction date (newest first) and take limit
+    const sorted = trades
+      .sort((a: any, b: any) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime())
+      .slice(0, limit);
+    
+    return sorted.map((trade: any): CongressionalTrade => {
+      const amounts = parseAmountRange(trade.amount || '');
+      return {
+        id: `senate-${trade.senator}-${trade.ticker}-${trade.transaction_date}`.replace(/[^a-zA-Z0-9-]/g, '_'),
+        politician: trade.senator || 'Unknown',
+        chamber: 'senate',
+        party: trade.party || 'Unknown',
+        state: trade.state || '',
+        ticker: (trade.ticker || '').toUpperCase(),
+        assetName: trade.asset_description || '',
+        transactionType: (trade.type || '').toLowerCase().includes('sale') ? 'sale' : 'purchase',
+        transactionDate: trade.transaction_date || '',
+        disclosureDate: trade.disclosure_date || '',
+        amountLow: amounts.low,
+        amountHigh: amounts.high,
+        amountEstimated: amounts.estimated,
+        source: 'senate_stock_watcher',
+        disclosureUrl: trade.ptr_link || '',
+      };
+    }).filter((t) => t.ticker && t.politician);
+  } catch (error) {
+    console.error('Error fetching Senate Stock Watcher:', error);
+    return [];
+  }
+}
+
+// Fetch from Quiver Quant (free tier with rate limits)
+async function fetchQuiverQuant(limit: number): Promise<CongressionalTrade[]> {
+  const apiKey = process.env.QUIVER_QUANT_API_KEY;
+  
+  // Quiver Quant requires API key but has a free tier
+  if (!apiKey) {
+    console.log('Quiver Quant API key not configured, skipping...');
+    return [];
+  }
+  
+  try {
+    const response = await fetch(`${QUIVER_QUANT_API}?limit=${limit}`, {
+      headers: { 
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      next: { revalidate: 3600 },
+    });
+
+    if (!response.ok) {
+      console.error(`Quiver Quant returned ${response.status}`);
+      return [];
+    }
+
+    const trades = await response.json();
+    
+    if (!Array.isArray(trades)) return [];
+    
+    return trades.map((trade: any): CongressionalTrade => {
+      const amounts = parseAmountRange(trade.Range || '');
+      return {
+        id: `quiver-${trade.Representative}-${trade.Ticker}-${trade.TransactionDate}`.replace(/[^a-zA-Z0-9-]/g, '_'),
+        politician: trade.Representative || 'Unknown',
+        chamber: (trade.House || '').toLowerCase() === 'senate' ? 'senate' : 'house',
+        party: trade.Party === 'R' ? 'Republican' : trade.Party === 'D' ? 'Democrat' : 'Independent',
+        state: '',
+        ticker: (trade.Ticker || '').toUpperCase(),
+        assetName: trade.Description || '',
+        transactionType: (trade.Transaction || '').toLowerCase().includes('sale') ? 'sale' : 'purchase',
+        transactionDate: trade.TransactionDate || '',
+        disclosureDate: trade.ReportDate || '',
+        amountLow: amounts.low,
+        amountHigh: amounts.high,
+        amountEstimated: amounts.estimated,
+        source: 'quiver_quant',
+      };
+    }).filter((t) => t.ticker && t.politician);
+  } catch (error) {
+    console.error('Error fetching Quiver Quant:', error);
+    return [];
+  }
+}
+
 // GET /api/congress - Fetch congressional trades
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -293,25 +446,57 @@ export async function GET(request: Request) {
   try {
     let trades: CongressionalTrade[] = [];
     let usingSampleData = false;
+    let dataSource = 'unknown';
 
-    // Try Capitol Trades API first (primary source with fresh data)
-    const capitolTrades = await fetchCapitolTrades(limit);
-    
-    if (capitolTrades.length > 0) {
-      // Filter by chamber if needed
-      trades = chamber === 'both' 
-        ? capitolTrades 
-        : capitolTrades.filter(t => t.chamber === chamber);
-    } else {
-      // Use sample data as fallback when APIs are unavailable
+    // Try multiple data sources in order of preference
+    // 1. House/Senate Stock Watcher (free, public S3 buckets)
+    // 2. Capitol Trades API (may have rate limits)
+    // 3. Quiver Quant (if API key configured)
+    // 4. Sample data (fallback)
+
+    // Fetch from both House and Senate Stock Watcher in parallel
+    const [houseTrades, senateTrades] = await Promise.all([
+      fetchHouseStockWatcher(limit),
+      fetchSenateStockWatcher(limit),
+    ]);
+
+    if (houseTrades.length > 0 || senateTrades.length > 0) {
+      dataSource = 'stock_watcher';
+      trades = [...houseTrades, ...senateTrades];
+      console.log(`Loaded ${trades.length} trades from Stock Watcher APIs`);
+    }
+
+    // If Stock Watcher failed, try Capitol Trades
+    if (trades.length === 0) {
+      const capitolTrades = await fetchCapitolTrades(limit);
+      if (capitolTrades.length > 0) {
+        dataSource = 'capitol_trades';
+        trades = capitolTrades;
+        console.log(`Loaded ${trades.length} trades from Capitol Trades`);
+      }
+    }
+
+    // If still no data, try Quiver Quant
+    if (trades.length === 0) {
+      const quiverTrades = await fetchQuiverQuant(limit);
+      if (quiverTrades.length > 0) {
+        dataSource = 'quiver_quant';
+        trades = quiverTrades;
+        console.log(`Loaded ${trades.length} trades from Quiver Quant`);
+      }
+    }
+
+    // Last resort: sample data
+    if (trades.length === 0) {
       console.log('All APIs unavailable, using sample data');
       usingSampleData = true;
-      const sampleTrades = getSampleTrades();
-      
-      // Filter by chamber if needed
-      trades = chamber === 'both' 
-        ? sampleTrades 
-        : sampleTrades.filter(t => t.chamber === chamber);
+      dataSource = 'sample_data';
+      trades = getSampleTrades();
+    }
+
+    // Filter by chamber if needed
+    if (chamber !== 'both') {
+      trades = trades.filter(t => t.chamber === chamber);
     }
 
     // Apply filters
@@ -375,9 +560,13 @@ export async function GET(request: Request) {
         topPoliticians,
         topTickers,
       },
+      dataSource,
       data: results,
       ...(usingSampleData && {
-        notice: 'Using sample data. Free congressional trading APIs (House Stock Watcher, Senate Stock Watcher) have been restricted. For live data, consider Unusual Whales or Quiver Quant paid APIs.'
+        notice: 'Using sample data. Congressional trading APIs are temporarily unavailable. Data shown is illustrative.'
+      }),
+      ...(!usingSampleData && {
+        notice: `Live data from ${dataSource.replace('_', ' ')}. Updated within the last hour.`
       }),
     });
   } catch (error) {
