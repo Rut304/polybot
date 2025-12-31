@@ -32,7 +32,26 @@ Commit: `fix: Load global secrets before user-specific secrets`
 - [x] **Add auto-restart** - Lightsail handles this, systemd guide in docs
 - [ ] **Verify all exchange clients initialize** after secrets added
 
-### 2. Stripe "Manage" Button Error
+### 2. Public Documentation ✅ COMPLETE
+
+- [x] **Make /help publicly accessible** - No login required now
+- [x] **Updated STATIC_ARTICLES** - 13 comprehensive help articles:
+  - Getting Started with PolyParlay
+  - Paper Trading Guide
+  - Dashboard Overview
+  - Connecting Polymarket
+  - Connecting Kalshi
+  - Connecting Alpaca (Stocks)
+  - Connecting Crypto Exchanges
+  - TradingView Webhook Integration
+  - Trading Strategies Overview
+  - Arbitrage Strategies Explained
+  - Congressional Tracker Strategy
+  - Billing & Subscriptions
+  - FAQ (comprehensive)
+- [x] **Added to PUBLIC_ROUTES**: `/help`, `/documentation`, `/api/help`, `/api/live-feed`
+
+### 3. Stripe "Manage" Button Error
 
 - [x] **Fix "Failed to load portal"** - Improved error handling, redirects to /pricing
 - [x] Add `stripe_customer_id` column - Script: `scripts/add_stripe_columns.sql`

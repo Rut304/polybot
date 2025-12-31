@@ -11,7 +11,11 @@ const PUBLIC_ROUTES = [
   '/privacy',
   '/terms',
   '/pricing',
+  '/help',
+  '/documentation',
   '/api/webhooks',
+  '/api/help',
+  '/api/live-feed',
 ];
 
 // Routes that should be accessible without auth (for development/testing)
