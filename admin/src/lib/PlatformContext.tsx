@@ -143,7 +143,8 @@ export interface PlatformContextValue {
   // ============================================================
   // In SIMULATION mode: returns all data (no filtering)
   // In LIVE mode: filters to only connected platforms
-  filterByPlatform: <T extends { platform?: string; exchange?: string; buy_platform?: string }>(data: T[]) => T[];
+  // @param platformField - Optional field name to extract platform from
+  filterByPlatform: <T extends Record<string, any>>(data: T[], platformField?: string) => T[];
   
   // Get effective platform IDs for current mode
   // Simulation = all platforms, Live = only connected
@@ -232,7 +233,10 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   // ============================================================
   // SIMULATION MODE: Return ALL data (user exploring/learning)
   // LIVE MODE: Filter to only data from connected platforms
-  const filterByPlatform = <T extends { platform?: string; exchange?: string; buy_platform?: string }>(data: T[]): T[] => {
+  // 
+  // @param data - Array of items to filter
+  // @param platformField - Optional field name to extract platform from (default: auto-detect)
+  const filterByPlatform = <T extends Record<string, any>>(data: T[], platformField?: string): T[] => {
     // In simulation mode, show everything
     if (isSimulationMode) {
       return data;
@@ -244,10 +248,12 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     }
     
     return data.filter(item => {
-      // Check various platform field names used in different data types
-      const itemPlatform = item.platform || item.exchange || item.buy_platform;
+      // Use specified field or check various platform field names
+      const itemPlatform = platformField 
+        ? item[platformField] 
+        : (item.platform || item.exchange || item.buy_platform);
       if (!itemPlatform) return true; // Keep items without platform field (generic data)
-      return connectedIds.includes(itemPlatform.toLowerCase());
+      return connectedIds.includes(String(itemPlatform).toLowerCase());
     });
   };
 
