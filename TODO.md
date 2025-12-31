@@ -27,8 +27,9 @@ Commit: `fix: Load global secrets before user-specific secrets`
 ### 1. Bot Reliability & Monitoring
 
 - [x] **Fix secrets loading** - DONE (see above)
-- [ ] **Add external monitoring** (Uptime Robot - free)
-- [ ] **Add auto-restart** (systemd/PM2 for Lightsail)
+- [x] **Add external monitoring** - Created `docs/MONITORING_SETUP.md` with Uptime Robot setup
+- [ ] **Set up Uptime Robot monitors** (manual - follow docs/MONITORING_SETUP.md)
+- [x] **Add auto-restart** - Lightsail handles this, systemd guide in docs
 - [ ] **Verify all exchange clients initialize** after secrets added
 
 ### 2. Stripe "Manage" Button Error
