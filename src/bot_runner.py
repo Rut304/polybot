@@ -3086,6 +3086,125 @@ class PolybotRunner:
                     logger.error(f"Stock momentum error: {e}")
                     await asyncio.sleep(60)  # Wait before restart
 
+    async def run_sector_rotation(self):
+        """Run sector rotation strategy (70% CONFIDENCE - 15-25% APY)."""
+        if not getattr(self.config.trading, 'enable_sector_rotation', False):
+            return
+
+        if self.sector_rotation:
+            logger.info("▶️ Starting Sector Rotation Strategy...")
+            logger.info("  📊 Rotating into strongest sector ETFs")
+            scan_interval = getattr(self.config.trading, 'sector_rotation_interval_sec', 3600)
+            while self._running:
+                try:
+                    await self.sector_rotation.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Sector rotation error: {e}")
+                    await asyncio.sleep(300)
+
+    async def run_dividend_growth(self):
+        """Run dividend growth strategy (65% CONFIDENCE - 10-20% APY)."""
+        if not getattr(self.config.trading, 'enable_dividend_growth', False):
+            return
+
+        if self.dividend_growth:
+            logger.info("▶️ Starting Dividend Growth Strategy...")
+            logger.info("  💰 Accumulating dividend aristocrats")
+            scan_interval = getattr(self.config.trading, 'dividend_growth_interval_sec', 86400)
+            while self._running:
+                try:
+                    await self.dividend_growth.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Dividend growth error: {e}")
+                    await asyncio.sleep(300)
+
+    async def run_earnings_momentum(self):
+        """Run earnings momentum strategy (70% CONFIDENCE - 20-40% APY)."""
+        if not getattr(self.config.trading, 'enable_earnings_momentum', False):
+            return
+
+        if self.earnings_momentum:
+            logger.info("▶️ Starting Earnings Momentum Strategy...")
+            logger.info("  📈 Trading post-earnings drift")
+            scan_interval = getattr(self.config.trading, 'earnings_momentum_interval_sec', 3600)
+            while self._running:
+                try:
+                    await self.earnings_momentum.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Earnings momentum error: {e}")
+                    await asyncio.sleep(300)
+
+    async def run_covered_calls(self):
+        """Run covered calls strategy (75% CONFIDENCE - 15-25% APY)."""
+        if not getattr(self.config.trading, 'enable_covered_calls', False):
+            return
+
+        if self.covered_call:
+            logger.info("▶️ Starting Covered Calls Strategy...")
+            logger.info("  📝 Selling calls against stock positions")
+            scan_interval = getattr(self.config.trading, 'covered_calls_interval_sec', 3600)
+            while self._running:
+                try:
+                    await self.covered_call.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Covered calls error: {e}")
+                    await asyncio.sleep(300)
+
+    async def run_cash_secured_puts(self):
+        """Run cash secured puts strategy (75% CONFIDENCE - 15-25% APY)."""
+        if not getattr(self.config.trading, 'enable_cash_secured_puts', False):
+            return
+
+        if self.cash_secured_put:
+            logger.info("▶️ Starting Cash Secured Puts Strategy...")
+            logger.info("  💵 Selling puts with cash collateral")
+            scan_interval = getattr(self.config.trading, 'csp_interval_sec', 3600)
+            while self._running:
+                try:
+                    await self.cash_secured_put.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Cash secured puts error: {e}")
+                    await asyncio.sleep(300)
+
+    async def run_iron_condor(self):
+        """Run iron condor strategy (70% CONFIDENCE - 20-30% APY)."""
+        if not getattr(self.config.trading, 'enable_iron_condor', False):
+            return
+
+        if self.iron_condor:
+            logger.info("▶️ Starting Iron Condor Strategy...")
+            logger.info("  🦅 Selling OTM call & put spreads")
+            scan_interval = getattr(self.config.trading, 'iron_condor_interval_sec', 3600)
+            while self._running:
+                try:
+                    await self.iron_condor.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Iron condor error: {e}")
+                    await asyncio.sleep(300)
+
+    async def run_wheel_strategy(self):
+        """Run wheel strategy (80% CONFIDENCE - 20-35% APY)."""
+        if not getattr(self.config.trading, 'enable_wheel_strategy', False):
+            return
+
+        if self.wheel_strategy:
+            logger.info("▶️ Starting Wheel Strategy...")
+            logger.info("  🎡 CSP → Assignment → CC cycle")
+            scan_interval = getattr(self.config.trading, 'wheel_interval_sec', 3600)
+            while self._running:
+                try:
+                    await self.wheel_strategy.run_cycle()
+                    await asyncio.sleep(scan_interval)
+                except Exception as e:
+                    logger.error(f"Wheel strategy error: {e}")
+                    await asyncio.sleep(300)
+
     # =========================================================================
     # TWITTER-DERIVED STRATEGIES (2024)
     # High-conviction strategies from analyzing top traders on X/Twitter
@@ -3522,6 +3641,63 @@ class PolybotRunner:
         # Run Stock Momentum (70% CONFIDENCE - 20-40% APY)
         if sm and self.stock_momentum:
             tasks.append(asyncio.create_task(self.run_stock_momentum()))
+
+        # =====================================================================
+        # ADVANCED STOCK STRATEGIES (ALPACA)
+        # =====================================================================
+
+        # Run Sector Rotation (70% CONFIDENCE - 15-25% APY)
+        sector_rot = getattr(
+            self.config.trading, 'enable_sector_rotation', False
+        )
+        if sector_rot and getattr(self, 'sector_rotation', None):
+            tasks.append(asyncio.create_task(self.run_sector_rotation()))
+
+        # Run Dividend Growth (65% CONFIDENCE - 10-20% APY)
+        div_growth = getattr(
+            self.config.trading, 'enable_dividend_growth', False
+        )
+        if div_growth and getattr(self, 'dividend_growth', None):
+            tasks.append(asyncio.create_task(self.run_dividend_growth()))
+
+        # Run Earnings Momentum (70% CONFIDENCE - 20-40% APY)
+        earn_mom = getattr(
+            self.config.trading, 'enable_earnings_momentum', False
+        )
+        if earn_mom and getattr(self, 'earnings_momentum', None):
+            tasks.append(asyncio.create_task(self.run_earnings_momentum()))
+
+        # =====================================================================
+        # OPTIONS STRATEGIES (IBKR)
+        # =====================================================================
+
+        # Run Covered Calls (75% CONFIDENCE - 15-25% APY)
+        cov_calls = getattr(
+            self.config.trading, 'enable_covered_calls', False
+        )
+        if cov_calls and getattr(self, 'covered_call', None):
+            tasks.append(asyncio.create_task(self.run_covered_calls()))
+
+        # Run Cash Secured Puts (75% CONFIDENCE - 15-25% APY)
+        csp = getattr(
+            self.config.trading, 'enable_cash_secured_puts', False
+        )
+        if csp and getattr(self, 'cash_secured_put', None):
+            tasks.append(asyncio.create_task(self.run_cash_secured_puts()))
+
+        # Run Iron Condor (70% CONFIDENCE - 20-30% APY)
+        iron_cond = getattr(
+            self.config.trading, 'enable_iron_condor', False
+        )
+        if iron_cond and getattr(self, 'iron_condor', None):
+            tasks.append(asyncio.create_task(self.run_iron_condor()))
+
+        # Run Wheel Strategy (80% CONFIDENCE - 20-35% APY)
+        wheel = getattr(
+            self.config.trading, 'enable_wheel_strategy', False
+        )
+        if wheel and getattr(self, 'wheel_strategy', None):
+            tasks.append(asyncio.create_task(self.run_wheel_strategy()))
 
         # =====================================================================
         # TWITTER-DERIVED STRATEGIES (2024)

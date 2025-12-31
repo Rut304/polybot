@@ -63,16 +63,20 @@ Commit: `fix: Load global secrets before user-specific secrets`
 - [x] Execute `cd admin && npx playwright test`
 - [x] **570 tests passed**, 8 skipped
 - [x] Test results cleaned from git, added to .gitignore
+- [x] Added 28 new tests for new features (TradingView, live feed, congressional, SEO)
 
 ---
 
 ## 🟡 P1 - IMPORTANT (First 2 Weeks)
 
-### Strategy & Framework Wiring
+### Strategy & Framework Wiring ✅ COMPLETE
 
-- [ ] **Verify ALL strategies are wired** to bot_runner.py
-- [ ] **Verify ALL frameworks are wired** (risk management, position sizing)
-- [ ] Create checklist of every strategy with enabled/disabled status
+- [x] **Verify ALL strategies are wired** to bot_runner.py
+- [x] **Verify ALL frameworks are wired** (risk management, position sizing)
+- [x] Create checklist of every strategy with enabled/disabled status
+- [x] Added missing run methods for: sector rotation, dividend growth, earnings momentum
+- [x] Added missing run methods for: covered calls, CSPs, iron condor, wheel strategy
+- [x] All 25+ strategies now have run methods wired to main loop
 
 ### TradingView Integration ✅ COMPLETE
 
