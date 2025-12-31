@@ -90,10 +90,37 @@ interface WhaleTrade {
 
 type TimeFilter = 'week' | 'month' | 'year' | 'all';
 type SortField = 'pnl' | 'volume' | 'rank' | 'copy_pnl';
+type PlatformFilter = 'all' | 'polymarket' | 'binance' | 'hyperliquid';
+
+// Platform configuration for whale tracking
+const PLATFORM_CONFIG = {
+  polymarket: { 
+    label: 'Polymarket', 
+    icon: '🔮', 
+    color: 'text-purple-400', 
+    bg: 'bg-purple-500/20',
+    description: 'Prediction market whales'
+  },
+  binance: { 
+    label: 'Binance', 
+    icon: '₿', 
+    color: 'text-yellow-400', 
+    bg: 'bg-yellow-500/20',
+    description: 'Top crypto traders (coming soon)'
+  },
+  hyperliquid: { 
+    label: 'Hyperliquid', 
+    icon: '⚡', 
+    color: 'text-cyan-400', 
+    bg: 'bg-cyan-500/20',
+    description: 'DeFi perp traders (coming soon)'
+  },
+};
 
 export default function WhalesPage() {
   const queryClient = useQueryClient();
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('month');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('polymarket');
   const [sortField, setSortField] = useState<SortField>('pnl');
   const [sortAsc, setSortAsc] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -544,6 +571,33 @@ export default function WhalesPage() {
 
           <div className="h-6 w-px bg-gray-700" />
 
+          {/* Platform Filter */}
+          <div className="flex items-center gap-1 bg-gray-700/50 rounded-lg p-1">
+            {(['all', 'polymarket', 'binance', 'hyperliquid'] as PlatformFilter[]).map((platform) => {
+              const isAll = platform === 'all';
+              const config = !isAll ? PLATFORM_CONFIG[platform] : null;
+              return (
+                <button
+                  key={platform}
+                  onClick={() => setPlatformFilter(platform)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    platformFilter === platform
+                      ? isAll
+                        ? 'bg-gray-600 text-white'
+                        : `${config?.bg} ${config?.color}`
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'
+                  }`}
+                  title={isAll ? 'All platforms' : config?.description}
+                >
+                  <span>{isAll ? '🌐' : config?.icon}</span>
+                  <span className="hidden sm:inline">{isAll ? 'All' : config?.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="h-6 w-px bg-gray-700" />
+
           {/* Time Filter */}
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-400" />
@@ -614,7 +668,35 @@ export default function WhalesPage() {
         </div>
       </div>
 
-      {/* Whale List */}
+      {/* Coming Soon for unsupported platforms */}
+      {(platformFilter === 'binance' || platformFilter === 'hyperliquid') && (
+        <div className="card p-12 text-center">
+          <div className="max-w-md mx-auto">
+            <div className="text-6xl mb-4">
+              {platformFilter === 'binance' ? '₿' : '⚡'}
+            </div>
+            <h3 className="text-2xl font-bold mb-2">
+              {PLATFORM_CONFIG[platformFilter].label} Whale Tracking
+            </h3>
+            <p className="text-gray-400 mb-6">
+              {PLATFORM_CONFIG[platformFilter].description}
+            </p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700/50 rounded-full text-sm text-gray-400">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+              </span>
+              Coming Soon
+            </div>
+            <p className="text-xs text-gray-500 mt-4">
+              Track top traders, copy their strategies, and get alerts on whale movements
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Whale List - Only show for Polymarket or All */}
+      {(platformFilter === 'polymarket' || platformFilter === 'all') && (
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-gray-700">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -934,6 +1016,7 @@ export default function WhalesPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Info Banner */}
       <div className="card p-4 bg-blue-500/10 border-blue-500/30">

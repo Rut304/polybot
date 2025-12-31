@@ -62,8 +62,8 @@ Live trading IS completely wired up:
 
 - [x] Line charts for strategy P&L trending - EquityCurveChart added
 - [x] Interactive metrics with detailed tooltips - All metrics explained
-- [ ] TradingView charts for price data
-- [ ] Interactive legend to toggle strategies
+- [x] TradingView charts for price data (lightweight-charts v5.1.0)
+- [x] Interactive legend to toggle strategies (hover highlighting)
 
 ### Pages Needing Updates
 
@@ -71,7 +71,7 @@ Live trading IS completely wired up:
 - [x] `/bets` - PlatformFilter component integrated
 - [x] `/positions` - PlatformFilter component integrated
 - [ ] `/history` - Session-based (platform filter N/A)
-- [ ] `/whales` - Add multi-platform support
+- [x] `/whales` - Multi-platform filter added (Binance/Hyperliquid coming soon)
 - [ ] Merge Bets + Positions into "My Trades" (nice-to-have)
 
 ---
@@ -394,7 +394,7 @@ Live trading IS completely wired up:
 
 ### Charts & Visualization
 
-- [ ] Verify TradingView charts used where appropriate (price data, P&L curves)
+- [x] Verify TradingView charts used where appropriate (price data, P&L curves)
 - [ ] Keep Recharts for bar charts, pie charts, histograms
 - [ ] Add more TradingView-style charts to positions page
 
@@ -404,7 +404,7 @@ Live trading IS completely wired up:
 - [ ] `/history` - Add platform filtering to session history
 - [ ] `/missed-opportunities` - Add platform filter
 - [ ] `/watchlist` - Add platform filter
-- [ ] `/whales` - Add multi-platform support (currently Polymarket only)
+- [x] `/whales` - Add multi-platform support (platform filter added, Binance/Hyperliquid coming soon)
 - [ ] `/leaderboard` - Add multi-platform support
 
 ### Testing
