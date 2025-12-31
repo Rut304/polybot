@@ -1,5 +1,168 @@
 # PolyBot To-Do List
 
+---
+
+## ✅ RESOLVED: Bot Secrets Issue (December 31, 2025)
+
+**ROOT CAUSE**: Adding `BOT_USER_ID` to deployment caused `load_secrets()` to query 
+`polybot_key_vault` (empty user table) instead of `polybot_secrets` (34+ global keys).
+
+**FIX APPLIED**: Changed `load_secrets()` to always load global secrets first from 
+`polybot_secrets`, then overlay with user-specific secrets from `polybot_key_vault`.
+
+**Current Status**:
+- ✅ BINANCE_API_KEY - Loaded
+- ✅ ALPACA_PAPER_API_KEY - Loaded
+- ✅ POLYMARKET_API_KEY - Loaded
+- ✅ KALSHI_API_KEY - Loaded
+- ✅ All 34+ secrets - Loaded
+
+Commit: `fix: Load global secrets before user-specific secrets`
+
+---
+
+## 🔴 P0 - MUST FIX BEFORE LAUNCH (December 31, 2025)
+
+### 1. Bot Reliability & Monitoring
+
+- [x] **Fix secrets loading** - DONE (see above)
+- [ ] **Add external monitoring** (Uptime Robot - free)
+- [ ] **Add auto-restart** (systemd/PM2 for Lightsail)
+- [ ] **Verify all exchange clients initialize** after secrets added
+
+### 2. Stripe "Manage" Button Error
+
+- [ ] **Fix "Failed to load portal"** - stripe_customer_id column missing or null
+- [ ] Add `stripe_customer_id` column to `polybot_profiles` if missing
+- [ ] Move "Manage" to Settings menu (not floating button)
+
+### 3. Navigation UX Overhaul
+
+- [ ] **Restructure sidebar** - Too many items (30+), overwhelming for new users
+- [ ] Group: TRADING | RESEARCH | PORTFOLIO | AUTOMATION | SETTINGS | ADMIN
+- [ ] Move Admin section to bottom with clear separator
+- [ ] Clarify "Whale Tracker" (Polymarket) vs "Top Traders" (PolyParlay users)
+- [ ] Consider hiding "Failed Trades" until valuable
+
+### 4. Congressional Tracker
+
+- [ ] **Wire up Quiver Quant free API** instead of sample data
+- [ ] Show disclaimer if using delayed data
+
+### 5. Watchlist Page
+
+- [ ] **Verify watchlist is wired to database** - Currently shows 1 item (Telcoin)
+- [ ] Ensure add/remove works correctly
+- [ ] Add price alerts
+
+### 6. Run E2E Tests
+
+- [ ] Execute `cd admin && npx playwright test`
+- [ ] Fix any failing tests
+- [ ] Document test coverage
+
+---
+
+## 🟡 P1 - IMPORTANT (First 2 Weeks)
+
+### Strategy & Framework Wiring
+
+- [ ] **Verify ALL strategies are wired** to bot_runner.py
+- [ ] **Verify ALL frameworks are wired** (risk management, position sizing)
+- [ ] Create checklist of every strategy with enabled/disabled status
+
+### TradingView Integration
+
+- [ ] **Add TradingView webhook endpoint** `/api/webhook/tradingview`
+- [ ] Improve chart legibility and design
+- [ ] Better communicate VALUE through visuals
+
+### Landing Page Improvements
+
+- [ ] **Real-time trade feed** showing live/recent trades
+- [ ] Social proof counters
+- [ ] Marketing messaging update (see below)
+
+### Parlay Builder
+
+- [ ] **Port poly-parlay code** from existing repo
+- [ ] Adjust for admin UI integration
+- [ ] Create `/parlays` route
+
+### Combine My Bets + Positions
+
+- [ ] Merge into single "My Trades" page
+- [ ] Add filter: "Open Positions" vs "Trade History"
+- [ ] Clear status indicators
+
+### SEO & AI Discoverability
+
+- [ ] Create `/public/llms.txt` for AI search engines
+- [ ] Add structured data (JSON-LD)
+- [ ] Meta tags for all pages
+- [ ] Sitemap.xml
+
+### Smart Money Indicators in AI Insights
+
+- [ ] Show "Where top 10 whales are betting"
+- [ ] Whale movement alerts
+- [ ] Sentiment divergence indicators
+
+---
+
+## 🟢 P2 - NICE TO HAVE (Future)
+
+### Forecast Tournaments
+
+- [ ] Weekly prediction competitions
+- [ ] Leaderboard with prizes
+- [ ] Top forecasters featured
+
+### Cross-Platform Arbitrage (✅ EXISTS)
+
+- Polymarket ↔ Kalshi arbitrage already implemented
+- File: `src/analytics/arbitrage_analytics.py`
+
+### Backtesting (✅ EXISTS)
+
+- UI at `/backtesting` already implemented
+- API at `/api/backtests` already implemented
+- Tables: `polybot_backtests`, `polybot_backtest_trades`
+
+### Mobile App
+
+- [ ] Native iOS/Android
+
+### Discord Integration
+
+- [ ] Webhook notifications
+
+---
+
+## 📝 MARKETING & BRANDING UPDATE
+
+**Current Problem**: PolyParlay.io name doesn't represent full platform capabilities.
+
+**What PolyParlay Actually Is**:
+
+- Full automated trading platform for:
+  - ✅ Prediction Markets (Polymarket, Kalshi)
+  - ✅ Stocks (Alpaca, IBKR, Robinhood, Webull)
+  - ✅ Crypto (Coinbase, Binance, Kraken, etc.)
+- **No coding required** - pure UI configuration
+- **14+ strategies** with custom parameters
+- **Risk management frameworks** built-in
+- **Self-tuning AI** that optimizes strategy parameters
+- **Full simulation mode** before spending a penny
+- **We only make money when you trade real money**
+
+**Marketing Copy Draft**:
+> "PolyParlay is an AI-powered trading platform that automates prediction markets, stocks, and crypto - no coding required. Run full simulations with 14+ strategies before connecting your accounts. Our self-tuning AI continuously optimizes your trades. You don't pay until you trade real money."
+
+**Domain Consideration**: Looking for new domain that better represents full platform.
+
+---
+
 ## ✅ COMPLETED: Wire Up Robinhood & Webull Trading Clients (December 30, 2025)
 
 **Status**: ✅ COMPLETE  

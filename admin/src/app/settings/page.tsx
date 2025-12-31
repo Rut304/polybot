@@ -304,6 +304,13 @@ function SubscriptionSection() {
       const data = await response.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        // User hasn't subscribed yet - show upgrade option
+        if (data.error.includes('No billing account')) {
+          setShowUpgrade(true);
+        } else {
+          console.error('Billing portal error:', data.error);
+        }
       }
     } catch (err) {
       console.error('Failed to open billing portal:', err);

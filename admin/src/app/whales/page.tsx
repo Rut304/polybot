@@ -722,10 +722,11 @@ export default function WhalesPage() {
                             href={`https://polymarket.com/profile/${address}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1 hover:bg-gray-700 rounded"
-                            title="View on Polymarket"
+                            className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded text-xs transition-colors"
+                            title="View full trading history on Polymarket"
                           >
-                            <ExternalLink className="w-3 h-3 text-gray-400" />
+                            <ExternalLink className="w-3 h-3" />
+                            History
                           </a>
                         </div>
                         <div className="flex items-center gap-3 text-sm text-gray-400 mt-1">

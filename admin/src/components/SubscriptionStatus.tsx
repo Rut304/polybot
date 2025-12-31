@@ -46,8 +46,16 @@ export default function SubscriptionStatus() {
                 }),
             });
             const data = await res.json();
-            if (data.url) window.location.href = data.url;
-            else alert('Failed to load portal');
+            if (data.url) {
+                window.location.href = data.url;
+            } else if (data.error) {
+                // User hasn't subscribed yet - redirect to pricing
+                if (data.error.includes('No billing account')) {
+                    window.location.href = '/pricing';
+                } else {
+                    console.error('Portal error:', data.error);
+                }
+            }
         } catch (err) {
             console.error(err);
         } finally {
