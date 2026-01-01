@@ -220,11 +220,8 @@ export default function Dashboard() {
       {/* Trading Mode Banner - explains Simulation vs Live data filtering */}
       <TradingModeBanner />
       
-      {/* Welcome Banner for new users */}
+      {/* Welcome Banner for new users - includes upgrade CTA */}
       <WelcomeBanner />
-      
-      {/* Page CTA */}
-      <PageCTA page="dashboard" />
       
       {/* Quick Start FAB */}
       <QuickStartFAB />

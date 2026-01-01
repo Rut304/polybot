@@ -488,8 +488,12 @@ export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' 
       // Calculate derived metrics
       const currentBalance = startingBalance + totalPnl;
       const roiPct = (totalPnl / startingBalance) * 100;
-      const resolvedTrades = winningTrades + losingTrades;
-      const winRate = resolvedTrades > 0 ? (winningTrades / resolvedTrades) * 100 : 0;
+      
+      // Use filtered metrics when timeframe is set, otherwise all-time
+      const useFiltered = timeframeHours && timeframeHours > 0;
+      const resolvedForWinRate = useFiltered ? (filteredWinning + filteredLosing) : (winningTrades + losingTrades);
+      const winsForWinRate = useFiltered ? filteredWinning : winningTrades;
+      const winRate = resolvedForWinRate > 0 ? (winsForWinRate / resolvedForWinRate) * 100 : 0;
       
       // Pending trades from recent trades
       const pendingTrades = recentTrades.filter(t => t.outcome === 'pending').length;
