@@ -152,12 +152,25 @@ BEGIN
 END $$;
 
 -- Create missing config records for users who don't have one
--- Note: polybot_config table uses dynamic columns, only user_id is guaranteed
-INSERT INTO public.polybot_config (user_id)
-SELECT id
-FROM auth.users
-WHERE NOT EXISTS (SELECT 1 FROM public.polybot_config WHERE polybot_config.user_id = auth.users.id)
-ON CONFLICT (user_id) DO NOTHING;
+-- Note: polybot_config table may have different schema versions
+-- Only insert if user_id column exists and user doesn't have a config row
+DO $$
+BEGIN
+    -- Check if user_id column exists
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_schema = 'public' 
+               AND table_name = 'polybot_config' 
+               AND column_name = 'user_id') THEN
+        -- Insert config for users who don't have one
+        INSERT INTO public.polybot_config (user_id)
+        SELECT u.id
+        FROM auth.users u
+        WHERE NOT EXISTS (
+            SELECT 1 FROM public.polybot_config c WHERE c.user_id = u.id
+        )
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
 
 -- ============================================
 -- STEP 5: Verify specific user (from screenshot)
@@ -191,10 +204,15 @@ BEGIN
             ON CONFLICT DO NOTHING;
         END IF;
         
-        -- Ensure config exists
-        INSERT INTO public.polybot_config (user_id)
-        VALUES (target_user_id)
-        ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW();
+        -- Ensure config exists (only if user_id column exists)
+        IF EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_schema = 'public' 
+                   AND table_name = 'polybot_config' 
+                   AND column_name = 'user_id') THEN
+            INSERT INTO public.polybot_config (user_id)
+            VALUES (target_user_id)
+            ON CONFLICT DO NOTHING;
+        END IF;
         
         RAISE NOTICE 'Created/updated records for user: % (set as admin)', user_email;
     ELSE
