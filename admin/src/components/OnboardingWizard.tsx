@@ -41,30 +41,38 @@ const STEPS = [
     title: 'Welcome to PolyParlay! 🎉',
     description: 'Let\'s get you set up to start trading prediction markets.',
     icon: Sparkles,
+    skippable: false,
   },
   {
     id: 'wallet',
-    title: 'Your Trading Wallet',
-    description: 'We\'ve created a secure, non-custodial wallet for you on Polygon.',
+    title: 'Polymarket Wallet (Privy)',
+    description: 'For trading on Polymarket - uses the same wallet system as Polymarket.com',
     icon: Wallet,
+    skippable: true,
+    skipText: 'Skip - I\'ll set this up later',
   },
   {
     id: 'platforms',
-    title: 'Connect Your Platforms',
-    description: 'Link your Polymarket, Kalshi, or Alpaca accounts to start trading.',
+    title: 'Connect Trading Platforms',
+    description: 'Link your accounts to enable automated trading on each platform.',
     icon: Key,
+    skippable: true,
+    skipText: 'Skip - I\'ll add API keys later',
   },
   {
     id: 'strategies',
     title: 'Choose Your Strategies',
-    description: 'Select up to 3 automated trading strategies (Free tier).',
+    description: 'Select which automated strategies to run (you can change these anytime).',
     icon: Target,
+    skippable: true,
+    skipText: 'Skip - Use defaults',
   },
   {
     id: 'simulation',
     title: 'Start with Paper Trading',
     description: 'Practice with virtual money before risking real funds.',
     icon: Shield,
+    skippable: false,
   },
 ];
 
@@ -196,6 +204,126 @@ const FREE_STRATEGIES = [
     risk: 'Medium',
   },
 ];
+
+// Platform card component for cleaner code
+interface PlatformCardProps {
+  platform: typeof PLATFORM_LINKS[0];
+  isExpanded: boolean;
+  isSaved: boolean;
+  keys: { apiKey: string; secretKey: string };
+  savingKeys: string | null;
+  setExpandedPlatform: (name: string | null) => void;
+  setPlatformKeys: React.Dispatch<React.SetStateAction<Record<string, { apiKey: string; secretKey: string }>>>;
+  savePlatformKeys: (platform: typeof PLATFORM_LINKS[0]) => void;
+}
+
+function PlatformCard({
+  platform,
+  isExpanded,
+  isSaved,
+  keys,
+  savingKeys,
+  setExpandedPlatform,
+  setPlatformKeys,
+  savePlatformKeys,
+}: PlatformCardProps) {
+  return (
+    <div
+      className={`bg-dark-bg/50 rounded-lg border transition-colors ${
+        isSaved ? 'border-neon-green/50' : 'border-dark-border'
+      }`}
+    >
+      {/* Platform Header */}
+      <div className="flex items-center gap-3 p-3">
+        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${platform.color} flex items-center justify-center text-xl`}>
+          {platform.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-white text-sm flex items-center gap-2">
+            {platform.name}
+            {isSaved && <CheckCircle className="w-4 h-4 text-neon-green" />}
+          </h4>
+          <p className="text-xs text-gray-400 truncate">{platform.description}</p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <a
+            href={platform.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-1.5 text-gray-400 hover:text-white transition-colors"
+            title="Sign up"
+          >
+            <ExternalLink className="w-4 h-4" />
+          </a>
+          {!isSaved && (
+            <button
+              onClick={() => setExpandedPlatform(isExpanded ? null : platform.name)}
+              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                isExpanded 
+                  ? 'bg-gray-600 text-white' 
+                  : 'bg-neon-green/20 text-neon-green hover:bg-neon-green/30'
+              }`}
+            >
+              {isExpanded ? 'Cancel' : 'Add Keys'}
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {/* Expanded API Key Entry */}
+      {isExpanded && (
+        <div className="px-3 pb-3 border-t border-dark-border pt-3">
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">{platform.apiKeyLabel}</label>
+              <input
+                type="text"
+                placeholder={`Enter ${platform.apiKeyLabel.toLowerCase()}`}
+                value={keys.apiKey}
+                onChange={(e) => setPlatformKeys(prev => ({
+                  ...prev,
+                  [platform.name]: { ...keys, apiKey: e.target.value }
+                }))}
+                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:border-neon-green focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">{platform.secretKeyLabel}</label>
+              <input
+                type="password"
+                placeholder={`Enter ${platform.secretKeyLabel.toLowerCase()}`}
+                value={keys.secretKey}
+                onChange={(e) => setPlatformKeys(prev => ({
+                  ...prev,
+                  [platform.name]: { ...keys, secretKey: e.target.value }
+                }))}
+                className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:border-neon-green focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <a
+                href={platform.helpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-neon-blue hover:underline flex items-center gap-1"
+              >
+                <HelpCircle className="w-3 h-3" />
+                How to get API keys
+              </a>
+              <button
+                onClick={() => savePlatformKeys(platform)}
+                disabled={!keys.apiKey || !keys.secretKey || savingKeys === platform.name}
+                className="px-3 py-1.5 bg-neon-green text-dark-bg font-medium rounded text-xs hover:bg-neon-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingKeys === platform.name ? 'Saving...' : 'Save Keys'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) {
   const { profile, refreshProfile } = useTier();
@@ -355,14 +483,36 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             >
               <Wallet className="w-10 h-10 text-neon-purple" />
             </motion.div>
-            <h3 className="text-xl font-semibold text-white mb-2">Your Embedded Wallet</h3>
-            <p className="text-gray-400 mb-6">
-              We&apos;ve created a secure wallet on Polygon. Your keys, your crypto.
+            <h3 className="text-xl font-semibold text-white mb-2">Polymarket Trading Wallet</h3>
+            <p className="text-gray-400 mb-4">
+              For trading on <strong className="text-white">Polymarket</strong>, you need a crypto wallet on the Polygon network.
             </p>
+
+            {/* Key info box */}
+            <div className="bg-neon-purple/10 border border-neon-purple/30 rounded-lg p-4 mb-6 text-left">
+              <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-neon-purple" />
+                Important: This is YOUR wallet
+              </h4>
+              <ul className="space-y-2 text-sm text-gray-300">
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-neon-green mt-0.5 flex-shrink-0" />
+                  <span><strong className="text-white">Powered by Privy</strong> - The same wallet system used by Polymarket.com</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-neon-green mt-0.5 flex-shrink-0" />
+                  <span><strong className="text-white">Non-custodial</strong> - PolyParlay never holds your funds. You own your keys.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-neon-green mt-0.5 flex-shrink-0" />
+                  <span><strong className="text-white">Already have Polymarket?</strong> If you&apos;ve used Polymarket before with the same email, you&apos;ll see your existing wallet!</span>
+                </li>
+              </ul>
+            </div>
 
             {profile?.walletAddress ? (
               <div className="bg-dark-bg/50 rounded-lg p-4 mb-6">
-                <p className="text-xs text-gray-500 mb-2">Your Wallet Address</p>
+                <p className="text-xs text-gray-500 mb-2">Your Polygon Wallet Address</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 text-sm text-neon-green font-mono truncate">
                     {profile.walletAddress}
@@ -382,7 +532,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             ) : (
               <div className="bg-dark-bg/50 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-400">
-                  Wallet will be created when you first sign in with Privy
+                  Your Privy wallet will appear here once connected.
                 </p>
               </div>
             )}
@@ -390,13 +540,17 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             <div className="flex items-start gap-2 text-sm text-gray-400 bg-neon-blue/10 border border-neon-blue/20 rounded-lg p-3">
               <HelpCircle className="w-5 h-5 text-neon-blue flex-shrink-0 mt-0.5" />
               <p className="text-left">
-                Fund your wallet with USDC on Polygon for Polymarket trades. 
+                <strong className="text-white">To fund your wallet:</strong> Send USDC on the Polygon network to your wallet address above. 
                 You can use a bridge like{' '}
                 <a href="https://jumper.exchange" target="_blank" rel="noopener noreferrer" className="text-neon-blue hover:underline">
                   Jumper
                 </a>
-                {' '}to transfer funds.
+                {' '}to move funds from other chains.
               </p>
+            </div>
+
+            <div className="mt-4 text-xs text-gray-500 text-center">
+              <strong>Don&apos;t need Polymarket?</strong> If you only want to trade on Kalshi or stocks, you can skip this step.
             </div>
           </div>
         );
@@ -404,120 +558,112 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
       case 'platforms':
         return (
           <div>
-            <h3 className="text-xl font-semibold text-white mb-2 text-center">Connect Your Platforms</h3>
-            <p className="text-gray-400 mb-6 text-center">
-              Sign up for these platforms and enter your API keys below, or skip and add later.
+            <h3 className="text-xl font-semibold text-white mb-2 text-center">Connect Your Trading Platforms</h3>
+            <p className="text-gray-400 mb-2 text-center">
+              Add API keys for the platforms you want to trade on. Each platform requires its own account.
             </p>
-
-            <div className="grid gap-4">
-              {PLATFORM_LINKS.map((platform) => {
-                const isExpanded = expandedPlatform === platform.name;
-                const isSaved = keysSaved[platform.name];
-                const keys = platformKeys[platform.name] || { apiKey: '', secretKey: '' };
-                
-                return (
-                  <div
-                    key={platform.name}
-                    className={`bg-dark-bg/50 rounded-lg border transition-colors ${
-                      isSaved ? 'border-neon-green/50' : 'border-dark-border'
-                    }`}
-                  >
-                    {/* Platform Header */}
-                    <div className="flex items-center gap-4 p-4">
-                      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${platform.color} flex items-center justify-center text-2xl`}>
-                        {platform.icon}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-white flex items-center gap-2">
-                          {platform.name}
-                          {isSaved && <CheckCircle className="w-4 h-4 text-neon-green" />}
-                        </h4>
-                        <p className="text-sm text-gray-400">{platform.description}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={platform.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 text-gray-400 hover:text-white transition-colors"
-                          title="Sign up"
-                        >
-                          <ExternalLink className="w-5 h-5" />
-                        </a>
-                        {!isSaved && (
-                          <button
-                            onClick={() => setExpandedPlatform(isExpanded ? null : platform.name)}
-                            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                              isExpanded 
-                                ? 'bg-gray-600 text-white' 
-                                : 'bg-neon-green/20 text-neon-green hover:bg-neon-green/30'
-                            }`}
-                          >
-                            {isExpanded ? 'Cancel' : 'Add Keys'}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Expanded API Key Entry */}
-                    {isExpanded && (
-                      <div className="px-4 pb-4 border-t border-dark-border pt-4">
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">{platform.apiKeyLabel}</label>
-                            <input
-                              type="text"
-                              placeholder={`Enter ${platform.apiKeyLabel.toLowerCase()}`}
-                              value={keys.apiKey}
-                              onChange={(e) => setPlatformKeys(prev => ({
-                                ...prev,
-                                [platform.name]: { ...keys, apiKey: e.target.value }
-                              }))}
-                              className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:border-neon-green focus:outline-none"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-400 mb-1">{platform.secretKeyLabel}</label>
-                            <input
-                              type="password"
-                              placeholder={`Enter ${platform.secretKeyLabel.toLowerCase()}`}
-                              value={keys.secretKey}
-                              onChange={(e) => setPlatformKeys(prev => ({
-                                ...prev,
-                                [platform.name]: { ...keys, secretKey: e.target.value }
-                              }))}
-                              className="w-full px-3 py-2 bg-dark-bg border border-dark-border rounded text-sm text-white placeholder-gray-500 focus:border-neon-green focus:outline-none"
-                            />
-                          </div>
-                          <div className="flex items-center justify-between pt-2">
-                            <a
-                              href={platform.helpUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-neon-blue hover:underline flex items-center gap-1"
-                            >
-                              <HelpCircle className="w-3 h-3" />
-                              How to get API keys
-                            </a>
-                            <button
-                              onClick={() => savePlatformKeys(platform)}
-                              disabled={!keys.apiKey || !keys.secretKey || savingKeys === platform.name}
-                              className="px-4 py-2 bg-neon-green text-dark-bg font-medium rounded text-sm hover:bg-neon-green/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {savingKeys === platform.name ? 'Saving...' : 'Save Keys'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            
+            {/* Explanation box */}
+            <div className="bg-dark-bg/50 border border-dark-border rounded-lg p-3 mb-4 text-sm">
+              <p className="text-gray-400 mb-2">
+                <strong className="text-white">How this works:</strong> You create an account on each platform, 
+                then generate API keys there and paste them here. PolyParlay uses these keys to execute trades on your behalf.
+              </p>
+              <p className="text-gray-500 text-xs">
+                🔒 Your keys are encrypted and stored securely. We never have access to withdraw your funds.
+              </p>
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-2 text-sm text-gray-400">
+            {/* Prediction Markets Section */}
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold text-gray-400 mb-2 flex items-center gap-2">
+                🎯 Prediction Markets
+                <span className="text-xs font-normal text-gray-500">- Trade on event outcomes</span>
+              </h4>
+              <div className="grid gap-3">
+                {PLATFORM_LINKS.filter(p => p.category === 'prediction').map((platform) => {
+                  const isExpanded = expandedPlatform === platform.name;
+                  const isSaved = keysSaved[platform.name];
+                  const keys = platformKeys[platform.name] || { apiKey: '', secretKey: '' };
+                  
+                  return (
+                    <PlatformCard
+                      key={platform.name}
+                      platform={platform}
+                      isExpanded={isExpanded}
+                      isSaved={isSaved}
+                      keys={keys}
+                      savingKeys={savingKeys}
+                      setExpandedPlatform={setExpandedPlatform}
+                      setPlatformKeys={setPlatformKeys}
+                      savePlatformKeys={savePlatformKeys}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Crypto Exchanges Section */}
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold text-gray-400 mb-2 flex items-center gap-2">
+                ⚡ Crypto Exchanges
+                <span className="text-xs font-normal text-gray-500">- Trade crypto & perpetuals</span>
+              </h4>
+              <div className="grid gap-3">
+                {PLATFORM_LINKS.filter(p => p.category === 'crypto').map((platform) => {
+                  const isExpanded = expandedPlatform === platform.name;
+                  const isSaved = keysSaved[platform.name];
+                  const keys = platformKeys[platform.name] || { apiKey: '', secretKey: '' };
+                  
+                  return (
+                    <PlatformCard
+                      key={platform.name}
+                      platform={platform}
+                      isExpanded={isExpanded}
+                      isSaved={isSaved}
+                      keys={keys}
+                      savingKeys={savingKeys}
+                      setExpandedPlatform={setExpandedPlatform}
+                      setPlatformKeys={setPlatformKeys}
+                      savePlatformKeys={savePlatformKeys}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Stock Brokers Section */}
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold text-gray-400 mb-2 flex items-center gap-2">
+                📈 Stock Brokers
+                <span className="text-xs font-normal text-gray-500">- Trade stocks & ETFs</span>
+              </h4>
+              <div className="grid gap-3">
+                {PLATFORM_LINKS.filter(p => p.category === 'stocks').map((platform) => {
+                  const isExpanded = expandedPlatform === platform.name;
+                  const isSaved = keysSaved[platform.name];
+                  const keys = platformKeys[platform.name] || { apiKey: '', secretKey: '' };
+                  
+                  return (
+                    <PlatformCard
+                      key={platform.name}
+                      platform={platform}
+                      isExpanded={isExpanded}
+                      isSaved={isSaved}
+                      keys={keys}
+                      savingKeys={savingKeys}
+                      setExpandedPlatform={setExpandedPlatform}
+                      setPlatformKeys={setPlatformKeys}
+                      savePlatformKeys={savePlatformKeys}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-400">
               <HelpCircle className="w-4 h-4" />
-              <span>You can skip this step and add keys later in</span>
+              <span>You can skip this and add keys later in</span>
               <Link href="/secrets" className="text-neon-green hover:underline">Settings → Secrets</Link>
             </div>
           </div>
@@ -526,15 +672,27 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
       case 'strategies':
         return (
           <div>
-            <h3 className="text-xl font-semibold text-white mb-2 text-center">Choose Your Strategies</h3>
+            <h3 className="text-xl font-semibold text-white mb-2 text-center">Choose Your Trading Strategies</h3>
             <p className="text-gray-400 mb-2 text-center">
-              Select which automated strategies to enable.
+              Select which automated strategies PolyParlay should run for you.
             </p>
-            <p className="text-xs text-neon-green mb-6 text-center">
-              {selectedStrategies.length} selected • You can change these anytime in Settings
+            
+            {/* Explanation box */}
+            <div className="bg-dark-bg/50 border border-dark-border rounded-lg p-3 mb-4 text-sm">
+              <p className="text-gray-400">
+                <strong className="text-white">How strategies work:</strong> When you enable a strategy, PolyParlay&apos;s 
+                bot will automatically scan for opportunities and execute trades based on that strategy&apos;s rules.
+              </p>
+              <p className="text-gray-500 text-xs mt-2">
+                💡 In simulation mode, strategies trade with virtual money. You can change these anytime in Settings.
+              </p>
+            </div>
+
+            <p className="text-xs text-neon-green mb-4 text-center">
+              {selectedStrategies.length} selected
             </p>
 
-            <div className="grid gap-3 max-h-[400px] overflow-y-auto">
+            <div className="grid gap-3 max-h-[350px] overflow-y-auto">
               {FREE_STRATEGIES.map((strategy) => {
                 const isSelected = selectedStrategies.includes(strategy.id);
 
@@ -581,29 +739,32 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             >
               <Activity className="w-10 h-10 text-neon-green" />
             </motion.div>
-            <h3 className="text-xl font-semibold text-white mb-2">You&apos;re Starting with Paper Trading</h3>
-            <p className="text-gray-400 mb-6">
-              Practice trading with $30,000 in virtual money. No real funds at risk!
+            <h3 className="text-xl font-semibold text-white mb-2">You&apos;re Ready to Go! 🎉</h3>
+            <p className="text-gray-400 mb-2">
+              You&apos;ll start in <strong className="text-neon-green">Paper Trading Mode</strong> with $30,000 in virtual money.
+            </p>
+            <p className="text-gray-500 text-sm mb-6">
+              No real funds at risk - practice until you&apos;re confident!
             </p>
 
             <div className="bg-dark-bg/50 rounded-lg p-6 mb-6 text-left">
-              <h4 className="font-medium text-white mb-4">What to do next:</h4>
+              <h4 className="font-medium text-white mb-4 text-center">What happens next:</h4>
               <ol className="space-y-3 text-sm text-gray-300">
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center flex-shrink-0 text-xs font-bold">1</span>
-                  <span>Watch your Dashboard for opportunities and paper trades</span>
+                  <span><strong className="text-white">Dashboard</strong> - Watch opportunities appear and see paper trades execute in real-time</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center flex-shrink-0 text-xs font-bold">2</span>
-                  <span>Review your Strategy Performance in Analytics</span>
+                  <span><strong className="text-white">Analytics</strong> - Track your strategy performance and P&L over time</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center flex-shrink-0 text-xs font-bold">3</span>
-                  <span>Add API keys in Settings → Secrets when ready for live trading</span>
+                  <span><strong className="text-white">Settings → Secrets</strong> - Add API keys when you&apos;re ready for real trading</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="w-6 h-6 rounded-full bg-neon-green/20 text-neon-green flex items-center justify-center flex-shrink-0 text-xs font-bold">4</span>
-                  <span>Upgrade to Pro to enable live trading with real funds</span>
+                  <span><strong className="text-white">Go Live</strong> - Upgrade to Pro and switch to live trading with real funds</span>
                 </li>
               </ol>
             </div>
@@ -611,7 +772,7 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
             <div className="flex items-start gap-2 text-sm text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
               <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <p className="text-left">
-                When you switch to live trading, ALL strategies are disabled by default. 
+                <strong>Safety First:</strong> When you switch to live trading, ALL strategies start disabled. 
                 You must explicitly enable each strategy you want to use with real money.
               </p>
             </div>
@@ -701,12 +862,22 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
           </button>
 
           <div className="flex items-center gap-3">
-            {onSkip && !isLastStep && (
+            {/* Skip this specific step */}
+            {step.skippable && !isLastStep && (
+              <button
+                onClick={handleNext}
+                className="px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors"
+              >
+                {step.skipText || 'Skip this step'}
+              </button>
+            )}
+            {/* Skip entire wizard */}
+            {onSkip && isFirstStep && (
               <button
                 onClick={onSkip}
-                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-gray-400 hover:text-white text-sm transition-colors"
               >
-                Skip for now
+                Skip setup entirely
               </button>
             )}
             <button
