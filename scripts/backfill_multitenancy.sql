@@ -168,16 +168,19 @@ BEGIN
     -- Check if polybot_secrets table exists
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'polybot_secrets') THEN
         -- Migrate each secret that isn't already in the vault
+        -- Note: polybot_secrets uses 'key_value', polybot_key_vault uses 'encrypted_value'
         INSERT INTO polybot_key_vault (user_id, key_name, encrypted_value, description)
         SELECT 
             v_user_id,
-            key_name,
-            encrypted_value,
+            ps.key_name,
+            COALESCE(ps.key_value, ''),  -- polybot_secrets has key_value, not encrypted_value
             'Migrated from polybot_secrets'
-        FROM polybot_secrets
-        WHERE NOT EXISTS (
-            SELECT 1 FROM polybot_key_vault 
-            WHERE user_id = v_user_id AND key_name = polybot_secrets.key_name
+        FROM polybot_secrets ps
+        WHERE ps.key_value IS NOT NULL 
+          AND ps.key_value != ''
+          AND NOT EXISTS (
+            SELECT 1 FROM polybot_key_vault pkv
+            WHERE pkv.user_id = v_user_id AND pkv.key_name = ps.key_name
         )
         ON CONFLICT (user_id, key_name) DO NOTHING;
         
