@@ -88,18 +88,20 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     }
   }
   
-  // Fallback: check database (polybot_user_profiles table)
+  // Fallback: check database (polybot_profiles table - unified table)
+  // Note: polybot_user_profiles is deprecated, use polybot_profiles instead
   const { data, error } = await supabase
-    .from('polybot_user_profiles')
-    .select('role')
+    .from('polybot_profiles')
+    .select('role, subscription_tier')
     .eq('id', userId)
     .single();
   
-  if (error) {
-    console.error('Error fetching user role:', error);
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching user role from profiles:', error);
   }
   
   // Return role from DB, default to viewer
+  // All authenticated users should be able to edit their own settings
   const dbRole = data?.role;
   if (dbRole === 'admin') return 'admin';
   return 'viewer';

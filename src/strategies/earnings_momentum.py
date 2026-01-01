@@ -147,19 +147,173 @@ class EarningsMomentumStrategy:
     async def _fetch_earnings_calendar(
         self, days: int
     ) -> List[EarningsEvent]:
-        """Fetch earnings calendar."""
-        # Simulated - in production use real API
-        return []
+        """
+        Fetch earnings calendar from Alpha Vantage API.
+        
+        Requires ALPHA_VANTAGE_API_KEY environment variable.
+        Free tier: 25 requests/day, 5 requests/minute
+        """
+        import os
+        import aiohttp
+        
+        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        if not api_key:
+            logger.warning(
+                "ALPHA_VANTAGE_API_KEY not set - earnings calendar disabled"
+            )
+            return []
+        
+        try:
+            # Alpha Vantage earnings calendar endpoint
+            url = (
+                f"https://www.alphavantage.co/query"
+                f"?function=EARNINGS_CALENDAR"
+                f"&horizon=3month"
+                f"&apikey={api_key}"
+            )
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        logger.error(
+                            f"Earnings API error: {response.status}"
+                        )
+                        return []
+                    
+                    # Parse CSV response
+                    text = await response.text()
+                    lines = text.strip().split('\n')
+                    
+                    if len(lines) <= 1:
+                        return []
+                    
+                    events = []
+                    header = lines[0].split(',')
+                    
+                    for line in lines[1:]:
+                        fields = line.split(',')
+                        if len(fields) < 5:
+                            continue
+                        
+                        try:
+                            report_date = datetime.strptime(
+                                fields[2], "%Y-%m-%d"
+                            )
+                            
+                            # Only include events within our window
+                            if report_date > datetime.now() + timedelta(
+                                days=days
+                            ):
+                                continue
+                            
+                            event = EarningsEvent(
+                                symbol=fields[0],
+                                report_date=report_date,
+                                report_time=fields[3] if len(fields) > 3 else "AMC",
+                                eps_estimate=float(fields[4]) if fields[4] else 0.0,
+                            )
+                            events.append(event)
+                        except (ValueError, IndexError) as e:
+                            continue
+                    
+                    logger.info(
+                        f"Fetched {len(events)} earnings events"
+                    )
+                    return events
+                    
+        except Exception as e:
+            logger.error(f"Error fetching earnings calendar: {e}")
+            return []
 
     async def _get_historical_earnings(
         self, symbol: str
     ) -> List[EarningsEvent]:
-        """Get historical earnings data."""
+        """
+        Get historical earnings data from Alpha Vantage.
+        """
+        import os
+        import aiohttp
+        
         if symbol in self.historical:
             return self.historical[symbol]
-
-        # Fetch from API - simulated
-        return []
+        
+        api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        if not api_key:
+            return []
+        
+        try:
+            url = (
+                f"https://www.alphavantage.co/query"
+                f"?function=EARNINGS"
+                f"&symbol={symbol}"
+                f"&apikey={api_key}"
+            )
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        return []
+                    
+                    data = await response.json()
+                    
+                    if "quarterlyEarnings" not in data:
+                        return []
+                    
+                    events = []
+                    for q in data["quarterlyEarnings"][:8]:  # Last 8 quarters
+                        try:
+                            eps_est = float(q.get("estimatedEPS", 0) or 0)
+                            eps_act = float(q.get("reportedEPS", 0) or 0)
+                            
+                            surprise_pct = 0
+                            if eps_est != 0:
+                                surprise_pct = (
+                                    (eps_act - eps_est) / abs(eps_est)
+                                ) * 100
+                            
+                            surprise_type = self._classify_surprise(
+                                surprise_pct
+                            )
+                            
+                            event = EarningsEvent(
+                                symbol=symbol,
+                                report_date=datetime.strptime(
+                                    q["reportedDate"], "%Y-%m-%d"
+                                ),
+                                report_time="AMC",
+                                eps_estimate=eps_est,
+                                eps_actual=eps_act,
+                                surprise_pct=surprise_pct,
+                                surprise_type=surprise_type,
+                            )
+                            events.append(event)
+                        except (KeyError, ValueError):
+                            continue
+                    
+                    # Cache for this session
+                    self.historical[symbol] = events
+                    return events
+                    
+        except Exception as e:
+            logger.error(f"Error fetching historical earnings: {e}")
+            return []
+    
+    def _classify_surprise(self, surprise_pct: float) -> EarningsSurprise:
+        """Classify earnings surprise percentage."""
+        if surprise_pct > 10:
+            return EarningsSurprise.MASSIVE_BEAT
+        elif surprise_pct > 5:
+            return EarningsSurprise.STRONG_BEAT
+        elif surprise_pct > 1:
+            return EarningsSurprise.BEAT
+        elif surprise_pct >= -1:
+            return EarningsSurprise.INLINE
+        elif surprise_pct >= -5:
+            return EarningsSurprise.MISS
+        elif surprise_pct >= -10:
+            return EarningsSurprise.STRONG_MISS
+        else:
+            return EarningsSurprise.MASSIVE_MISS
 
     def _calculate_beat_streak(
         self, history: List[EarningsEvent]

@@ -54,13 +54,13 @@ interface ParlayResult {
 }
 
 // =============================================================================
-// MOCK DATA (Replace with real API calls)
+// MOCK DATA (Fallback for when API is unavailable)
 // =============================================================================
 
-const SAMPLE_MARKETS: Market[] = [
+const FALLBACK_MARKETS: Market[] = [
   {
-    id: '1',
-    question: 'Will Bitcoin exceed $100,000 by March 2025?',
+    id: 'fallback-1',
+    question: '[Demo] Will Bitcoin exceed $100,000 by March 2025?',
     yesPrice: 0.45,
     noPrice: 0.55,
     volume: 2500000,
@@ -68,8 +68,8 @@ const SAMPLE_MARKETS: Market[] = [
     platform: 'polymarket',
   },
   {
-    id: '2',
-    question: 'Will the Fed cut rates in January 2025?',
+    id: 'fallback-2',
+    question: '[Demo] Will the Fed cut rates in January 2025?',
     yesPrice: 0.22,
     noPrice: 0.78,
     volume: 1800000,
@@ -77,8 +77,8 @@ const SAMPLE_MARKETS: Market[] = [
     platform: 'kalshi',
   },
   {
-    id: '3',
-    question: 'Will S&P 500 close above 6000 by Feb 2025?',
+    id: 'fallback-3',
+    question: '[Demo] Will S&P 500 close above 6000 by Feb 2025?',
     yesPrice: 0.68,
     noPrice: 0.32,
     volume: 950000,
@@ -86,8 +86,8 @@ const SAMPLE_MARKETS: Market[] = [
     platform: 'polymarket',
   },
   {
-    id: '4',
-    question: 'Will Ethereum exceed $5,000 by Q1 2025?',
+    id: 'fallback-4',
+    question: '[Demo] Will Ethereum exceed $5,000 by Q1 2025?',
     yesPrice: 0.35,
     noPrice: 0.65,
     volume: 1200000,
@@ -95,8 +95,8 @@ const SAMPLE_MARKETS: Market[] = [
     platform: 'polymarket',
   },
   {
-    id: '5',
-    question: 'Will unemployment stay below 4.5% in January?',
+    id: 'fallback-5',
+    question: '[Demo] Will unemployment stay below 4.5% in January?',
     yesPrice: 0.82,
     noPrice: 0.18,
     volume: 750000,
@@ -104,8 +104,8 @@ const SAMPLE_MARKETS: Market[] = [
     platform: 'kalshi',
   },
   {
-    id: '6',
-    question: 'Will AI company IPO in Q1 2025?',
+    id: 'fallback-6',
+    question: '[Demo] Will AI company IPO in Q1 2025?',
     yesPrice: 0.55,
     noPrice: 0.45,
     volume: 450000,
@@ -282,6 +282,7 @@ function ParlayLegCard({
         </div>
         <button
           onClick={onRemove}
+          title="Remove leg from parlay"
           className="p-1.5 hover:bg-red-500/20 rounded-lg transition-colors text-gray-400 hover:text-red-400"
         >
           <X className="w-4 h-4" />
@@ -396,8 +397,61 @@ export default function ParlayBuilderPage() {
   const [legs, setLegs] = useState<ParlayLeg[]>([]);
   const [stake, setStake] = useState<number>(10);
   const [searchQuery, setSearchQuery] = useState('');
-  const [markets, setMarkets] = useState<Market[]>(SAMPLE_MARKETS);
-  const [isLoading, setIsLoading] = useState(false);
+  const [markets, setMarkets] = useState<Market[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUsingFallback, setIsUsingFallback] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  
+  // Fetch real markets from API on mount
+  useEffect(() => {
+    async function fetchMarkets() {
+      setIsLoading(true);
+      setFetchError(null);
+      
+      try {
+        const response = await fetch('/api/markets?types=prediction');
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Transform API data to our Market format
+        // API returns: { id, question/title, platform, yesPrice/askPrice, noPrice/bidPrice, volume, endDate }
+        const transformedMarkets: Market[] = data.markets
+          ?.filter((m: any) => m.platform === 'polymarket' || m.platform === 'kalshi')
+          ?.slice(0, 50) // Limit to 50 markets for performance
+          ?.map((m: any) => ({
+            id: m.id || m.conditionId,
+            question: m.question || m.title || 'Unknown Market',
+            yesPrice: m.yesPrice ?? m.askPrice ?? 0.5,
+            noPrice: m.noPrice ?? m.bidPrice ?? 0.5,
+            volume: m.volume ?? 0,
+            endDate: m.endDate || m.expirationTime,
+            platform: m.platform as 'polymarket' | 'kalshi',
+          })) ?? [];
+        
+        if (transformedMarkets.length > 0) {
+          setMarkets(transformedMarkets);
+          setIsUsingFallback(false);
+        } else {
+          // No markets returned - use fallback
+          setMarkets(FALLBACK_MARKETS);
+          setIsUsingFallback(true);
+        }
+      } catch (error) {
+        console.error('Error fetching markets:', error);
+        setFetchError(error instanceof Error ? error.message : 'Failed to fetch markets');
+        setMarkets(FALLBACK_MARKETS);
+        setIsUsingFallback(true);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
+    fetchMarkets();
+  }, []);
   
   const addedMarketIds = new Set(legs.map(leg => leg.market.id));
   
@@ -486,6 +540,18 @@ export default function ParlayBuilderPage() {
 
   return (
     <div className="min-h-screen bg-dark-bg">
+      {/* Demo Mode Banner */}
+      {isUsingFallback && (
+        <div className="bg-amber-500/20 border-b border-amber-500/30">
+          <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <span className="text-sm text-amber-300">
+              <strong>Demo Mode:</strong> Showing sample markets. {fetchError ? `API error: ${fetchError}` : 'Connect your API keys in Settings to see live markets.'}
+            </span>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="bg-dark-card border-b border-dark-border">
         <div className="max-w-7xl mx-auto px-4 py-6">
@@ -499,6 +565,13 @@ export default function ParlayBuilderPage() {
                 Combine multiple predictions for multiplied payouts
               </p>
             </div>
+            {!isUsingFallback && markets.length > 0 && (
+              <div className="ml-auto px-3 py-1 bg-green-500/20 border border-green-500/30 rounded-full">
+                <span className="text-xs text-green-400 font-medium">
+                  🟢 Live Data ({markets.length} markets)
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -603,6 +676,8 @@ export default function ParlayBuilderPage() {
                   max="10000"
                   value={stake}
                   onChange={(e) => setStake(Math.max(1, Number(e.target.value)))}
+                  placeholder="Enter stake amount"
+                  title="Stake Amount"
                   className="w-full pl-10 pr-4 py-2.5 bg-dark-bg border border-dark-border rounded-xl text-white focus:outline-none focus:border-neon-green/50"
                 />
               </div>

@@ -96,11 +96,22 @@ export function useUserExchanges() {
     queryFn: async (): Promise<UserExchangesResponse | null> => {
       if (!user) return null;
       
+      // Get auth token for the API call
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const response = await fetch('/api/user-exchanges', {
         credentials: 'include',
+        headers: session?.access_token ? {
+          'Authorization': `Bearer ${session.access_token}`,
+        } : {},
       });
       
       if (!response.ok) {
+        // Don't throw on 401 - just return null (user may not have credentials yet)
+        if (response.status === 401) {
+          console.log('User exchanges: Not authenticated or no credentials');
+          return null;
+        }
         throw new Error('Failed to fetch user exchanges');
       }
       

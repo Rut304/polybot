@@ -198,7 +198,80 @@ class CrossExchangeArbStrategy:
             if self.on_opportunity:
                 self.on_opportunity(opp)
 
-            # Execute if not dry run (TODO)
+            # Execute if not dry run
             if not self.dry_run:
-                # self._execute_arb(opp)
-                pass
+                await self._execute_arb(opp)
+
+    async def _execute_arb(self, opp: CryptoArbOpportunity):
+        """
+        Execute the arbitrage trade on both exchanges.
+        
+        Places simultaneous buy (low exchange) and sell (high exchange).
+        """
+        try:
+            buy_client = self.exchanges.get(opp.buy_exchange)
+            sell_client = self.exchanges.get(opp.sell_exchange)
+            
+            if not buy_client or not sell_client:
+                logger.error(
+                    f"Missing client for {opp.buy_exchange}/{opp.sell_exchange}"
+                )
+                return
+            
+            # Calculate position size based on config
+            position_usd = min(
+                self.config.max_trade_size_usd,
+                self.config.min_trade_size_usd
+            )
+            quantity = position_usd / opp.buy_price
+            
+            logger.info(
+                f"💰 EXECUTING ARB: {opp.symbol} | "
+                f"Buy {quantity} on {opp.buy_exchange} @ {opp.buy_price} | "
+                f"Sell on {opp.sell_exchange} @ {opp.sell_price}"
+            )
+            
+            # Execute both legs simultaneously
+            buy_task = buy_client.create_order(
+                symbol=opp.symbol,
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=float(quantity),
+            )
+            sell_task = sell_client.create_order(
+                symbol=opp.symbol,
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=float(quantity),
+            )
+            
+            results = await asyncio.gather(
+                buy_task, sell_task, 
+                return_exceptions=True
+            )
+            
+            buy_result, sell_result = results
+            
+            # Log results
+            if isinstance(buy_result, Exception):
+                logger.error(f"Buy order failed: {buy_result}")
+            else:
+                logger.info(f"✅ Buy order filled: {buy_result}")
+                
+            if isinstance(sell_result, Exception):
+                logger.error(f"Sell order failed: {sell_result}")
+            else:
+                logger.info(f"✅ Sell order filled: {sell_result}")
+            
+            # Update stats
+            if not isinstance(buy_result, Exception) and not isinstance(
+                sell_result, Exception
+            ):
+                self.trades_executed += 1
+                logger.info(
+                    f"🎉 ARB COMPLETE: {opp.symbol} | "
+                    f"Spread captured: {opp.spread_pct:.2f}%"
+                )
+                
+        except Exception as e:
+            logger.error(f"Error executing arb: {e}", exc_info=True)

@@ -117,6 +117,8 @@ class NewsArbStats:
     events_detected: int = 0
     opportunities_found: int = 0
     opportunities_executed: int = 0
+    winning_trades: int = 0
+    losing_trades: int = 0
     total_profit_usd: Decimal = Decimal("0")
     total_loss_usd: Decimal = Decimal("0")
     session_start: datetime = field(
@@ -129,22 +131,32 @@ class NewsArbStats:
 
     @property
     def win_rate(self) -> float:
-        if self.opportunities_executed == 0:
+        """Calculate win rate from individual trade outcomes."""
+        total_resolved = self.winning_trades + self.losing_trades
+        if total_resolved == 0:
             return 0.0
-        wins = (
-            self.opportunities_executed
-            if self.net_pnl > 0
-            else 0
-        )
-        return (wins / self.opportunities_executed) * 100
+        return (self.winning_trades / total_resolved) * 100
+
+    def record_trade_result(self, pnl: Decimal):
+        """Record the result of a single trade."""
+        if pnl > 0:
+            self.winning_trades += 1
+            self.total_profit_usd += pnl
+        else:
+            self.losing_trades += 1
+            self.total_loss_usd += abs(pnl)
 
     def to_dict(self) -> Dict:
         return {
             "events_detected": self.events_detected,
             "opportunities_found": self.opportunities_found,
             "opportunities_executed": self.opportunities_executed,
+            "winning_trades": self.winning_trades,
+            "losing_trades": self.losing_trades,
             "total_profit_usd": float(self.total_profit_usd),
-            "win_rate": self.win_rate(),
+            "total_loss_usd": float(self.total_loss_usd),
+            "net_pnl": float(self.net_pnl),
+            "win_rate": self.win_rate,
             "uptime_seconds": (
                 datetime.now(timezone.utc) - self.session_start
             ).total_seconds(),

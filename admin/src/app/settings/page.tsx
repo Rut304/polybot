@@ -991,13 +991,19 @@ export default function SettingsPage() {
   // =========================================================================
   // STARTING BALANCES (for P&L tracking - not secrets)
   // Each platform starts with this amount for easy P&L comparison
+  // Default: $5,000 per platform for paper trading simulation
   // =========================================================================
-  const [polymarketStartingBalance, setPolymarketStartingBalance] = useState(config?.polymarket_starting_balance ?? 20000);
-  const [kalshiStartingBalance, setKalshiStartingBalance] = useState(config?.kalshi_starting_balance ?? 20000);
-  const [binanceStartingBalance, setBinanceStartingBalance] = useState(config?.binance_starting_balance ?? 20000);
-  const [coinbaseStartingBalance, setCoinbaseStartingBalance] = useState(config?.coinbase_starting_balance ?? 20000);
-  const [alpacaStartingBalance, setAlpacaStartingBalance] = useState(config?.alpaca_starting_balance ?? 20000);
-  const [ibkrStartingBalance, setIbkrStartingBalance] = useState(config?.ibkr_starting_balance ?? 20000);
+  const [polymarketStartingBalance, setPolymarketStartingBalance] = useState(config?.polymarket_starting_balance ?? 5000);
+  const [kalshiStartingBalance, setKalshiStartingBalance] = useState(config?.kalshi_starting_balance ?? 5000);
+  const [binanceStartingBalance, setBinanceStartingBalance] = useState(config?.binance_starting_balance ?? 5000);
+  const [coinbaseStartingBalance, setCoinbaseStartingBalance] = useState(config?.coinbase_starting_balance ?? 5000);
+  const [alpacaStartingBalance, setAlpacaStartingBalance] = useState(config?.alpaca_starting_balance ?? 5000);
+  const [ibkrStartingBalance, setIbkrStartingBalance] = useState(config?.ibkr_starting_balance ?? 5000);
+  // Additional exchanges
+  const [krakenStartingBalance, setKrakenStartingBalance] = useState(config?.kraken_starting_balance ?? 5000);
+  const [kucoinStartingBalance, setKucoinStartingBalance] = useState(config?.kucoin_starting_balance ?? 5000);
+  const [okxStartingBalance, setOkxStartingBalance] = useState(config?.okx_starting_balance ?? 5000);
+  const [bybitStartingBalance, setBybitStartingBalance] = useState(config?.bybit_starting_balance ?? 5000);
   const [showStartingBalances, setShowStartingBalances] = useState(false);
 
   // UI state for strategy settings section
@@ -1276,6 +1282,10 @@ export default function SettingsPage() {
       if (config.coinbase_starting_balance !== undefined) setCoinbaseStartingBalance(config.coinbase_starting_balance);
       if (config.alpaca_starting_balance !== undefined) setAlpacaStartingBalance(config.alpaca_starting_balance);
       if (config.ibkr_starting_balance !== undefined) setIbkrStartingBalance(config.ibkr_starting_balance);
+      if (config.kraken_starting_balance !== undefined) setKrakenStartingBalance(config.kraken_starting_balance);
+      if (config.kucoin_starting_balance !== undefined) setKucoinStartingBalance(config.kucoin_starting_balance);
+      if (config.okx_starting_balance !== undefined) setOkxStartingBalance(config.okx_starting_balance);
+      if (config.bybit_starting_balance !== undefined) setBybitStartingBalance(config.bybit_starting_balance);
 
       // Advanced Risk Framework
       if (config.kelly_sizing_enabled !== undefined) setKellySizingEnabled(config.kelly_sizing_enabled);
@@ -1396,12 +1406,16 @@ export default function SettingsPage() {
     if (scanInterval !== (config.scan_interval ?? 2)) return true;
 
     // Check balances
-    if (polymarketStartingBalance !== (config.polymarket_starting_balance ?? 20000)) return true;
-    if (kalshiStartingBalance !== (config.kalshi_starting_balance ?? 20000)) return true;
-    if (binanceStartingBalance !== (config.binance_starting_balance ?? 20000)) return true;
-    if (coinbaseStartingBalance !== (config.coinbase_starting_balance ?? 20000)) return true;
-    if (alpacaStartingBalance !== (config.alpaca_starting_balance ?? 20000)) return true;
-    if (ibkrStartingBalance !== (config.ibkr_starting_balance ?? 20000)) return true;
+    if (polymarketStartingBalance !== (config.polymarket_starting_balance ?? 5000)) return true;
+    if (kalshiStartingBalance !== (config.kalshi_starting_balance ?? 5000)) return true;
+    if (binanceStartingBalance !== (config.binance_starting_balance ?? 5000)) return true;
+    if (coinbaseStartingBalance !== (config.coinbase_starting_balance ?? 5000)) return true;
+    if (alpacaStartingBalance !== (config.alpaca_starting_balance ?? 5000)) return true;
+    if (ibkrStartingBalance !== (config.ibkr_starting_balance ?? 5000)) return true;
+    if (krakenStartingBalance !== (config.kraken_starting_balance ?? 5000)) return true;
+    if (kucoinStartingBalance !== (config.kucoin_starting_balance ?? 5000)) return true;
+    if (okxStartingBalance !== (config.okx_starting_balance ?? 5000)) return true;
+    if (bybitStartingBalance !== (config.bybit_starting_balance ?? 5000)) return true;
 
     return false;
   }, [
@@ -1411,7 +1425,8 @@ export default function SettingsPage() {
     enableRobinhood, enableWebull,
     minProfitPercent, maxTradeSize, maxDailyLoss, scanInterval,
     polymarketStartingBalance, kalshiStartingBalance, binanceStartingBalance,
-    coinbaseStartingBalance, alpacaStartingBalance, ibkrStartingBalance
+    coinbaseStartingBalance, alpacaStartingBalance, ibkrStartingBalance,
+    krakenStartingBalance, kucoinStartingBalance, okxStartingBalance, bybitStartingBalance
   ]);
 
   const handleSaveSettings = async () => {
@@ -1452,6 +1467,10 @@ export default function SettingsPage() {
         coinbase_starting_balance: coinbaseStartingBalance,
         alpaca_starting_balance: alpacaStartingBalance,
         ibkr_starting_balance: ibkrStartingBalance,
+        kraken_starting_balance: krakenStartingBalance,
+        kucoin_starting_balance: kucoinStartingBalance,
+        okx_starting_balance: okxStartingBalance,
+        bybit_starting_balance: bybitStartingBalance,
 
         // Strategy params
         poly_single_min_profit_pct: polySingleMinProfit,
@@ -2127,30 +2146,50 @@ export default function SettingsPage() {
                 <DollarSign className="w-5 h-5 text-neon-green" />
                 Starting Balances (For P&L Calc)
               </h2>
+              <p className="text-sm text-gray-400 mb-4">Set the initial simulated balance per platform. Default: $5,000 each.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Prediction Markets */}
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Polymarket</label>
-                  <input type="number" value={polymarketStartingBalance} onChange={e => setPolymarketStartingBalance(Number(e.target.value))} title="Polymarket starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={polymarketStartingBalance} onChange={e => setPolymarketStartingBalance(Number(e.target.value))} title="Polymarket starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Kalshi</label>
-                  <input type="number" value={kalshiStartingBalance} onChange={e => setKalshiStartingBalance(Number(e.target.value))} title="Kalshi starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={kalshiStartingBalance} onChange={e => setKalshiStartingBalance(Number(e.target.value))} title="Kalshi starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
+                {/* Crypto Exchanges */}
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Binance</label>
-                  <input type="number" value={binanceStartingBalance} onChange={e => setBinanceStartingBalance(Number(e.target.value))} title="Binance starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={binanceStartingBalance} onChange={e => setBinanceStartingBalance(Number(e.target.value))} title="Binance starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">Coinbase</label>
-                  <input type="number" value={coinbaseStartingBalance} onChange={e => setCoinbaseStartingBalance(Number(e.target.value))} title="Coinbase starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={coinbaseStartingBalance} onChange={e => setCoinbaseStartingBalance(Number(e.target.value))} title="Coinbase starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Kraken</label>
+                  <input type="number" value={krakenStartingBalance} onChange={e => setKrakenStartingBalance(Number(e.target.value))} title="Kraken starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">KuCoin</label>
+                  <input type="number" value={kucoinStartingBalance} onChange={e => setKucoinStartingBalance(Number(e.target.value))} title="KuCoin starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">OKX</label>
+                  <input type="number" value={okxStartingBalance} onChange={e => setOkxStartingBalance(Number(e.target.value))} title="OKX starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">Bybit</label>
+                  <input type="number" value={bybitStartingBalance} onChange={e => setBybitStartingBalance(Number(e.target.value))} title="Bybit starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                </div>
+                {/* Stock Brokers */}
+                <div className="space-y-2">
                   <label className="text-sm text-gray-400">Alpaca</label>
-                  <input type="number" value={alpacaStartingBalance} onChange={e => setAlpacaStartingBalance(Number(e.target.value))} title="Alpaca starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={alpacaStartingBalance} onChange={e => setAlpacaStartingBalance(Number(e.target.value))} title="Alpaca starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-gray-400">IBKR</label>
-                  <input type="number" value={ibkrStartingBalance} onChange={e => setIbkrStartingBalance(Number(e.target.value))} title="IBKR starting balance" placeholder="1000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
+                  <input type="number" value={ibkrStartingBalance} onChange={e => setIbkrStartingBalance(Number(e.target.value))} title="IBKR starting balance" placeholder="5000" className="input-field w-full bg-dark-border/50 border-dark-border p-2 rounded-lg" />
                 </div>
               </div>
             </div>

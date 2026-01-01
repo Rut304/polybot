@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Callable, Any, Set
+
+from src.exchanges.base import OrderSide, OrderType
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -489,21 +491,90 @@ class FundingRateArbStrategy:
             balance = await self.ccxt_client.get_balance("USDT")
             available_usdt = Decimal(str(balance.get("USDT", {}).free or 0))
 
-            position_value = min(self.max_position_usd, available_usdt * Decimal("0.3"))
+            position_value = min(
+                self.max_position_usd, 
+                available_usdt * Decimal("0.3")
+            )
             if position_value < self.min_position_usd:
-                logger.warning(f"Insufficient balance for {symbol} position")
+                logger.warning(f"Insufficient balance for {symbol}")
                 return None
 
             position_size = position_value / opp.spot_price
 
-            # Set leverage
+            # Set leverage for futures
             await self.ccxt_client.set_leverage(symbol, self.max_leverage)
 
-            # TODO: Implement spot buy + futures short execution
-            # For now, just futures short (no spot leg in sandbox)
-
-            logger.info(f"📝 Position entry logic would execute here for {symbol}")
-            return None
+            # Execute delta-neutral position:
+            # 1. Buy spot (long exposure)
+            # 2. Short perpetual futures (short exposure)
+            # Net delta = 0, collect funding payments
+            
+            logger.info(
+                f"📝 Entering funding arb: {symbol} | "
+                f"Size: {position_size:.4f} | "
+                f"Expected APY: {opp.annualized_rate:.1f}%"
+            )
+            
+            # Execute spot buy (long leg)
+            spot_symbol = symbol.replace("/USDT:USDT", "/USDT")
+            spot_order = await self.ccxt_client.create_order(
+                symbol=spot_symbol,
+                side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=float(position_size),
+            )
+            
+            if not spot_order:
+                logger.error(f"Spot buy failed for {symbol}")
+                return None
+            
+            logger.info(f"✅ Spot long opened: {spot_order}")
+            
+            # Execute perpetual short (short leg)
+            perp_order = await self.ccxt_client.create_order(
+                symbol=symbol,
+                side=OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=float(position_size),
+            )
+            
+            if not perp_order:
+                # Unwind spot position if perp fails
+                logger.error(f"Perp short failed for {symbol}, unwinding spot")
+                await self.ccxt_client.create_order(
+                    symbol=spot_symbol,
+                    side=OrderSide.SELL,
+                    order_type=OrderType.MARKET,
+                    quantity=float(position_size),
+                )
+                return None
+            
+            logger.info(f"✅ Perp short opened: {perp_order}")
+            
+            # Create position record
+            position = FundingPosition(
+                symbol=symbol,
+                exchange=opp.exchange,
+                entry_funding_rate=opp.funding_rate,
+                size=position_size,
+                entry_price=opp.spot_price,
+                entry_time=datetime.now(timezone.utc),
+                last_funding_collected=datetime.now(timezone.utc),
+                total_funding_collected=Decimal("0"),
+            )
+            
+            self.positions[symbol] = position
+            self.stats.positions_opened += 1
+            
+            if self.on_position_opened:
+                self.on_position_opened(position)
+                
+            logger.info(
+                f"🎉 Funding arb position opened: {symbol} | "
+                f"Delta-neutral @ {position_size:.4f}"
+            )
+            
+            return position
 
         except Exception as e:
             logger.error(f"Failed to enter position for {symbol}: {e}")
