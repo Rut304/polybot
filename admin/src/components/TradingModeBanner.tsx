@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePlatforms } from '@/lib/PlatformContext';
-import { BookOpen, Zap, X, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { BookOpen, Zap, X, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 /**
@@ -30,39 +30,44 @@ export function TradingModeBanner() {
 
   if (isSimulationMode) {
     return (
-      <div className="mb-6 bg-gradient-to-r from-neon-green/10 via-neon-green/5 to-transparent border border-neon-green/30 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-neon-green/20 rounded-lg">
-              <BookOpen className="w-5 h-5 text-neon-green" />
+      <div className="mb-6 bg-gradient-to-r from-neon-green/15 via-neon-green/10 to-neon-green/5 border-2 border-neon-green/40 rounded-xl overflow-hidden shadow-lg shadow-neon-green/10">
+        {/* Main banner - more prominent */}
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {/* Larger animated icon */}
+            <div className="relative">
+              <div className="absolute inset-0 bg-neon-green/30 rounded-xl animate-pulse" />
+              <div className="relative p-3 bg-neon-green/20 rounded-xl border border-neon-green/30">
+                <ShieldCheck className="w-7 h-7 text-neon-green" />
+              </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-neon-green">Simulation Mode</span>
-                <span className="text-xs px-2 py-0.5 bg-neon-green/20 text-neon-green rounded-full">
-                  Exploring {allPlatformsCount} platforms
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold text-neon-green">📊 Paper Trading Mode</span>
+                <span className="text-xs px-3 py-1 bg-neon-green/20 text-neon-green rounded-full font-semibold border border-neon-green/30">
+                  SAFE TO EXPLORE
                 </span>
               </div>
-              <p className="text-sm text-gray-400">
-                Viewing ALL market data to explore opportunities • No real money at risk
+              <p className="text-sm text-gray-300 mt-1">
+                <span className="font-medium text-white">No real money at risk</span> • Practice with simulated trades across {allPlatformsCount} platforms
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1.5 hover:bg-neon-green/10 rounded-lg transition-colors"
-              title={isExpanded ? 'Collapse' : 'Expand'}
+              className="p-2 hover:bg-neon-green/10 rounded-lg transition-colors border border-neon-green/20"
+              title={isExpanded ? 'Collapse' : 'Learn more'}
             >
               {isExpanded ? (
-                <ChevronUp className="w-4 h-4 text-gray-400" />
+                <ChevronUp className="w-4 h-4 text-neon-green" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400" />
+                <ChevronDown className="w-4 h-4 text-neon-green" />
               )}
             </button>
             <button
               onClick={() => setIsDismissed(true)}
-              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
               title="Dismiss"
             >
               <X className="w-4 h-4 text-gray-500" />

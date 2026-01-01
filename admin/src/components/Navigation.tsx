@@ -193,14 +193,7 @@ export function Navigation() {
       {/* User Badge - Compact */}
       {!collapsed && user && (
         <div className="px-3 py-2 border-b border-dark-border flex-shrink-0 space-y-2">
-          <div className={cn(
-            "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs",
-            isAdmin ? "bg-neon-green/10 text-neon-green" : "bg-neon-blue/10 text-neon-blue"
-          )}>
-            {isAdmin ? <Shield className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-            <span className="font-medium truncate">{isAdmin ? 'Admin' : 'Read Only'}</span>
-          </div>
-          {/* Subscription Tier Badge */}
+          {/* Subscription Tier Badge - Primary */}
           <div className={cn(
             "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs",
             tier === 'elite' && "bg-yellow-500/10 text-yellow-400",
@@ -218,7 +211,15 @@ export function Navigation() {
       {/* Scrollable Nav Items */}
       <nav className="flex-1 overflow-y-auto py-2 px-2">
         {navSections.map((section, sectionIndex) => {
-          const visibleItems = section.items.filter(item => !item.adminOnly || isAdmin);
+          // Filter out admin-only items for non-admins
+          // AND filter out tier-locked items (hide them completely instead of graying out)
+          const visibleItems = section.items.filter(item => {
+            // Admin-only check
+            if (item.adminOnly && !isAdmin) return false;
+            // Tier access check - hide items user doesn't have access to
+            if (item.requiredTier && !hasTierAccess(item.requiredTier)) return false;
+            return true;
+          });
           if (visibleItems.length === 0) return null;
 
           // Add visual separator before Admin section
@@ -242,41 +243,30 @@ export function Navigation() {
                 {visibleItems.map((item) => {
                   const isActive = pathname === item.href;
                   const Icon = item.icon;
-                  const hasAccess = hasTierAccess(item.requiredTier);
-                  const TierIcon = getTierIcon(item.requiredTier);
 
                   return (
                     <Link
                       key={item.href}
-                      href={hasAccess ? item.href : '/pricing'}
+                      href={item.href}
                       className={cn(
                         "flex items-center gap-2 px-2 py-1.5 rounded-md transition-all text-sm group",
                         isActive
                           ? "bg-neon-green/15 text-neon-green"
-                          : hasAccess 
-                            ? "hover:bg-dark-border text-gray-400 hover:text-white"
-                            : "text-gray-600 hover:bg-dark-border/50 cursor-not-allowed"
+                          : "hover:bg-dark-border text-gray-400 hover:text-white"
                       )}
-                      title={collapsed ? item.label : (!hasAccess ? `Upgrade to ${item.requiredTier} for ${item.label}` : undefined)}
+                      title={collapsed ? item.label : undefined}
                     >
                       <Icon className={cn(
                         "w-4 h-4 flex-shrink-0", 
-                        isActive && "text-neon-green",
-                        !hasAccess && "opacity-50"
+                        isActive && "text-neon-green"
                       )} />
                       {!collapsed && (
                         <>
-                          <span className={cn(!hasAccess && "opacity-50")}>{item.label}</span>
+                          <span>{item.label}</span>
                           {item.isNew && (
                             <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-500/20 text-green-400 rounded ml-auto">
                               NEW
                             </span>
-                          )}
-                          {!hasAccess && TierIcon && !item.isNew && (
-                            <TierIcon className={cn(
-                              "w-3 h-3 ml-auto",
-                              item.requiredTier === 'pro' ? "text-neon-blue" : "text-yellow-400"
-                            )} />
                           )}
                         </>
                       )}
