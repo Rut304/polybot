@@ -558,8 +558,9 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const { isPro, isElite } = useTier();
+  // All authenticated users can edit their own settings - isAdmin is only for admin-specific features
+  const { isPro, isElite, isAdmin } = useTier();
+  const canEditSettings = !!user; // Any authenticated user can edit their settings
   const { data: status } = useBotStatus();
   const { data: config, isLoading: configLoading } = useBotConfig();
 
@@ -1744,16 +1745,6 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Read-Only Mode Banner */}
-      {!isAdmin && (
-        <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-center gap-3">
-          <Lock className="w-5 h-5 text-yellow-500" />
-          <div>
-            <p className="font-semibold text-yellow-500">Read-Only Mode</p>
-            <p className="text-sm text-yellow-500/70">You can view settings but cannot make changes. Contact an admin to modify settings.</p>
-          </div>
-        </div>
-      )}
 
       {/* Header & Save Button */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -1838,7 +1829,7 @@ export default function SettingsPage() {
                       </p>
                     </div>
                   </div>
-                  <ToggleSwitch enabled={botEnabled} onToggle={handleBotToggle} size="lg" disabled={!isAdmin} />
+                  <ToggleSwitch enabled={botEnabled} onToggle={handleBotToggle} size="lg" disabled={!canEditSettings} />
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
@@ -1867,7 +1858,7 @@ export default function SettingsPage() {
                     enabled={!dryRunMode}
                     onToggle={() => dryRunMode ? setShowConfirm('live-trading') : setDryRunMode(true)}
                     size="lg"
-                    disabled={!isAdmin}
+                    disabled={!canEditSettings}
                   />
                 </div>
 
@@ -1951,7 +1942,7 @@ export default function SettingsPage() {
                     <ToggleSwitch
                       enabled={enableAutonomousRsi}
                       onToggle={() => setEnableAutonomousRsi(!enableAutonomousRsi)}
-                      disabled={!isAdmin}
+                      disabled={!canEditSettings}
                     />
                   </div>
 

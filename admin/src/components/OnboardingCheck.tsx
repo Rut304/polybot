@@ -17,6 +17,13 @@ export function OnboardingCheck({ children }: { children: React.ReactNode }) {
     // Wait for profile to load
     if (isLoading || checkedOnboarding) return;
 
+    // Check if user has skipped onboarding this session
+    const skipped = localStorage.getItem('polybot_onboarding_skipped') === 'true';
+    if (skipped) {
+      setCheckedOnboarding(true);
+      return;
+    }
+
     // Check if onboarding is needed
     if (profile && !profile.onboardingCompleted) {
       // Small delay to let the page render first

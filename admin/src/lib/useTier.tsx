@@ -72,7 +72,7 @@ export function TierProvider({ children, userId }: { children: React.ReactNode; 
           monthly_trades_used: 0,
           monthly_trades_limit: TIER_LIMITS.free.monthlyTrades,
           onboarding_completed: false,
-          is_simulation: true,
+          is_simulation: true, // Start in paper trading mode
           updated_at: new Date().toISOString(),
         };
         
@@ -83,6 +83,29 @@ export function TierProvider({ children, userId }: { children: React.ReactNode; 
         
         if (upsertError) {
           console.error('Error creating profile:', upsertError);
+        }
+
+        // Also create default user config with 3 strategies enabled
+        const defaultConfigData = {
+          user_id: userId,
+          dry_run: true, // Paper trading enabled by default
+          is_simulation: true,
+          // Enable 3 default strategies so trades start happening immediately
+          enabled_strategies: ['single_platform_arb', 'cross_platform_arb', 'whale_copy_trading'],
+          enable_single_platform_arb: true,
+          enable_cross_platform_arb: true,
+          enable_copy_trading: true,
+          enable_polymarket: true,
+          enable_kalshi: true,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error: configError } = await supabase
+          .from('polybot_user_config')
+          .upsert(defaultConfigData, { onConflict: 'user_id' });
+
+        if (configError) {
+          console.error('Error creating user config:', configError);
         }
         
         const defaultProfile: UserProfile = {
