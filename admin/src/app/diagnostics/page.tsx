@@ -1129,7 +1129,7 @@ export default function DiagnosticsPage() {
               </div>
               <div>
                 <h3 className="font-medium">E2E Testing (Playwright)</h3>
-                <p className="text-sm text-gray-500">80 automated tests for UI and API validation</p>
+                <p className="text-sm text-gray-500">300+ automated tests for UI and API validation</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -1141,6 +1141,13 @@ export default function DiagnosticsPage() {
                   )}
                 </div>
               )}
+              <a
+                href="/diagnostics/e2e-tests"
+                className="px-3 py-1.5 bg-dark-border text-gray-300 rounded-lg hover:bg-gray-700 transition-colors text-sm flex items-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                View All Tests
+              </a>
               <button
                 onClick={async () => {
                   setE2eRunning(true);

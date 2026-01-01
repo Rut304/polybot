@@ -99,8 +99,11 @@ export function StrategyPerformanceTable({ tradingMode, limit }: StrategyPerform
                 valB = b.total_pnl;
                 break;
             case 'win_rate':
-                valA = a.total_trades > 0 ? (a.winning_trades / a.total_trades) : 0;
-                valB = b.total_trades > 0 ? (b.winning_trades / b.total_trades) : 0;
+                // Use resolved trades (wins + losses) not total_trades (which includes pending)
+                const resolvedA = a.winning_trades + a.losing_trades;
+                const resolvedB = b.winning_trades + b.losing_trades;
+                valA = resolvedA > 0 ? (a.winning_trades / resolvedA) : 0;
+                valB = resolvedB > 0 ? (b.winning_trades / resolvedB) : 0;
                 break;
             case 'total_trades':
                 valA = a.total_trades;
@@ -163,7 +166,9 @@ export function StrategyPerformanceTable({ tradingMode, limit }: StrategyPerform
                 </thead>
                 <tbody className="divide-y divide-dark-border/50">
                     {displayStrategies.map((s, i) => {
-                        const winRate = s.total_trades > 0 ? (s.winning_trades / s.total_trades) * 100 : 0;
+                        // Use resolved trades (wins + losses), not total_trades (which includes pending)
+                        const resolvedTrades = s.winning_trades + s.losing_trades;
+                        const winRate = resolvedTrades > 0 ? (s.winning_trades / resolvedTrades) * 100 : 0;
                         const isProfitable = s.total_pnl >= 0;
                         const Icon = getStrategyIcon(s.strategy);
 
