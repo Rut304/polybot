@@ -142,8 +142,9 @@ export async function verifyAuth(request: NextRequest): Promise<{
     }
 
     // Get user role from profile
+    // Note: Use polybot_profiles (not deprecated polybot_user_profiles)
     const { data: profile } = await supabaseAdmin
-      .from('polybot_user_profiles')
+      .from('polybot_profiles')
       .select('role')
       .eq('id', user.id)
       .single();
