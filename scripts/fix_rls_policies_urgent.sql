@@ -152,8 +152,9 @@ BEGIN
 END $$;
 
 -- Create missing config records for users who don't have one
-INSERT INTO public.polybot_config (user_id, dry_run)
-SELECT id, true
+-- Note: polybot_config table uses dynamic columns, only user_id is guaranteed
+INSERT INTO public.polybot_config (user_id)
+SELECT id
 FROM auth.users
 WHERE NOT EXISTS (SELECT 1 FROM public.polybot_config WHERE polybot_config.user_id = auth.users.id)
 ON CONFLICT (user_id) DO NOTHING;
@@ -191,8 +192,8 @@ BEGIN
         END IF;
         
         -- Ensure config exists
-        INSERT INTO public.polybot_config (user_id, dry_run)
-        VALUES (target_user_id, true)
+        INSERT INTO public.polybot_config (user_id)
+        VALUES (target_user_id)
         ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW();
         
         RAISE NOTICE 'Created/updated records for user: % (set as admin)', user_email;
