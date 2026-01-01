@@ -512,10 +512,15 @@ class PolyBotTestRunner:
 
 
 def main():
-    # Default credentials (can be overridden via args)
-    email = sys.argv[1] if len(sys.argv) > 1 else "rutrohd@gmail.com"
-    password = sys.argv[2] if len(sys.argv) > 2 else "Rutr03686!!!"
+    # Default credentials (can be overridden via args or env vars)
+    # NEVER hardcode passwords - use environment variables!
+    email = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("TEST_EMAIL", "test@example.com")
+    password = sys.argv[2] if len(sys.argv) > 2 else os.environ.get("TEST_PASSWORD", "")
     base_url = sys.argv[3] if len(sys.argv) > 3 else "http://localhost:3001"
+    
+    if not password:
+        print("❌ Error: Set TEST_PASSWORD env var or pass password as arg")
+        sys.exit(1)
     
     runner = PolyBotTestRunner(base_url)
     results = runner.run_all(email, password)

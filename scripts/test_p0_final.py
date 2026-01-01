@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Final API verification test for P0 completion"""
 
+import os
 import requests
 import json
 
@@ -13,12 +14,18 @@ def main():
     print("  FINAL P0 API VERIFICATION")
     print("=" * 60)
     
-    # Login
-    print("\n📍 Logging in as rutrohd...")
+    # Login - NEVER hardcode passwords!
+    test_email = os.environ.get("TEST_EMAIL", "test@example.com")
+    test_password = os.environ.get("TEST_PASSWORD")
+    if not test_password:
+        print("❌ Error: Set TEST_PASSWORD env var")
+        return
+    
+    print(f"\n📍 Logging in as {test_email}...")
     resp = requests.post(
         f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
         headers={"apikey": ANON_KEY, "Content-Type": "application/json"},
-        json={"email": "rutrohd@gmail.com", "password": "Rutr03686!!!"}
+        json={"email": test_email, "password": test_password}
     )
     
     if resp.status_code != 200:

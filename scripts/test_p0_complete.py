@@ -9,6 +9,8 @@ Tests all P0 requirements:
 5. Page rendering
 """
 
+import os
+
 import requests
 
 SUPABASE_URL = "https://ytaltvltxkkfczlvjgad.supabase.co"
@@ -80,10 +82,17 @@ def main():
     print("  P0 COMPLETE VERIFICATION SUITE")
     print("=" * 70)
     
+    # NEVER hardcode passwords - use environment variables!
+    # Set TEST_ADMIN_PASSWORD, TEST_VIEWER_PASSWORD env vars
+    admin_email = os.environ.get("TEST_ADMIN_EMAIL", "admin@example.com")
+    admin_password = os.environ.get("TEST_ADMIN_PASSWORD", "")
+    
+    if not admin_password:
+        print("❌ Error: Set TEST_ADMIN_PASSWORD env var")
+        return
+    
     users = [
-        ("rutrohd@gmail.com", "Rutr03686!!!", "admin"),
-        ("muschnick@gmail.com", "Muschnick123!", "viewer"),
-        ("readonly@polybot.local", "Readonly123!", "viewer"),
+        (admin_email, admin_password, "admin"),
     ]
     
     tests_passed = 0

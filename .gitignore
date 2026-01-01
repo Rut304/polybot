@@ -83,6 +83,12 @@ venv.bak/
 *.key
 keys/
 
+# SECURITY: Sensitive SQL files - NEVER commit secrets!
+scripts/populate_secrets_local.sql
+scripts/*_secrets_*.sql
+**/secrets.sql
+**/*secrets*.sql
+
 # Admin dashboard
 admin/node_modules/
 admin/.next/
