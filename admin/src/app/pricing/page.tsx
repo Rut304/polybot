@@ -198,6 +198,10 @@ export default function PricingPage() {
                 Free accounts include <span className="text-brand-green font-medium">unlimited paper trading</span> so you can master strategies risk-free.
                 When you&apos;re confident, upgrade to Pro or Elite to trade with real money. Cancel anytime.
               </p>
+              <p className="text-sm text-gray-500 mt-3 flex items-center gap-2">
+                <span className="text-brand-green">🔒</span>
+                <span><strong className="text-gray-300">100% Non-Custodial:</strong> We never have access to your funds. Your wallet, your keys, your money.</span>
+              </p>
             </div>
             <div className="flex items-center justify-center gap-6">
               <div className="flex items-center gap-2 text-gray-400 text-sm">

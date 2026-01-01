@@ -51,6 +51,9 @@ export function TradingModeBanner() {
               <p className="text-sm text-gray-300 mt-1">
                 <span className="font-medium text-white">No real money at risk</span> • Practice with simulated trades across {allPlatformsCount} platforms
               </p>
+              <p className="text-xs text-gray-500 mt-1">
+                🔒 Non-custodial: We never have access to your funds. You always control your own wallet.
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
