@@ -91,6 +91,24 @@ const EXCHANGE_CONFIG: Record<string, {
     requiresPassword: false,
     description: 'Derivatives & spot trading',
   },
+  robinhood: {
+    name: 'Robinhood',
+    icon: '🪶',
+    color: 'bg-green-500',
+    signupUrl: 'https://robinhood.com/signup',
+    docsUrl: 'https://robinhood.com/us/en/support/',
+    requiresPassword: true, // Needs MFA secret in passphrase field
+    description: 'Commission-free stocks, crypto & options',
+  },
+  webull: {
+    name: 'Webull',
+    icon: '🐂',
+    color: 'bg-blue-600',
+    signupUrl: 'https://www.webull.com/activity?invite_code=',
+    docsUrl: 'https://www.webull.com/help',
+    requiresPassword: true, // Needs trading PIN
+    description: 'Commission-free trading with extended hours',
+  },
 };
 
 interface ExchangeCredential {

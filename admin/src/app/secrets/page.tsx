@@ -98,10 +98,12 @@ const CATEGORY_INFO: Record<string, CategoryInfo> = {
     title: 'Stock Brokers',
     icon: <span className="text-2xl">📈</span>,
     color: 'from-green-500/20 to-emerald-500/20',
-    description: 'Alpaca (commission-free) and Interactive Brokers',
+    description: 'Alpaca (commission-free), Interactive Brokers, Robinhood & Webull',
     signupLinks: [
       { name: 'Alpaca', url: 'https://app.alpaca.markets/signup' },
       { name: 'IBKR', url: 'https://www.interactivebrokers.com/en/index.php?f=46346' },
+      { name: 'Robinhood', url: 'https://robinhood.com/signup' },
+      { name: 'Webull', url: 'https://www.webull.com/activity' },
     ],
   },
   infrastructure: {
