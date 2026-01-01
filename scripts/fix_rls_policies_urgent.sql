@@ -7,21 +7,8 @@
 -- STEP 1: Fix polybot_status table
 -- ============================================
 
--- Make sure the table exists
-CREATE TABLE IF NOT EXISTS public.polybot_status (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    is_running BOOLEAN DEFAULT false,
-    mode TEXT DEFAULT 'simulation',
-    dry_run_mode BOOLEAN DEFAULT true,
-    polymarket_connected BOOLEAN DEFAULT false,
-    kalshi_connected BOOLEAN DEFAULT false,
-    trading_mode TEXT DEFAULT 'paper',
-    last_heartbeat TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id)
-);
+-- Add user_id column if it doesn't exist (for multi-tenancy)
+ALTER TABLE public.polybot_status ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
 
 -- Enable RLS
 ALTER TABLE public.polybot_status ENABLE ROW LEVEL SECURITY;
@@ -32,13 +19,14 @@ DROP POLICY IF EXISTS "Users can update own status" ON public.polybot_status;
 DROP POLICY IF EXISTS "Users can insert own status" ON public.polybot_status;
 DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.polybot_status;
 DROP POLICY IF EXISTS "Service role full access" ON public.polybot_status;
+DROP POLICY IF EXISTS "Users can delete own status" ON public.polybot_status;
 
 -- Create permissive policies
 CREATE POLICY "Users can view own status" ON public.polybot_status
-    FOR SELECT USING (auth.uid() = user_id);
+    FOR SELECT USING (auth.uid() = user_id OR user_id IS NULL);
 
 CREATE POLICY "Users can update own status" ON public.polybot_status
-    FOR UPDATE USING (auth.uid() = user_id);
+    FOR UPDATE USING (auth.uid() = user_id OR user_id IS NULL);
 
 CREATE POLICY "Users can insert own status" ON public.polybot_status
     FOR INSERT WITH CHECK (auth.uid() = user_id);
@@ -148,11 +136,20 @@ WHERE NOT EXISTS (SELECT 1 FROM public.polybot_profiles WHERE polybot_profiles.i
 ON CONFLICT (id) DO NOTHING;
 
 -- Create missing status records for users who don't have one
-INSERT INTO public.polybot_status (user_id, is_running, mode, dry_run_mode)
-SELECT id, false, 'simulation', true
-FROM auth.users
-WHERE NOT EXISTS (SELECT 1 FROM public.polybot_status WHERE polybot_status.user_id = auth.users.id)
-ON CONFLICT (user_id) DO NOTHING;
+-- Note: polybot_status may use 'id' or 'user_id' depending on schema version
+-- This handles the multi-tenant case where user_id exists
+DO $$
+BEGIN
+    -- Check if user_id column exists and insert accordingly
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'polybot_status' AND column_name = 'user_id') THEN
+        INSERT INTO public.polybot_status (user_id, is_running)
+        SELECT id, false
+        FROM auth.users
+        WHERE NOT EXISTS (SELECT 1 FROM public.polybot_status WHERE polybot_status.user_id = auth.users.id)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
 
 -- Create missing config records for users who don't have one
 INSERT INTO public.polybot_config (user_id, dry_run)
@@ -185,10 +182,13 @@ BEGIN
             subscription_status = 'active',
             updated_at = NOW();
         
-        -- Ensure status exists
-        INSERT INTO public.polybot_status (user_id, is_running, mode, dry_run_mode)
-        VALUES (target_user_id, false, 'simulation', true)
-        ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW();
+        -- Ensure status exists (handle both schema versions)
+        IF EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'polybot_status' AND column_name = 'user_id') THEN
+            INSERT INTO public.polybot_status (user_id, is_running)
+            VALUES (target_user_id, false)
+            ON CONFLICT DO NOTHING;
+        END IF;
         
         -- Ensure config exists
         INSERT INTO public.polybot_config (user_id, dry_run)
