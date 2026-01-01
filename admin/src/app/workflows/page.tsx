@@ -1894,67 +1894,6 @@ export default function WorkflowsPage() {
           </div>
         </div>
       </div>
-
-      {/* Setup Checklist */}
-      <div className="card p-6">
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <CheckCircle2 className="text-green-400" />
-          Quick Setup Checklist
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div>
-            <h3 className="font-medium text-purple-400 mb-3">🎯 Prediction Markets</h3>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Polymarket wallet configured</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Kalshi API credentials</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>USDC funded on Polygon</span>
-              </label>
-            </div>
-          </div>
-          <div>
-            <h3 className="font-medium text-orange-400 mb-3">₿ Crypto Exchanges</h3>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Binance/Coinbase API keys</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Exchange capital deposited</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>IP whitelist configured</span>
-              </label>
-            </div>
-          </div>
-          <div>
-            <h3 className="font-medium text-green-400 mb-3">📈 Stock Trading</h3>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Alpaca paper account</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Alpaca live account (optional)</span>
-              </label>
-              <label className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg cursor-pointer hover:bg-gray-800 transition-colors">
-                <input type="checkbox" className="form-checkbox rounded" />
-                <span>Account funded</span>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

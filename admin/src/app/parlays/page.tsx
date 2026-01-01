@@ -427,6 +427,58 @@ export default function ParlayBuilderPage() {
   }, []);
   
   const result = calculateParlay(legs, stake);
+
+  // Place parlay - creates orders for all legs
+  const [isPlacing, setIsPlacing] = useState(false);
+  const placeParlay = useCallback(async () => {
+    if (legs.length < 2) {
+      alert('Add at least 2 legs to place a parlay');
+      return;
+    }
+    
+    setIsPlacing(true);
+    try {
+      // Calculate result inline to avoid dependency issues
+      const currentResult = calculateParlay(legs, stake);
+      
+      // TODO: Implement actual parlay placement via API
+      // For now, we'll show a success message and clear the parlay
+      // In production, this would call /api/parlays to create the orders
+      
+      const parlayData = {
+        legs: legs.map(leg => ({
+          marketId: leg.market.id,
+          platform: leg.market.platform,
+          outcome: leg.outcome,
+          probability: leg.probability,
+          question: leg.market.question,
+        })),
+        stake,
+        combinedProbability: currentResult.combinedProbability,
+        potentialPayout: currentResult.potentialPayout,
+        expectedValue: currentResult.expectedValue,
+      };
+      
+      console.log('Placing parlay:', parlayData);
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Show success and clear
+      alert(`✅ Parlay placed successfully!\n\n` +
+            `Legs: ${legs.length}\n` +
+            `Stake: $${stake}\n` +
+            `Potential Payout: $${currentResult.potentialPayout.toFixed(2)}\n\n` +
+            `Note: This is a simulation. Live trading coming soon!`);
+      
+      setLegs([]);
+    } catch (error) {
+      console.error('Error placing parlay:', error);
+      alert('Failed to place parlay. Please try again.');
+    } finally {
+      setIsPlacing(false);
+    }
+  }, [legs, stake]);
   
   const filteredMarkets = markets.filter(market =>
     market.question.toLowerCase().includes(searchQuery.toLowerCase())
@@ -582,15 +634,21 @@ export default function ParlayBuilderPage() {
             {/* Place Bet Button */}
             {legs.length > 0 && (
               <button
-                disabled={legs.length < 2}
+                onClick={placeParlay}
+                disabled={legs.length < 2 || isPlacing}
                 className={cn(
                   "w-full py-3 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2",
-                  legs.length >= 2
+                  legs.length >= 2 && !isPlacing
                     ? "bg-gradient-to-r from-neon-green to-emerald-500 text-dark-bg hover:shadow-lg hover:shadow-neon-green/20"
                     : "bg-dark-border text-gray-500 cursor-not-allowed"
                 )}
               >
-                {legs.length < 2 ? (
+                {isPlacing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Placing Parlay...
+                  </>
+                ) : legs.length < 2 ? (
                   <>
                     <AlertTriangle className="w-4 h-4" />
                     Add at least 2 legs

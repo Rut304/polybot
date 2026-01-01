@@ -47,13 +47,22 @@ const TIERS = [
 ];
 
 export default function PricingTable() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleCheckout = async (priceId: string, mode: string) => {
     if (mode === 'free') return; // Handled differently or just default
+    
+    // Wait for auth to load
+    if (isLoading) {
+      alert('Still loading... please wait a moment');
+      return;
+    }
+    
     if (!user) {
-      alert('Please log in first');
+      // More helpful error message
+      console.error('User not authenticated - user object:', user);
+      alert('Please log in to upgrade your subscription. If you are already logged in, try refreshing the page.');
       return;
     }
     setLoading(priceId);
