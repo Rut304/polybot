@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Target, 
   Plus, 
@@ -17,9 +17,12 @@ import {
   CheckCircle,
   Code,
   Wand2,
+  Loader2,
+  Pause,
 } from 'lucide-react';
 import { useTier } from '@/lib/useTier';
 import { FeatureGate } from '@/components/FeatureGate';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface StrategyCondition {
   id: string;
@@ -43,8 +46,9 @@ interface CustomStrategy {
   description: string;
   conditions: StrategyCondition[];
   actions: StrategyAction[];
-  isActive: boolean;
-  createdAt: string;
+  is_active: boolean;
+  created_at: string;
+  trigger_count?: number;
 }
 
 const CONDITION_TYPES = [
@@ -62,9 +66,71 @@ const OPERATORS = [
   { value: 'between', label: 'Between' },
 ];
 
+// API functions
+async function fetchStrategies(): Promise<CustomStrategy[]> {
+  const res = await fetch('/api/custom-strategies', { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to fetch strategies');
+  const data = await res.json();
+  return data.strategies || [];
+}
+
+async function createStrategy(strategy: Partial<CustomStrategy>): Promise<CustomStrategy> {
+  const res = await fetch('/api/custom-strategies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(strategy),
+  });
+  if (!res.ok) throw new Error('Failed to create strategy');
+  const data = await res.json();
+  return data.strategy;
+}
+
+async function updateStrategy(strategy: Partial<CustomStrategy>): Promise<CustomStrategy> {
+  const res = await fetch('/api/custom-strategies', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(strategy),
+  });
+  if (!res.ok) throw new Error('Failed to update strategy');
+  const data = await res.json();
+  return data.strategy;
+}
+
+async function deleteStrategy(id: string): Promise<void> {
+  const res = await fetch(`/api/custom-strategies?id=${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to delete strategy');
+}
+
 export default function StrategyBuilderPage() {
   const { isElite } = useTier();
-  const [strategies, setStrategies] = useState<CustomStrategy[]>([]);
+  const queryClient = useQueryClient();
+  
+  // Fetch strategies from DB
+  const { data: strategies = [], isLoading } = useQuery({
+    queryKey: ['customStrategies'],
+    queryFn: fetchStrategies,
+  });
+  
+  // Mutations
+  const createMutation = useMutation({
+    mutationFn: createStrategy,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customStrategies'] }),
+  });
+  
+  const updateMutation = useMutation({
+    mutationFn: updateStrategy,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customStrategies'] }),
+  });
+  
+  const deleteMutation = useMutation({
+    mutationFn: deleteStrategy,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['customStrategies'] }),
+  });
   const [isCreating, setIsCreating] = useState(false);
   const [newStrategy, setNewStrategy] = useState<Partial<CustomStrategy>>({
     name: '',
@@ -103,19 +169,33 @@ export default function StrategyBuilderPage() {
   const saveStrategy = () => {
     if (!newStrategy.name) return;
     
-    const strategy: CustomStrategy = {
-      id: crypto.randomUUID(),
+    const strategy = {
       name: newStrategy.name,
       description: newStrategy.description || '',
       conditions: newStrategy.conditions || [],
       actions: newStrategy.actions || [],
-      isActive: false,
-      createdAt: new Date().toISOString(),
+      is_active: false,
     };
     
-    setStrategies(prev => [...prev, strategy]);
-    setNewStrategy({ name: '', description: '', conditions: [], actions: [] });
-    setIsCreating(false);
+    createMutation.mutate(strategy, {
+      onSuccess: () => {
+        setNewStrategy({ name: '', description: '', conditions: [], actions: [] });
+        setIsCreating(false);
+      },
+    });
+  };
+
+  const toggleStrategy = (strategy: CustomStrategy) => {
+    updateMutation.mutate({
+      id: strategy.id,
+      is_active: !strategy.is_active,
+    });
+  };
+
+  const handleDeleteStrategy = (id: string) => {
+    if (confirm('Are you sure you want to delete this strategy?')) {
+      deleteMutation.mutate(id);
+    }
   };
 
   return (
@@ -205,6 +285,7 @@ export default function StrategyBuilderPage() {
                     <span className="text-gray-500 text-sm w-8">{index === 0 ? 'IF' : 'AND'}</span>
                     <select
                       value={condition.type}
+                      title="Condition type"
                       onChange={(e) => {
                         const updated = [...(newStrategy.conditions || [])];
                         updated[index] = { ...condition, type: e.target.value as any };
@@ -218,6 +299,7 @@ export default function StrategyBuilderPage() {
                     </select>
                     <select
                       value={condition.operator}
+                      title="Operator"
                       onChange={(e) => {
                         const updated = [...(newStrategy.conditions || [])];
                         updated[index] = { ...condition, operator: e.target.value as any };
@@ -231,6 +313,8 @@ export default function StrategyBuilderPage() {
                     </select>
                     <input
                       type="number"
+                      title="Condition value"
+                      placeholder="0"
                       value={condition.value}
                       onChange={(e) => {
                         const updated = [...(newStrategy.conditions || [])];
@@ -246,6 +330,7 @@ export default function StrategyBuilderPage() {
                           conditions: prev.conditions?.filter(c => c.id !== condition.id),
                         }));
                       }}
+                      title="Remove condition"
                       className="text-red-400 hover:text-red-300"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -280,6 +365,7 @@ export default function StrategyBuilderPage() {
                     <span className="text-gray-500 text-sm w-12">THEN</span>
                     <select
                       value={action.type}
+                      title="Action type"
                       onChange={(e) => {
                         const updated = [...(newStrategy.actions || [])];
                         updated[index] = { ...action, type: e.target.value as any };
@@ -293,6 +379,8 @@ export default function StrategyBuilderPage() {
                     </select>
                     <input
                       type="number"
+                      title="Amount"
+                      placeholder="10"
                       value={action.amount}
                       onChange={(e) => {
                         const updated = [...(newStrategy.actions || [])];
@@ -303,6 +391,7 @@ export default function StrategyBuilderPage() {
                     />
                     <select
                       value={action.amountType}
+                      title="Amount type"
                       onChange={(e) => {
                         const updated = [...(newStrategy.actions || [])];
                         updated[index] = { ...action, amountType: e.target.value as any };
@@ -316,6 +405,7 @@ export default function StrategyBuilderPage() {
                     <span className="text-gray-500">on</span>
                     <select
                       value={action.platform}
+                      title="Platform"
                       onChange={(e) => {
                         const updated = [...(newStrategy.actions || [])];
                         updated[index] = { ...action, platform: e.target.value as any };
@@ -334,6 +424,7 @@ export default function StrategyBuilderPage() {
                           actions: prev.actions?.filter(a => a.id !== action.id),
                         }));
                       }}
+                      title="Remove action"
                       className="text-red-400 hover:text-red-300"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -367,7 +458,14 @@ export default function StrategyBuilderPage() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-white">Your Strategies</h2>
           
-          {strategies.length === 0 && !isCreating && (
+          {isLoading && (
+            <div className="bg-dark-card border border-dark-border rounded-xl p-12 text-center">
+              <Loader2 className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
+              <p className="text-gray-400">Loading strategies...</p>
+            </div>
+          )}
+          
+          {!isLoading && strategies.length === 0 && !isCreating && (
             <div className="bg-dark-card border border-dark-border rounded-xl p-12 text-center">
               <div className="w-16 h-16 bg-dark-border rounded-full flex items-center justify-center mx-auto mb-4">
                 <Target className="w-8 h-8 text-gray-500" />
@@ -397,14 +495,26 @@ export default function StrategyBuilderPage() {
                   <p className="text-gray-400 text-sm">{strategy.description}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded text-xs ${strategy.isActive ? 'bg-brand-green/20 text-brand-green' : 'bg-gray-700 text-gray-400'}`}>
-                    {strategy.isActive ? 'Active' : 'Paused'}
+                  <span className={`px-2 py-1 rounded text-xs ${strategy.is_active ? 'bg-brand-green/20 text-brand-green' : 'bg-gray-700 text-gray-400'}`}>
+                    {strategy.is_active ? 'Active' : 'Paused'}
                   </span>
-                  <button className="p-2 hover:bg-dark-border rounded-lg transition-colors">
-                    <Play className="w-4 h-4 text-gray-400" />
+                  <button 
+                    onClick={() => toggleStrategy(strategy)}
+                    title={strategy.is_active ? 'Pause strategy' : 'Activate strategy'}
+                    className="p-2 hover:bg-dark-border rounded-lg transition-colors"
+                  >
+                    {strategy.is_active ? (
+                      <Pause className="w-4 h-4 text-yellow-400" />
+                    ) : (
+                      <Play className="w-4 h-4 text-brand-green" />
+                    )}
                   </button>
-                  <button className="p-2 hover:bg-dark-border rounded-lg transition-colors">
-                    <Settings2 className="w-4 h-4 text-gray-400" />
+                  <button 
+                    onClick={() => handleDeleteStrategy(strategy.id)}
+                    title="Delete strategy"
+                    className="p-2 hover:bg-dark-border rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-400" />
                   </button>
                 </div>
               </div>
@@ -413,7 +523,13 @@ export default function StrategyBuilderPage() {
                 <span>•</span>
                 <span>{strategy.actions.length} actions</span>
                 <span>•</span>
-                <span>Created {new Date(strategy.createdAt).toLocaleDateString()}</span>
+                <span>Created {new Date(strategy.created_at).toLocaleDateString()}</span>
+                {strategy.trigger_count !== undefined && (
+                  <>
+                    <span>•</span>
+                    <span>{strategy.trigger_count} triggers</span>
+                  </>
+                )}
               </div>
             </div>
           ))}

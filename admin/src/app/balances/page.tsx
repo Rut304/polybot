@@ -27,6 +27,7 @@ import { useTier } from '@/lib/useTier';
 import { usePlatforms } from '@/lib/PlatformContext';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
 import { PlatformFilter } from '@/components/PlatformFilter';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface PlatformBalance {
   platform: string;
@@ -401,20 +402,65 @@ export default function BalancesPage() {
         </div>
       </div>
 
-      {/* Balance History Chart Placeholder */}
+      {/* Balance History Chart */}
       {history.length > 0 && (
         <div className="card p-6">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
             <TrendingUp className="text-green-400" />
             Balance History
           </h2>
-          <div className="h-48 flex items-center justify-center bg-gray-800/50 rounded-lg">
-            <div className="text-center text-gray-500">
-              <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Chart visualization coming soon</p>
-              <p className="text-sm mt-1">{history.length} data points available</p>
-            </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart 
+                data={[...history].reverse().map(h => ({
+                  date: new Date(h.snapshot_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                  value: h.total_portfolio_usd,
+                }))}
+                margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#6b7280" 
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis 
+                  stroke="#6b7280" 
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  width={60}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#1f2937', 
+                    border: '1px solid #374151',
+                    borderRadius: '8px',
+                    color: '#fff'
+                  }}
+                  formatter={(value: number) => [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Portfolio Value']}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke="#10b981" 
+                  strokeWidth={2}
+                  fill="url(#balanceGradient)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
+          <p className="text-sm text-gray-500 mt-2 text-center">
+            Last {history.length} snapshots
+          </p>
         </div>
       )}
     </div>

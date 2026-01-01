@@ -104,7 +104,9 @@ export function useUserExchanges() {
         throw new Error('Failed to fetch user exchanges');
       }
       
-      return response.json();
+      const json = await response.json();
+      // API returns { success, data: { ... } } structure
+      return json.data || json;
     },
     enabled: !!user,
     refetchInterval: 30000, // Refresh every 30 seconds
@@ -288,12 +290,14 @@ export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
 
 // Compute P&L history from actual trades (accurate, not stale stats table)
 export function usePnLHistory(hours: number = 24, tradingMode?: 'paper' | 'live') {
-  const { data: trades = [] } = useSimulatedTrades(500, tradingMode);
+  const { user } = useAuth();
   const { data: config } = useBotConfig();
   
   return useQuery({
-    queryKey: ['pnlHistory', trades.length, hours, tradingMode, config?.polymarket_starting_balance],
-    queryFn: () => {
+    queryKey: ['pnlHistory', hours, tradingMode, user?.id, config?.polymarket_starting_balance],
+    queryFn: async () => {
+      if (!user) return [];
+      
       // Calculate TOTAL starting balance across all 6 platforms
       const polyStarting = config?.polymarket_starting_balance || 5000;
       const kalshiStarting = config?.kalshi_starting_balance || 5000;
@@ -303,25 +307,47 @@ export function usePnLHistory(hours: number = 24, tradingMode?: 'paper' | 'live'
       const ibkrStarting = config?.ibkr_starting_balance || 5000;
       const startingBalance = polyStarting + kalshiStarting + binanceStarting + coinbaseStarting + alpacaStarting + ibkrStarting;
       
-      // Filter trades within the time window
+      // Filter trades within the time window - fetch from DB with proper filter
       const since = new Date();
-      since.setHours(since.getHours() - hours);
+      since.setHours(since.getHours() - (hours || 8760)); // Default to 1 year for "all time"
       
-      // Sort trades by time ascending
-      const sortedTrades = [...trades]
+      let query = supabase
+        .from('polybot_simulated_trades')
+        .select('created_at, actual_profit_usd, outcome, trading_mode')
+        .gte('created_at', since.toISOString())
+        .order('created_at', { ascending: true })
+        .limit(2000);
+      
+      // Apply trading mode filter
+      if (tradingMode === 'live') {
+        query = query.eq('user_id', user.id).eq('trading_mode', 'live');
+      } else if (tradingMode === 'paper') {
+        query = query.eq('trading_mode', 'paper').or(`user_id.is.null,user_id.eq.${user.id}`);
+      } else {
+        query = query.or(`user_id.is.null,user_id.eq.${user.id}`);
+      }
+      
+      const { data: trades, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching PnL history:', error);
+        return [];
+      }
+      
+      // Sort trades by time ascending and filter out failed executions
+      const sortedTrades = (trades || [])
         .filter(t => t.outcome !== 'failed_execution')
-        .filter(t => new Date(t.created_at) >= since)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
       // Build cumulative P&L data points
       let cumulativePnl = 0;
-      const dataPoints = sortedTrades.map(trade => {
+      const dataPoints = sortedTrades.map((trade, index) => {
         cumulativePnl += (trade.actual_profit_usd || 0);
         return {
           snapshot_at: trade.created_at,
           total_pnl: cumulativePnl,
           simulated_balance: startingBalance + cumulativePnl,
-          total_trades: sortedTrades.indexOf(trade) + 1,
+          total_trades: index + 1,
         };
       });
       
@@ -337,7 +363,7 @@ export function usePnLHistory(hours: number = 24, tradingMode?: 'paper' | 'live'
       
       return dataPoints;
     },
-    enabled: trades.length >= 0,
+    enabled: !!user,
     refetchInterval: 5000,
   });
 }
@@ -429,16 +455,23 @@ export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' 
         const since = new Date();
         since.setHours(since.getHours() - timeframeHours);
         
-        // Fetch trades within timeframe for filtered stats (multi-tenant)
+        // Fetch trades within timeframe for filtered stats
+        // Multi-tenant: Include shared simulation (user_id IS NULL) OR user's own trades
         let tradesQuery = supabase
           .from('polybot_simulated_trades')
           .select('actual_profit_usd, outcome, trading_mode')
-          .eq('user_id', user.id)
           .gte('created_at', since.toISOString());
         
-        // Filter by trading mode if specified
-        if (tradingMode) {
-          tradesQuery = tradesQuery.eq('trading_mode', tradingMode);
+        // Apply trading mode filter with proper multi-tenant logic
+        if (tradingMode === 'live') {
+          // Live trades: STRICT user filtering - only user's own trades
+          tradesQuery = tradesQuery.eq('user_id', user.id).eq('trading_mode', 'live');
+        } else if (tradingMode === 'paper') {
+          // Paper trades: Include shared simulation OR user's own
+          tradesQuery = tradesQuery.eq('trading_mode', 'paper').or(`user_id.is.null,user_id.eq.${user.id}`);
+        } else {
+          // All trades: Include shared simulation OR user's own
+          tradesQuery = tradesQuery.or(`user_id.is.null,user_id.eq.${user.id}`);
         }
         
         const { data: filteredTradesData, error: tradesError } = await tradesQuery;
@@ -510,10 +543,11 @@ export function useOpportunityStats() {
     queryFn: async () => {
       if (!user) return [];
       
+      // Multi-tenant: Include shared simulation (user_id IS NULL) OR user's own opportunities
       const { data, error } = await supabase
         .from('polybot_opportunities')
         .select('profit_percent, buy_platform, sell_platform, detected_at')
-        .eq('user_id', user.id)
+        .or(`user_id.is.null,user_id.eq.${user.id}`)
         .order('detected_at', { ascending: false })
         .limit(500);
       
@@ -626,17 +660,17 @@ export function useAggregateStats() {
     queryFn: async () => {
       if (!user) return { totalTrades: 0, totalOpportunities: 0, avgTopProfit: 0 };
       
-      // Get counts (filtered by user_id)
+      // Get counts - Multi-tenant: Include shared simulation (user_id IS NULL) OR user's own
       const [tradesResult, oppsResult] = await Promise.all([
-        supabase.from('polybot_simulated_trades').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('polybot_opportunities').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('polybot_simulated_trades').select('*', { count: 'exact', head: true }).or(`user_id.is.null,user_id.eq.${user.id}`),
+        supabase.from('polybot_opportunities').select('*', { count: 'exact', head: true }).or(`user_id.is.null,user_id.eq.${user.id}`),
       ]);
       
-      // Get recent high-profit opportunities (filtered by user_id)
+      // Get recent high-profit opportunities - Multi-tenant
       const { data: topOpps } = await supabase
         .from('polybot_opportunities')
         .select('profit_percent')
-        .eq('user_id', user.id)
+        .or(`user_id.is.null,user_id.eq.${user.id}`)
         .order('profit_percent', { ascending: false })
         .limit(10);
       
@@ -674,14 +708,15 @@ export function useMissedMoney(hours: number = 24) {
       if (!user?.id) return null;
       
       try {
-        // Calculate missed money directly from opportunities table (multi-tenant)
+        // Calculate missed money directly from opportunities table
+        // Multi-tenant: Include shared simulation (user_id IS NULL) OR user's own
         const since = new Date();
         since.setHours(since.getHours() - hours);
         
         const { data: opps, error } = await supabase
           .from('polybot_opportunities')
           .select('status, profit_percent')
-          .eq('user_id', user.id)
+          .or(`user_id.is.null,user_id.eq.${user.id}`)
           .gte('created_at', since.toISOString());
 
         if (error) {
@@ -753,16 +788,23 @@ export function usePositions(tradingMode?: 'paper' | 'live') {
     queryFn: async () => {
       if (!user) return [];
       
-      // Query pending (open) trades from simulated_trades (filtered by user_id)
+      // Query pending (open) trades from simulated_trades
+      // Multi-tenant: Include shared simulation (user_id IS NULL) OR user's own trades
       let query = supabase
         .from('polybot_simulated_trades')
         .select('*')
-        .eq('user_id', user.id)
         .eq('outcome', 'pending');
       
-      // Filter by trading mode if specified
-      if (tradingMode) {
-        query = query.eq('trading_mode', tradingMode);
+      // Apply trading mode filter with proper multi-tenant logic
+      if (tradingMode === 'live') {
+        // Live trades: STRICT user filtering - only user's own trades
+        query = query.eq('user_id', user.id).eq('trading_mode', 'live');
+      } else if (tradingMode === 'paper') {
+        // Paper trades: Include shared simulation OR user's own
+        query = query.eq('trading_mode', 'paper').or(`user_id.is.null,user_id.eq.${user.id}`);
+      } else {
+        // All: Include shared simulation OR user's own
+        query = query.or(`user_id.is.null,user_id.eq.${user.id}`);
       }
       
       const { data, error } = await query.order('created_at', { ascending: false });

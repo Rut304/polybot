@@ -140,15 +140,28 @@ export default function AnalyticsPage() {
     );
 
     // === OVERALL ACCOUNT METRICS ===
-    const totalPnl = serverStats.reduce((sum, s) => sum + (s.total_pnl || 0), 0);
-    const totalTrades = serverStats.reduce((sum, s) => sum + (s.total_trades || 0), 0);
-    const totalWins = serverStats.reduce((sum, s) => sum + (s.winning_trades || 0), 0);
-    const totalLosses = serverStats.reduce((sum, s) => sum + (s.losing_trades || 0), 0);
+    // Compute from filtered trades when timeframe is set, otherwise from serverStats
+    const useFilteredMetrics = timeframe > 0 && timeframe < 8760; // Use filtered for anything less than 1 year
+    
+    // Compute metrics from filtered trades
+    const filteredPnl = filteredTrades.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0);
+    const filteredWins = filteredTrades.filter(t => t.outcome === 'won').length;
+    const filteredLosses = filteredTrades.filter(t => t.outcome === 'lost').length;
+    const filteredResolved = filteredWins + filteredLosses;
+    
+    // Use appropriate source based on timeframe
+    const totalPnl = useFilteredMetrics ? filteredPnl : serverStats.reduce((sum, s) => sum + (s.total_pnl || 0), 0);
+    const totalTrades = useFilteredMetrics ? filteredTrades.length : serverStats.reduce((sum, s) => sum + (s.total_trades || 0), 0);
+    const totalWins = useFilteredMetrics ? filteredWins : serverStats.reduce((sum, s) => sum + (s.winning_trades || 0), 0);
+    const totalLosses = useFilteredMetrics ? filteredLosses : serverStats.reduce((sum, s) => sum + (s.losing_trades || 0), 0);
     const totalVolume = filteredTrades.reduce((sum, t) => sum + (t.position_size_usd || 0), 0);
-    const resolvedTrades = totalWins + totalLosses;
+    const resolvedTrades = useFilteredMetrics ? filteredResolved : totalWins + totalLosses;
     const overallWinRate = resolvedTrades > 0 ? (totalWins / resolvedTrades) * 100 : 0;
-    const roi = (totalPnl / startingBalance) * 100;
-    const currentBalance = startingBalance + totalPnl;
+    
+    // All-time totals (always from serverStats) for balance calculation
+    const allTimePnl = serverStats.reduce((sum, s) => sum + (s.total_pnl || 0), 0);
+    const roi = (allTimePnl / startingBalance) * 100;
+    const currentBalance = startingBalance + allTimePnl;
     
     // Best and worst trades
     const bestTrade = serverStats.reduce((best, s) => Math.max(best, s.best_trade || 0), 0);
