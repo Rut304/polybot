@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './auth';
+import { supabase } from './supabase';
 
 // ============================================================================
 // PLATFORM CONTEXT
@@ -162,11 +163,21 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       if (!user) return { connected_exchange_ids: [], is_simulation: true };
       
+      // Get auth token for the API call
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const response = await fetch('/api/user-exchanges', {
         credentials: 'include',
+        headers: session?.access_token ? {
+          'Authorization': `Bearer ${session.access_token}`,
+        } : {},
       });
       
       if (!response.ok) {
+        // Don't throw on 401 - just return defaults
+        if (response.status === 401) {
+          return { connected_exchange_ids: [], is_simulation: true };
+        }
         throw new Error('Failed to fetch user platforms');
       }
       
