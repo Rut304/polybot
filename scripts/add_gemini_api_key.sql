@@ -12,3 +12,4 @@ ON CONFLICT (key_name) DO UPDATE SET
 SELECT key_name, description, category, is_configured 
 FROM polybot_secrets 
 WHERE key_name = 'GEMINI_API_KEY';
+ORDER BY key_name;

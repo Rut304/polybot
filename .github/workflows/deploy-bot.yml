@@ -144,7 +144,10 @@ jobs:
                   "GEMINI_API_KEY": "${{ secrets.GEMINI_API_KEY }}",
                   "X_BEARER_TOKEN": "${{ secrets.X_BEARER_TOKEN }}",
                   "X_API_KEY": "${{ secrets.X_API_KEY }}",
-                  "X_API_KEY_SECRET": "${{ secrets.X_API_KEY_SECRET }}"
+                  "X_API_KEY_SECRET": "${{ secrets.X_API_KEY_SECRET }}",
+                  "NEWS_API_KEY": "${{ secrets.NEWS_API_KEY }}",
+                  "FINNHUB_API_KEY": "${{ secrets.FINNHUB_API_KEY }}",
+                  "TWITTER_API_KEY": "${{ secrets.TWITTER_API_KEY }}"
                 },
                 "ports": {
                   "8080": "HTTP"

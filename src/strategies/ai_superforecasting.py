@@ -65,7 +65,7 @@ class AIForecast:
     dual_verified: bool = False  # Was dual verification performed?
 
     # Metadata
-    model_used: str = "gemini-2.0-flash"
+    model_used: str = "gemini-2.5-flash"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __str__(self) -> str:
@@ -277,8 +277,8 @@ Output ONLY the JSON, no other text."""
     def __init__(
         self,
         api_key: str = None,
-        model: str = "gemini-2.0-flash",
-        verification_model: str = "gemini-1.5-pro",
+        model: str = "gemini-2.5-flash",
+        verification_model: str = "gemini-2.5-pro",
         enable_dual_verification: bool = False,
         verification_agreement_threshold: float = 0.15,
         min_divergence_pct: float = 10.0,
@@ -325,7 +325,141 @@ Output ONLY the JSON, no other text."""
         self._forecast_cache: Dict[str, AIForecast] = {}
         self._cooldown_tracker: Dict[str, datetime] = {}
 
+        # Enhanced triggers
+        self._prediction_history: Dict[str, List[Dict]] = {}  # Track accuracy
+
         self.stats = SuperforecastingStats()
+
+    # ==========================================================================
+    # ENHANCED TRIGGER 1: Volume-Weighted Position Sizing
+    # Higher volume = more efficient market = smaller edge = smaller position
+    # ==========================================================================
+    def _volume_adjusted_size(
+        self, base_size: Decimal, volume_usd: float
+    ) -> Decimal:
+        """Adjust position size based on market volume efficiency."""
+        # High volume markets (>$1M) are more efficient - reduce size
+        # Low volume markets (<$50K) have more edge - can size up
+        if volume_usd > 1_000_000:
+            factor = 0.5  # Very efficient, halve position
+        elif volume_usd > 500_000:
+            factor = 0.7
+        elif volume_usd > 100_000:
+            factor = 0.85
+        elif volume_usd < 50_000:
+            factor = 1.2  # Less efficient, can size up slightly
+        else:
+            factor = 1.0
+        
+        return (base_size * Decimal(str(factor))).quantize(Decimal("0.01"))
+
+    # ==========================================================================
+    # ENHANCED TRIGGER 2: Time-to-Resolution Decay
+    # Markets close to resolution are more efficient - less edge
+    # ==========================================================================
+    def _time_decay_factor(self, end_date_str: Optional[str]) -> float:
+        """Calculate confidence decay based on time to resolution."""
+        if not end_date_str:
+            return 1.0  # No end date, full confidence
+        
+        try:
+            # Parse end date
+            end_date = datetime.fromisoformat(
+                end_date_str.replace('Z', '+00:00')
+            )
+            now = datetime.now(timezone.utc)
+            hours_remaining = (end_date - now).total_seconds() / 3600
+            
+            if hours_remaining < 24:
+                return 0.5  # Very close to resolution - halve confidence
+            elif hours_remaining < 72:
+                return 0.7  # Within 3 days - reduce confidence
+            elif hours_remaining < 168:  # 1 week
+                return 0.85
+            else:
+                return 1.0  # Far from resolution - full confidence
+        except Exception:
+            return 1.0
+
+    # ==========================================================================
+    # ENHANCED TRIGGER 3: Contrarian Mode
+    # When market consensus is extreme (>90% or <10%), consider contrarian
+    # ==========================================================================
+    def _contrarian_adjustment(
+        self, ai_prob: float, market_prob: float, ai_confidence: float
+    ) -> tuple[float, str]:
+        """
+        Adjust for contrarian opportunities in extreme consensus markets.
+        
+        Returns: (adjusted_prob, note)
+        """
+        note = ""
+        
+        # Extreme YES consensus (>90%) - look for contrarian NO
+        if market_prob > 0.90 and ai_prob < 0.85:
+            # Market is overconfident YES, AI sees risk
+            note = "Contrarian: Market >90% but AI sees downside risk"
+            # Boost the contrarian signal
+            return ai_prob * 0.95, note  # Slightly lower AI prob
+        
+        # Extreme NO consensus (<10%) - look for contrarian YES
+        elif market_prob < 0.10 and ai_prob > 0.15:
+            # Market is overconfident NO, AI sees upside
+            note = "Contrarian: Market <10% but AI sees upside potential"
+            return ai_prob * 1.05, note  # Slightly higher AI prob
+        
+        return ai_prob, note
+
+    # ==========================================================================
+    # ENHANCED TRIGGER 4: Historical Accuracy Tracking
+    # Weight predictions by past accuracy per category
+    # ==========================================================================
+    def _get_category_accuracy(self, category: str) -> float:
+        """Get historical accuracy for this category."""
+        history = self._prediction_history.get(category, [])
+        if len(history) < 5:
+            return 1.0  # Not enough data, neutral
+        
+        # Calculate win rate for last 20 predictions
+        recent = history[-20:]
+        wins = sum(1 for p in recent if p.get("correct", False))
+        accuracy = wins / len(recent) if recent else 0.5
+        
+        # Return multiplier (0.8 to 1.2 based on accuracy)
+        if accuracy > 0.7:
+            return 1.2  # Great accuracy, boost confidence
+        elif accuracy > 0.55:
+            return 1.0  # Average, neutral
+        elif accuracy > 0.4:
+            return 0.85  # Below average, reduce confidence
+        else:
+            return 0.7  # Poor accuracy, significantly reduce
+
+    def record_prediction_outcome(
+        self, market_id: str, category: str, predicted_prob: float,
+        actual_outcome: bool
+    ):
+        """Record prediction outcome for accuracy tracking."""
+        if category not in self._prediction_history:
+            self._prediction_history[category] = []
+        
+        # Determine if prediction was correct
+        # If we predicted >50% and outcome was YES, or <50% and NO
+        predicted_yes = predicted_prob > 0.5
+        correct = (predicted_yes == actual_outcome)
+        
+        self._prediction_history[category].append({
+            "market_id": market_id,
+            "predicted_prob": predicted_prob,
+            "actual_outcome": actual_outcome,
+            "correct": correct,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        
+        # Keep only last 100 per category
+        if len(self._prediction_history[category]) > 100:
+            self._prediction_history[category] = \
+                self._prediction_history[category][-100:]
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -480,6 +614,32 @@ Output ONLY the JSON, no other text."""
                         )
                         ai_confidence = min(ai_confidence * 1.1, 0.95)  # Boost confidence
 
+        # =======================================================================
+        # APPLY ENHANCED TRIGGERS
+        # =======================================================================
+        
+        # TRIGGER 2: Time-to-Resolution Decay
+        end_date = market.get("end_date") or market.get("endDate")
+        time_factor = self._time_decay_factor(end_date)
+        ai_confidence *= time_factor
+        if time_factor < 1.0:
+            logger.debug(f"  ⏰ Time decay applied: {time_factor:.2f}x confidence")
+        
+        # TRIGGER 3: Contrarian Mode
+        ai_prob, contrarian_note = self._contrarian_adjustment(
+            ai_prob, yes_price, ai_confidence
+        )
+        if contrarian_note:
+            logger.info(f"  🔄 {contrarian_note}")
+            factors.append(contrarian_note)
+        
+        # TRIGGER 4: Historical Accuracy Weighting
+        category = market.get("category", "general")
+        accuracy_factor = self._get_category_accuracy(category)
+        ai_confidence *= accuracy_factor
+        if accuracy_factor != 1.0:
+            logger.debug(f"  📊 Accuracy factor for {category}: {accuracy_factor:.2f}x")
+
         # Calculate divergence
         divergence = (ai_prob - yes_price) * 100  # Positive = AI thinks higher
 
@@ -507,6 +667,9 @@ Output ONLY the JSON, no other text."""
                 recommended_size = self.min_position + (
                     (self.max_position - self.min_position) * Decimal(str(size_factor))
                 )
+                
+                # TRIGGER 1: Volume-Weighted Sizing
+                recommended_size = self._volume_adjusted_size(recommended_size, volume)
                 recommended_size = recommended_size.quantize(Decimal("0.01"))
 
         forecast = AIForecast(
@@ -653,13 +816,13 @@ AI_SUPERFORECASTING_INFO = {
     "expected_apy": "30-60%",
     "risk_level": "medium",
     "description": (
-        "Uses Google Gemini 2.0 Flash to analyze prediction market questions "
+        "Uses Google Gemini 2.5 to analyze prediction market questions "
         "and estimate probabilities. Trades when AI estimate diverges "
         "significantly from market consensus. Optional dual-AI verification "
         "for improved accuracy."
     ),
     "key_points": [
-        "Gemini 2.0 Flash for fast, accurate analysis",
+        "Gemini 2.5 Flash for fast, accurate analysis",
         "Optional dual-AI verification (2nd model checks 1st)",
         "Considers base rates, factors, and current events",
         "Only trades when divergence > 10% (configurable)",
@@ -667,7 +830,7 @@ AI_SUPERFORECASTING_INFO = {
         "Skips trades when AIs disagree significantly",
     ],
     "github_source": "BlackSky-Jose/PolyMarket-trading-AI-model (340 stars)",
-    "model": "gemini-2.0-flash",
-    "verification_model": "gemini-1.5-pro",
+    "model": "gemini-2.5-flash",
+    "verification_model": "gemini-2.5-pro",
     "api_required": "GEMINI_API_KEY",
 }

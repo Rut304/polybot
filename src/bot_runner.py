@@ -1552,7 +1552,7 @@ class PolybotRunner:
                 self.ai_superforecasting = AISuperforecastingStrategy(
                     api_key=gemini_api_key,
                     model=getattr(
-                        self.config.trading, 'ai_model', 'gemini-2.0-flash'
+                        self.config.trading, 'ai_model', 'gemini-2.5-flash'
                     ),
                     verification_model=getattr(
                         self.config.trading, 'ai_verification_model',

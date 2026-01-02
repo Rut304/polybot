@@ -850,7 +850,7 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         workflow: [
           'Fetch active prediction markets',
           'Build context: market title, current price, volume',
-          'Send prompt to Gemini for probability estimation',
+          'Send prompt to Gemini 2.5 for probability estimation',
           'Parse AI response for probability + confidence',
           'If divergence ≥ 10% AND confidence ≥ 65%, trade',
           'Position sizing based on divergence magnitude',
@@ -859,18 +859,22 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
         ],
         requirements: ['Gemini API Key (GEMINI_API_KEY)', 'Polymarket or Kalshi credentials'],
         settings: [
-          { key: 'ai_model', label: 'Primary Model', type: 'select', defaultValue: 'gemini-2.0-flash', options: [
-            { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fastest)' },
-            { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Most Capable)' },
-            { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Balanced)' },
+          { key: 'ai_model', label: 'Primary Model', type: 'select', defaultValue: 'gemini-2.5-flash', options: [
+            { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Best)' },
+            { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Most Capable)' },
+            { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fast)' },
           ]},
-          { key: 'ai_verification_model', label: 'Verification Model', type: 'select', defaultValue: 'gemini-1.5-pro', options: [
-            { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+          { key: 'ai_enable_dual_verification', label: 'Dual AI Verification', type: 'select', defaultValue: '0', options: [
+            { value: '0', label: 'Off - Faster, single AI analysis' },
+            { value: '1', label: 'On - 2nd AI verifies, skips when AIs disagree' },
+          ], tooltip: 'When enabled, a second AI model reviews the first AI\'s analysis with a skeptical prompt. Trades are skipped if AIs disagree by >15%. Slower (~2x) but reduces false positives.' },
+          { key: 'ai_verification_model', label: 'Verification Model', type: 'select', defaultValue: 'gemini-2.5-pro', options: [
+            { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Recommended)' },
+            { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
             { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-            { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
           ]},
-          { key: 'ai_min_divergence_pct', label: 'Min Divergence %', type: 'number', defaultValue: 10, min: 5, max: 30, step: 1 },
-          { key: 'ai_min_confidence', label: 'Min Confidence', type: 'number', defaultValue: 0.65, min: 0.5, max: 0.9, step: 0.05 },
+          { key: 'ai_min_divergence_pct', label: 'Min Divergence %', type: 'number', defaultValue: 10, min: 5, max: 30, step: 1, tooltip: 'AI probability must differ from market price by at least this %. Lower = more opportunities but less confident.' },
+          { key: 'ai_min_confidence', label: 'Min Confidence', type: 'number', defaultValue: 0.65, min: 0.5, max: 0.9, step: 0.05, tooltip: 'AI must be at least this confident in its estimate. Lower = more trades, higher risk.' },
           { key: 'ai_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 100, min: 10, max: 1000, step: 10 },
           { key: 'ai_scan_interval_sec', label: 'Scan Interval (sec)', type: 'number', defaultValue: 300, min: 60, max: 900, step: 60 },
           { key: 'ai_max_concurrent', label: 'Max Concurrent', type: 'number', defaultValue: 5, min: 1, max: 10, step: 1 },
