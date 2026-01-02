@@ -264,3 +264,10 @@ export function forbiddenResponse(): NextResponse {
     { status: 403 }
   );
 }
+/**
+ * Get the Supabase Admin client for server-side operations
+ * Returns null if not configured (missing env vars)
+ */
+export function getSupabaseAdmin() {
+  return supabaseAdmin;
+}

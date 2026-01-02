@@ -1,30 +1,14 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
+import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse, getSupabaseAdmin } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
-// Lazy initialization to avoid build-time errors
-let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
-// eslint-disable-next-line
-function getSupabaseAdmin(): ReturnType<typeof createClient> | null {
-  if (!supabaseAdminInstance) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-    
-    // Return null if not configured (prevents crash)
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return null;
-    }
-    
-    supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
-  }
-  return supabaseAdminInstance;
-}
-
 // Helper to get total starting balance from config
 async function getTotalStartingBalance(): Promise<number> {
-  const { data: config } = await getSupabaseAdmin()
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return 100000; // Default if not configured
+  
+  const { data: config } = await supabase
     .from('polybot_config')
     .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance')
     .eq('id', 1)
@@ -48,7 +32,7 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return NextResponse.json(
-        { success: false, error: 'Database not configured' },
+        { success: false, error: 'Database not configured. Check SUPABASE_SERVICE_KEY environment variable.' },
         { status: 503 }
       );
     }
@@ -153,6 +137,15 @@ export async function GET(request: NextRequest) {
 
 // POST - Archive current simulation and start new session
 export async function POST(request: NextRequest) {
+  // Check if Supabase is configured first
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    return NextResponse.json(
+      { success: false, error: 'Database not configured. Check SUPABASE_SERVICE_KEY environment variable.' },
+      { status: 503 }
+    );
+  }
+
   try {
     // Rate limiting
     const metadata = await getRequestMetadata(request);
@@ -174,7 +167,7 @@ export async function POST(request: NextRequest) {
     const startingBalance = await getTotalStartingBalance();
     
     // Get current simulation stats
-    const { data: statsData } = await getSupabaseAdmin()
+    const { data: statsData } = await supabase
       .from('polybot_simulation_stats')
       .select('*')
       .order('snapshot_at', { ascending: false })
@@ -185,7 +178,7 @@ export async function POST(request: NextRequest) {
     const totalPnl = statsData?.total_pnl || 0;
     
     // Check if there are any trades to archive
-    const { count: tradesCount } = await getSupabaseAdmin()
+    const { count: tradesCount } = await supabase
       .from('polybot_simulated_trades')
       .select('*', { count: 'exact', head: true });
     
@@ -197,7 +190,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Get current config for snapshot
-    const { data: configData } = await getSupabaseAdmin()
+    const { data: configData } = await supabase
       .from('polybot_config')
       .select('*')
       .limit(1)
@@ -207,7 +200,7 @@ export async function POST(request: NextRequest) {
     const sessionId = crypto.randomUUID();
     
     // Get trade statistics
-    const { data: tradesData } = await getSupabaseAdmin()
+    const { data: tradesData } = await supabase
       .from('polybot_simulated_trades')
       .select('*');
     
@@ -240,7 +233,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Create session record
-    const { error: sessionError } = await getSupabaseAdmin()
+    const { error: sessionError } = await supabase
       .from('polybot_simulation_sessions')
       .insert({
         session_id: sessionId,
@@ -295,7 +288,7 @@ export async function POST(request: NextRequest) {
     }));
     
     if (sessionTrades.length > 0) {
-      const { error: tradesError } = await getSupabaseAdmin()
+      const { error: tradesError } = await supabase
         .from('polybot_session_trades')
         .insert(sessionTrades);
       
@@ -305,7 +298,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Clear current trades after archiving (this is what makes "Save Session" finalize a session)
-    const { error: deleteTradesError } = await getSupabaseAdmin()
+    const { error: deleteTradesError } = await supabase
       .from('polybot_simulated_trades')
       .delete()
       .not('id', 'is', null);
@@ -315,7 +308,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Reset stats to starting balance
-    const { error: deleteStatsError } = await getSupabaseAdmin()
+    const { error: deleteStatsError } = await supabase
       .from('polybot_simulation_stats')
       .delete()
       .not('id', 'is', null);
@@ -325,7 +318,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Insert fresh starting stats
-    await getSupabaseAdmin()
+    await supabase
       .from('polybot_simulation_stats')
       .insert({
         snapshot_at: new Date().toISOString(),
@@ -336,19 +329,19 @@ export async function POST(request: NextRequest) {
       });
     
     // Clear opportunities table
-    await getSupabaseAdmin()
+    await supabase
       .from('polybot_opportunities')
       .delete()
       .not('id', 'is', null);
     
     // Clear positions table
-    await getSupabaseAdmin()
+    await supabase
       .from('polybot_positions')
       .delete()
       .not('id', 'is', null);
     
     // Reset bot status session counters
-    await getSupabaseAdmin()
+    await supabase
       .from('polybot_status')
       .update({
         opportunities_this_session: 0,
