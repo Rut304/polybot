@@ -194,6 +194,37 @@ class CongressionalTrackerStrategy:
     SENATE_API = "https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json"
     QUIVER_API = "https://api.quiverquant.com/beta/live/congresstrading"
 
+    # =========================================================================
+    # FASTER/ALTERNATIVE DATA SOURCES (Added Jan 2025)
+    # Official filings have 45-day delay. These sources are often faster:
+    # =========================================================================
+
+    # Capitol Trades - Often gets disclosures 24-48h faster than official APIs
+    # Website scrapes directly from House/Senate filing portals
+    CAPITOL_TRADES_API = "https://www.capitoltrades.com/api/trades"
+
+    # Unusual Whales - Commercial API with fast disclosure alerts
+    # Free tier available, premium for faster alerts
+    # Docs: https://docs.unusualwhales.com/api-reference/congress
+    UNUSUAL_WHALES_API = "https://api.unusualwhales.com/api/congress/trades"
+
+    # Twitter/X accounts for real-time alerts (monitor via Twitter API)
+    # These accounts often post within hours of filing
+    TWITTER_ALERT_ACCOUNTS = [
+        "@unusual_whales",      # Fast, high-quality alerts
+        "@capitoltrades",       # Good coverage
+        "@quaborot",            # Quantitative analysis
+        "@congresstradesbot",   # Automated bot
+        "@CongressWatcher_",    # News and analysis
+        "@PelosiTracker_",      # Nancy Pelosi specific
+    ]
+
+    # RSS feeds for alternative monitoring
+    RSS_FEEDS = [
+        "https://housestockwatcher.com/feed",
+        "https://senatestockwatcher.com/feed",
+    ]
+
     # Amount range mapping (Congress uses ranges, not exact amounts)
     AMOUNT_RANGES = {
         "$1,001 - $15,000": (1001, 15000),
@@ -346,6 +377,225 @@ class CongressionalTrackerStrategy:
             logger.error(f"Error fetching Senate trades: {e}")
             return self._senate_cache or []
 
+    async def fetch_capitol_trades(self, days_back: int = 7) -> List[Dict]:
+        """
+        Fetch trades from Capitol Trades (often 24-48h faster than official).
+        
+        Capitol Trades scrapes directly from House/Senate filing portals
+        and often processes disclosures faster than the official APIs.
+        """
+        session = await self._get_session()
+
+        try:
+            # Capitol Trades may require auth or have rate limits
+            # This is a best-effort integration
+            params = {
+                'days': days_back,
+                'limit': 500,
+            }
+            headers = {
+                'User-Agent': 'PolyBot Congressional Tracker/1.0',
+            }
+
+            async with session.get(
+                self.CAPITOL_TRADES_API,
+                params=params,
+                headers=headers
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    trades = data.get('trades', data) if isinstance(
+                        data, dict
+                    ) else data
+                    logger.info(
+                        f"📊 Capitol Trades: Fetched {len(trades)} trades"
+                    )
+                    return trades
+                elif resp.status == 403:
+                    logger.debug(
+                        "Capitol Trades API requires auth/subscription"
+                    )
+                    return []
+                else:
+                    logger.debug(f"Capitol Trades API: {resp.status}")
+                    return []
+        except Exception as e:
+            logger.debug(f"Capitol Trades fetch error: {e}")
+            return []
+
+    async def fetch_unusual_whales(self, limit: int = 100) -> List[Dict]:
+        """
+        Fetch from Unusual Whales Congress API.
+        
+        Premium service but often has fastest alerts.
+        Free tier available at https://docs.unusualwhales.com/
+        """
+        session = await self._get_session()
+
+        # Check if API key is available
+        api_key = None
+        if self.db:
+            api_key = self.db.get_secret("UNUSUAL_WHALES_API_KEY")
+
+        if not api_key:
+            logger.debug(
+                "No UNUSUAL_WHALES_API_KEY - skipping Unusual Whales API"
+            )
+            return []
+
+        try:
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'User-Agent': 'PolyBot/1.0',
+            }
+            params = {'limit': limit}
+
+            async with session.get(
+                self.UNUSUAL_WHALES_API,
+                headers=headers,
+                params=params
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    trades = data.get('data', data) if isinstance(
+                        data, dict
+                    ) else data
+                    logger.info(
+                        f"🐋 Unusual Whales: Fetched {len(trades)} trades"
+                    )
+                    return trades
+                else:
+                    logger.debug(f"Unusual Whales API: {resp.status}")
+                    return []
+        except Exception as e:
+            logger.debug(f"Unusual Whales fetch error: {e}")
+            return []
+
+    async def check_twitter_alerts(self) -> List[Dict]:
+        """
+        Check Twitter/X for congressional trade alerts.
+        
+        Monitors accounts like @unusual_whales, @capitoltrades, @quaborot
+        for real-time trade disclosures (often posted within hours of filing).
+        
+        Requires TWITTER_BEARER_TOKEN in secrets.
+        """
+        # Get Twitter bearer token
+        bearer_token = None
+        if self.db:
+            bearer_token = self.db.get_secret("TWITTER_BEARER_TOKEN")
+
+        if not bearer_token:
+            logger.debug(
+                "No TWITTER_BEARER_TOKEN - Twitter alerts disabled"
+            )
+            return []
+
+        session = await self._get_session()
+        alerts = []
+
+        try:
+            # Twitter API v2 - search recent tweets
+            # Search for congressional trade keywords
+            query = (
+                "(congress OR senator OR representative) "
+                "(bought OR sold OR trade OR stock) "
+                f"from:{' OR from:'.join(a.lstrip('@') for a in self.TWITTER_ALERT_ACCOUNTS[:5])}"
+            )
+
+            headers = {
+                'Authorization': f'Bearer {bearer_token}',
+            }
+            params = {
+                'query': query,
+                'max_results': 50,
+                'tweet.fields': 'created_at,author_id,text',
+            }
+
+            async with session.get(
+                'https://api.twitter.com/2/tweets/search/recent',
+                headers=headers,
+                params=params
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    tweets = data.get('data', [])
+
+                    for tweet in tweets:
+                        # Parse tweet for trade info
+                        text = tweet.get('text', '')
+                        alert = self._parse_twitter_alert(text)
+                        if alert:
+                            alerts.append(alert)
+
+                    if alerts:
+                        logger.info(
+                            f"🐦 Twitter: Found {len(alerts)} trade alerts"
+                        )
+                    return alerts
+                elif resp.status == 429:
+                    logger.debug("Twitter rate limited")
+                    return []
+                else:
+                    logger.debug(f"Twitter API: {resp.status}")
+                    return []
+        except Exception as e:
+            logger.debug(f"Twitter alerts error: {e}")
+            return []
+
+    def _parse_twitter_alert(self, tweet_text: str) -> Optional[Dict]:
+        """
+        Parse a tweet for congressional trade information.
+        
+        Common patterns:
+        - "BREAKING: Nancy Pelosi bought $NVDA for $1M-$5M"
+        - "NEW: Rep. Dan Crenshaw sold $TSLA ($50K-$100K)"
+        """
+        tweet_lower = tweet_text.lower()
+
+        # Check for trade keywords
+        is_purchase = any(w in tweet_lower for w in [
+            'bought', 'purchase', 'buys', 'buying'
+        ])
+        is_sale = any(w in tweet_lower for w in [
+            'sold', 'sale', 'sells', 'selling'
+        ])
+
+        if not (is_purchase or is_sale):
+            return None
+
+        # Extract ticker (look for $XXXX pattern)
+        ticker_match = re.search(r'\$([A-Z]{1,5})\b', tweet_text)
+        if not ticker_match:
+            return None
+        ticker = ticker_match.group(1)
+
+        # Try to extract politician name
+        # Common patterns: "Nancy Pelosi", "Rep. Crenshaw", "Sen. Tuberville"
+        name_patterns = [
+            r'(?:Rep\.?|Senator|Sen\.?)\s+(\w+\s+\w+)',
+            r'(Nancy Pelosi|Dan Crenshaw|Tommy Tuberville)',
+            r'(\w+\s+\w+)\s+(?:bought|sold)',
+        ]
+        politician = None
+        for pattern in name_patterns:
+            match = re.search(pattern, tweet_text, re.IGNORECASE)
+            if match:
+                politician = match.group(1).strip()
+                break
+
+        if not politician:
+            return None
+
+        return {
+            'source': 'twitter',
+            'ticker': ticker,
+            'politician': politician,
+            'transaction_type': 'purchase' if is_purchase else 'sale',
+            'raw_text': tweet_text[:200],
+            'is_unverified': True,  # Twitter alerts should be verified
+        }
+
     def _parse_house_trade(self, raw: Dict) -> Optional[CongressionalTrade]:
         """Parse a raw House trade into our dataclass"""
         try:
@@ -479,10 +729,19 @@ class CongressionalTrackerStrategy:
             return None
 
     async def fetch_all_trades(self, days_back: int = 30) -> List[CongressionalTrade]:
-        """Fetch all trades from configured chambers"""
+        """
+        Fetch all trades from all configured sources.
+        
+        Sources (in order of priority):
+        1. House/Senate Stock Watcher APIs (official, most comprehensive)
+        2. Capitol Trades (often 24-48h faster)
+        3. Unusual Whales API (if API key available)
+        4. Twitter alerts (real-time, needs verification)
+        """
         trades = []
         cutoff = datetime.utcnow() - timedelta(days=days_back)
 
+        # Primary sources - official APIs
         if self.chambers in [Chamber.HOUSE, Chamber.BOTH]:
             house_raw = await self.fetch_house_trades()
             for raw in house_raw:
@@ -497,11 +756,115 @@ class CongressionalTrackerStrategy:
                 if trade and trade.disclosure_date >= cutoff:
                     trades.append(trade)
 
+        # Alternative sources - often faster
+        try:
+            # Capitol Trades (often faster)
+            capitol_raw = await self.fetch_capitol_trades(days_back=7)
+            for raw in capitol_raw:
+                # Capitol Trades uses similar format to House API
+                trade = self._parse_house_trade(raw)
+                if trade and trade.id not in self._seen_trades:
+                    trade.source = "capitol_trades"
+                    trades.append(trade)
+        except Exception as e:
+            logger.debug(f"Capitol Trades fetch skipped: {e}")
+
+        try:
+            # Unusual Whales (premium, fastest)
+            uw_raw = await self.fetch_unusual_whales(limit=50)
+            for raw in uw_raw:
+                # Parse Unusual Whales format
+                trade = self._parse_unusual_whales_trade(raw)
+                if trade and trade.id not in self._seen_trades:
+                    trades.append(trade)
+        except Exception as e:
+            logger.debug(f"Unusual Whales fetch skipped: {e}")
+
+        # Twitter alerts (real-time but unverified)
+        try:
+            twitter_alerts = await self.check_twitter_alerts()
+            for alert in twitter_alerts:
+                if alert.get('ticker') and alert.get('politician'):
+                    # Log for manual review, don't auto-trade unverified
+                    logger.info(
+                        f"🐦 UNVERIFIED: {alert['politician']} "
+                        f"{alert['transaction_type']} ${alert['ticker']}"
+                    )
+        except Exception as e:
+            logger.debug(f"Twitter alerts skipped: {e}")
+
         # Sort by disclosure date (newest first)
         trades.sort(key=lambda t: t.disclosure_date, reverse=True)
 
-        logger.info(f"Fetched {len(trades)} total trades from last {days_back} days")
+        logger.info(
+            f"📊 Congress: {len(trades)} trades from last {days_back} days"
+        )
         return trades
+
+    def _parse_unusual_whales_trade(
+        self, raw: Dict
+    ) -> Optional[CongressionalTrade]:
+        """Parse trade from Unusual Whales API format."""
+        try:
+            politician_name = raw.get('politician', raw.get('name', ''))
+            ticker = raw.get('ticker', raw.get('symbol', '')).upper()
+            tx_type_str = raw.get('transaction_type', raw.get('type', ''))
+            tx_date_str = raw.get('trade_date', raw.get('transaction_date'))
+            disc_date_str = raw.get('filed_date', raw.get('disclosure_date'))
+
+            if not ticker or not politician_name:
+                return None
+
+            # Parse transaction type
+            tx_type = TransactionType.PURCHASE
+            if 'sale' in tx_type_str.lower():
+                tx_type = TransactionType.SALE
+
+            # Parse dates
+            tx_date = datetime.utcnow()
+            disc_date = datetime.utcnow()
+            if tx_date_str:
+                try:
+                    tx_date = datetime.fromisoformat(
+                        tx_date_str.replace('Z', '+00:00')
+                    )
+                except Exception:
+                    pass
+            if disc_date_str:
+                try:
+                    disc_date = datetime.fromisoformat(
+                        disc_date_str.replace('Z', '+00:00')
+                    )
+                except Exception:
+                    pass
+
+            # Parse amount
+            amount_str = raw.get('amount', '$1,001 - $15,000')
+            low, high, estimated = self._parse_amount_range(amount_str)
+
+            # Generate ID
+            trade_id = f"uw_{politician_name}_{ticker}_{tx_date.date()}"
+            trade_id = re.sub(r'[^a-zA-Z0-9_]', '', trade_id)
+
+            return CongressionalTrade(
+                id=trade_id,
+                politician_name=politician_name,
+                chamber=Chamber.BOTH,  # UW doesn't always specify
+                party=Party.ANY,
+                state="",
+                ticker=ticker,
+                asset_name=raw.get('asset_name', ticker),
+                transaction_type=tx_type,
+                transaction_date=tx_date,
+                disclosure_date=disc_date,
+                amount_range_low=low,
+                amount_range_high=high,
+                amount_estimated=estimated,
+                source="unusual_whales",
+            )
+        except Exception as e:
+            logger.debug(f"Error parsing UW trade: {e}")
+            return None
 
     def should_copy_trade(self, trade: CongressionalTrade) -> tuple[bool, float, List[str]]:
         """

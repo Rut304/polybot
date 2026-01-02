@@ -115,6 +115,7 @@ from src.strategies.selective_whale_copy import SelectiveWhaleCopyStrategy
 from src.strategies.ai_superforecasting import AISuperforecastingStrategy, AIForecast
 from src.strategies.news_arbitrage import NewsArbitrageStrategy, NewsArbOpportunity
 from src.strategies.high_conviction import HighConvictionStrategy, Signal
+from src.strategies.spike_hunter import SpikeHunterStrategy, SpikeOpportunity, create_spike_hunter_from_config
 # Stock strategies (require Alpaca)
 from src.strategies.sector_rotation import SectorRotationStrategy
 from src.strategies.dividend_growth import DividendGrowthStrategy
@@ -275,6 +276,9 @@ class PolybotRunner:
 
         # AI Superforecasting - Gemini-powered market analysis
         self.ai_superforecasting: Optional[AISuperforecastingStrategy] = None
+
+        # Spike Hunter - detect and fade rapid price moves
+        self.spike_hunter: Optional[SpikeHunterStrategy] = None
 
         # ==============================================
         # ADVANCED FRAMEWORK MODULES (Phase 1)
@@ -501,6 +505,73 @@ class PolybotRunner:
 
         self.high_conviction_strategy.add_signal(market_id, signal)
 
+    async def _handle_spike_opportunity(self, opp: SpikeOpportunity):
+        """Handle spike opportunity detected by Spike Hunter strategy."""
+        logger.info(
+            f"⚡ SPIKE DETECTED: {opp.spike_type.value} on {opp.market_id[:30]}..."
+        )
+        logger.info(
+            f"  📈 Magnitude: {opp.spike_magnitude_pct:.1f}% in "
+            f"{opp.spike_duration_sec:.1f}s"
+        )
+        logger.info(
+            f"  💰 Entry: {opp.entry_side} @ ${opp.entry_price:.3f} | "
+            f"Target: ${opp.target_price:.3f}"
+        )
+
+        # Log to database
+        try:
+            self.db.log_opportunity({
+                "id": opp.id,
+                "buy_platform": opp.platform,
+                "sell_platform": opp.platform,
+                "buy_market_id": opp.market_id,
+                "sell_market_id": opp.market_id,
+                "buy_market_name": opp.market_title[:200],
+                "sell_market_name": f"Spike {opp.spike_type.value}",
+                "buy_price": float(opp.entry_price),
+                "sell_price": float(opp.target_price),
+                "profit_percent": float(opp.expected_profit_pct),
+                "total_profit": float(
+                    opp.position_size_usd * opp.expected_profit_pct / 100
+                ),
+                "max_size": float(opp.position_size_usd),
+                "confidence": 0.7,  # Spike trading has moderate confidence
+                "strategy": "spike_hunter",
+                "detected_at": opp.detected_at.isoformat(),
+                "status": "detected",
+            })
+        except Exception as e:
+            logger.error(f"Error logging spike opportunity: {e}")
+
+        # Execute paper trade in simulation mode
+        if self.simulation_mode and self.paper_trader:
+            try:
+                # Paper trade the spike
+                result = await self.paper_trader.execute_paper_trade(
+                    strategy="spike_hunter",
+                    platform=opp.platform,
+                    market_id=opp.market_id,
+                    market_title=opp.market_title,
+                    side=opp.entry_side,
+                    price=opp.entry_price,
+                    size_usd=opp.position_size_usd,
+                    confidence=0.7,
+                )
+                if result.get("success"):
+                    logger.info(
+                        f"  ✅ Paper trade executed: {result.get('shares', 0):.2f} "
+                        f"shares @ ${result.get('fill_price', 0):.3f}"
+                    )
+                    # Enter position in spike hunter for tracking
+                    self.spike_hunter.enter_position(opp)
+                else:
+                    logger.warning(
+                        f"  ⚠️ Paper trade failed: {result.get('reason', 'Unknown')}"
+                    )
+            except Exception as e:
+                logger.error(f"Error executing spike paper trade: {e}")
+
     async def initialize(self):
         """Initialize all enabled features."""
         logger.info(f"Initializing PolyBot features (User: {self.user_id or 'Global'})...")
@@ -665,9 +736,22 @@ class PolybotRunner:
                 scan_interval_sec=self.config.trading.news_scan_interval_sec,
                 keywords=keywords,
                 on_opportunity=self._handle_news_opportunity,
+                # Pass news API keys for enhanced coverage
+                news_api_key=self.news_api_key,
+                finnhub_api_key=self.finnhub_api_key,
+                twitter_bearer_token=self.twitter_bearer_token,
             )
             logger.info("✓ News Arbitrage initialized (5-30% per event)")
             logger.info(f"  🔑 Keywords: {keywords_str[:50]}...")
+            # Log which news sources are enabled
+            sources = ["RSS"]
+            if self.news_api_key:
+                sources.append("NewsAPI")
+            if self.finnhub_api_key:
+                sources.append("Finnhub")
+            if self.twitter_bearer_token:
+                sources.append("Twitter/X")
+            logger.info(f"  📰 News sources: {', '.join(sources)}")
         else:
             logger.info("⏸️ News Arbitrage DISABLED")
 
@@ -1626,6 +1710,33 @@ class PolybotRunner:
             logger.info("  ♻️ Recycling capital from locked high-prob positions")
         else:
             logger.info("⏸️ Polymarket Liquidation Bot DISABLED")
+
+        # Initialize Spike Hunter Strategy (HIGH PRIORITY - $5K-100K/month)
+        # Detects 2%+ price moves in <30s and fades them for mean reversion
+        spike_hunter_enabled = getattr(
+            self.config.trading, 'enable_spike_hunter', True
+        )
+        if spike_hunter_enabled and self.polymarket_client:
+            self.spike_hunter = await create_spike_hunter_from_config(
+                self.config.trading
+            )
+            # Set the opportunity callback to handle detected spikes
+            self.spike_hunter.set_opportunity_callback(
+                self._handle_spike_opportunity
+            )
+            logger.info("✓ Spike Hunter initialized (HIGH PRIORITY)")
+            logger.info(
+                f"  ⚡ Spike threshold: {self.config.trading.spike_min_magnitude_pct}% "
+                f"in {self.config.trading.spike_max_duration_sec}s"
+            )
+            logger.info(
+                f"  💰 Max position: ${self.config.trading.spike_max_position_usd} | "
+                f"Max concurrent: {self.config.trading.spike_max_concurrent}"
+            )
+        elif spike_hunter_enabled:
+            logger.info("⏸️ Spike Hunter DISABLED (no Polymarket client)")
+        else:
+            logger.info("⏸️ Spike Hunter DISABLED")
 
         # Initialize paper trader for simulation mode
         if self.simulation_mode:
@@ -3336,6 +3447,143 @@ class PolybotRunner:
             logger.info("  🧠 Gemini-powered market analysis")
             await self.ai_superforecasting.run()
 
+    async def run_spike_hunter(self):
+        """
+        Run Spike Hunter Strategy (HIGH PRIORITY - $5K-100K/month).
+        
+        Continuously polls Polymarket prices and feeds them to the spike detector.
+        When a 2%+ move in <30s is detected, fades the spike for mean reversion.
+        """
+        if not getattr(
+            self.config.trading, 'enable_spike_hunter', True
+        ):
+            logger.info("⏸️ Spike Hunter DISABLED")
+            return
+
+        if not self.spike_hunter:
+            logger.warning("⚠️ Spike Hunter not initialized")
+            return
+
+        if not self.polymarket_client:
+            logger.warning("⚠️ Spike Hunter needs Polymarket client")
+            return
+
+        logger.info("▶️ Starting Spike Hunter Strategy...")
+        logger.info(
+            f"  ⚡ Detecting {self.config.trading.spike_min_magnitude_pct}%+ "
+            f"moves in {self.config.trading.spike_max_duration_sec}s"
+        )
+
+        # Price polling interval - fast for spike detection (1-2 seconds)
+        poll_interval = 2.0
+
+        while self._running:
+            try:
+                # Fetch active markets from Polymarket
+                markets = await self.polymarket_client.get_markets(
+                    limit=100,
+                    active_only=True,
+                    min_liquidity=5000,  # Only liquid markets for spike trading
+                )
+
+                # Update spike hunter with current prices
+                for market in markets:
+                    market_id = market.get('conditionId') or market.get('id')
+                    if not market_id:
+                        continue
+
+                    # Get current price (midpoint of best bid/ask, or last trade)
+                    price = None
+                    if 'outcomePrices' in market and market['outcomePrices']:
+                        # Use YES price
+                        try:
+                            price = float(market['outcomePrices'][0])
+                        except (IndexError, ValueError, TypeError):
+                            pass
+
+                    if price is None:
+                        # Try lastTradePrice
+                        price = market.get('lastTradePrice')
+                        if price:
+                            try:
+                                price = float(price)
+                            except (ValueError, TypeError):
+                                price = None
+
+                    if price is not None and 0 < price < 1:
+                        # Get volume for better spike detection
+                        volume = float(market.get('volume24hr', 0) or 0)
+                        
+                        # Feed price to spike hunter
+                        opportunity = self.spike_hunter.update_price(
+                            market_id=market_id,
+                            price=price,
+                            volume=volume,
+                        )
+                        
+                        # If opportunity detected, it's already handled by callback
+                        # But we can also explicitly check here
+                        if opportunity:
+                            logger.debug(
+                                f"Spike opportunity detected: {opportunity.id}"
+                            )
+
+                # Also manage existing positions (check for exits)
+                await self._manage_spike_positions()
+
+                await asyncio.sleep(poll_interval)
+
+            except Exception as e:
+                logger.error(f"Spike hunter error: {e}")
+                await asyncio.sleep(10)  # Wait before retry
+
+    async def _manage_spike_positions(self):
+        """Manage open spike positions - check for exits."""
+        if not self.spike_hunter:
+            return
+
+        # Get active positions
+        positions = list(self.spike_hunter._active_positions.values())
+
+        for pos in positions:
+            try:
+                # Fetch current price for the market
+                market_data = await self.polymarket_client.get_market(
+                    pos.opportunity.market_id
+                )
+                if not market_data:
+                    continue
+
+                # Get current price
+                current_price = None
+                if 'outcomePrices' in market_data and market_data['outcomePrices']:
+                    try:
+                        current_price = float(market_data['outcomePrices'][0])
+                    except (IndexError, ValueError, TypeError):
+                        pass
+
+                if current_price is None:
+                    continue
+
+                # Update position and check for exit
+                exit_reason = self.spike_hunter.update_position(
+                    pos.opportunity.id, current_price
+                )
+
+                if exit_reason:
+                    logger.info(
+                        f"🎯 Spike position exit: {exit_reason} - "
+                        f"{pos.opportunity.market_id[:30]}..."
+                    )
+
+                    # Record exit in paper trader
+                    if self.simulation_mode and self.paper_trader:
+                        # The position tracks P&L internally
+                        pass  # Stats already updated by spike_hunter
+
+            except Exception as e:
+                logger.debug(f"Error managing spike position: {e}")
+
     async def run_position_manager(self):
         """Run position manager."""
         if self.position_manager:
@@ -3774,6 +4022,13 @@ class PolybotRunner:
         )
         if ai_forecast and self.ai_superforecasting:
             tasks.append(asyncio.create_task(self.run_ai_superforecasting()))
+
+        # Run Spike Hunter (HIGH PRIORITY - $5K-100K/month)
+        spike_enabled = getattr(
+            self.config.trading, 'enable_spike_hunter', True
+        )
+        if spike_enabled and self.spike_hunter:
+            tasks.append(asyncio.create_task(self.run_spike_hunter()))
 
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))

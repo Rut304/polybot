@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Get per-user credentials from user_exchange_credentials
     const { data, error } = await supabaseAdmin
       .from('user_exchange_credentials')
       .select('exchange, account_id, is_paper, last_authenticated, created_at')
@@ -59,18 +60,73 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
+    // ALSO check polybot_secrets for this user (Admin Secrets tab)
+    // This ensures Exchange Connections shows "connected" if keys are in Admin Secrets
+    const { data: secretsData } = await supabaseAdmin
+      .from('polybot_secrets')
+      .select('key_name, is_configured')
+      .eq('user_id', authResult.user_id)
+      .in('key_name', [
+        'ALPACA_API_KEY', 'ALPACA_PAPER_API_KEY', 'ALPACA_LIVE_API_KEY',
+        'BINANCE_API_KEY', 'BYBIT_API_KEY', 'OKX_API_KEY', 'KRAKEN_API_KEY',
+        'COINBASE_API_KEY', 'KUCOIN_API_KEY', 'IBKR_USERNAME', 'WEBULL_API_KEY',
+        'HYPERLIQUID_PRIVATE_KEY'
+      ]);
+
+    // Map secret keys to exchange names
+    const secretKeyToExchange: Record<string, string> = {
+      'ALPACA_API_KEY': 'alpaca',
+      'ALPACA_PAPER_API_KEY': 'alpaca',
+      'ALPACA_LIVE_API_KEY': 'alpaca',
+      'BINANCE_API_KEY': 'binance',
+      'BYBIT_API_KEY': 'bybit',
+      'OKX_API_KEY': 'okx',
+      'KRAKEN_API_KEY': 'kraken',
+      'COINBASE_API_KEY': 'coinbase',
+      'KUCOIN_API_KEY': 'kucoin',
+      'IBKR_USERNAME': 'ibkr',
+      'WEBULL_API_KEY': 'webull',
+      'HYPERLIQUID_PRIVATE_KEY': 'hyperliquid',
+    };
+
+    // Build set of exchanges connected via Admin Secrets
+    const exchangesFromSecrets = new Set<string>();
+    for (const secret of (secretsData || [])) {
+      if (secret.is_configured) {
+        const exchange = secretKeyToExchange[secret.key_name];
+        if (exchange) exchangesFromSecrets.add(exchange);
+      }
+    }
+
     // Return list of connected exchanges (no secrets exposed)
     const connections = (data || []).map((cred: any) => ({
       exchange: cred.exchange,
       account_id: cred.account_id,
       is_paper: cred.is_paper,
       connected: true,
+      source: 'exchange_credentials',
       last_authenticated: cred.last_authenticated,
       created_at: cred.created_at,
     }));
 
-    // Add unconnected exchanges
+    // Add exchanges that are connected via Admin Secrets but not in user_exchange_credentials
     const connectedExchanges = new Set(connections.map((c: any) => c.exchange));
+    for (const exchange of exchangesFromSecrets) {
+      if (!connectedExchanges.has(exchange)) {
+        connections.push({
+          exchange,
+          account_id: null,
+          is_paper: true, // Assume paper unless specified
+          connected: true,
+          source: 'admin_secrets',
+          last_authenticated: null,
+          created_at: null,
+        });
+        connectedExchanges.add(exchange);
+      }
+    }
+
+    // Add unconnected exchanges
     for (const exchange of SUPPORTED_EXCHANGES) {
       if (!connectedExchanges.has(exchange)) {
         connections.push({
@@ -78,6 +134,7 @@ export async function GET(request: NextRequest) {
           account_id: null,
           is_paper: true,
           connected: false,
+          source: null,
           last_authenticated: null,
           created_at: null,
         });
@@ -93,7 +150,7 @@ export async function GET(request: NextRequest) {
       action: 'user_credentials.view',
       resource_type: 'user_exchange_credentials',
       resource_id: 'all',
-      details: { connected_count: data?.length || 0 },
+      details: { connected_count: connections.filter((c: any) => c.connected).length },
       ip_address: metadata.ip_address,
       user_agent: metadata.user_agent,
       severity: 'info',

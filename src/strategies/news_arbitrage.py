@@ -38,6 +38,8 @@ class NewsSource(Enum):
     REUTERS = "reuters"
     POLYMARKET = "polymarket_activity"  # Watch for sudden volume
     MANUAL = "manual"
+    NEWSAPI = "newsapi"  # NewsAPI.org headlines
+    FINNHUB = "finnhub"  # Finnhub market news
 
 
 class AlertSeverity(Enum):
@@ -343,10 +345,36 @@ class NewsArbitrageStrategy:
         scan_interval_sec: int = 30,
         keywords: Optional[Set[str]] = None,
         on_opportunity: Optional[Callable] = None,
+        # News API keys for enhanced coverage
+        news_api_key: Optional[str] = None,
+        finnhub_api_key: Optional[str] = None,
+        twitter_bearer_token: Optional[str] = None,
     ):
         self.poly_client = polymarket_client
         self.kalshi_client = kalshi_client
         self.db = db_client
+
+        # News API keys (pulled from secrets if not passed directly)
+        if db_client:
+            self.news_api_key = news_api_key or db_client.get_secret(
+                "NEWS_API_KEY"
+            )
+            self.finnhub_api_key = finnhub_api_key or db_client.get_secret(
+                "FINNHUB_API_KEY"
+            )
+            self.twitter_bearer_token = (
+                twitter_bearer_token or
+                db_client.get_secret("TWITTER_BEARER_TOKEN")
+            )
+        else:
+            import os
+            self.news_api_key = news_api_key or os.getenv("NEWS_API_KEY")
+            self.finnhub_api_key = (
+                finnhub_api_key or os.getenv("FINNHUB_API_KEY")
+            )
+            self.twitter_bearer_token = (
+                twitter_bearer_token or os.getenv("TWITTER_BEARER_TOKEN")
+            )
 
         # Configuration
         self.min_spread_pct = Decimal(str(min_spread_pct))
@@ -384,11 +412,14 @@ class NewsArbitrageStrategy:
 
     async def scan_for_events(self) -> List[NewsEvent]:
         """
-        Scan for news events.
+        Scan for news events from all available sources.
 
-        V2 Implementation:
+        V3 Implementation:
         1. Poll RSS feeds (CoinDesk, Politico)
         2. Check Polymarket volume spikes
+        3. Fetch NewsAPI headlines (if key available)
+        4. Fetch Finnhub market news (if key available)
+        5. Fetch Twitter breaking news (if bearer token available)
         """
         events = []
 
@@ -406,14 +437,43 @@ class NewsArbitrageStrategy:
         except Exception as e:
             logger.debug(f"Error checking Polymarket volume: {e}")
 
+        # 3. Fetch NewsAPI headlines (if API key available)
+        try:
+            newsapi_events = await self._fetch_newsapi_headlines()
+            events.extend(newsapi_events)
+            if newsapi_events:
+                logger.info(f"📰 NewsAPI: {len(newsapi_events)} events")
+        except Exception as e:
+            logger.debug(f"Error fetching NewsAPI: {e}")
+
+        # 4. Fetch Finnhub market news (if API key available)
+        try:
+            finnhub_events = await self._fetch_finnhub_news()
+            events.extend(finnhub_events)
+            if finnhub_events:
+                logger.info(f"📈 Finnhub: {len(finnhub_events)} events")
+        except Exception as e:
+            logger.debug(f"Error fetching Finnhub: {e}")
+
+        # 5. Fetch Twitter breaking news (if bearer token available)
+        try:
+            twitter_events = await self._fetch_twitter_news()
+            events.extend(twitter_events)
+            if twitter_events:
+                logger.info(f"🐦 Twitter: {len(twitter_events)} events")
+        except Exception as e:
+            logger.debug(f"Error fetching Twitter: {e}")
+
         if events:
-            logger.info(f"Found {len(events)} new events")
+            logger.info(f"Found {len(events)} total new events")
             for event in events:
                 self.stats.events_detected += 1
                 logger.info(
                     f"🔔 NEWS EVENT: {event.headline[:60]}... "
                     f"(source: {event.source.value})"
                 )
+
+        return events
 
         return events
 
@@ -454,7 +514,7 @@ class NewsArbitrageStrategy:
                         if matches and volume > 100000:  # >$100k volume
                             events.append(NewsEvent(
                                 source=NewsSource.POLYMARKET,
-                                headline=f"High volume: {m.get('question', '')[:100]}",
+                                headline=f"High volume: {m.get('question', '')}",
                                 keywords=matches,
                                 detected_at=datetime.now(timezone.utc),
                                 severity=AlertSeverity.MEDIUM,
@@ -462,6 +522,151 @@ class NewsArbitrageStrategy:
 
         except Exception as e:
             logger.debug(f"Error in volume spike check: {e}")
+
+        return events
+
+    async def _fetch_newsapi_headlines(self) -> List[NewsEvent]:
+        """
+        Fetch breaking news from NewsAPI.org.
+        Rate limit: 100 requests/day (free), 250k/day (paid)
+        """
+        events = []
+        if not self.news_api_key:
+            return events
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Fetch top headlines for relevant categories
+                async with session.get(
+                    "https://newsapi.org/v2/top-headlines",
+                    params={
+                        "country": "us",
+                        "category": "business",
+                        "pageSize": 50,
+                    },
+                    headers={"X-Api-Key": self.news_api_key}
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        for article in data.get("articles", []):
+                            title = article.get("title", "")
+                            desc = article.get("description", "") or ""
+                            text = f"{title} {desc}".lower()
+
+                            matches = [
+                                kw for kw in self.keywords
+                                if kw in text
+                            ]
+                            if matches:
+                                events.append(NewsEvent(
+                                    source=NewsSource.NEWSAPI,
+                                    headline=title[:200],
+                                    keywords=matches,
+                                    detected_at=datetime.now(timezone.utc),
+                                    severity=AlertSeverity.MEDIUM,
+                                ))
+        except Exception as e:
+            logger.debug(f"Error fetching NewsAPI: {e}")
+
+        return events
+
+    async def _fetch_finnhub_news(self) -> List[NewsEvent]:
+        """
+        Fetch market news from Finnhub.
+        Rate limit: 60 calls/minute (free), unlimited (paid)
+        """
+        events = []
+        if not self.finnhub_api_key:
+            return events
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Fetch general market news
+                async with session.get(
+                    "https://finnhub.io/api/v1/news",
+                    params={
+                        "category": "general",
+                        "token": self.finnhub_api_key,
+                    }
+                ) as resp:
+                    if resp.status == 200:
+                        articles = await resp.json()
+                        for article in articles[:30]:
+                            headline = article.get("headline", "")
+                            summary = article.get("summary", "") or ""
+                            text = f"{headline} {summary}".lower()
+
+                            matches = [
+                                kw for kw in self.keywords
+                                if kw in text
+                            ]
+                            if matches:
+                                events.append(NewsEvent(
+                                    source=NewsSource.FINNHUB,
+                                    headline=headline[:200],
+                                    keywords=matches,
+                                    detected_at=datetime.now(timezone.utc),
+                                    severity=AlertSeverity.MEDIUM,
+                                ))
+        except Exception as e:
+            logger.debug(f"Error fetching Finnhub: {e}")
+
+        return events
+
+    async def _fetch_twitter_news(self) -> List[NewsEvent]:
+        """
+        Fetch breaking news from Twitter/X using bearer token.
+        Searches for market-moving tweets from verified accounts.
+        """
+        events = []
+        if not self.twitter_bearer_token:
+            return events
+
+        # Accounts known for breaking market news
+        search_queries = [
+            "breaking news stock market",
+            "breaking news economy",
+            "breaking news crypto",
+            "breaking news politics election",
+        ]
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.twitter_bearer_token}"
+                }
+
+                for query in search_queries[:2]:  # Limit to avoid rate limit
+                    async with session.get(
+                        "https://api.twitter.com/2/tweets/search/recent",
+                        params={
+                            "query": f"{query} -is:retweet lang:en",
+                            "max_results": 20,
+                            "tweet.fields": "created_at,author_id",
+                        },
+                        headers=headers
+                    ) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            for tweet in data.get("data", []):
+                                text = tweet.get("text", "").lower()
+
+                                matches = [
+                                    kw for kw in self.keywords
+                                    if kw in text
+                                ]
+                                if matches:
+                                    events.append(NewsEvent(
+                                        source=NewsSource.TWITTER,
+                                        headline=tweet.get("text", "")[:200],
+                                        keywords=matches,
+                                        detected_at=datetime.now(
+                                            timezone.utc
+                                        ),
+                                        severity=AlertSeverity.HIGH,
+                                    ))
+        except Exception as e:
+            logger.debug(f"Error fetching Twitter: {e}")
 
         return events
 

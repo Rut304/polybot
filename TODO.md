@@ -228,6 +228,24 @@ Live trading IS completely wired up:
 
 ## 🟢 P2 - NICE TO HAVE (Future)
 
+### Limit Order Management
+
+- [ ] **Dashboard page to view/manage open limit orders across all exchanges**
+  - Show pending buy/sell limits for Alpaca, Binance, Kalshi, Polymarket
+  - Filter by platform, asset type, direction
+  - Bulk cancel functionality
+  - Price distance from current (how close to fill)
+- [ ] **Modify existing limit orders** without canceling
+  - Adjust price, quantity
+  - Set new expiration
+- [ ] **Limit order analytics**
+  - Fill rate by time of day
+  - Average slippage vs limit price
+  - Optimal limit spread recommendations
+- [ ] **Smart limit order placement**
+  - Auto-suggest limit price based on order book depth
+  - Trail limit orders toward fill
+
 ### Forecast Tournaments
 
 - [ ] Weekly prediction competitions

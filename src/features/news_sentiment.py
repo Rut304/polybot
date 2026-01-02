@@ -604,6 +604,12 @@ class NewsSentimentEngine:
                 # Fetch all news
                 news = await self.fetch_all_news()
 
+                # Save news to database for Admin UI
+                if news:
+                    saved_count = await self._save_news_to_db(news)
+                    if saved_count > 0:
+                        logger.info(f"💾 Saved {saved_count} news items to DB")
+
                 # Match to markets and generate alerts
                 alerts = await self.match_news_to_markets(news, markets)
 

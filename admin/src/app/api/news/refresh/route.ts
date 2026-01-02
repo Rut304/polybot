@@ -327,14 +327,78 @@ async function fetchReddit(): Promise<any[]> {
   }
 }
 
+// Fetch from Twitter/X (using bearer token)
+async function fetchTwitter(bearerToken: string): Promise<any[]> {
+  try {
+    // Search for market-relevant tweets from verified sources
+    const queries = [
+      'stock market breaking',
+      'crypto news breaking',
+      'federal reserve announcement',
+    ];
+    
+    const allTweets: any[] = [];
+    
+    for (const query of queries) {
+      try {
+        const response = await fetch(
+          `https://api.twitter.com/2/tweets/search/recent?query=${encodeURIComponent(query + ' -is:retweet lang:en')}&max_results=15&tweet.fields=created_at,author_id,public_metrics`,
+          {
+            headers: {
+              'Authorization': `Bearer ${bearerToken}`,
+            },
+          }
+        );
+        
+        if (!response.ok) {
+          console.log(`Twitter query "${query}": ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        
+        for (const tweet of data.data || []) {
+          const text = tweet.text || '';
+          const { sentiment, score } = analyzeSentiment(text);
+          
+          allTweets.push({
+            id: `twitter_${tweet.id || Date.now()}_${Math.random().toString(36).slice(2)}`,
+            source: 'twitter',
+            title: text.slice(0, 100) + (text.length > 100 ? '...' : ''),
+            content: text,
+            url: `https://twitter.com/i/web/status/${tweet.id}`,
+            author: tweet.author_id || null,
+            sentiment,
+            sentiment_score: score,
+            keywords: extractKeywords(text),
+            published_at: tweet.created_at || new Date().toISOString(),
+            fetched_at: new Date().toISOString(),
+          });
+        }
+        
+        // Delay between queries to avoid rate limiting
+        await new Promise(r => setTimeout(r, 500));
+      } catch (queryError) {
+        console.error(`Twitter query "${query}" error:`, queryError);
+      }
+    }
+    
+    return allTweets.slice(0, 20);
+  } catch (error) {
+    console.error('Twitter fetch error:', error);
+    return [];
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Get API keys from Supabase (check multiple possible key names)
-    const [finnhubKey, newsApiKey1, newsApiKey2, alphaVantageKey] = await Promise.all([
+    const [finnhubKey, newsApiKey1, newsApiKey2, alphaVantageKey, twitterBearerToken] = await Promise.all([
       getSecret('FINNHUB_API_KEY'),
       getSecret('NEWSAPI_KEY'),
       getSecret('NEWS_API_KEY'),
       getSecret('ALPHA_VANTAGE_API_KEY'),
+      getSecret('TWITTER_BEARER_TOKEN'),
     ]);
     
     const newsApiKey = newsApiKey1 || newsApiKey2;
@@ -343,12 +407,13 @@ export async function POST(request: NextRequest) {
     const allNews: any[] = [];
     
     // Fetch from all sources in parallel
-    const [finnhubNews, newsApiNews, polymarketNews, alphaVantageNews, redditNews] = await Promise.all([
+    const [finnhubNews, newsApiNews, polymarketNews, alphaVantageNews, redditNews, twitterNews] = await Promise.all([
       finnhubKey ? fetchFinnhub(finnhubKey) : Promise.resolve([]),
       newsApiKey ? fetchNewsAPI(newsApiKey) : Promise.resolve([]),
       fetchPolymarketActivity(),
       alphaVantageKey ? fetchAlphaVantage(alphaVantageKey) : Promise.resolve([]),
       fetchReddit(),
+      twitterBearerToken ? fetchTwitter(twitterBearerToken) : Promise.resolve([]),
     ]);
     
     // Collect results
@@ -378,6 +443,13 @@ export async function POST(request: NextRequest) {
     
     allNews.push(...redditNews);
     results.push({ source: 'reddit', count: redditNews.length });
+    
+    if (twitterBearerToken) {
+      allNews.push(...twitterNews);
+      results.push({ source: 'twitter', count: twitterNews.length });
+    } else {
+      results.push({ source: 'twitter', count: 0, error: 'API key not configured' });
+    }
     
     // Insert into database (upsert to avoid duplicates)
     if (allNews.length > 0) {
