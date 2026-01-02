@@ -10,7 +10,7 @@
 
 ## 🚨 READ THIS FIRST - NEW AGENT ONBOARDING
 
-Welcome to PolyBot! This is a sophisticated automated trading platform. **DO NOT make changes until you understand the system.** This document is your bible.
+Welcome to PolyBot! This is a sophisticated automated trading platform with 35+ strategies across 12 exchanges. **DO NOT make changes until you understand the system.** This document is your bible.
 
 ### Required Reading Order (30 min investment)
 
@@ -56,7 +56,7 @@ git push origin main
 ### Rule 2: Database Changes Need Migration Scripts
 
 Never modify the database schema directly. Always:
-1. Create a SQL file in `/scripts/` 
+1. Create a SQL file in `/scripts/`
 2. Test locally first
 3. Run via Supabase SQL Editor OR use `python scripts/run_sql.py`
 4. Document in this handoff
@@ -110,7 +110,8 @@ git push origin main  # Only if tests pass
 │   │  • polybot_status          - Bot health/heartbeat                    │   │
 │   │  • polybot_profiles        - User profiles + roles                   │   │
 │   │  • user_secrets            - Encrypted API keys                      │   │
-│   │  • user_exchange_credentials - Per-user exchange OAuth               │   │
+│   │  • polybot_referrals       - Referral program tracking               │   │
+│   │  • polybot_backtests       - Strategy backtesting results            │   │
 │   │                                                                       │   │
 │   │  MULTI-TENANT: RLS (Row Level Security) ENABLED ✓                    │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
@@ -131,120 +132,40 @@ git push origin main  # Only if tests pass
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Data Flow
-
-```
-User Action (UI) 
-    → API Route (/api/*)
-    → Supabase Query (with RLS)
-    → Response to UI
-
-Bot Action:
-    → Strategy Signals
-    → Trade Execution (exchange APIs)
-    → Log to Supabase (polybot_simulated_trades)
-    → Update polybot_status (heartbeat)
-```
-
 ---
 
-## 📁 CODEBASE STRUCTURE
+## 📁 KEY PAGES & FEATURES
 
-### Python Bot (`/src/`)
+### Admin Dashboard Pages (50+)
 
-```
-src/
-├── bot_runner.py              # Main orchestrator (4000+ lines) - THE BRAIN
-├── config.py                  # Configuration manager (1500+ lines)
-├── manager.py                 # Supabase data manager
-├── logging_handler.py         # Structured logging
-├── bootstrap_config.py        # Startup configuration
-│
-├── exchanges/                 # Exchange integrations
-│   ├── __init__.py           # Exchange registry
-│   ├── polymarket_client.py  # Polymarket CLOB + Gamma API
-│   ├── kalshi_client.py      # Kalshi REST API
-│   ├── alpaca_client.py      # Alpaca stock trading
-│   ├── ibkr_web_client.py    # IBKR Web API (OAuth) ← PREFERRED
-│   ├── binance_client.py     # Binance spot/futures
-│   ├── coinbase_client.py    # Coinbase Advanced Trade
-│   └── ... (12 total)
-│
-├── strategies/                # Trading strategies (35+)
-│   ├── arbitrage_single.py   # Single-platform arbitrage
-│   ├── arbitrage_cross.py    # Cross-platform arbitrage
-│   ├── whale_copy_trading.py # Follow whale wallets
-│   ├── crypto_15min_scalping.py # High-frequency scalping
-│   ├── ai_superforecasting.py # Gemini AI predictions
-│   ├── momentum_*.py         # Various momentum strategies
-│   ├── mean_reversion_*.py   # Mean reversion strategies
-│   └── ... (35+ total)
-│
-├── services/                  # Shared services
-│   └── unified_market_data.py # Multi-source market data
-│
-└── database/                  # Database utilities
-    ├── client.py             # Supabase client wrapper
-    └── sql/                  # Migration scripts
-```
+| Page | Path | Status | Purpose |
+|------|------|--------|---------|
+| Dashboard | `/dashboard` | ✅ Working | Main trading overview |
+| Settings | `/settings` | ✅ Working | Bot configuration (2357 lines) |
+| Strategies | `/strategies` | ✅ Working | Strategy management |
+| Analytics | `/analytics` | ✅ Working | Performance charts |
+| Parlays | `/parlays` | ✅ Working | Parlay maker (paper trading working) |
+| Backtesting | `/backtesting` | ✅ Built | Strategy backtesting |
+| Referrals | `/referrals` | ✅ Built | Referral program |
+| Taxes | `/taxes` | ✅ Built | Tax report generator |
+| News | `/news` | ⚠️ Needs Config | News feed from sources |
+| Secrets | `/secrets` | ✅ Working | API key management |
+| Users | `/users` | ✅ Working | Admin only |
+| Pricing | `/pricing` | ✅ Working | Subscription tiers |
 
-### Admin Dashboard (`/admin/`)
+### Features Status
 
-```
-admin/
-├── src/
-│   ├── app/                   # Next.js 14 App Router (50+ pages)
-│   │   ├── page.tsx          # Landing/redirect
-│   │   ├── dashboard/        # Main dashboard
-│   │   ├── settings/         # Bot configuration (2357 lines!)
-│   │   ├── strategies/       # Strategy management
-│   │   ├── analytics/        # Performance charts
-│   │   ├── docs/             # Strategy documentation
-│   │   ├── diagnostics/      # System health
-│   │   ├── secrets/          # API key management
-│   │   ├── users/            # User management (admin)
-│   │   └── api/              # 25+ API routes
-│   │
-│   ├── components/            # Reusable components
-│   │   ├── PlatformSetupWizard.tsx # Exchange setup guide (NEW)
-│   │   ├── BotStartCTA.tsx   # Start bot prompt (NEW)
-│   │   ├── Header.tsx        # Navigation header
-│   │   └── ... (30+ components)
-│   │
-│   └── lib/                   # Utilities
-│       ├── supabase.ts       # Supabase client
-│       ├── hooks.ts          # React Query hooks
-│       ├── auth.tsx          # Auth context
-│       └── useTier.tsx       # Subscription tiers
-│
-├── e2e/                       # Playwright E2E tests
-│   ├── schema-validation.spec.ts # NEW: DB schema checks
-│   ├── metrics-accuracy.spec.ts  # Critical: number accuracy
-│   ├── data-verification.spec.ts # Critical: data consistency
-│   └── ... (16 spec files, 261+ tests)
-│
-└── public/
-    └── docs/
-        └── platforms-reference.md # Platform setup guide
-```
-
-### Scripts & DevOps
-
-```
-scripts/
-├── deploy.sh                  # Bot deployment to Lightsail
-├── bump-version.sh            # Version management
-├── validate_schema.py         # NEW: Schema mismatch detection
-├── auto_fix_schema.py         # NEW: Generate fix SQL
-├── run_sql.py                 # NEW: Execute SQL via Management API
-├── run_sql_direct.py          # NEW: Execute SQL via direct connection
-└── *.sql                      # Database migrations (50+ files)
-
-.github/workflows/
-├── schema-validation.yml      # NEW: CI/CD schema checks (notify only)
-├── deploy-bot.yml             # Bot deployment workflow
-└── ... (other workflows)
-```
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Paper Trading | ✅ Working | Simulation mode active |
+| Live Trading | ⏳ Ready | Needs 2-week validation |
+| Parlay Maker | ✅ Working | Paper trading side functional |
+| Strategy Backtesting | ✅ Built | `/backtesting` page exists |
+| Referral Program | ✅ Built | `/referrals` page exists |
+| Tax Reports | ✅ Built | `/taxes` page exists |
+| News Feed | ⚠️ Needs Config | Need to enable all sources |
+| Mobile PWA | ❌ Not Started | Future enhancement |
+| Discord/Telegram Alerts | ❌ Not Started | Future enhancement |
 
 ---
 
@@ -254,38 +175,23 @@ scripts/
 
 | Category | Strategies | Risk Profile |
 |----------|------------|--------------|
-| **Prediction Market Arbitrage** | Single-platform, Cross-platform, BTC Bracket | Low |
-| **Crypto Scalping** | 15-min Scalping, Spike Hunter, Grid Trading | Medium-High |
-| **Momentum** | Stock Momentum, Sector Rotation, Earnings | Medium |
-| **Mean Reversion** | RSI, Pairs Trading, Dividend Growth | Medium |
-| **Copy Trading** | Whale Following, Congressional Tracker | Medium |
-| **AI-Powered** | Superforecasting (Gemini), News Sentiment | Medium |
-| **Options** | Covered Calls, Iron Condor, Wheel Strategy | Medium-High |
+| Prediction Market Arbitrage | Single-platform, Cross-platform, BTC Bracket | Low |
+| Crypto Scalping | 15-min Scalping, Spike Hunter, Grid Trading | Medium-High |
+| Momentum | Stock Momentum, Sector Rotation, Earnings | Medium |
+| Mean Reversion | RSI, Pairs Trading, Dividend Growth | Medium |
+| Copy Trading | Whale Following, Congressional Tracker | Medium |
+| AI-Powered | Superforecasting (Gemini), News Sentiment | Medium |
+| Options | Covered Calls, Iron Condor, Wheel Strategy | Medium-High |
 
 ### High-Confidence Strategies (Production Ready)
 
 | Strategy | Confidence | Expected APY | How It Works |
 |----------|------------|--------------|--------------|
-| **Single-Platform Arb** | 95% | 50-200% | Buy YES+NO when sum < $1 |
-| **Cross-Platform Arb** | 90% | 30-100% | Price diff Polymarket vs Kalshi |
-| **15-Min Crypto Scalping** | 90% | 50-200% | Quick trades on price spikes |
-| **BTC Bracket Arb** | 85% | 20-50% | Exploit bracket pricing |
-| **Funding Rate Arb** | 85% | 15-50% | Long spot, short perp when funding high |
-
-### Strategy Configuration
-
-All strategies configured via `polybot_config` table (349+ columns):
-
-```sql
--- Example: Enable arbitrage strategies
-UPDATE polybot_config SET 
-  enable_polymarket_single_arb = true,
-  enable_kalshi_single_arb = true,
-  enable_cross_platform_arb = true,
-  poly_single_min_profit_pct = 0.5,  -- 0.5% minimum profit
-  max_position_size = 500            -- $500 max per trade
-WHERE user_id = 'your-user-id';
-```
+| Single-Platform Arb | 95% | 50-200% | Buy YES+NO when sum < $1 |
+| Cross-Platform Arb | 90% | 30-100% | Price diff Polymarket vs Kalshi |
+| 15-Min Crypto Scalping | 90% | 50-200% | Quick trades on price spikes |
+| BTC Bracket Arb | 85% | 20-50% | Exploit bracket pricing |
+| Funding Rate Arb | 85% | 15-50% | Long spot, short perp when funding high |
 
 ---
 
@@ -299,40 +205,21 @@ SUPABASE_URL=https://ytaltvltxkkfczlvjgad.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...    # Service role (bypasses RLS)
 SUPABASE_ANON_KEY=eyJ...            # Public anon key
 SUPABASE_ACCESS_TOKEN=sbp_...       # Management API token
-SUPABASE_MANAGEMENT_TOKEN=sbp_...   # Same as above (alias)
 
 # Exchanges (examples)
 POLYMARKET_API_KEY=...
-POLYMARKET_SECRET=...
 KALSHI_API_KEY=...
 ALPACA_API_KEY=...
-ALPACA_API_SECRET=...
-IBKR_USERNAME=...
-IBKR_PASSWORD=...
-
-# Optional
-GEMINI_API_KEY=...                  # For AI Superforecasting
 ```
 
-### GitHub Secrets (CI/CD)
+### GitHub Secrets (CI/CD) - Updated Jan 1, 2026
 
-Required secrets in GitHub repo settings:
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY` (UPDATED Jan 1, 2026)
-- `SUPABASE_MANAGEMENT_TOKEN` (UPDATED Jan 1, 2026)
-- `SUPABASE_ACCESS_TOKEN` (UPDATED Jan 1, 2026)
+- `SUPABASE_SERVICE_ROLE_KEY` ✅ Updated
+- `SUPABASE_MANAGEMENT_TOKEN` ✅ Updated
+- `SUPABASE_ACCESS_TOKEN` ✅ Updated
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
-- `LIGHTSAIL_CONTAINER_NAME`
-
-### Vercel Environment Variables
-
-Set in Vercel project settings for admin-app:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `BOT_URL` (Lightsail container URL)
-- `VERCEL_DEPLOY_HOOK_URL` (optional, for redeploy button)
 
 ---
 
@@ -351,47 +238,21 @@ npx playwright test --ui
 
 # Run specific file
 npx playwright test schema-validation.spec.ts
-
-# Run specific test
-npx playwright test -g "should verify all config columns exist"
-
-# Show report
-npx playwright show-report
 ```
 
-### Test Coverage (261+ tests)
-
-| Spec File | Tests | Purpose |
-|-----------|-------|---------|
-| `schema-validation.spec.ts` | NEW | DB schema matches code |
-| `metrics-accuracy.spec.ts` | 57 | **CRITICAL**: Number accuracy |
-| `data-verification.spec.ts` | 57 | **CRITICAL**: Data consistency |
-| `settings.spec.ts` | 20 | Settings save correctly |
-| `trading.spec.ts` | 26 | Trading workflows |
-| `navigation.spec.ts` | 12 | Page routing |
-| `auth.spec.ts` | 12 | Login/logout flows |
-| `accessibility.spec.ts` | 24 | WCAG compliance |
-
-### Schema Validation (NEW!)
-
-We now have automated schema validation to prevent the `scalp_15min_entry_threshold` type errors:
+### Schema Validation
 
 ```bash
 # Run schema validator
 python scripts/validate_schema.py
 
-# If mismatches found, generate fix SQL
-python scripts/auto_fix_schema.py
-
-# Execute fix SQL
+# Execute fix SQL (ALREADY RUN Jan 1, 2026)
 python scripts/run_sql.py scripts/fix_all_missing_columns.sql
 ```
 
-CI/CD automatically checks schema on push and creates GitHub Issues for mismatches.
-
 ---
 
-## 📊 CURRENT STATUS
+## 📊 CURRENT STATUS (January 1, 2026)
 
 ### System Health Matrix
 
@@ -401,72 +262,81 @@ CI/CD automatically checks schema on push and creates GitHub Issues for mismatch
 | Admin UI (Vercel) | 🟢 LIVE | polyparlay.io, auto-deploy from main |
 | Database (Supabase) | 🟢 HEALTHY | 349+ config columns, RLS enabled |
 | E2E Tests | 🟢 PASSING | 261+ tests across 16 spec files |
-| Schema Validation | 🟢 NEW | Auto-checks on CI/CD |
+| Schema Fix | ✅ APPLIED | `fix_all_missing_columns.sql` executed |
 
-### Recent Session Accomplishments (Jan 1, 2026)
+### Vercel Performance (Needs Improvement)
 
-1. ✅ **Schema Validation CI/CD** - Auto-detects DB column mismatches, creates GitHub issues
-2. ✅ **SQL Runner Scripts** - Execute SQL without manual copy-paste (`run_sql.py`)
-3. ✅ **Fixed Crisp Double-Loading** - Was causing account ban (removed from layout.tsx)
-4. ✅ **Removed Hardcoded Secrets** - All scripts now use env vars
-5. ✅ **Platform Setup Wizard** - Guided setup for all 12 exchanges (sim vs live modes)
-6. ✅ **Bot Start CTA** - Prominent start button with subscription check
-7. ✅ **Fixed Vercel Duplicate** - Deleted orphan root `.vercel/` folder
-8. ✅ **Updated All Supabase Keys** - .env + GitHub secrets refreshed
+**Real Experience Score: 71** (Target: >90)
 
-**Files Created/Modified This Session:**
-- `.github/workflows/schema-validation.yml` (NEW)
-- `scripts/validate_schema.py` (NEW)
-- `scripts/auto_fix_schema.py` (NEW)
-- `scripts/run_sql.py` (NEW)
-- `scripts/run_sql_direct.py` (NEW)
-- `scripts/fix_all_missing_columns.sql` (NEW)
-- `admin/src/components/PlatformSetupWizard.tsx` (NEW)
-- `admin/src/components/BotStartCTA.tsx` (NEW)
-- `admin/e2e/schema-validation.spec.ts` (NEW)
-- `admin/src/app/layout.tsx` (removed Crisp duplicate)
-- `scripts/reset_simulation.py` (removed hardcoded secrets)
-- `scripts/test_p0_*.py` (removed hardcoded secrets)
+| Metric | Value | Status |
+|--------|-------|--------|
+| First Contentful Paint | 0.26s | 🟢 Good |
+| Largest Contentful Paint | 5.38s | 🔴 Poor |
+| Interaction to Next Paint | 48ms | 🟢 Good |
+| Cumulative Layout Shift | 0.15 | 🟡 Needs Work |
+| First Input Delay | 2ms | 🟢 Good |
+| Time to First Byte | 0.03s | 🟢 Good |
+
+**Page Performance:**
+| Page | Score | Status |
+|------|-------|--------|
+| /dashboard | 66 | 🟡 Needs Improvement |
+| /settings | 66 | 🟡 Needs Improvement |
+| /users | 72 | 🟡 Needs Improvement |
+| /parlays | 91 | 🟢 Great |
+| /pricing | 100 | 🟢 Great |
+| /analytics | 99 | 🟢 Great |
+
+**Root Cause:** LCP is 5.38s - likely large JS bundles or slow data fetching on dashboard/settings.
+
+### Completed This Session (Jan 1, 2026)
+
+1. ✅ **Schema Fix Applied** - `fix_all_missing_columns.sql` executed successfully
+2. ✅ **Schema Validation CI/CD** - Auto-detects DB column mismatches
+3. ✅ **SQL Runner Scripts** - `run_sql.py` and `run_sql_direct.py`
+4. ✅ **Fixed Crisp Double-Loading** - Was causing account ban
+5. ✅ **Removed Hardcoded Secrets** - All scripts now use env vars
+6. ✅ **Platform Setup Wizard** - Guided setup for all 12 exchanges
+7. ✅ **Deleted Orphan Vercel Project** - "admin" project removed
+8. ✅ **Admin Menu Hidden for Non-Admins** - Muschnick2 correctly doesn't see it
+9. ✅ **Updated Supabase Keys** - .env + GitHub secrets refreshed
 
 ---
 
 ## 📋 NEXT STEPS & RECOMMENDATIONS
 
-### Immediate Priorities
+### Immediate Priorities (P0)
 
-1. **Test Settings Save** - With Muschnick2 account, verify all settings save without errors
-2. **Run the Schema Fix SQL** - Execute `scripts/fix_all_missing_columns.sql` if not done
-3. **Verify Crisp Ban Resolution** - Check if chat widget works, contact support@crisp.chat if needed
+| Task | Why | How |
+|------|-----|-----|
+| **Test Settings Save with Muschnick2** | Verify schema fix worked | Log in as Muschnick2, change settings, save |
+| **Enable News Feed Sources** | Feature exists but needs config | Configure API keys for Finnhub, NewsAPI, etc. |
+| **Import More Markets for Parlay Maker** | Parlay maker works but needs more Polymarket/Kalshi markets | Bot needs to fetch more market data |
+
+### Performance Fixes (P1)
+
+| Task | Impact | Solution |
+|------|--------|----------|
+| **Fix LCP on /dashboard** | Score 66 → 90+ | Split heavy components, optimize data fetching |
+| **Fix LCP on /settings** | Score 66 → 90+ | Code-split the 2357-line page into sections |
+| **Reduce CLS** | 0.15 → <0.1 | Add explicit dimensions to images/charts |
 
 ### High Priority (Before Launch)
 
-1. **Perfect Metrics Accuracy**
-   - P&L calculations must match trade history
-   - Win rate must be mathematically correct
-   - ROI calculations verified against raw data
+| Task | Status | Notes |
+|------|--------|-------|
+| Perfect Metrics Accuracy | ⏳ Pending | P&L must match trade history exactly |
+| Live Trading Validation | ⏳ Pending | 2-week paper trading minimum |
+| Risk Limits Testing | ⏳ Pending | Verify max loss per day works |
 
-2. **Live Trading Validation**
-   - Paper trade for 2 weeks minimum
-   - Compare simulation vs actual execution
-   - Verify risk limits work correctly
+### Future Enhancements
 
-3. **User Onboarding Flow**
-   - Platform setup wizard complete ✅
-   - Add success confirmation messages
-   - Add error recovery guidance
-
-### Medium Priority (Post-Launch)
-
-1. **Mobile Optimization** - Dashboard responsive but needs polish
-2. **Performance** - Large settings page (2357 lines) could be split
-3. **Monitoring** - Add CloudWatch alarms, PagerDuty integration
-4. **Data Export** - Tax reports, trade history CSV
-
-### Technical Debt
-
-1. **Settings Page Refactor** - 2357 lines, should be componentized
-2. **Strategy Page Cleanup** - Some strategies have incomplete UI
-3. **Test Data Fixtures** - Need consistent test data for E2E
+| Feature | Priority | Effort |
+|---------|----------|--------|
+| Mobile PWA | Medium | Medium |
+| Discord/Telegram Alerts | Medium | Low |
+| More Exchange Integrations | Low | High |
+| Advanced Backtesting UI | Low | Medium |
 
 ---
 
@@ -478,89 +348,73 @@ Copy everything below the line and paste as your first message to the next agent
 
 # PolyBot Agent Onboarding
 
-I'm the new lead engineer for PolyBot. Before I touch anything, I'm going to fully understand this system.
+I'm the new lead engineer for PolyBot, a sophisticated automated trading platform. Before I make any changes, I'll fully understand the system.
 
-## My Onboarding Checklist
+## My First Actions
 
-### Step 1: Health Check (Do First!)
+### 1. Health Check
 
 ```bash
-# Check bot is alive
 curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
-
-# Check for uncommitted changes
 cd /Users/rut/polybot && git status
-
-# Run E2E tests
 cd admin && npx playwright test --reporter=line
 ```
 
-### Step 2: Read Core Documentation
+### 2. Read Documentation
 
 ```bash
-# Read handoff document (THIS IS CRITICAL)
 cat /Users/rut/polybot/AGENT_HANDOFF.md
-
-# Read current priorities
 cat /Users/rut/polybot/TODO.md | head -200
-
-# Check recent commits
-git log --oneline -20
 ```
 
-### Step 3: Understand Architecture
+## What I Know About This Project
 
-- **Bot Engine**: Python on AWS Lightsail, 35+ trading strategies
-- **Admin UI**: Next.js 14 on Vercel, 50+ pages, polyparlay.io
-- **Database**: Supabase PostgreSQL with RLS, 349+ config columns
-- **Exchanges**: 12 integrated (Polymarket, Kalshi, Alpaca, IBKR, Binance, etc.)
+**Architecture:**
+- Bot Engine: Python on AWS Lightsail (35+ trading strategies)
+- Admin UI: Next.js 14 on Vercel (50+ pages, polyparlay.io)
+- Database: Supabase PostgreSQL with RLS (349+ config columns)
+- Exchanges: 12 integrated (Polymarket, Kalshi, Alpaca, IBKR, Binance, etc.)
 
-### Step 4: Key Files to Review
+**Current State:**
+- Bot v1.1.25 running in simulation mode
+- Schema fix applied (Jan 1, 2026)
+- Settings save should now work (needs verification)
+- Parlay maker working on paper trading side
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| `src/bot_runner.py` | 4000+ | Main bot orchestrator |
-| `src/config.py` | 1500+ | Configuration management |
-| `admin/src/app/settings/page.tsx` | 2357 | Settings UI (complex!) |
-| `admin/src/app/strategies/page.tsx` | 900+ | Strategy management |
-| `admin/e2e/*.spec.ts` | 16 files | E2E test coverage |
+**Existing Features (Already Built):**
+- ✅ Strategy backtesting (`/backtesting`)
+- ✅ Referral program (`/referrals`)
+- ✅ Tax report generator (`/taxes`)
+- ✅ News feed (`/news` - needs source configuration)
 
-## What I Know
+**Not Yet Built:**
+- ❌ Mobile PWA
+- ❌ Discord/Telegram alerts
 
-1. **Current State**: Bot v1.1.25 running simulation mode on Lightsail
-2. **Recent Work**: Schema validation, SQL runners, Crisp fix, platform wizard
-3. **Critical Rule**: NEVER use `vercel` CLI - always `git push origin main`
-4. **Priority**: Perfect accuracy in all metrics and calculations
+**Performance Issue:**
+- Vercel Real Experience Score: 71 (should be >90)
+- LCP is 5.38s on /dashboard and /settings
+- Need to optimize JS bundles and data fetching
 
 ## My Rules
 
-1. Read AGENT_HANDOFF.md before making ANY changes
+1. **NEVER** run `vercel` CLI - always `git push origin main`
 2. Run E2E tests before AND after changes
 3. Never commit secrets to code
 4. Update AGENT_HANDOFF.md at end of session
 5. Create SQL migration files for DB changes
 
-## Questions for Context
-
-Before I start working, please tell me:
-1. What specific task would you like me to focus on?
-2. Are there any urgent bugs or issues?
-3. What was the last thing that broke (so I can avoid it)?
-
-## Commands I'll Use
+## Commands Reference
 
 ```bash
+# Deploy admin (auto-deploys from GitHub)
+git push origin main
+
 # Deploy bot
 ./scripts/deploy.sh
 
-# Deploy admin
-git push origin main
-
 # Run tests
 cd admin && npx playwright test
-
-# Check bot status
-curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
 
 # Run schema validation
 python scripts/validate_schema.py
@@ -569,7 +423,13 @@ python scripts/validate_schema.py
 python scripts/run_sql.py scripts/your_file.sql
 ```
 
-I'm ready to help. What should I focus on first?
+## Questions Before Starting
+
+1. What specific task should I focus on first?
+2. Are there any urgent bugs?
+3. Should I prioritize the performance issue (LCP) or new features?
+
+I'm ready to help. What's the priority?
 
 ---
 
@@ -579,8 +439,6 @@ I'm ready to help. What should I focus on first?
 
 ## 📚 ADDITIONAL DOCUMENTATION
 
-For deeper context on specific topics:
-
 | Document | Location | Purpose |
 |----------|----------|---------|
 | Strategy Details | `docs/STRATEGY_ARCHITECTURE.md` | Deep dive on all 35+ strategies |
@@ -588,7 +446,6 @@ For deeper context on specific topics:
 | Arbitrage Analysis | `ARBITRAGE_STRATEGY.md` | Mathematical breakdown |
 | Infrastructure | `INFRASTRUCTURE.md` | AWS + Vercel + Supabase setup |
 | Multi-tenancy | `docs/MULTITENANCY_ARCHITECTURE.md` | User isolation design |
-| Fee Structures | `docs/FEE_STRUCTURES.md` | Exchange fees reference |
 
 ---
 
@@ -596,30 +453,44 @@ For deeper context on specific topics:
 
 ### January 1, 2026
 
-**Agent Session Summary:**
+**Completed:**
+1. Created schema validation CI/CD pipeline
+2. Created SQL runner scripts (`run_sql.py`, `run_sql_direct.py`)
+3. Fixed Crisp double-loading bug (removed from layout.tsx)
+4. Removed hardcoded secrets from test scripts
+5. Added Platform Setup Wizard with simulation/live modes
+6. Added Bot Start CTA component
+7. Fixed Vercel duplicate project (deleted orphan root `.vercel/`)
+8. User deleted orphan "admin" Vercel project
+9. User ran `fix_all_missing_columns.sql` - no errors
+10. Updated all Supabase keys in .env and GitHub secrets
+11. Created comprehensive handoff document
 
-1. Fixed database schema mismatch (`scalp_15min_entry_threshold` missing)
-2. Created schema validation CI/CD pipeline (notifies, doesn't fail)
-3. Created SQL runner scripts (`run_sql.py`, `run_sql_direct.py`)
-4. Fixed Crisp double-loading bug (was in layout.tsx AND CrispChat.tsx)
-5. Removed hardcoded secrets from test scripts
-6. Added Platform Setup Wizard with simulation/live modes
-7. Added Bot Start CTA component to dashboard
-8. Fixed Vercel duplicate project (deleted orphan root `.vercel/`)
-9. Updated all Supabase keys in .env and GitHub secrets
-10. Created comprehensive handoff document
+**Files Created This Session:**
+- `.github/workflows/schema-validation.yml`
+- `scripts/validate_schema.py`
+- `scripts/auto_fix_schema.py`
+- `scripts/run_sql.py`
+- `scripts/run_sql_direct.py`
+- `scripts/fix_all_missing_columns.sql`
+- `admin/src/components/PlatformSetupWizard.tsx`
+- `admin/src/components/BotStartCTA.tsx`
+- `admin/e2e/schema-validation.spec.ts`
+
+**Known Issues:**
+- Vercel RES score is 71 (LCP 5.38s on /dashboard, /settings)
+- Need to enable news feed sources
+- Need to import more markets for parlay maker
 
 ### December 30, 2025
 
 - Fixed null email constraint error in user profile creation
-- Added platform setup documentation
 - E2E test improvements
 
 ### December 29, 2025
 
 - Bot deployment v29
 - Multi-tenant configuration updates
-- Strategy parameter tuning
 
 ---
 
