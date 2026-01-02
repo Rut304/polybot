@@ -1724,7 +1724,13 @@ export function useSecretsStatus() {
     queryKey: ['secretsStatus'],
     queryFn: async (): Promise<SecretStatus[]> => {
       try {
-        const response = await fetch('/api/secrets');
+        // Get auth token for protected endpoint
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: HeadersInit = session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` }
+          : {};
+        
+        const response = await fetch('/api/secrets', { headers });
         if (!response.ok) {
           console.error('Error fetching secrets status:', response.statusText);
           return [];

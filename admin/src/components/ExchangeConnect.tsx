@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 // Exchange configurations
 const EXCHANGE_CONFIG: Record<string, {
@@ -155,7 +156,12 @@ export function ExchangeConnect({ exchange, onStatusChange, className }: Exchang
     if (!user?.id) return;
     
     try {
-      const res = await fetch('/api/user-credentials');
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/user-credentials', {
+        headers: session?.access_token ? {
+          'Authorization': `Bearer ${session.access_token}`,
+        } : {},
+      });
       if (!res.ok) throw new Error('Failed to fetch credentials');
       
       const data = await res.json();
@@ -183,9 +189,13 @@ export function ExchangeConnect({ exchange, onStatusChange, className }: Exchang
     setError(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/user-credentials', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           exchange,
           api_key: apiKey,

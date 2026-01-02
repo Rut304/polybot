@@ -23,6 +23,7 @@ import {
 import { useTier } from '@/lib/useTier';
 import { FeatureGate } from '@/components/FeatureGate';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 
 interface StrategyCondition {
   id: string;
@@ -66,18 +67,31 @@ const OPERATORS = [
   { value: 'between', label: 'Between' },
 ];
 
+// Helper to get auth headers
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token 
+    ? { 'Authorization': `Bearer ${session.access_token}` }
+    : {};
+}
+
 // API functions
 async function fetchStrategies(): Promise<CustomStrategy[]> {
-  const res = await fetch('/api/custom-strategies', { credentials: 'include' });
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch('/api/custom-strategies', { 
+    credentials: 'include',
+    headers: authHeaders,
+  });
   if (!res.ok) throw new Error('Failed to fetch strategies');
   const data = await res.json();
   return data.strategies || [];
 }
 
 async function createStrategy(strategy: Partial<CustomStrategy>): Promise<CustomStrategy> {
+  const authHeaders = await getAuthHeaders();
   const res = await fetch('/api/custom-strategies', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
     credentials: 'include',
     body: JSON.stringify(strategy),
   });
@@ -87,9 +101,10 @@ async function createStrategy(strategy: Partial<CustomStrategy>): Promise<Custom
 }
 
 async function updateStrategy(strategy: Partial<CustomStrategy>): Promise<CustomStrategy> {
+  const authHeaders = await getAuthHeaders();
   const res = await fetch('/api/custom-strategies', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
     credentials: 'include',
     body: JSON.stringify(strategy),
   });
@@ -99,9 +114,11 @@ async function updateStrategy(strategy: Partial<CustomStrategy>): Promise<Custom
 }
 
 async function deleteStrategy(id: string): Promise<void> {
+  const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/custom-strategies?id=${id}`, {
     method: 'DELETE',
     credentials: 'include',
+    headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to delete strategy');
 }

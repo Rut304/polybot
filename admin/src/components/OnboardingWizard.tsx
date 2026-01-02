@@ -353,17 +353,24 @@ export function OnboardingWizard({ onComplete, onSkip }: OnboardingWizardProps) 
     
     setSavingKeys(platform.name);
     try {
+      // Get auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeaders: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+      };
+      
       // Save API key
       await fetch('/api/secrets', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ key_name: platform.apiKeyName, key_value: keys.apiKey }),
       });
       
       // Save secret key
       await fetch('/api/secrets', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders,
         body: JSON.stringify({ key_name: platform.secretKeyName, key_value: keys.secretKey }),
       });
       
