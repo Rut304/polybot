@@ -1552,7 +1552,19 @@ class PolybotRunner:
                 self.ai_superforecasting = AISuperforecastingStrategy(
                     api_key=gemini_api_key,
                     model=getattr(
-                        self.config.trading, 'ai_model', 'gemini-1.5-pro'
+                        self.config.trading, 'ai_model', 'gemini-2.0-flash'
+                    ),
+                    verification_model=getattr(
+                        self.config.trading, 'ai_verification_model',
+                        'gemini-1.5-pro'
+                    ),
+                    enable_dual_verification=getattr(
+                        self.config.trading, 'ai_enable_dual_verification',
+                        False
+                    ),
+                    verification_agreement_threshold=getattr(
+                        self.config.trading,
+                        'ai_verification_agreement_threshold', 0.15
                     ),
                     min_divergence_pct=getattr(
                         self.config.trading, 'ai_min_divergence_pct', 10.0
@@ -1569,8 +1581,14 @@ class PolybotRunner:
                     db_client=self.db,
                     on_forecast=self._handle_ai_forecast,
                 )
-                logger.info("✓ AI Superforecasting initialized (85% CONF)")
-                logger.info("  🧠 Gemini-powered market analysis")
+                dual_mode = (
+                    "with dual-AI verification" if getattr(
+                        self.config.trading, 'ai_enable_dual_verification',
+                        False
+                    ) else "single AI mode"
+                )
+                logger.info(f"✓ AI Superforecasting initialized ({dual_mode})")
+                logger.info("  🧠 Gemini 2.0 Flash market analysis")
             else:
                 logger.warning("⚠️ AI Superforecasting DISABLED - No GEMINI_API_KEY")
         else:

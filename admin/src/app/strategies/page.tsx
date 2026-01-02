@@ -854,11 +854,21 @@ const STRATEGY_CATEGORIES: StrategyCategory[] = [
           'Parse AI response for probability + confidence',
           'If divergence ≥ 10% AND confidence ≥ 65%, trade',
           'Position sizing based on divergence magnitude',
-          'Log forecasts for accuracy tracking',
-          'Weekly recalibration of model prompts',
+          'Optional dual-AI verification for accuracy',
+          'Skips trades when both AIs disagree',
         ],
         requirements: ['Gemini API Key (GEMINI_API_KEY)', 'Polymarket or Kalshi credentials'],
         settings: [
+          { key: 'ai_model', label: 'Primary Model', type: 'select', defaultValue: 'gemini-2.0-flash', options: [
+            { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fastest)' },
+            { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Most Capable)' },
+            { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Balanced)' },
+          ]},
+          { key: 'ai_verification_model', label: 'Verification Model', type: 'select', defaultValue: 'gemini-1.5-pro', options: [
+            { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+            { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+            { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+          ]},
           { key: 'ai_min_divergence_pct', label: 'Min Divergence %', type: 'number', defaultValue: 10, min: 5, max: 30, step: 1 },
           { key: 'ai_min_confidence', label: 'Min Confidence', type: 'number', defaultValue: 0.65, min: 0.5, max: 0.9, step: 0.05 },
           { key: 'ai_max_position_usd', label: 'Max Position $', type: 'number', defaultValue: 100, min: 10, max: 1000, step: 10 },

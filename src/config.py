@@ -412,7 +412,10 @@ class TradingConfig:
     # Combines base rates, factor analysis, and divergence detection
     # =========================================================================
     enable_ai_superforecasting: bool = True        # ON by default for simulation
-    ai_model: str = "gemini-1.5-pro"             # Gemini model to use
+    ai_model: str = "gemini-2.0-flash"           # Gemini 2.0 Flash (fastest, best quality)
+    ai_verification_model: str = "gemini-1.5-pro" # Secondary model for verification
+    ai_enable_dual_verification: bool = False     # Enable 2nd AI to verify (slower but more accurate)
+    ai_verification_agreement_threshold: float = 0.15  # Max prob diff between AIs (0.15 = 15%)
     ai_min_divergence_pct: float = 10.0            # Min market vs AI divergence
     ai_max_position_usd: float = 100.0             # Max position per trade
     ai_scan_interval_sec: int = 300                # 5-minute analysis cycles

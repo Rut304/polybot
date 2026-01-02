@@ -58,8 +58,14 @@ class AIForecast:
     direction: str = ""  # "buy_yes", "buy_no", or ""
     recommended_size_usd: Decimal = Decimal("0")
 
+    # Dual AI Verification (optional)
+    verification_probability: Optional[float] = None  # 2nd AI estimate
+    verification_model: Optional[str] = None
+    verification_agreed: bool = True  # Did both AIs agree within threshold?
+    dual_verified: bool = False  # Was dual verification performed?
+
     # Metadata
-    model_used: str = "gemini-1.5-flash"
+    model_used: str = "gemini-2.0-flash"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __str__(self) -> str:
@@ -243,10 +249,38 @@ Important:
 
 Output ONLY the JSON, no other text."""
 
+    # Verification prompt for 2nd AI (more skeptical)
+    VERIFICATION_PROMPT = """You are a skeptical analyst reviewing a probability estimate.
+
+**Question:** {question}
+
+**Current Market Price:** {yes_price}%
+**First AI Estimate:** {first_ai_prob}%
+**First AI Reasoning:** {first_reasoning}
+
+**Your Task:**
+1. Challenge the first AI's reasoning - what did they miss?
+2. Consider contrarian factors and tail risks
+3. Estimate your own probability independently
+4. Be calibrated - your estimates should match real frequencies
+
+**Output Format (JSON only):**
+{{
+    "probability": 0.XX,
+    "confidence": 0.XX,
+    "critique": "What the first AI got wrong or missed",
+    "reasoning": "Your independent analysis"
+}}
+
+Output ONLY the JSON, no other text."""
+
     def __init__(
         self,
         api_key: str = None,
-        model: str = "gemini-1.5-flash",
+        model: str = "gemini-2.0-flash",
+        verification_model: str = "gemini-1.5-pro",
+        enable_dual_verification: bool = False,
+        verification_agreement_threshold: float = 0.15,
         min_divergence_pct: float = 10.0,
         confidence_threshold: float = 0.75,
         max_position_usd: float = 100.0,
@@ -261,6 +295,9 @@ Output ONLY the JSON, no other text."""
     ):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
         self.model = model
+        self.verification_model = verification_model
+        self.enable_dual_verification = enable_dual_verification
+        self.verification_threshold = verification_agreement_threshold
         self.min_divergence = min_divergence_pct
         self.confidence_threshold = confidence_threshold
         self.max_position = Decimal(str(max_position_usd))
@@ -274,7 +311,13 @@ Output ONLY the JSON, no other text."""
         self.on_opportunity = on_opportunity
         self.db = db_client
 
+        # Primary Gemini client (fast model for initial analysis)
         self.gemini = GeminiClient(self.api_key, self.model) if self.api_key else None
+        # Secondary Gemini client (different model for verification)
+        self.gemini_verifier = (
+            GeminiClient(self.api_key, self.verification_model) 
+            if self.api_key and self.enable_dual_verification else None
+        )
         self._running = False
         self._session: Optional[aiohttp.ClientSession] = None
 
@@ -294,6 +337,8 @@ Output ONLY the JSON, no other text."""
     async def close(self):
         if self.gemini:
             await self.gemini.close()
+        if self.gemini_verifier:
+            await self.gemini_verifier.close()
         if self._session and not self._session.closed:
             await self._session.close()
 
@@ -396,6 +441,45 @@ Output ONLY the JSON, no other text."""
         reasoning = parsed.get("reasoning", "")
         factors = parsed.get("factors", [])
 
+        # Dual AI verification (optional - improves accuracy but slower)
+        verification_prob = None
+        verification_agreed = True
+        dual_verified = False
+        
+        if self.enable_dual_verification and self.gemini_verifier and ai_confidence >= 0.5:
+            logger.debug(f"  🔍 Running dual verification with {self.verification_model}...")
+            verification_prompt = self.VERIFICATION_PROMPT.format(
+                question=question,
+                yes_price=int(yes_price * 100),
+                first_ai_prob=int(ai_prob * 100),
+                first_reasoning=reasoning[:500],
+            )
+            
+            verify_response = await self.gemini_verifier.generate(verification_prompt)
+            if verify_response:
+                verify_parsed = self._parse_ai_response(verify_response)
+                if verify_parsed:
+                    verification_prob = float(verify_parsed.get("probability", ai_prob))
+                    dual_verified = True
+                    
+                    # Check if AIs agree within threshold
+                    prob_diff = abs(ai_prob - verification_prob)
+                    verification_agreed = prob_diff <= self.verification_threshold
+                    
+                    if not verification_agreed:
+                        logger.info(
+                            f"  ⚠️ AIs DISAGREE: Primary={ai_prob:.0%}, "
+                            f"Verifier={verification_prob:.0%} (diff={prob_diff:.0%})"
+                        )
+                        # Average the probabilities when they disagree
+                        ai_prob = (ai_prob + verification_prob) / 2
+                        ai_confidence *= 0.7  # Reduce confidence when AIs disagree
+                    else:
+                        logger.debug(
+                            f"  ✅ AIs agree: {ai_prob:.0%} vs {verification_prob:.0%}"
+                        )
+                        ai_confidence = min(ai_confidence * 1.1, 0.95)  # Boost confidence
+
         # Calculate divergence
         divergence = (ai_prob - yes_price) * 100  # Positive = AI thinks higher
 
@@ -404,22 +488,26 @@ Output ONLY the JSON, no other text."""
         recommended_size = Decimal("0")
 
         if abs(divergence) >= self.min_divergence and ai_confidence >= self.confidence_threshold:
-            if divergence > 0:
-                # AI thinks probability is higher than market → buy YES
-                direction = "buy_yes"
+            # If dual verification was run and AIs disagreed significantly, skip
+            if dual_verified and not verification_agreed:
+                logger.info(f"  ⏭️ Skipping trade - AIs disagreed on {question[:40]}...")
             else:
-                # AI thinks probability is lower than market → buy NO
-                direction = "buy_no"
+                if divergence > 0:
+                    # AI thinks probability is higher than market → buy YES
+                    direction = "buy_yes"
+                else:
+                    # AI thinks probability is lower than market → buy NO
+                    direction = "buy_no"
 
-            # Size based on divergence and confidence
-            divergence_factor = min(abs(divergence) / 20, 1.0)  # Scale 0-1
-            confidence_factor = ai_confidence
-            size_factor = divergence_factor * confidence_factor
+                # Size based on divergence and confidence
+                divergence_factor = min(abs(divergence) / 20, 1.0)  # Scale 0-1
+                confidence_factor = ai_confidence
+                size_factor = divergence_factor * confidence_factor
 
-            recommended_size = self.min_position + (
-                (self.max_position - self.min_position) * Decimal(str(size_factor))
-            )
-            recommended_size = recommended_size.quantize(Decimal("0.01"))
+                recommended_size = self.min_position + (
+                    (self.max_position - self.min_position) * Decimal(str(size_factor))
+                )
+                recommended_size = recommended_size.quantize(Decimal("0.01"))
 
         forecast = AIForecast(
             market_id=market_id,
@@ -433,6 +521,10 @@ Output ONLY the JSON, no other text."""
             divergence_pct=divergence,
             direction=direction,
             recommended_size_usd=recommended_size,
+            verification_probability=verification_prob,
+            verification_model=self.verification_model if dual_verified else None,
+            verification_agreed=verification_agreed,
+            dual_verified=dual_verified,
             model_used=self.model,
         )
 
@@ -561,18 +653,21 @@ AI_SUPERFORECASTING_INFO = {
     "expected_apy": "30-60%",
     "risk_level": "medium",
     "description": (
-        "Uses Google Gemini to analyze prediction market questions and "
-        "estimate probabilities. Trades when AI estimate diverges "
-        "significantly from market consensus."
+        "Uses Google Gemini 2.0 Flash to analyze prediction market questions "
+        "and estimate probabilities. Trades when AI estimate diverges "
+        "significantly from market consensus. Optional dual-AI verification "
+        "for improved accuracy."
     ),
     "key_points": [
-        "Gemini analyzes market questions like a superforecaster",
+        "Gemini 2.0 Flash for fast, accurate analysis",
+        "Optional dual-AI verification (2nd model checks 1st)",
         "Considers base rates, factors, and current events",
         "Only trades when divergence > 10% (configurable)",
         "Higher AI confidence = larger position size",
-        "Avoids re-analyzing same market within cooldown period",
+        "Skips trades when AIs disagree significantly",
     ],
     "github_source": "BlackSky-Jose/PolyMarket-trading-AI-model (340 stars)",
-    "model": "gemini-1.5-pro",
+    "model": "gemini-2.0-flash",
+    "verification_model": "gemini-1.5-pro",
     "api_required": "GEMINI_API_KEY",
 }
