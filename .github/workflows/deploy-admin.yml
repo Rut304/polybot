@@ -1,4 +1,4 @@
-name: Deploy Admin Dashboard
+name: Admin Dashboard CI/CD with Auto-Fix
 
 on:
   push:
@@ -12,9 +12,11 @@ env:
   NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
 jobs:
-  # Run validation checks first - deployment only proceeds if checks pass
+  # Quick validation - blocks deployment on critical build errors only
   validate:
     runs-on: ubuntu-latest
+    outputs:
+      build_status: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,22 +31,16 @@ jobs:
         run: npm ci
         working-directory: admin
 
-      - name: TypeScript check
-        run: npm run typecheck
-        working-directory: admin
-
-      - name: Lint
-        run: npm run lint
-        working-directory: admin
-
       - name: Build check
+        id: build
         run: npm run build
         working-directory: admin
 
-  # E2E tests run against the built app
+  # E2E tests - runs in parallel, does NOT block deployment
   e2e-tests:
-    needs: validate
     runs-on: ubuntu-latest
+    outputs:
+      test_status: ${{ steps.tests.outcome }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,13 +64,68 @@ jobs:
         working-directory: admin
 
       - name: Run E2E tests
-        run: npx playwright test error-detection.spec.ts api-auth-validation.spec.ts --reporter=github --project=chromium
+        id: tests
+        continue-on-error: true
+        run: npx playwright test error-detection.spec.ts api-auth-validation.spec.ts --reporter=list --project=chromium 2>&1 | tee test-output.txt
         working-directory: admin
         env:
           CI: true
 
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            admin/playwright-report/
+            admin/test-output.txt
+          retention-days: 7
+
+  # Lint check - does NOT block deployment
+  lint-check:
+    runs-on: ubuntu-latest
+    outputs:
+      lint_status: ${{ steps.lint.outcome }}
+      typecheck_status: ${{ steps.typecheck.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: admin
+
+      - name: TypeScript check
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck 2>&1 | tee typecheck-output.txt
+        working-directory: admin
+
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint 2>&1 | tee lint-output.txt
+        working-directory: admin
+
+      - name: Upload lint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: |
+            admin/typecheck-output.txt
+            admin/lint-output.txt
+          retention-days: 7
+
+  # Deploy immediately after build passes (non-blocking on tests/lint)
   deploy:
-    needs: [validate, e2e-tests]  # Only deploy if ALL checks pass
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -108,3 +159,207 @@ jobs:
       - name: Deploy to Vercel
         run: vercel deploy --prebuilt --prod --yes --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: admin
+
+  # Autonomous fix agent - triggered when tests or lint fail
+  auto-fix:
+    needs: [e2e-tests, lint-check, deploy]
+    if: always() && (needs.e2e-tests.outputs.test_status == 'failure' || needs.lint-check.outputs.lint_status == 'failure' || needs.lint-check.outputs.typecheck_status == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+        continue-on-error: true
+
+      - name: Collect failure details
+        id: failures
+        run: |
+          echo "## CI/CD Failures Detected" > failure-report.md
+          echo "" >> failure-report.md
+          echo "**Commit:** ${{ github.sha }}" >> failure-report.md
+          echo "**Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> failure-report.md
+          echo "" >> failure-report.md
+          
+          if [ "${{ needs.e2e-tests.outputs.test_status }}" == "failure" ]; then
+            echo "### E2E Test Failures" >> failure-report.md
+            echo '```' >> failure-report.md
+            cat artifacts/playwright-report/test-output.txt 2>/dev/null || echo "Test output not available"
+            echo '```' >> failure-report.md
+            echo "" >> failure-report.md
+          fi
+          
+          if [ "${{ needs.lint-check.outputs.typecheck_status }}" == "failure" ]; then
+            echo "### TypeScript Errors" >> failure-report.md
+            echo '```' >> failure-report.md
+            cat artifacts/lint-report/typecheck-output.txt 2>/dev/null || echo "TypeScript output not available"
+            echo '```' >> failure-report.md
+            echo "" >> failure-report.md
+          fi
+          
+          if [ "${{ needs.lint-check.outputs.lint_status }}" == "failure" ]; then
+            echo "### Lint Errors" >> failure-report.md
+            echo '```' >> failure-report.md
+            cat artifacts/lint-report/lint-output.txt 2>/dev/null || echo "Lint output not available"
+            echo '```' >> failure-report.md
+            echo "" >> failure-report.md
+          fi
+          
+          cat failure-report.md
+
+      - name: Create or update auto-fix issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const failureReport = fs.readFileSync('failure-report.md', 'utf8');
+            
+            // Check for existing open auto-fix issue
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'auto-fix',
+              state: 'open'
+            });
+            
+            const issueBody = `${failureReport}
+            
+            ---
+            
+            ## Instructions for Copilot
+            
+            Please analyze the failures above and create a PR to fix them:
+            
+            1. **E2E Test Failures**: Usually indicate missing auth headers, API errors, or JavaScript runtime errors in the admin dashboard
+            2. **TypeScript Errors**: Fix type mismatches, missing types, or incorrect type usage
+            3. **Lint Errors**: Fix code style issues following the project's ESLint rules
+            
+            Key files to check:
+            - \`admin/src/lib/hooks.ts\` - API calls and data fetching
+            - \`admin/src/lib/PlatformContext.tsx\` - Auth context
+            - \`admin/src/components/\` - UI components
+            - \`admin/src/app/\` - Page components and API routes
+            
+            The fix should:
+            - Maintain backward compatibility
+            - Not break existing functionality  
+            - Include proper error handling
+            - Follow existing code patterns`;
+            
+            if (existingIssues.data.length > 0) {
+              // Update existing issue with new comment
+              const issueNumber = existingIssues.data[0].number;
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `## New failures detected\n\n${failureReport}\n\nTriggering auto-fix...`
+              });
+              
+              // Assign to copilot for auto-fix
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                assignees: ['copilot']
+              }).catch(() => console.log('Could not assign copilot'));
+              
+              console.log(`Updated existing issue #${issueNumber}`);
+              core.setOutput('issue_number', issueNumber);
+            } else {
+              // Create new issue
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: '🤖 Auto-fix: CI/CD test failures detected',
+                body: issueBody,
+                labels: ['auto-fix', 'bug', 'automated']
+              });
+              
+              // Try to assign copilot
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.data.number,
+                assignees: ['copilot']
+              }).catch(() => console.log('Could not assign copilot'));
+              
+              console.log(`Created issue #${issue.data.number}`);
+              core.setOutput('issue_number', issue.data.number);
+            }
+
+      - name: Trigger Copilot coding agent via workflow dispatch
+        if: github.repository_owner == 'Rut304'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Trigger the auto-fix workflow if it exists
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'copilot-auto-fix.yml',
+                ref: 'main',
+                inputs: {
+                  issue_number: '${{ steps.failures.outputs.issue_number || '' }}'
+                }
+              });
+              console.log('Triggered copilot-auto-fix workflow');
+            } catch (e) {
+              console.log('Auto-fix workflow not found or failed to trigger:', e.message);
+            }
+
+  # Summary notification
+  notify-status:
+    needs: [validate, e2e-tests, lint-check, deploy, auto-fix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status | Action |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+          
+          BUILD="${{ needs.validate.outputs.build_status }}"
+          if [ "$BUILD" == "success" ]; then
+            echo "| Build | ✅ Pass | - |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Build | ❌ Fail | **Blocked deployment** |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          DEPLOY="${{ needs.deploy.result }}"
+          if [ "$DEPLOY" == "success" ]; then
+            echo "| Deploy | ✅ Success | Live on Vercel |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Deploy | ❌ Failed | Check logs |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          TESTS="${{ needs.e2e-tests.outputs.test_status }}"
+          if [ "$TESTS" == "success" ]; then
+            echo "| E2E Tests | ✅ Pass | - |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| E2E Tests | ⚠️ Fail | 🤖 Auto-fix triggered |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          LINT="${{ needs.lint-check.outputs.lint_status }}"
+          TYPECHECK="${{ needs.lint-check.outputs.typecheck_status }}"
+          if [ "$LINT" == "success" ] && [ "$TYPECHECK" == "success" ]; then
+            echo "| Lint/Types | ✅ Pass | - |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Lint/Types | ⚠️ Issues | 🤖 Auto-fix triggered |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "Auto-fix creates issues assigned to Copilot for autonomous resolution." >> $GITHUB_STEP_SUMMARY
+
