@@ -54,8 +54,8 @@ export async function POST() {
     const smClient = new SecretsManagerClient({
       region: AWS_REGION,
       credentials: {
-        accessKeyId: AWS_ACCESS_KEY_ID,
-        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+        accessKeyId: AMAZON_ACCESS_KEY_ID,
+        secretAccessKey: AMAZON_SECRET_ACCESS_KEY,
       },
     });
 

@@ -18,6 +18,8 @@ import { useTier } from '@/lib/useTier';
 import { usePlatforms } from '@/lib/PlatformContext';
 import Link from 'next/link';
 import { PageCTA } from '@/components/QuickStartGuide';
+import { STRATEGY_TIER_REQUIREMENTS, canEnableStrategy } from '@/lib/tier-validation';
+import type { SubscriptionTier } from '@/lib/privy';
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -107,6 +109,32 @@ function ToggleSwitch({
 // =============================================================================
 // BADGE COMPONENTS
 // =============================================================================
+
+// Get the required tier for a strategy
+function getStrategyTier(configKey: string): 'free' | 'pro' | 'elite' {
+  return STRATEGY_TIER_REQUIREMENTS[configKey] || 'free';
+}
+
+// Tier badge component showing which tier a strategy requires
+function TierBadge({ tier, locked = false }: { tier: 'free' | 'pro' | 'elite'; locked?: boolean }) {
+  const colors = {
+    free: 'bg-green-500/20 text-green-400 border-green-500/30',
+    pro: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    elite: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  };
+  const labels = { free: 'Free', pro: 'Pro', elite: 'Elite' };
+  
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium uppercase border',
+      colors[tier],
+      locked && 'opacity-75'
+    )}>
+      {locked && <Lock className="w-3 h-3" />}
+      {labels[tier]}
+    </span>
+  );
+}
 
 function ConfidenceBadge({ confidence }: { confidence: number }) {
   const color = confidence >= 85 ? 'bg-green-500/20 text-green-400 border-green-500/30' :
@@ -1675,10 +1703,6 @@ export default function StrategiesPage() {
   }
   const { tier, isPro, isElite, isFree } = tierInfo;
   
-  // Free tier strategy limit
-  const FREE_TIER_STRATEGY_LIMIT = 3;
-  const FREE_TIER_STRATEGIES = ['single_platform_arb', 'news_arbitrage', 'market_making'];
-  
   // Upgrade modal state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
@@ -1755,38 +1779,28 @@ export default function StrategiesPage() {
     return value === true;
   };
 
-  // Check if strategy is locked for current tier
+  // Check if strategy is locked for current tier (using centralized tier requirements)
   const isStrategyLocked = (strategy: Strategy): boolean => {
     // Admins see everything
     if (isAdmin) return false;
-    // Pro and Elite can access all
-    if (isPro || isElite) return false;
-    // Free tier: only allow whitelisted strategies
-    return !FREE_TIER_STRATEGIES.includes(strategy.configKey);
+    // Use centralized tier validation
+    return !canEnableStrategy(tier as SubscriptionTier, strategy.configKey);
   };
 
-  // Get count of enabled strategies for free tier limit
+  // Get count of enabled strategies
   const getEnabledCount = (): number => {
     return STRATEGY_CATEGORIES.flatMap(c => c.strategies)
       .filter(s => isStrategyEnabled(s)).length;
   };
 
   const toggleStrategy = (strategy: Strategy) => {
-    // Check if locked
+    // Check if locked for current tier
     if (isStrategyLocked(strategy)) {
+      setShowUpgradeModal(true);
       return; // Can't toggle locked strategies
     }
     
     const currentValue = isStrategyEnabled(strategy);
-    
-    // Check free tier limit when enabling
-    if (!currentValue && isFree && !isAdmin) {
-      const currentEnabled = getEnabledCount();
-      if (currentEnabled >= FREE_TIER_STRATEGY_LIMIT) {
-        setShowUpgradeModal(true);
-        return;
-      }
-    }
     
     let newValue: boolean;
 
@@ -1973,14 +1987,10 @@ export default function StrategiesPage() {
                                     >
                                       {strategy.name}
                                     </button>
+                                    {/* Tier Badge - shows required tier with lock icon if locked */}
+                                    <TierBadge tier={getStrategyTier(strategy.configKey)} locked={isLocked} />
                                     <ConfidenceBadge confidence={strategy.confidence} />
                                     <RiskBadge level={strategy.riskLevel} />
-                                    {isLocked && (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
-                                        <Lock className="w-3 h-3" />
-                                        Pro
-                                      </span>
-                                    )}
                                     {/* Platform Requirements Badge */}
                                     {!reqs.met && reqs.missing.length > 0 && (
                                       <Link

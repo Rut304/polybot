@@ -1,8 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { verifyAuth } from '@/lib/audit';
+import { SubscriptionTier } from '@/lib/privy';
+import { canAccessFeature } from '@/lib/tier-validation';
 
 export const dynamic = 'force-dynamic';
+
+// Helper to get user's subscription tier
+async function getUserTier(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<SubscriptionTier> {
+  if (!supabase) return 'free';
+  
+  // Try polybot_profiles first (primary)
+  const { data: profile } = await supabase
+    .from('polybot_profiles')
+    .select('subscription_tier')
+    .eq('user_id', userId)
+    .single();
+  
+  if (profile?.subscription_tier) {
+    return profile.subscription_tier as SubscriptionTier;
+  }
+  
+  // Fallback to polybot_user_profiles
+  const { data: userProfile } = await supabase
+    .from('polybot_user_profiles')
+    .select('subscription_tier')
+    .eq('user_id', userId)
+    .single();
+  
+  return (userProfile?.subscription_tier as SubscriptionTier) || 'free';
+}
 
 // GET - Fetch user's custom strategies
 export async function GET(request: NextRequest) {
@@ -15,6 +42,18 @@ export async function GET(request: NextRequest) {
     const authResult = await verifyAuth(request);
     if (!authResult?.user_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check Elite tier for custom strategies access
+    const userTier = await getUserTier(supabaseAdmin, authResult.user_id);
+    if (!canAccessFeature(userTier, 'custom_strategies')) {
+      return NextResponse.json({ 
+        success: true, 
+        strategies: [],
+        tier_locked: true,
+        required_tier: 'elite',
+        message: 'Custom strategies require Elite tier subscription'
+      });
     }
 
     const { data, error } = await supabaseAdmin
@@ -46,6 +85,16 @@ export async function POST(request: NextRequest) {
     const authResult = await verifyAuth(request);
     if (!authResult?.user_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check Elite tier for custom strategies
+    const userTier = await getUserTier(supabaseAdmin, authResult.user_id);
+    if (!canAccessFeature(userTier, 'custom_strategies')) {
+      return NextResponse.json({ 
+        error: 'Custom strategies require Elite tier subscription',
+        required_tier: 'elite',
+        current_tier: userTier
+      }, { status: 403 });
     }
 
     const body = await request.json();
@@ -91,6 +140,16 @@ export async function PUT(request: NextRequest) {
     const authResult = await verifyAuth(request);
     if (!authResult?.user_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Check Elite tier for custom strategies
+    const userTier = await getUserTier(supabaseAdmin, authResult.user_id);
+    if (!canAccessFeature(userTier, 'custom_strategies')) {
+      return NextResponse.json({ 
+        error: 'Custom strategies require Elite tier subscription',
+        required_tier: 'elite',
+        current_tier: userTier
+      }, { status: 403 });
     }
 
     const body = await request.json();

@@ -1,7 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase-admin';
+import { SubscriptionTier } from '@/lib/privy';
+import { 
+  STRATEGY_TIER_REQUIREMENTS, 
+  tierMeetsRequirement, 
+  validateStrategyUpdates,
+  getStrategyTierMap 
+} from '@/lib/tier-validation';
 
 export const dynamic = 'force-dynamic';
+
+// Helper to get user's subscription tier
+async function getUserTier(supabase: ReturnType<typeof getSupabaseAdmin>, userId: string): Promise<SubscriptionTier> {
+  if (!supabase) return 'free';
+  
+  // Check polybot_profiles first
+  const { data: profile } = await supabase
+    .from('polybot_profiles')
+    .select('subscription_tier')
+    .eq('id', userId)
+    .single();
+  
+  if (profile?.subscription_tier) {
+    return profile.subscription_tier as SubscriptionTier;
+  }
+  
+  // Fallback to polybot_user_profiles  
+  const { data: userProfile } = await supabase
+    .from('polybot_user_profiles')
+    .select('subscription_tier')
+    .eq('user_id', userId)
+    .single();
+  
+  return (userProfile?.subscription_tier as SubscriptionTier) || 'free';
+}
 
 // Admin client to bypass RLS for config updates if needed, 
 // though we usually prefer user-context. 
@@ -69,6 +101,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
 
+    // Get user's subscription tier for validation
+    const userTier = await getUserTier(supabaseAdmin, user_id);
+    
+    // Validate strategy updates against user's tier
+    const { valid: validUpdates, blocked } = validateStrategyUpdates(updates, userTier);
+    
+    // If any strategies were blocked, return error
+    if (blocked.length > 0) {
+      return NextResponse.json({ 
+        error: 'Subscription upgrade required',
+        message: `Your ${userTier} tier cannot enable: ${blocked.join(', ')}`,
+        blocked,
+        userTier,
+      }, { status: 403 });
+    }
+
     // Check if config exists
     const { data: existing } = await supabaseAdmin
       .from('polybot_config')
@@ -81,14 +129,14 @@ export async function POST(request: NextRequest) {
       // Update
       const res = await supabaseAdmin
         .from('polybot_config')
-        .update(updates)
+        .update(validUpdates)
         .eq('user_id', user_id);
       error = res.error;
     } else {
       // Create
       const res = await supabaseAdmin
         .from('polybot_config')
-        .insert([{ user_id, ...updates }]);
+        .insert([{ user_id, ...validUpdates }]);
       error = res.error;
     }
 
@@ -131,9 +179,25 @@ export async function PATCH(request: NextRequest) {
     // Remove user_id from updates
     const { user_id: _, ...updates } = body;
 
+    // Get user's subscription tier for validation
+    const userTier = await getUserTier(supabaseAdmin, userId);
+    
+    // Validate strategy updates against user's tier
+    const { valid: validUpdates, blocked } = validateStrategyUpdates(updates, userTier);
+    
+    // If any strategies were blocked, return error
+    if (blocked.length > 0) {
+      return NextResponse.json({ 
+        error: 'Subscription upgrade required',
+        message: `Your ${userTier} tier cannot enable: ${blocked.join(', ')}`,
+        blocked,
+        userTier,
+      }, { status: 403 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from('polybot_config')
-      .update(updates)
+      .update(validUpdates)
       .eq('user_id', userId)
       .select()
       .single();
