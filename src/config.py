@@ -388,11 +388,12 @@ class TradingConfig:
     selective_whale_max_position_usd: float = 200.0  # Max position size
 
     # =========================================================================
-    # 15-MINUTE CRYPTO SCALPING (90% CONFIDENCE - $50-200K potential)
+    # 15-MINUTE CRYPTO SCALPING (DEPRECATED - Markets No Longer Exist)
     # Based on Twitter analysis: $956 → $208K using 15-min BTC binary options
-    # High-frequency scalping on crypto short-term binary markets
+    # NOTE: The 15-minute BTC/ETH up/down markets no longer exist on Polymarket
+    # or Kalshi as of Jan 2025. This strategy is disabled by default.
     # =========================================================================
-    enable_15min_crypto_scalping: bool = True      # ON by default per user request
+    enable_15min_crypto_scalping: bool = False     # OFF - markets don't exist
     crypto_scalp_entry_threshold: float = 0.45     # Entry when YES < 45¢
     crypto_scalp_exit_threshold: float = 0.55      # Exit when YES > 55¢
     crypto_scalp_stop_loss_cents: float = 0.35     # Stop loss at 35¢

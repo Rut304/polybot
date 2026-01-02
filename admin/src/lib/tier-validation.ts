@@ -15,7 +15,7 @@ export const STRATEGY_TIER_REQUIREMENTS: Record<string, StrategyTier> = {
   // FREE TIER - Basic arbitrage and simple strategies
   enable_polymarket_single_arb: 'free',
   enable_kalshi_single_arb: 'free',
-  enable_15min_crypto_scalping: 'free',
+  enable_15min_crypto_scalping: 'free',  // NOTE: Markets no longer exist (Jan 2025)
   enable_news_arbitrage: 'free',
   enable_market_making: 'free',
   
@@ -41,6 +41,11 @@ export const STRATEGY_TIER_REQUIREMENTS: Record<string, StrategyTier> = {
   enable_cross_exchange_arb: 'elite',
   enable_custom_strategy: 'elite',
 };
+
+// Strategies that are deprecated or have markets that no longer exist
+export const DEPRECATED_STRATEGIES: Set<string> = new Set([
+  'enable_15min_crypto_scalping',  // 15-min BTC/ETH markets no longer exist
+]);
 
 // =============================================================================
 // FEATURE TIER REQUIREMENTS
