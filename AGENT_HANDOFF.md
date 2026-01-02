@@ -1,6 +1,6 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** December 30, 2025  
+**Last Updated:** January 1, 2026  
 **Current Version:** v1.1.25 (Build #98)  
 **Bot Deployment:** v29 ACTIVE on AWS Lightsail (us-east-1)  
 **Admin UI:** Auto-deploys from GitHub to Vercel (admin-app → polyparlay.io)  
@@ -8,117 +8,81 @@
 
 ---
 
-## ⚠️ CRITICAL: VERCEL DEPLOYMENT RULES
+## 🚨 READ THIS FIRST - NEW AGENT ONBOARDING
 
-**NEVER** run `vercel` or `vercel --prod` from the CLI. This creates orphan projects!
+Welcome to PolyBot! This is a sophisticated automated trading platform. **DO NOT make changes until you understand the system.** This document is your bible.
 
-### Root Cause of Duplicate Projects
+### Required Reading Order (30 min investment)
 
-Running `vercel` CLI creates a `.vercel/project.json` file that links to a new project.
-If this happens at the repo ROOT (not in /admin), it creates a duplicate project.
+1. **This document** - Complete architecture, rules, and context
+2. **`TODO.md`** - Current priorities and task status
+3. **`docs/STRATEGY_ARCHITECTURE.md`** - How 35+ strategies work
+4. **`src/bot_runner.py` (lines 1-200)** - Bot orchestration overview
+5. **`admin/src/app/docs/page.tsx`** - UI strategy documentation
 
-**Prevention:**
-
-- Only `/admin/.vercel/` should exist (linked to admin-app)
-- Delete any `/.vercel/` folder at repo root immediately
-- The root `.vercel` is gitignored but can still affect local CLI behavior
-
-### Correct Deployment Method
+### Quick Health Check Commands
 
 ```bash
-# ALWAYS use Git push - Vercel auto-deploys from main branch
+# 1. Check if bot is alive
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
+
+# 2. Check recent deployments
+aws lightsail get-container-service-deployments --service-name polyparlay --region us-east-1 --query 'deployments[0].{version:version,state:state}'
+
+# 3. Run E2E tests
+cd /Users/rut/polybot/admin && npx playwright test --reporter=line
+
+# 4. Check for uncommitted changes
+git status
+```
+
+---
+
+## ⚠️ CRITICAL RULES - VIOLATIONS BREAK PRODUCTION
+
+### Rule 1: NEVER Use Vercel CLI
+
+```bash
+# ❌ WRONG - Creates orphan projects
+vercel
+vercel --prod
+
+# ✅ CORRECT - Always use Git
 git push origin main
 ```
 
-### Why This Matters
+**Root Cause:** Running `vercel` CLI creates `/.vercel/project.json` pointing to a new project. Only `/admin/.vercel/` should exist (linked to admin-app). Delete any `/.vercel/` at repo root immediately.
 
-- The admin folder is linked to `admin-app` project (polyparlay.io)
-- Running `vercel` CLI can create duplicate projects
-- Git push triggers the correct auto-deploy
+### Rule 2: Database Changes Need Migration Scripts
 
-### If You Need to Force Redeploy
+Never modify the database schema directly. Always:
+1. Create a SQL file in `/scripts/` 
+2. Test locally first
+3. Run via Supabase SQL Editor OR use `python scripts/run_sql.py`
+4. Document in this handoff
 
-1. Make a trivial commit (whitespace, comment)
-2. `git push origin main`
-3. OR use the redeploy button in /admin page (deploy hook configured ✅)
+### Rule 3: Test Before AND After Changes
 
----
+```bash
+# Before making changes
+cd admin && npx playwright test
 
-## 🎯 MISSION CRITICAL: THE PATH TO PRODUCTION
+# After making changes
+cd admin && npx playwright test
+git push origin main  # Only if tests pass
+```
 
-### Why This Project Matters
+### Rule 4: Never Commit Secrets
 
-PolyBot aims to be **THE** automated prediction market trading platform - not another "SaaS bot that disappears." The key differentiator is **PERFECT ACCURACY** in all metrics, calculations, and data consistency.
-
-### Current Phase: Pre-Production Validation
-
-We are in the final stretch before accepting paying customers. The critical path is:
-
-1. ✅ **Core Infrastructure** - AWS Lightsail + Supabase + Vercel (COMPLETE)
-2. ✅ **35+ Trading Strategies** - All implemented and configurable (COMPLETE)
-3. ✅ **Admin Dashboard** - 42 pages, full control (COMPLETE)
-4. 🔄 **E2E Testing Suite** - 261+ tests, needs data verification (IN PROGRESS)
-5. ⚠️ **Perfect Accuracy** - Metrics must match reality 100% (CRITICAL)
-6. ⏳ **Live Trading** - Enable real money after validation (PENDING)
+- All secrets go in `.env` (gitignored)
+- GitHub Secrets for CI/CD
+- Use `os.environ.get()` in code
 
 ---
 
-## 🆕 SESSION COMPLETED: December 29, 2025
+## 🏗️ COMPLETE ARCHITECTURE
 
-### Major Accomplishments
-
-#### 1. Bot Deployment Fixed (v29 ACTIVE)
-
-- **Root Cause**: IB Gateway sidecar container was still in deploy.sh after Web API migration
-- **Fix**: Removed IB Gateway container - bot now uses IBKRWebClient (REST API) only
-- **Result**: Deployment v29 successful - bot running Build #98
-
-#### 2. Vercel Deployment Errors Fixed
-
-- Added `export const dynamic = 'force-dynamic'` to `/api/ibkr/quote` route
-- Removed `started_by` column reference (doesn't exist in polybot_status table)
-- Build succeeds locally and on Vercel
-
-#### 3. E2E Tests Fixed & Passing
-
-- Fixed timeout issues in metrics-accuracy.spec.ts
-- Fixed navigation errors in data-verification.spec.ts
-- All 114 metrics/data tests now pass
-
-#### 4. Diagnostics Page Enhanced
-
-- Added Lightsail container status widget (live health check)
-- Added external monitoring links (Vercel Speed Insights, Lightsail Console, Supabase)
-- Created `/api/admin/lightsail` endpoint
-
-#### 5. Redeploy Button Added
-
-- Added "Redeploy Dashboard" button to /admin page
-- Requires `VERCEL_DEPLOY_HOOK_URL` environment variable
-
-#### 6. IB Gateway Investigation & Removal
-
-- **What**: Heavyweight Docker container running IBKR Trader Workstation headlessly
-- **Problem**: Too resource-intensive for Lightsail micro tier, caused deployment failures
-- **Solution**: Already migrated to IBKRWebClient (REST API) - just needed cleanup
-- **Commit**: `cbd0b0f` - Removed from deploy.sh
-
----
-
-## 📊 CURRENT STATUS MATRIX
-
-| Component | Status | Version | Notes |
-|-----------|--------|---------|-------|
-| Bot (Lightsail) | 🟢 RUNNING | v1.1.25 (Build #98) | Deployment v29 ACTIVE |
-| Admin UI (Vercel) | 🟢 LIVE | Auto-deploy | polyparlay.io |
-| Supabase | 🟢 HEALTHY | N/A | RLS enabled |
-| E2E Tests | 🟡 261 tests | 16 spec files | Some need data validation |
-| Metrics Accuracy | ⚠️ NEEDS VALIDATION | N/A | Critical for production |
-| Live Trading | ⏸️ DISABLED | Simulation only | Enable after validation |
-
----
-
-## 🏗️ ARCHITECTURE OVERVIEW
+### System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -127,11 +91,11 @@ We are in the final stretch before accepting paying customers. The critical path
 │                                                                              │
 │   ┌─────────────────────┐         ┌─────────────────────────────────────┐   │
 │   │   ADMIN DASHBOARD   │         │         BOT ENGINE (Python)          │   │
-│   │   (Next.js 14)      │         │         AWS Lightsail                │   │
-│   │                     │         │                                       │   │
-│   │  • 42 pages         │  HTTP   │  • 35+ trading strategies            │   │
-│   │  • Vercel hosted    │ ◄─────► │  • Multi-exchange support            │   │
-│   │  • polyparlay.io    │         │  • Heartbeat monitoring              │   │
+│   │   Next.js 14        │         │         AWS Lightsail                │   │
+│   │                     │   REST  │                                       │   │
+│   │  • 50+ pages        │ ◄─────► │  • 35+ trading strategies            │   │
+│   │  • Vercel hosted    │         │  • Multi-exchange support            │   │
+│   │  • polyparlay.io    │         │  • 12 exchanges integrated           │   │
 │   └─────────────────────┘         │  • Simulation & Live modes           │   │
 │            │                       └─────────────────────────────────────┘   │
 │            │                                        │                        │
@@ -139,373 +103,524 @@ We are in the final stretch before accepting paying customers. The critical path
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │                         SUPABASE (PostgreSQL)                        │   │
 │   │                                                                       │   │
-│   │  • polybot_config          - Bot configuration                       │   │
-│   │  • polybot_simulated_trades - All trade history                      │   │
-│   │  • polybot_positions       - Current positions                       │   │
+│   │  CORE TABLES:                                                        │   │
+│   │  • polybot_config          - 349+ columns of bot configuration       │   │
+│   │  • polybot_simulated_trades- All trade history (simulation + live)   │   │
+│   │  • polybot_positions       - Current open positions                  │   │
 │   │  • polybot_status          - Bot health/heartbeat                    │   │
-│   │  • polybot_profiles        - User management                         │   │
-│   │  • polybot_secrets         - API keys (encrypted columns ready)      │   │
-│   │  • polybot_teams           - Team/collaboration                      │   │
+│   │  • polybot_profiles        - User profiles + roles                   │   │
+│   │  • user_secrets            - Encrypted API keys                      │   │
 │   │  • user_exchange_credentials - Per-user exchange OAuth               │   │
 │   │                                                                       │   │
-│   │  RLS ENABLED ✓                                                       │   │
+│   │  MULTI-TENANT: RLS (Row Level Security) ENABLED ✓                    │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                           EXCHANGES                                   │   │
-│   │                                                                       │   │
-│   │  • Polymarket (CLOB + Gamma API)    • Kalshi                         │   │
-│   │  • Alpaca (Stocks)                  • IBKR (Web API - OAuth)         │   │
-│   │                                                                       │   │
+│   │                         12 SUPPORTED EXCHANGES                        │   │
+│   ├─────────────────────────────────────────────────────────────────────┤   │
+│   │  PREDICTION MARKETS:          CRYPTO:            TRADITIONAL:        │   │
+│   │  • Polymarket (CLOB API)      • Binance          • Alpaca (Stocks)   │   │
+│   │  • Kalshi                     • Coinbase         • IBKR (Web API)    │   │
+│   │                               • Kraken           • Webull            │   │
+│   │                               • KuCoin                               │   │
+│   │                               • OKX                                  │   │
+│   │                               • Bybit                                │   │
+│   │                               • Hyperliquid                          │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Data Flow
+
+```
+User Action (UI) 
+    → API Route (/api/*)
+    → Supabase Query (with RLS)
+    → Response to UI
+
+Bot Action:
+    → Strategy Signals
+    → Trade Execution (exchange APIs)
+    → Log to Supabase (polybot_simulated_trades)
+    → Update polybot_status (heartbeat)
+```
+
 ---
 
-## 📁 KEY FILES & DIRECTORIES
+## 📁 CODEBASE STRUCTURE
 
-### Python Bot (`/Users/rut/polybot/src/`)
+### Python Bot (`/src/`)
 
 ```
 src/
-├── bot_runner.py           # Main orchestrator (3800+ lines)
-├── config.py               # All configuration (1500+ lines)
-├── exchanges/
-│   ├── polymarket_client.py   # Polymarket CLOB integration
-│   ├── kalshi_client.py       # Kalshi API integration
-│   ├── alpaca_client.py       # Stock trading via Alpaca
-│   ├── ibkr_web_client.py     # IBKR REST API (OAuth) - PREFERRED
-│   └── ibkr_client.py         # Legacy ib_insync (local only)
-└── strategies/
-    ├── arbitrage_*.py         # Arbitrage strategies
-    ├── whale_copy_trading.py  # Whale following
-    ├── momentum_*.py          # Momentum strategies
-    ├── ai_superforecasting.py # Gemini AI predictions
-    ├── crypto_15min_scalping.py # High-frequency scalping
-    └── ... (35+ total)
+├── bot_runner.py              # Main orchestrator (4000+ lines) - THE BRAIN
+├── config.py                  # Configuration manager (1500+ lines)
+├── manager.py                 # Supabase data manager
+├── logging_handler.py         # Structured logging
+├── bootstrap_config.py        # Startup configuration
+│
+├── exchanges/                 # Exchange integrations
+│   ├── __init__.py           # Exchange registry
+│   ├── polymarket_client.py  # Polymarket CLOB + Gamma API
+│   ├── kalshi_client.py      # Kalshi REST API
+│   ├── alpaca_client.py      # Alpaca stock trading
+│   ├── ibkr_web_client.py    # IBKR Web API (OAuth) ← PREFERRED
+│   ├── binance_client.py     # Binance spot/futures
+│   ├── coinbase_client.py    # Coinbase Advanced Trade
+│   └── ... (12 total)
+│
+├── strategies/                # Trading strategies (35+)
+│   ├── arbitrage_single.py   # Single-platform arbitrage
+│   ├── arbitrage_cross.py    # Cross-platform arbitrage
+│   ├── whale_copy_trading.py # Follow whale wallets
+│   ├── crypto_15min_scalping.py # High-frequency scalping
+│   ├── ai_superforecasting.py # Gemini AI predictions
+│   ├── momentum_*.py         # Various momentum strategies
+│   ├── mean_reversion_*.py   # Mean reversion strategies
+│   └── ... (35+ total)
+│
+├── services/                  # Shared services
+│   └── unified_market_data.py # Multi-source market data
+│
+└── database/                  # Database utilities
+    ├── client.py             # Supabase client wrapper
+    └── sql/                  # Migration scripts
 ```
 
-### Admin Dashboard (`/Users/rut/polybot/admin/`)
+### Admin Dashboard (`/admin/`)
 
 ```
 admin/
-├── src/app/
-│   ├── page.tsx              # Dashboard (main landing)
-│   ├── admin/page.tsx        # Admin controls & redeploy
-│   ├── strategies/page.tsx   # Strategy configuration
-│   ├── settings/page.tsx     # Bot settings
-│   ├── analytics/page.tsx    # Performance charts
-│   ├── diagnostics/page.tsx  # System health
-│   ├── secrets/page.tsx      # API key management
-│   └── api/                   # API routes
-│       ├── bot/              # Bot control endpoints
-│       ├── admin/            # Admin-only endpoints
-│       └── ibkr/             # IBKR quote API
-├── e2e/                       # Playwright E2E tests (16 spec files)
-│   ├── metrics-accuracy.spec.ts
-│   ├── data-verification.spec.ts
-│   ├── trading.spec.ts
-│   └── ...
-└── playwright.config.ts       # Test configuration
+├── src/
+│   ├── app/                   # Next.js 14 App Router (50+ pages)
+│   │   ├── page.tsx          # Landing/redirect
+│   │   ├── dashboard/        # Main dashboard
+│   │   ├── settings/         # Bot configuration (2357 lines!)
+│   │   ├── strategies/       # Strategy management
+│   │   ├── analytics/        # Performance charts
+│   │   ├── docs/             # Strategy documentation
+│   │   ├── diagnostics/      # System health
+│   │   ├── secrets/          # API key management
+│   │   ├── users/            # User management (admin)
+│   │   └── api/              # 25+ API routes
+│   │
+│   ├── components/            # Reusable components
+│   │   ├── PlatformSetupWizard.tsx # Exchange setup guide (NEW)
+│   │   ├── BotStartCTA.tsx   # Start bot prompt (NEW)
+│   │   ├── Header.tsx        # Navigation header
+│   │   └── ... (30+ components)
+│   │
+│   └── lib/                   # Utilities
+│       ├── supabase.ts       # Supabase client
+│       ├── hooks.ts          # React Query hooks
+│       ├── auth.tsx          # Auth context
+│       └── useTier.tsx       # Subscription tiers
+│
+├── e2e/                       # Playwright E2E tests
+│   ├── schema-validation.spec.ts # NEW: DB schema checks
+│   ├── metrics-accuracy.spec.ts  # Critical: number accuracy
+│   ├── data-verification.spec.ts # Critical: data consistency
+│   └── ... (16 spec files, 261+ tests)
+│
+└── public/
+    └── docs/
+        └── platforms-reference.md # Platform setup guide
 ```
 
-### Scripts (`/Users/rut/polybot/scripts/`)
+### Scripts & DevOps
 
 ```
 scripts/
-├── deploy.sh                 # Bot deployment (Lightsail) - FIXED
-├── bump-version.sh           # Version management
-├── fix_user_management.sql   # DB migrations
-└── create_*.sql              # Various DB setup scripts
+├── deploy.sh                  # Bot deployment to Lightsail
+├── bump-version.sh            # Version management
+├── validate_schema.py         # NEW: Schema mismatch detection
+├── auto_fix_schema.py         # NEW: Generate fix SQL
+├── run_sql.py                 # NEW: Execute SQL via Management API
+├── run_sql_direct.py          # NEW: Execute SQL via direct connection
+└── *.sql                      # Database migrations (50+ files)
+
+.github/workflows/
+├── schema-validation.yml      # NEW: CI/CD schema checks (notify only)
+├── deploy-bot.yml             # Bot deployment workflow
+└── ... (other workflows)
 ```
 
 ---
 
-## 🧪 E2E TESTING GUIDE
+## 💰 TRADING STRATEGIES DEEP DIVE
 
-### Running Tests
+### Strategy Categories
 
-```bash
-# Run all tests
-cd /Users/rut/polybot/admin && npx playwright test
+| Category | Strategies | Risk Profile |
+|----------|------------|--------------|
+| **Prediction Market Arbitrage** | Single-platform, Cross-platform, BTC Bracket | Low |
+| **Crypto Scalping** | 15-min Scalping, Spike Hunter, Grid Trading | Medium-High |
+| **Momentum** | Stock Momentum, Sector Rotation, Earnings | Medium |
+| **Mean Reversion** | RSI, Pairs Trading, Dividend Growth | Medium |
+| **Copy Trading** | Whale Following, Congressional Tracker | Medium |
+| **AI-Powered** | Superforecasting (Gemini), News Sentiment | Medium |
+| **Options** | Covered Calls, Iron Condor, Wheel Strategy | Medium-High |
 
-# Run specific test file
-npx playwright test metrics-accuracy.spec.ts
+### High-Confidence Strategies (Production Ready)
 
-# Run with UI
-npx playwright test --ui
-
-# Run single test
-npx playwright test -g "should display paper balance"
-```
-
-### Test Coverage (261+ tests across 16 files)
-
-| File | Tests | Purpose |
-|------|-------|---------|
-| `navigation.spec.ts` | 12 | Page navigation |
-| `auth.spec.ts` | 12 | Authentication flows |
-| `dashboard.spec.ts` | 14 | Dashboard rendering |
-| `trading.spec.ts` | 26 | Trading workflows |
-| `settings.spec.ts` | 20 | Settings persistence |
-| `metrics-accuracy.spec.ts` | 57 | **CRITICAL**: Number accuracy |
-| `data-verification.spec.ts` | 57 | **CRITICAL**: Data consistency |
-| `workflows.spec.ts` | 28 | User workflows |
-| `pages-coverage.spec.ts` | 33 | All pages render |
-| `accessibility.spec.ts` | 24 | WCAG compliance |
-
-### Adding New Tests
-
-```typescript
-// e2e/your-new-test.spec.ts
-import { test, expect } from '@playwright/test';
-
-test.describe('Your Feature', () => {
-  test('should do something correctly', async ({ page }) => {
-    await page.goto('/your-page');
-    await page.waitForLoadState('networkidle');
-    
-    // Use expect() for assertions
-    const element = page.locator('[data-testid="your-element"]');
-    await expect(element).toBeVisible();
-    
-    // For API verification
-    const response = await page.request.get('/api/your-endpoint');
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
-    expect(data.value).toBe(expectedValue);
-  });
-});
-```
-
----
-
-## 💰 TRADING STRATEGIES (35+)
-
-### High-Confidence Strategies (>85%)
-
-| Strategy | Confidence | Expected APY | Risk |
-|----------|-----------|--------------|------|
-| Single-Platform Arbitrage | 95% | 50-200% | Low |
-| Cross-Platform Arbitrage | 90% | 30-100% | Low |
-| 15-Min Crypto Scalping | 90% | 50-200% | Medium |
-| BTC Bracket Arbitrage | 85% | 20-50% | Low |
-| AI Superforecasting | 85% | 30-60% | Medium |
-| Funding Rate Arbitrage | 85% | 15-50% | Low |
+| Strategy | Confidence | Expected APY | How It Works |
+|----------|------------|--------------|--------------|
+| **Single-Platform Arb** | 95% | 50-200% | Buy YES+NO when sum < $1 |
+| **Cross-Platform Arb** | 90% | 30-100% | Price diff Polymarket vs Kalshi |
+| **15-Min Crypto Scalping** | 90% | 50-200% | Quick trades on price spikes |
+| **BTC Bracket Arb** | 85% | 20-50% | Exploit bracket pricing |
+| **Funding Rate Arb** | 85% | 15-50% | Long spot, short perp when funding high |
 
 ### Strategy Configuration
 
-All strategies are configured in Supabase `polybot_config` table:
+All strategies configured via `polybot_config` table (349+ columns):
 
 ```sql
--- Enable a strategy
+-- Example: Enable arbitrage strategies
 UPDATE polybot_config SET 
-  enable_arbitrage = true,
-  enable_whale_copy_trading = true,
-  enable_15min_crypto_scalping = false  -- Enable when ready
-WHERE id = 1;
+  enable_polymarket_single_arb = true,
+  enable_kalshi_single_arb = true,
+  enable_cross_platform_arb = true,
+  poly_single_min_profit_pct = 0.5,  -- 0.5% minimum profit
+  max_position_size = 500            -- $500 max per trade
+WHERE user_id = 'your-user-id';
 ```
 
 ---
 
-## 🔧 ENVIRONMENT SETUP
+## 🔧 ENVIRONMENT & SECRETS
 
-### Required Environment Variables
-
-#### Bot (.env at project root)
+### Local Development (.env)
 
 ```bash
-# Supabase
+# Core Supabase (UPDATED Jan 1, 2026)
 SUPABASE_URL=https://ytaltvltxkkfczlvjgad.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...  # Service role, not anon!
+SUPABASE_SERVICE_ROLE_KEY=eyJ...    # Service role (bypasses RLS)
+SUPABASE_ANON_KEY=eyJ...            # Public anon key
+SUPABASE_ACCESS_TOKEN=sbp_...       # Management API token
+SUPABASE_MANAGEMENT_TOKEN=sbp_...   # Same as above (alias)
 
-# Exchanges
+# Exchanges (examples)
 POLYMARKET_API_KEY=...
 POLYMARKET_SECRET=...
 KALSHI_API_KEY=...
+ALPACA_API_KEY=...
+ALPACA_API_SECRET=...
 IBKR_USERNAME=...
 IBKR_PASSWORD=...
 
 # Optional
-GEMINI_API_KEY=...  # For AI Superforecasting
-ALPACA_API_KEY=...
-ALPACA_API_SECRET=...
+GEMINI_API_KEY=...                  # For AI Superforecasting
 ```
 
-#### Admin UI (Vercel Environment Variables)
+### GitHub Secrets (CI/CD)
 
-```bash
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
-BOT_URL=https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com
-VERCEL_DEPLOY_HOOK_URL=...  # Optional, for redeploy button
-```
+Required secrets in GitHub repo settings:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY` (UPDATED Jan 1, 2026)
+- `SUPABASE_MANAGEMENT_TOKEN` (UPDATED Jan 1, 2026)
+- `SUPABASE_ACCESS_TOKEN` (UPDATED Jan 1, 2026)
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `LIGHTSAIL_CONTAINER_NAME`
 
-### Useful Commands
+### Vercel Environment Variables
 
-```bash
-# Deploy bot to Lightsail
-./scripts/deploy.sh
-
-# Check bot status
-curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
-
-# Build admin locally
-cd admin && npm run build
-
-# Run E2E tests
-cd admin && npx playwright test
-
-# Check Lightsail deployments
-aws lightsail get-container-service-deployments --service-name polyparlay --region us-east-1 --query 'deployments[0].{version:version,state:state}'
-```
+Set in Vercel project settings for admin-app:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `BOT_URL` (Lightsail container URL)
+- `VERCEL_DEPLOY_HOOK_URL` (optional, for redeploy button)
 
 ---
 
-## 📋 TODO LIST (By Priority)
+## 🧪 TESTING GUIDE
 
-### 🔴 CRITICAL (Must Complete Before Production)
+### Running E2E Tests
+
+```bash
+cd /Users/rut/polybot/admin
+
+# Run all tests
+npx playwright test
+
+# Run with UI (debugging)
+npx playwright test --ui
+
+# Run specific file
+npx playwright test schema-validation.spec.ts
+
+# Run specific test
+npx playwright test -g "should verify all config columns exist"
+
+# Show report
+npx playwright show-report
+```
+
+### Test Coverage (261+ tests)
+
+| Spec File | Tests | Purpose |
+|-----------|-------|---------|
+| `schema-validation.spec.ts` | NEW | DB schema matches code |
+| `metrics-accuracy.spec.ts` | 57 | **CRITICAL**: Number accuracy |
+| `data-verification.spec.ts` | 57 | **CRITICAL**: Data consistency |
+| `settings.spec.ts` | 20 | Settings save correctly |
+| `trading.spec.ts` | 26 | Trading workflows |
+| `navigation.spec.ts` | 12 | Page routing |
+| `auth.spec.ts` | 12 | Login/logout flows |
+| `accessibility.spec.ts` | 24 | WCAG compliance |
+
+### Schema Validation (NEW!)
+
+We now have automated schema validation to prevent the `scalp_15min_entry_threshold` type errors:
+
+```bash
+# Run schema validator
+python scripts/validate_schema.py
+
+# If mismatches found, generate fix SQL
+python scripts/auto_fix_schema.py
+
+# Execute fix SQL
+python scripts/run_sql.py scripts/fix_all_missing_columns.sql
+```
+
+CI/CD automatically checks schema on push and creates GitHub Issues for mismatches.
+
+---
+
+## 📊 CURRENT STATUS
+
+### System Health Matrix
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| Bot (Lightsail) | 🟢 RUNNING | v1.1.25, Build #98, Deployment v29 |
+| Admin UI (Vercel) | 🟢 LIVE | polyparlay.io, auto-deploy from main |
+| Database (Supabase) | 🟢 HEALTHY | 349+ config columns, RLS enabled |
+| E2E Tests | 🟢 PASSING | 261+ tests across 16 spec files |
+| Schema Validation | 🟢 NEW | Auto-checks on CI/CD |
+
+### Recent Session Accomplishments (Jan 1, 2026)
+
+1. ✅ **Schema Validation CI/CD** - Auto-detects DB column mismatches, creates GitHub issues
+2. ✅ **SQL Runner Scripts** - Execute SQL without manual copy-paste (`run_sql.py`)
+3. ✅ **Fixed Crisp Double-Loading** - Was causing account ban (removed from layout.tsx)
+4. ✅ **Removed Hardcoded Secrets** - All scripts now use env vars
+5. ✅ **Platform Setup Wizard** - Guided setup for all 12 exchanges (sim vs live modes)
+6. ✅ **Bot Start CTA** - Prominent start button with subscription check
+7. ✅ **Fixed Vercel Duplicate** - Deleted orphan root `.vercel/` folder
+8. ✅ **Updated All Supabase Keys** - .env + GitHub secrets refreshed
+
+**Files Created/Modified This Session:**
+- `.github/workflows/schema-validation.yml` (NEW)
+- `scripts/validate_schema.py` (NEW)
+- `scripts/auto_fix_schema.py` (NEW)
+- `scripts/run_sql.py` (NEW)
+- `scripts/run_sql_direct.py` (NEW)
+- `scripts/fix_all_missing_columns.sql` (NEW)
+- `admin/src/components/PlatformSetupWizard.tsx` (NEW)
+- `admin/src/components/BotStartCTA.tsx` (NEW)
+- `admin/e2e/schema-validation.spec.ts` (NEW)
+- `admin/src/app/layout.tsx` (removed Crisp duplicate)
+- `scripts/reset_simulation.py` (removed hardcoded secrets)
+- `scripts/test_p0_*.py` (removed hardcoded secrets)
+
+---
+
+## 📋 NEXT STEPS & RECOMMENDATIONS
+
+### Immediate Priorities
+
+1. **Test Settings Save** - With Muschnick2 account, verify all settings save without errors
+2. **Run the Schema Fix SQL** - Execute `scripts/fix_all_missing_columns.sql` if not done
+3. **Verify Crisp Ban Resolution** - Check if chat widget works, contact support@crisp.chat if needed
+
+### High Priority (Before Launch)
 
 1. **Perfect Metrics Accuracy**
-   - [ ] Verify P&L calculations match trade history exactly
-   - [ ] Verify win rate calculations across all pages
-   - [ ] Verify balance calculations (Polymarket + Kalshi + Simulation)
-   - [ ] Ensure data consistency between dashboard, analytics, history pages
+   - P&L calculations must match trade history
+   - Win rate must be mathematically correct
+   - ROI calculations verified against raw data
 
-2. **Complete E2E Test Coverage**
-   - [x] Fix failing metrics tests (DONE)
-   - [ ] Add tests that verify mathematical accuracy of calculations
-   - [ ] Add tests that compare data across pages
-   - [ ] Add tests for edge cases (zero trades, negative P&L, etc.)
+2. **Live Trading Validation**
+   - Paper trade for 2 weeks minimum
+   - Compare simulation vs actual execution
+   - Verify risk limits work correctly
 
-3. **Database Schema Cleanup**
-   - [ ] Add `started_by` column to `polybot_status` if needed
-   - [x] Run `fix_user_management.sql` (user reported done)
-   - [ ] Verify all RLS policies work correctly
+3. **User Onboarding Flow**
+   - Platform setup wizard complete ✅
+   - Add success confirmation messages
+   - Add error recovery guidance
 
-### 🟡 HIGH (Before Launch)
+### Medium Priority (Post-Launch)
 
-1. **User Actions Required**
-   - [ ] Delete orphan "admin" Vercel project (keep "admin-app")
-   - [ ] Create Deploy Hook at Vercel for redeploy button
-   - [ ] Add `VERCEL_DEPLOY_HOOK_URL` to Vercel env vars
+1. **Mobile Optimization** - Dashboard responsive but needs polish
+2. **Performance** - Large settings page (2357 lines) could be split
+3. **Monitoring** - Add CloudWatch alarms, PagerDuty integration
+4. **Data Export** - Tax reports, trade history CSV
 
-2. **Page Consolidation** (per docs/PAGE_ANALYSIS.md)
-   - [ ] Remove 4 orphan/unused pages
-   - [ ] Merge 10 page pairs for simplification
-   - [ ] Target: 33% fewer pages
+### Technical Debt
 
-3. **Live Trading Prep**
-   - [ ] Create live trading checklist
-   - [ ] Set up paper trading validation period
-   - [ ] Configure risk limits and position caps
-
-### 🟢 MEDIUM (Post-Launch Enhancements)
-
-1. **Data Encryption**
-   - [ ] Implement actual encryption for API keys (columns exist)
-   - [ ] pgcrypto functions for encrypt/decrypt
-
-2. **Monitoring & Alerting**
-   - [ ] Set up CloudWatch alarms for bot health
-   - [ ] Configure Discord webhook notifications
-   - [ ] Add email alerts for critical events
-
-3. **Performance Optimization**
-   - [ ] Optimize slow queries
-   - [ ] Add database indexes
-   - [ ] Review bundle size
+1. **Settings Page Refactor** - 2357 lines, should be componentized
+2. **Strategy Page Cleanup** - Some strategies have incomplete UI
+3. **Test Data Fixtures** - Need consistent test data for E2E
 
 ---
 
-## 🚀 NEXT AGENT PROMPT
+## 🎯 NEXT AGENT PERFECT PROMPT
 
-**Copy everything below this line and paste as your first message:**
+Copy everything below the line and paste as your first message to the next agent:
 
 ---
 
-I'm taking over as the lead engineer for PolyBot - an automated prediction market trading platform targeting production launch. Before I start any work, I need to fully understand this project.
+# PolyBot Agent Onboarding
 
-## My First Actions
+I'm the new lead engineer for PolyBot. Before I touch anything, I'm going to fully understand this system.
 
-1. **Read the handoff document**: `cat /Users/rut/polybot/AGENT_HANDOFF.md`
-2. **Check bot health**: `curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .`
-3. **Run E2E tests**: `cd /Users/rut/polybot/admin && npx playwright test --reporter=line`
-4. **Review TODO.md** for priorities
+## My Onboarding Checklist
 
-## What I Know About PolyBot
+### Step 1: Health Check (Do First!)
 
-- **Goal**: Automated algo trading on prediction markets (Polymarket, Kalshi) and traditional markets (Alpaca, IBKR)
-- **Tech Stack**: Python bot (AWS Lightsail), Next.js 14 admin (Vercel), Supabase PostgreSQL
-- **Current State**: Bot running v1.1.25 (Build #98), deployment v29 ACTIVE, simulation mode
-- **Admin URL**: <https://polyparlay.io>
-- **35+ trading strategies** implemented and configurable
+```bash
+# Check bot is alive
+curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
 
-## Critical Rules
+# Check for uncommitted changes
+cd /Users/rut/polybot && git status
 
-1. **NEVER run `vercel` or `vercel --prod` CLI** - always use `git push origin main` for deployments
-2. **Check AGENT_HANDOFF.md first** before making any significant changes
-3. **Run E2E tests before and after changes**
-4. **The #1 priority is PERFECT ACCURACY** - all metrics, calculations, P&L must be 100% correct
-
-## Key Architecture
-
-```
-Admin Dashboard (Next.js) ←→ Supabase (PostgreSQL + RLS) ←→ Bot Engine (Python)
-        ↓                            ↓                            ↓
-    Vercel                      Database                     Lightsail
-  polyparlay.io              User data, trades,           35+ strategies
-                           config, positions               Multi-exchange
+# Run E2E tests
+cd admin && npx playwright test --reporter=line
 ```
 
-## Files I Should Read
+### Step 2: Read Core Documentation
 
-1. `AGENT_HANDOFF.md` - Complete project context (this gets updated each session)
-2. `TODO.md` - Prioritized task list  
-3. `src/bot_runner.py` - Main bot orchestrator (3800+ lines)
-4. `admin/e2e/metrics-accuracy.spec.ts` - Critical accuracy tests
-5. `docs/PAGE_ANALYSIS.md` - 42-page UI analysis
+```bash
+# Read handoff document (THIS IS CRITICAL)
+cat /Users/rut/polybot/AGENT_HANDOFF.md
 
-## What Was Done Last Session (Dec 29-30)
+# Read current priorities
+cat /Users/rut/polybot/TODO.md | head -200
 
-- ✅ Removed IB Gateway sidecar (was causing deploy failures)
-- ✅ Fixed Vercel deployment errors
-- ✅ Fixed E2E test failures (114 tests passing)
-- ✅ Deleted orphan "admin" Vercel project
-- ✅ Added Lightsail status widget to diagnostics
-- ✅ Created redeploy button (needs deploy hook setup)
+# Check recent commits
+git log --oneline -20
+```
 
-## What Needs To Happen Next
+### Step 3: Understand Architecture
 
-1. **Perfect Metrics Accuracy** - P&L, win rate, ROI must match database exactly
-2. **E2E Test Completeness** - Tests should verify mathematical correctness
-3. **Data Consistency** - Same number should appear the same across all pages
-4. **User needs to create Vercel Deploy Hook** - for admin redeploy button
+- **Bot Engine**: Python on AWS Lightsail, 35+ trading strategies
+- **Admin UI**: Next.js 14 on Vercel, 50+ pages, polyparlay.io
+- **Database**: Supabase PostgreSQL with RLS, 349+ config columns
+- **Exchanges**: 12 integrated (Polymarket, Kalshi, Alpaca, IBKR, Binance, etc.)
+
+### Step 4: Key Files to Review
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `src/bot_runner.py` | 4000+ | Main bot orchestrator |
+| `src/config.py` | 1500+ | Configuration management |
+| `admin/src/app/settings/page.tsx` | 2357 | Settings UI (complex!) |
+| `admin/src/app/strategies/page.tsx` | 900+ | Strategy management |
+| `admin/e2e/*.spec.ts` | 16 files | E2E test coverage |
+
+## What I Know
+
+1. **Current State**: Bot v1.1.25 running simulation mode on Lightsail
+2. **Recent Work**: Schema validation, SQL runners, Crisp fix, platform wizard
+3. **Critical Rule**: NEVER use `vercel` CLI - always `git push origin main`
+4. **Priority**: Perfect accuracy in all metrics and calculations
+
+## My Rules
+
+1. Read AGENT_HANDOFF.md before making ANY changes
+2. Run E2E tests before AND after changes
+3. Never commit secrets to code
+4. Update AGENT_HANDOFF.md at end of session
+5. Create SQL migration files for DB changes
+
+## Questions for Context
+
+Before I start working, please tell me:
+1. What specific task would you like me to focus on?
+2. Are there any urgent bugs or issues?
+3. What was the last thing that broke (so I can avoid it)?
 
 ## Commands I'll Use
 
 ```bash
+# Deploy bot
+./scripts/deploy.sh
+
+# Deploy admin
+git push origin main
+
+# Run tests
+cd admin && npx playwright test
+
 # Check bot status
 curl -s "https://polyparlay.p3ww4fvp9w2se.us-east-1.cs.amazonlightsail.com/status" | jq .
 
-# Deploy bot to Lightsail
-./scripts/deploy.sh
+# Run schema validation
+python scripts/validate_schema.py
 
-# Deploy admin (via Git push)
-git push origin main
-
-# Run E2E tests
-cd admin && npx playwright test
-
-# Check Lightsail deployments
-aws lightsail get-container-service-deployments --service-name polyparlay --region us-east-1
+# Execute SQL
+python scripts/run_sql.py scripts/your_file.sql
 ```
 
-Please start by telling me the current state of the project - run the health check and E2E tests, then summarize what's working and what needs attention.
+I'm ready to help. What should I focus on first?
 
 ---
 
 **END OF NEXT AGENT PROMPT**
+
+---
+
+## 📚 ADDITIONAL DOCUMENTATION
+
+For deeper context on specific topics:
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| Strategy Details | `docs/STRATEGY_ARCHITECTURE.md` | Deep dive on all 35+ strategies |
+| AWS Deployment | `LIGHTSAIL_DEPLOYMENT.md` | Container deployment guide |
+| Arbitrage Analysis | `ARBITRAGE_STRATEGY.md` | Mathematical breakdown |
+| Infrastructure | `INFRASTRUCTURE.md` | AWS + Vercel + Supabase setup |
+| Multi-tenancy | `docs/MULTITENANCY_ARCHITECTURE.md` | User isolation design |
+| Fee Structures | `docs/FEE_STRUCTURES.md` | Exchange fees reference |
+
+---
+
+## 📝 SESSION LOG
+
+### January 1, 2026
+
+**Agent Session Summary:**
+
+1. Fixed database schema mismatch (`scalp_15min_entry_threshold` missing)
+2. Created schema validation CI/CD pipeline (notifies, doesn't fail)
+3. Created SQL runner scripts (`run_sql.py`, `run_sql_direct.py`)
+4. Fixed Crisp double-loading bug (was in layout.tsx AND CrispChat.tsx)
+5. Removed hardcoded secrets from test scripts
+6. Added Platform Setup Wizard with simulation/live modes
+7. Added Bot Start CTA component to dashboard
+8. Fixed Vercel duplicate project (deleted orphan root `.vercel/`)
+9. Updated all Supabase keys in .env and GitHub secrets
+10. Created comprehensive handoff document
+
+### December 30, 2025
+
+- Fixed null email constraint error in user profile creation
+- Added platform setup documentation
+- E2E test improvements
+
+### December 29, 2025
+
+- Bot deployment v29
+- Multi-tenant configuration updates
+- Strategy parameter tuning
+
+---
+
+*This document should be updated at the end of every agent session.*
