@@ -12,7 +12,69 @@ env:
   NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
 jobs:
+  # Run validation checks first - deployment only proceeds if checks pass
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: admin
+
+      - name: TypeScript check
+        run: npm run typecheck
+        working-directory: admin
+
+      - name: Lint
+        run: npm run lint
+        working-directory: admin
+
+      - name: Build check
+        run: npm run build
+        working-directory: admin
+
+  # E2E tests run against the built app
+  e2e-tests:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: admin
+
+      - name: Build
+        run: npm run build
+        working-directory: admin
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+        working-directory: admin
+
+      - name: Run E2E tests
+        run: npx playwright test error-detection.spec.ts api-auth-validation.spec.ts --reporter=github --project=chromium
+        working-directory: admin
+        env:
+          CI: true
+
   deploy:
+    needs: [validate, e2e-tests]  # Only deploy if ALL checks pass
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
