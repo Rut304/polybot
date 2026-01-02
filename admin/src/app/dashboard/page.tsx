@@ -18,7 +18,6 @@ import {
   RefreshCw,
   HelpCircle,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import {
   useBotStatus,
   useSimulationStats,
@@ -357,11 +356,7 @@ export default function Dashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="card"
-        >
+        <div className="card animate-fadeIn">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-neon-green" />
@@ -372,14 +367,9 @@ export default function Dashboard() {
             </span>
           </div>
           <PnLChart data={pnlHistory || []} />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="card"
-        >
+        <div className="card animate-fadeIn animate-delay-50">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Activity className="w-5 h-5 text-neon-blue" />
@@ -387,7 +377,7 @@ export default function Dashboard() {
             </h2>
           </div>
           <OpportunityChart data={opportunities || []} />
-        </motion.div>
+        </div>
       </div>
 
       {/* Money Stats Widget - DISABLED: Needs real failed trade data with pricing
@@ -397,32 +387,17 @@ export default function Dashboard() {
       */}
 
       {/* Connected Exchanges Widget */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="mb-8"
-      >
+      <div className="mb-8 animate-fadeIn animate-delay-75">
         <ConnectedExchangesBadge showDetails />
-      </motion.div>
+      </div>
 
       {/* Bot Health Indicator */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.12 }}
-        className="mb-8"
-      >
+      <div className="mb-8 animate-fadeIn animate-delay-100">
         <BotHealthIndicator className="bg-dark-card" />
-      </motion.div>
+      </div>
 
       {/* Strategy Performance */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="card mb-8"
-      >
+      <div className="card mb-8 animate-fadeIn animate-delay-125">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-neon-purple" />
@@ -430,16 +405,11 @@ export default function Dashboard() {
           </h2>
         </div>
         <StrategyPerformanceTable tradingMode={isSimulation ? 'paper' : 'live'} limit={5} />
-      </motion.div>
+      </div>
 
       {/* Live Feeds */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="card"
-        >
+        <div className="card animate-fadeIn animate-delay-150">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Zap className="w-5 h-5 text-neon-yellow" />
@@ -454,14 +424,9 @@ export default function Dashboard() {
             opportunities={opportunities || []}
             onOpportunityClick={(opp) => setSelectedTrade(opportunityToTradeDetails(opp))}
           />
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="card"
-        >
+        <div className="card animate-fadeIn animate-delay-175">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Clock className="w-5 h-5 text-neon-purple" />
@@ -472,13 +437,13 @@ export default function Dashboard() {
             trades={trades || []}
             onTradeClick={(trade) => setSelectedTrade(tradeToTradeDetails(trade))}
           />
-        </motion.div>
+        </div>
       </div>
     </div>
   );
 }
 
-// Stat Card Component
+// Stat Card Component - Simplified for better LCP
 function StatCard({
   title,
   tooltip,
@@ -503,10 +468,10 @@ function StatCard({
   badge?: string;
 }) {
   const colorClasses = {
-    green: 'text-neon-green glow-green',
-    blue: 'text-neon-blue glow-blue',
-    purple: 'text-neon-purple glow-purple',
-    pink: 'text-neon-pink glow-pink',
+    green: 'text-neon-green',
+    blue: 'text-neon-blue',
+    purple: 'text-neon-purple',
+    pink: 'text-neon-pink',
   };
 
   const bgClasses = {
@@ -517,18 +482,16 @@ function StatCard({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+    <div
       onClick={onClick}
       className={cn(
         "card relative overflow-hidden group",
         onClick && "cursor-pointer hover:ring-2 hover:ring-neon-blue/50 transition-all"
       )}
     >
-      {/* Background glow effect */}
+      {/* Background glow effect - simplified */}
       <div className={cn(
-        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+        "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity",
         bgClasses[color]
       )} />
 
@@ -576,10 +539,10 @@ function StatCard({
             "w-12 h-12 rounded-xl flex items-center justify-center",
             bgClasses[color]
           )}>
-            <Icon className={cn("w-6 h-6", colorClasses[color].split(' ')[0])} />
+            <Icon className={cn("w-6 h-6", colorClasses[color])} />
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

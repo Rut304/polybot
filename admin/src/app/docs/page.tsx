@@ -1218,6 +1218,8 @@ export default function DocsPage() {
     ? STRATEGY_DOCS.filter(s => s.category === filterCategory)
     : STRATEGY_DOCS;
 
+  const [showHierarchy, setShowHierarchy] = useState(false);
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -1265,6 +1267,199 @@ export default function DocsPage() {
             📈 Stocks ({STRATEGY_DOCS.filter(s => s.category === 'stocks').length})
           </button>
         </div>
+      </div>
+
+      {/* Settings Hierarchy Section */}
+      <div className="card p-5">
+        <button
+          onClick={() => setShowHierarchy(!showHierarchy)}
+          className="w-full flex items-center justify-between"
+        >
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Shield className="text-blue-400" />
+            Settings Hierarchy & Data Flow
+          </h2>
+          {showHierarchy ? (
+            <ChevronDown className="w-5 h-5 text-gray-400" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          )}
+        </button>
+        
+        <AnimatePresence>
+          {showHierarchy && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-4 space-y-6 overflow-hidden"
+            >
+              {/* Diagram - ASCII Art Style */}
+              <div className="bg-gray-900/50 rounded-xl p-6 font-mono text-sm overflow-x-auto">
+                <pre className="text-gray-300 whitespace-pre">
+{`┌─────────────────────────────────────────────────────────────────────────────┐
+│                           POLYBOT SETTINGS HIERARCHY                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐       │
+│  │   Admin UI      │────▶│   Supabase DB   │────▶│   Bot (Python)  │       │
+│  │  (Next.js)      │     │  polybot_config │     │   bot_runner.py │       │
+│  └─────────────────┘     └─────────────────┘     └─────────────────┘       │
+│         │                        │                       │                  │
+│         ▼                        ▼                       ▼                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                        CONFIGURATION LAYERS                          │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                       │   │
+│  │  1️⃣  MASTER CONTROLS (General Tab)                                   │   │
+│  │     ├─ Bot Status (ON/OFF)                                           │   │
+│  │     ├─ Trading Mode (Paper/Live)                                     │   │
+│  │     └─ Global Limits (Max Trade, Daily Loss)                         │   │
+│  │                         │                                             │   │
+│  │                         ▼                                             │   │
+│  │  2️⃣  PLATFORMS (Platforms Tab)                                       │   │
+│  │     ├─ Prediction Markets: Polymarket, Kalshi                        │   │
+│  │     ├─ Crypto Exchanges: Binance, Bybit, OKX, Kraken...             │   │
+│  │     └─ Stock Brokers: Alpaca, IBKR, Webull                           │   │
+│  │                         │                                             │   │
+│  │                         ▼                                             │   │
+│  │  3️⃣  STRATEGIES (Strategies Tab)                                     │   │
+│  │     ├─ Enable/Disable each strategy independently                    │   │
+│  │     ├─ Per-strategy parameters (profit %, size, interval)           │   │
+│  │     └─ 44 available strategies across prediction/crypto/stocks      │   │
+│  │                         │                                             │   │
+│  │                         ▼                                             │   │
+│  │  4️⃣  RISK FRAMEWORKS (Risk Tab)                                      │   │
+│  │     ├─ Circuit Breaker (auto-halt on drawdown)                       │   │
+│  │     ├─ Kelly Criterion (position sizing)                             │   │
+│  │     ├─ Regime Detection (market condition awareness)                 │   │
+│  │     └─ Correlation Limits (diversification)                          │   │
+│  │                         │                                             │   │
+│  │                         ▼                                             │   │
+│  │  5️⃣  SIMULATION (Simulation Tab)                                     │   │
+│  │     ├─ Slippage/Spread models                                        │   │
+│  │     ├─ Execution failure rates                                       │   │
+│  │     └─ Partial fill simulation                                       │   │
+│  │                                                                       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘`}
+                </pre>
+              </div>
+
+              {/* Flow Explanation */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-800/50 rounded-xl p-4">
+                  <h3 className="font-bold text-blue-400 mb-3 flex items-center gap-2">
+                    <Zap className="w-4 h-4" /> Data Flow
+                  </h3>
+                  <ol className="space-y-2 text-sm text-gray-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-neon-green font-bold">1.</span>
+                      <span>You change a setting in Admin UI</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-neon-green font-bold">2.</span>
+                      <span>Click &quot;Save Changes&quot; → API writes to Supabase</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-neon-green font-bold">3.</span>
+                      <span>Bot polls Supabase every 5 minutes for config changes</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-neon-green font-bold">4.</span>
+                      <span>Bot applies new settings without restart</span>
+                    </li>
+                  </ol>
+                </div>
+
+                <div className="bg-gray-800/50 rounded-xl p-4">
+                  <h3 className="font-bold text-yellow-400 mb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" /> Priority Rules
+                  </h3>
+                  <ul className="space-y-2 text-sm text-gray-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-red-400">•</span>
+                      <span><strong>Master OFF</strong> = All strategies stop</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-yellow-400">•</span>
+                      <span><strong>Platform disabled</strong> = Related strategies can&apos;t run</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-400">•</span>
+                      <span><strong>Framework overrides</strong> = Circuit breaker halts ALL</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-400">•</span>
+                      <span><strong>Strategy settings</strong> = Fine-tune each independently</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* News Sources */}
+              <div className="bg-gray-800/50 rounded-xl p-4">
+                <h3 className="font-bold text-purple-400 mb-3 flex items-center gap-2">
+                  <Newspaper className="w-4 h-4" /> News Data Sources
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div className="bg-gray-900/50 rounded-lg p-3">
+                    <div className="text-green-400 font-medium mb-1">✅ Active Sources</div>
+                    <ul className="text-gray-400 space-y-1">
+                      <li>• Polymarket Activity (FREE)</li>
+                      <li>• RSS Feeds: CoinDesk, Politico (FREE)</li>
+                      <li>• NewsAPI.org (API key in secrets)</li>
+                      <li>• Finnhub.io (API key in secrets)</li>
+                    </ul>
+                  </div>
+                  <div className="bg-gray-900/50 rounded-lg p-3">
+                    <div className="text-yellow-400 font-medium mb-1">⚙️ Configurable</div>
+                    <ul className="text-gray-400 space-y-1">
+                      <li>• Twitter/X (needs TWITTER_BEARER_TOKEN)</li>
+                      <li>• Google News (defined, not wired)</li>
+                    </ul>
+                  </div>
+                  <div className="bg-gray-900/50 rounded-lg p-3">
+                    <div className="text-red-400 font-medium mb-1">❌ Not Implemented</div>
+                    <ul className="text-gray-400 space-y-1">
+                      <li>• Reddit (needs API app + keys)</li>
+                      <li>• Discord webhooks (read-only)</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Links */}
+              <div className="flex gap-3 flex-wrap">
+                <Link 
+                  href="/settings?tab=general"
+                  className="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg hover:bg-blue-600/30 transition-colors text-sm"
+                >
+                  ⚙️ General Settings
+                </Link>
+                <Link 
+                  href="/settings?tab=strategies"
+                  className="px-4 py-2 bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors text-sm"
+                >
+                  🎯 Strategies
+                </Link>
+                <Link 
+                  href="/settings?tab=platforms"
+                  className="px-4 py-2 bg-green-600/20 text-green-400 rounded-lg hover:bg-green-600/30 transition-colors text-sm"
+                >
+                  📡 Platforms
+                </Link>
+                <Link 
+                  href="/secrets"
+                  className="px-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors text-sm"
+                >
+                  🔑 API Keys & Secrets
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Summary Table */}

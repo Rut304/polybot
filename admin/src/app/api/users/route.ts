@@ -62,9 +62,10 @@ export async function GET(request: NextRequest) {
     const users = (authUsers?.users || []).map(user => {
       const profile = profileMap.get(user.id);
       const saasProfile = saasProfileMap.get(user.id);
-      // Normalize role: database uses 'admin' | 'viewer'
+      // Get role from profile or metadata, default to 'viewer'
       const rawRole = profile?.role || user.user_metadata?.role || 'viewer';
-      const role = rawRole === 'admin' ? 'admin' : 'viewer';
+      // Normalize role: 'admin', 'trader', or 'viewer'
+      const role = rawRole === 'admin' ? 'admin' : (rawRole === 'trader' ? 'trader' : 'viewer');
       return {
         id: user.id,
         email: user.email,

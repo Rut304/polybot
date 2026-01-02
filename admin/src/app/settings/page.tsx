@@ -646,6 +646,9 @@ export default function SettingsPage() {
   // State for settings tabs - default to URL param or 'general'
   const initialTab = searchParams.get('tab') || 'general';
   const [activeTab, setActiveTab] = useState(initialTab);
+  
+  // Track which tabs have been visited for lazy loading optimization
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set([initialTab]));
 
   const updateBotStatus = useUpdateBotStatus();
   const updateConfig = useUpdateBotConfig();
@@ -657,6 +660,12 @@ export default function SettingsPage() {
     { id: 'platforms', label: 'Platforms', icon: Database },
     { id: 'simulation', label: 'Simulation', icon: Activity },
   ] as const;
+
+  // When tab changes, mark it as visited
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setVisitedTabs(prev => new Set([...prev, tabId]));
+  };
 
   // Local state for settings
   const [botEnabled, setBotEnabled] = useState(status?.is_running ?? false);
@@ -1874,7 +1883,7 @@ export default function SettingsPage() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={cn(
                 "flex items-center gap-2 px-4 py-3 rounded-t-xl font-medium transition-all whitespace-nowrap border-b-2",
                 isActive
@@ -1891,24 +1900,26 @@ export default function SettingsPage() {
 
       <div className="min-h-[500px]">
         {/* ================= GENERAL TAB ================= */}
-        {activeTab === 'general' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-6"
-          >
-            {/* Master Controls */}
-            <div className="card">
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <Power className="w-5 h-5 text-neon-green" />
-                Master Controls
-              </h2>
-              <div className="grid gap-6">
-                <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-xl flex items-center justify-center",
+        {/* Lazy load: Only render when visited */}
+        {visitedTabs.has('general') && (
+          <div className={activeTab === 'general' ? 'block' : 'hidden'}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              {/* Master Controls */}
+              <div className="card">
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                  <Power className="w-5 h-5 text-neon-green" />
+                  Master Controls
+                </h2>
+                <div className="grid gap-6">
+                  <div className="flex items-center justify-between p-4 bg-dark-border/30 rounded-xl">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "w-12 h-12 rounded-xl flex items-center justify-center",
                       botEnabled ? "bg-neon-green/20" : "bg-red-500/20"
                     )}>
                       <Power className={cn("w-6 h-6", botEnabled ? "text-neon-green" : "text-red-500")} />
@@ -2093,30 +2104,36 @@ export default function SettingsPage() {
               </div>
             )}
           </motion.div>
+          </div>
         )}
 
         {/* ================= STRATEGIES TAB ================= */}
-        {activeTab === 'strategies' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="card"
-          >
-            <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-blue-400">Strategy Specific Configs</h3>
-                <p className="text-sm text-blue-300">Fine-tune individual strategies (Whale Watcher, News Trading, etc.)</p>
+        {/* Lazy load: Only render when visited */}
+        {visitedTabs.has('strategies') && (
+          <div className={activeTab === 'strategies' ? 'block' : 'hidden'}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="card"
+            >
+              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-blue-400">Strategy Specific Configs</h3>
+                  <p className="text-sm text-blue-300">Fine-tune individual strategies (Whale Watcher, News Trading, etc.)</p>
+                </div>
+                <Link href="/strategies" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold">
+                  Configure Strategies &rarr;
+                </Link>
               </div>
-              <Link href="/strategies" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold">
-                Configure Strategies &rarr;
-              </Link>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
         )}
 
         {/* ================= RISK TAB ================= */}
-        {activeTab === 'risk' && (
+        {/* Lazy load: Only render when visited */}
+        {visitedTabs.has('risk') && (
+          <div className={activeTab === 'risk' ? 'block' : 'hidden'}>
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -2148,39 +2165,45 @@ export default function SettingsPage() {
               </div>
             </div>
           </motion.div>
+          </div>
         )}
 
         {/* ================= PLATFORMS TAB ================= */}
-        {activeTab === 'platforms' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-6"
-          >
-            <PlatformsSection 
-              config={{
-                polymarketEnabled, setPolymarketEnabled,
-                kalshiEnabled, setKalshiEnabled,
-                enableBinance, setEnableBinance,
-                enableBybit, setEnableBybit,
-                enableOkx, setEnableOkx,
-                enableKraken, setEnableKraken,
-                enableCoinbase, setEnableCoinbase,
-                enableKucoin, setEnableKucoin,
-                enableHyperliquid, setEnableHyperliquid,
-                enableAlpaca, setEnableAlpaca,
-                enableIbkr, setEnableIbkr,
-                enableWebull, setEnableWebull,
-              }}
-            />
-          </motion.div>
+        {/* Lazy load: Only render when visited */}
+        {visitedTabs.has('platforms') && (
+          <div className={activeTab === 'platforms' ? 'block' : 'hidden'}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <PlatformsSection 
+                config={{
+                  polymarketEnabled, setPolymarketEnabled,
+                  kalshiEnabled, setKalshiEnabled,
+                  enableBinance, setEnableBinance,
+                  enableBybit, setEnableBybit,
+                  enableOkx, setEnableOkx,
+                  enableKraken, setEnableKraken,
+                  enableCoinbase, setEnableCoinbase,
+                  enableKucoin, setEnableKucoin,
+                  enableHyperliquid, setEnableHyperliquid,
+                  enableAlpaca, setEnableAlpaca,
+                  enableIbkr, setEnableIbkr,
+                  enableWebull, setEnableWebull,
+                }}
+              />
+            </motion.div>
+          </div>
         )}
 
         {/* ================= SIMULATION TAB ================= */}
-        {activeTab === 'simulation' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
+        {/* Lazy load: Only render when visited */}
+        {visitedTabs.has('simulation') && (
+          <div className={activeTab === 'simulation' ? 'block' : 'hidden'}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
             className="space-y-6"
@@ -2267,6 +2290,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </motion.div>
+          </div>
         )}
 
       </div>

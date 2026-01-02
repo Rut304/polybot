@@ -470,7 +470,7 @@ I'm ready to help. What's the priority?
    - `polybot_strategy_performance` view correctly aggregates from `polybot_simulated_trades`
    - Excludes `failed_execution` trades (896 failed out of 8,971 total)
    - Dashboard uses server-computed stats via hooks - 100% accurate
-   
+
 3. **Verified news feed sources** - Already configured:
    - `NEWSAPI_KEY`, `NEWS_API_KEY`, `FINNHUB_API_KEY` all present in `polybot_secrets`
    - Bot fetches and stores to `polybot_news_items` table
@@ -486,16 +486,19 @@ I'm ready to help. What's the priority?
    - Main bundle reduced from 6MB to optimized chunks
 
 **Current Stats:**
+
 - Bot: v1.1.25 (Build #100), 23 tasks running
 - E2E: 614 passing tests (some mobile viewport warnings expected)
 - Trade data: 8,971 total trades (7,312 won, 763 lost, 896 failed)
 - Win rate: 90.6% (resolved trades only)
 
 **Files Modified:**
+
 - `admin/.env.local` - Added Supabase credentials
 - `admin/next.config.js` - Added performance optimizations
 
 **Still TODO:**
+
 - Further LCP optimization (target <2.5s) - consider code-splitting settings page tabs
 - Review UX for simplicity improvements
 

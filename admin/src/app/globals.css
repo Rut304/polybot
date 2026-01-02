@@ -85,6 +85,47 @@ body {
   animation: stat-pulse 2s ease-in-out infinite;
 }
 
+/* Fade-in animation for initial load (CSS-only, no JS) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Animation delay utilities */
+.animate-delay-50 {
+  animation-delay: 50ms;
+}
+
+.animate-delay-75 {
+  animation-delay: 75ms;
+}
+
+.animate-delay-100 {
+  animation-delay: 100ms;
+}
+
+.animate-delay-125 {
+  animation-delay: 125ms;
+}
+
+.animate-delay-150 {
+  animation-delay: 150ms;
+}
+
+.animate-delay-175 {
+  animation-delay: 175ms;
+}
+
 /* Chart tooltip */
 .recharts-tooltip-wrapper {
   outline: none;
