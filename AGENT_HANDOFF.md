@@ -12,6 +12,17 @@
 
 **NEVER** run `vercel` or `vercel --prod` from the CLI. This creates orphan projects!
 
+### Root Cause of Duplicate Projects
+
+Running `vercel` CLI creates a `.vercel/project.json` file that links to a new project.
+If this happens at the repo ROOT (not in /admin), it creates a duplicate project.
+
+**Prevention:**
+
+- Only `/admin/.vercel/` should exist (linked to admin-app)
+- Delete any `/.vercel/` folder at repo root immediately
+- The root `.vercel` is gitignored but can still affect local CLI behavior
+
 ### Correct Deployment Method
 
 ```bash
@@ -377,33 +388,33 @@ aws lightsail get-container-service-deployments --service-name polyparlay --regi
 
 ### 🟡 HIGH (Before Launch)
 
-4. **User Actions Required**
+1. **User Actions Required**
    - [ ] Delete orphan "admin" Vercel project (keep "admin-app")
    - [ ] Create Deploy Hook at Vercel for redeploy button
    - [ ] Add `VERCEL_DEPLOY_HOOK_URL` to Vercel env vars
 
-5. **Page Consolidation** (per docs/PAGE_ANALYSIS.md)
+2. **Page Consolidation** (per docs/PAGE_ANALYSIS.md)
    - [ ] Remove 4 orphan/unused pages
    - [ ] Merge 10 page pairs for simplification
    - [ ] Target: 33% fewer pages
 
-6. **Live Trading Prep**
+3. **Live Trading Prep**
    - [ ] Create live trading checklist
    - [ ] Set up paper trading validation period
    - [ ] Configure risk limits and position caps
 
 ### 🟢 MEDIUM (Post-Launch Enhancements)
 
-7. **Data Encryption**
+1. **Data Encryption**
    - [ ] Implement actual encryption for API keys (columns exist)
    - [ ] pgcrypto functions for encrypt/decrypt
 
-8. **Monitoring & Alerting**
+2. **Monitoring & Alerting**
    - [ ] Set up CloudWatch alarms for bot health
    - [ ] Configure Discord webhook notifications
    - [ ] Add email alerts for critical events
 
-9. **Performance Optimization**
+3. **Performance Optimization**
    - [ ] Optimize slow queries
    - [ ] Add database indexes
    - [ ] Review bundle size

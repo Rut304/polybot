@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """Reset simulation data to start fresh."""
+import os
 from supabase import create_client
 
-url = 'https://ytaltvltxkkfczlvjgad.supabase.co'
-key = (
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.'
-    'eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwi'
-    'cm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgw'
-    'MDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw'
-)
+# Load from environment
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+url = os.environ.get('SUPABASE_URL', 'https://ytaltvltxkkfczlvjgad.supabase.co')
+key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
+
+if not key:
+    print("Error: SUPABASE_SERVICE_ROLE_KEY not set")
+    exit(1)
+
 supabase = create_client(url, key)
 
 print("Resetting simulation data...")

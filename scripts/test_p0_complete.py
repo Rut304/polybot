@@ -14,8 +14,8 @@ import os
 import requests
 
 SUPABASE_URL = "https://ytaltvltxkkfczlvjgad.supabase.co"
-ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0NDUwODgsImV4cCI6MjA4MDAyMTA4OH0.wTIGy2JFxcMNiMcBvOOemIh-8-gjDjmFnAIuD0lmTg4"
-SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDQ0NTA4OCwiZXhwIjoyMDgwMDIxMDg4fQ.eWq6y3iT6DvX9JRzgNxX4N8O7YFZY_9ncRL2gmwefbw"
+ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 BASE = "http://localhost:3001"
 
 

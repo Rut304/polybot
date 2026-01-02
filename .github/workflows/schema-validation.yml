@@ -147,10 +147,10 @@ jobs:
             $SLACK_WEBHOOK_URL
             
       - name: Trigger Auto-Fix (Optional)
-        if: steps.parse.outputs.issue_count != '0' && env.SUPABASE_SERVICE_ROLE_KEY != ''
+        if: steps.parse.outputs.issue_count != '0' && env.SUPABASE_MANAGEMENT_TOKEN != ''
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
         run: |
           echo "🔧 Auto-fix is available but requires manual approval"
           echo "To enable auto-fix, set SCHEMA_AUTO_FIX=true in repository secrets"

@@ -13,7 +13,7 @@ from typing import Optional
 # Configuration
 BASE_URL = sys.argv[3] if len(sys.argv) > 3 else "http://localhost:3001"
 SUPABASE_URL = "https://ytaltvltxkkfczlvjgad.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl0YWx0dmx0eGtrZmN6bHZqZ2FkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0NDUwODgsImV4cCI6MjA4MDAyMTA4OH0.wTIGy2JFxcMNiMcBvOOemIh-8-gjDjmFnAIuD0lmTg4"
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 
 
 def print_header(text: str):
