@@ -7,11 +7,16 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run lint && npm run build",
+    "pre-deploy": "./scripts/pre-deploy-check.sh",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:errors": "playwright test error-detection.spec.ts --reporter=list",
+    "test:e2e:auth": "playwright test api-auth-validation.spec.ts --reporter=list"
   },
   "dependencies": {
     "@aws-sdk/client-lightsail": "^3.943.0",
