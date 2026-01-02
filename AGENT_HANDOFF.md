@@ -56,6 +56,7 @@ git push origin main
 ### Rule 2: Database Changes Need Migration Scripts
 
 Never modify the database schema directly. Always:
+
 1. Create a SQL file in `/scripts/`
 2. Test locally first
 3. Run via Supabase SQL Editor OR use `python scripts/run_sql.py`
@@ -278,6 +279,7 @@ python scripts/run_sql.py scripts/fix_all_missing_columns.sql
 | Time to First Byte | 0.03s | 🟢 Good |
 
 **Page Performance:**
+
 | Page | Score | Status |
 |------|-------|--------|
 | /dashboard | 66 | 🟡 Needs Improvement |
@@ -370,28 +372,33 @@ cat /Users/rut/polybot/TODO.md | head -200
 ## What I Know About This Project
 
 **Architecture:**
+
 - Bot Engine: Python on AWS Lightsail (35+ trading strategies)
 - Admin UI: Next.js 14 on Vercel (50+ pages, polyparlay.io)
 - Database: Supabase PostgreSQL with RLS (349+ config columns)
 - Exchanges: 12 integrated (Polymarket, Kalshi, Alpaca, IBKR, Binance, etc.)
 
 **Current State:**
+
 - Bot v1.1.25 running in simulation mode
 - Schema fix applied (Jan 1, 2026)
 - Settings save should now work (needs verification)
 - Parlay maker working on paper trading side
 
 **Existing Features (Already Built):**
+
 - ✅ Strategy backtesting (`/backtesting`)
 - ✅ Referral program (`/referrals`)
 - ✅ Tax report generator (`/taxes`)
 - ✅ News feed (`/news` - needs source configuration)
 
 **Not Yet Built:**
+
 - ❌ Mobile PWA
 - ❌ Discord/Telegram alerts
 
 **Performance Issue:**
+
 - Vercel Real Experience Score: 71 (should be >90)
 - LCP is 5.38s on /dashboard and /settings
 - Need to optimize JS bundles and data fetching
@@ -451,9 +458,51 @@ I'm ready to help. What's the priority?
 
 ## 📝 SESSION LOG
 
-### January 1, 2026
+### January 1, 2026 (Session 2)
 
 **Completed:**
+
+1. **Fixed E2E test environment** - Added Supabase env vars to `admin/.env.local`
+   - All 18 API tests now passing
+   - Root cause was missing `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+
+2. **Audited data sources** - Verified analytics consistency:
+   - `polybot_strategy_performance` view correctly aggregates from `polybot_simulated_trades`
+   - Excludes `failed_execution` trades (896 failed out of 8,971 total)
+   - Dashboard uses server-computed stats via hooks - 100% accurate
+   
+3. **Verified news feed sources** - Already configured:
+   - `NEWSAPI_KEY`, `NEWS_API_KEY`, `FINNHUB_API_KEY` all present in `polybot_secrets`
+   - Bot fetches and stores to `polybot_news_items` table
+   - Polymarket activity showing, NewsAPI/Finnhub will fetch as relevant news appears
+
+4. **Reviewed simulation realism** - Already realistic:
+   - `paper_trader_realistic.py` includes: slippage (0.3-1.2%), execution failures (12%), partial fills (18%), platform fees, resolution risk (15%), position limits, cooldowns
+   - No changes needed - simulation is production-quality
+
+5. **LCP Performance improvements** - Added optimizations to `next.config.js`:
+   - `optimizePackageImports` for framer-motion, lucide-react, recharts, date-fns
+   - Compiler console removal in production
+   - Main bundle reduced from 6MB to optimized chunks
+
+**Current Stats:**
+- Bot: v1.1.25 (Build #100), 23 tasks running
+- E2E: 614 passing tests (some mobile viewport warnings expected)
+- Trade data: 8,971 total trades (7,312 won, 763 lost, 896 failed)
+- Win rate: 90.6% (resolved trades only)
+
+**Files Modified:**
+- `admin/.env.local` - Added Supabase credentials
+- `admin/next.config.js` - Added performance optimizations
+
+**Still TODO:**
+- Further LCP optimization (target <2.5s) - consider code-splitting settings page tabs
+- Review UX for simplicity improvements
+
+### January 1, 2026 (Session 1)
+
+**Completed:**
+
 1. Created schema validation CI/CD pipeline
 2. Created SQL runner scripts (`run_sql.py`, `run_sql_direct.py`)
 3. Fixed Crisp double-loading bug (removed from layout.tsx)
@@ -467,6 +516,7 @@ I'm ready to help. What's the priority?
 11. Created comprehensive handoff document
 
 **Files Created This Session:**
+
 - `.github/workflows/schema-validation.yml`
 - `scripts/validate_schema.py`
 - `scripts/auto_fix_schema.py`
@@ -478,8 +528,8 @@ I'm ready to help. What's the priority?
 - `admin/e2e/schema-validation.spec.ts`
 
 **Known Issues:**
-- Vercel RES score is 71 (LCP 5.38s on /dashboard, /settings)
-- Need to enable news feed sources
+
+- Vercel RES score is 71 (LCP 5.38s on /dashboard, /settings) - PARTIALLY ADDRESSED
 - Need to import more markets for parlay maker
 
 ### December 30, 2025
