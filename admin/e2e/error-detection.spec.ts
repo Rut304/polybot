@@ -303,7 +303,10 @@ test.describe('Comprehensive Error Detection', () => {
 });
 
 test.describe('Full Page Error Summary', () => {
+  // This test iterates through all pages, so needs longer timeout
   test('generate error report for all pages', async ({ page }) => {
+    test.setTimeout(120000); // 2 minutes for comprehensive test
+    
     const report: Record<string, PageError[]> = {};
     let totalErrors = 0;
     

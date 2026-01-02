@@ -7,10 +7,16 @@ export const dynamic = 'force-dynamic';
 // Lazy initialization to avoid build-time errors
 let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
 // eslint-disable-next-line
-function getSupabaseAdmin(): any {
+function getSupabaseAdmin(): ReturnType<typeof createClient> | null {
   if (!supabaseAdminInstance) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+    
+    // Return null if not configured (prevents crash)
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return null;
+    }
+    
     supabaseAdminInstance = createClient(supabaseUrl, supabaseServiceKey);
   }
   return supabaseAdminInstance;
@@ -38,6 +44,15 @@ async function getTotalStartingBalance(): Promise<number> {
 // GET - List all simulation sessions or get details for one
 export async function GET(request: NextRequest) {
   try {
+    // Check if Supabase is configured
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: 'Database not configured' },
+        { status: 503 }
+      );
+    }
+    
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('session_id');
     const status = searchParams.get('status') || 'all';
@@ -46,12 +61,12 @@ export async function GET(request: NextRequest) {
     if (sessionId) {
       // Get specific session with its trades
       const [sessionResult, tradesResult] = await Promise.all([
-        getSupabaseAdmin()
+        supabase
           .from('polybot_simulation_sessions')
           .select('*')
           .eq('session_id', sessionId)
           .single(),
-        getSupabaseAdmin()
+        supabase
           .from('polybot_session_trades')
           .select('*')
           .eq('session_id', sessionId)
@@ -101,7 +116,7 @@ export async function GET(request: NextRequest) {
     }
     
     // List all sessions
-    let query = getSupabaseAdmin()
+    let query = supabase
       .from('polybot_simulation_sessions')
       .select('*')
       .order('ended_at', { ascending: false, nullsFirst: false })

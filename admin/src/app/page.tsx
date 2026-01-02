@@ -47,6 +47,15 @@ import { cn } from '@/lib/utils';
 // ============================================================================
 
 function AnimatedBackground() {
+  // Use deterministic positions to avoid hydration mismatch
+  const particlePositions = [
+    { left: 12, top: 8 }, { left: 87, top: 23 }, { left: 34, top: 67 }, { left: 91, top: 45 },
+    { left: 5, top: 89 }, { left: 67, top: 12 }, { left: 23, top: 78 }, { left: 78, top: 34 },
+    { left: 45, top: 56 }, { left: 56, top: 91 }, { left: 15, top: 42 }, { left: 82, top: 63 },
+    { left: 38, top: 19 }, { left: 63, top: 85 }, { left: 29, top: 51 }, { left: 94, top: 7 },
+    { left: 8, top: 73 }, { left: 71, top: 28 }, { left: 49, top: 94 }, { left: 3, top: 36 },
+  ];
+  
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none">
       {/* Gradient orbs */}
@@ -64,24 +73,24 @@ function AnimatedBackground() {
         }}
       />
       
-      {/* Floating particles */}
-      {[...Array(20)].map((_, i) => (
+      {/* Floating particles - using deterministic positions */}
+      {particlePositions.map((pos, i) => (
         <motion.div
           key={i}
           className="absolute w-1 h-1 bg-emerald-400/40 rounded-full"
           style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
+            left: `${pos.left}%`,
+            top: `${pos.top}%`,
           }}
           animate={{
             y: [0, -20, 20, 0],
             opacity: [0.2, 0.8, 0.2],
           }}
           transition={{
-            duration: 4 + Math.random() * 4,
+            duration: 4 + (i % 5),
             repeat: Infinity,
             ease: 'easeInOut',
-            delay: Math.random() * 4,
+            delay: i * 0.2,
           }}
         />
       ))}
