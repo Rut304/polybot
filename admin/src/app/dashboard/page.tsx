@@ -63,6 +63,9 @@ const BotHealthIndicator = dynamic(() => import('@/components/BotHealthIndicator
 const ConnectedExchangesBadge = dynamic(() => import('@/components/ConnectedExchangesBadge').then(m => ({ default: m.ConnectedExchangesBadge })));
 const TradingModeBanner = dynamic(() => import('@/components/TradingModeBanner').then(m => ({ default: m.TradingModeBanner })));
 const StatusIndicator = dynamic(() => import('@/components/StatusIndicator').then(m => ({ default: m.StatusIndicator })));
+const BotStartCTA = dynamic(() => import('@/components/BotStartCTA').then(m => ({ default: m.BotStartCTA })), {
+  loading: () => <div className="h-32 bg-dark-border/30 rounded-lg animate-pulse" />
+});
 
 // Timeframe options for global selector
 const TIMEFRAME_OPTIONS = [
@@ -302,7 +305,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-
+      {/* Bot Start CTA - Prominent when bot is offline */}
+      <div className="mb-8">
+        <BotStartCTA />
+      </div>
 
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

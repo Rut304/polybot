@@ -91,15 +91,6 @@ const EXCHANGE_CONFIG: Record<string, {
     requiresPassword: false,
     description: 'Derivatives & spot trading',
   },
-  robinhood: {
-    name: 'Robinhood',
-    icon: '🪶',
-    color: 'bg-green-500',
-    signupUrl: 'https://robinhood.com/signup',
-    docsUrl: 'https://robinhood.com/us/en/support/',
-    requiresPassword: true, // Needs MFA secret in passphrase field
-    description: 'Commission-free stocks, crypto & options',
-  },
   webull: {
     name: 'Webull',
     icon: '🐂',
@@ -108,6 +99,15 @@ const EXCHANGE_CONFIG: Record<string, {
     docsUrl: 'https://www.webull.com/help',
     requiresPassword: true, // Needs trading PIN
     description: 'Commission-free trading with extended hours',
+  },
+  hyperliquid: {
+    name: 'Hyperliquid',
+    icon: '💧',
+    color: 'bg-cyan-500',
+    signupUrl: 'https://app.hyperliquid.xyz',
+    docsUrl: 'https://hyperliquid.gitbook.io/hyperliquid-docs/',
+    requiresPassword: false,
+    description: 'Decentralized perpetuals exchange on Arbitrum',
   },
 };
 

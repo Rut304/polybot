@@ -101,19 +101,19 @@ export const PLATFORM_METADATA: Record<string, Omit<Platform, 'connected'>> = {
     supports: ['stocks', 'options', 'futures', 'forex'],
     icon: '🏛️',
   },
-  robinhood: {
-    id: 'robinhood',
-    name: 'Robinhood',
-    type: 'stock_broker',
-    supports: ['stocks', 'crypto', 'options'],
-    icon: '🪶',
-  },
   webull: {
     id: 'webull',
     name: 'Webull',
     type: 'stock_broker',
     supports: ['stocks', 'crypto', 'options'],
     icon: '🐂',
+  },
+  hyperliquid: {
+    id: 'hyperliquid',
+    name: 'Hyperliquid',
+    type: 'crypto_exchange',
+    supports: ['crypto', 'perpetuals'],
+    icon: '💧',
   },
 };
 

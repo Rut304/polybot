@@ -11,11 +11,6 @@ from .base import BaseExchange
 
 # Optional imports - these require additional dependencies
 try:
-    from .robinhood_client import RobinhoodClient
-except ImportError:
-    RobinhoodClient = None  # robin_stocks not installed
-
-try:
     from .webull_client import WebullClient
 except ImportError:
     WebullClient = None  # webull not installed
@@ -26,6 +21,5 @@ __all__ = [
     'IBKRClient',
     'IBKRWebClient',
     'BaseExchange',
-    'RobinhoodClient',
     'WebullClient'
 ]

@@ -3,7 +3,7 @@ Unified Market Data Service - Aggregates data from all trading platforms.
 
 This service provides a single interface to market data across:
 - Prediction Markets: Polymarket, Kalshi
-- Stock Brokers: Alpaca (public data), IBKR, Webull, Robinhood (authenticated)
+- Stock Brokers: Alpaca (public data), IBKR, Webull (authenticated)
 - Crypto Exchanges: Binance, Coinbase, Hyperliquid (via CCXT)
 
 DESIGN PRINCIPLES:
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 class AssetType(Enum):
     """Type of tradeable asset."""
     PREDICTION = "prediction"  # Polymarket, Kalshi
-    STOCK = "stock"           # Alpaca, IBKR, Webull, Robinhood
+    STOCK = "stock"           # Alpaca, IBKR, Webull
     CRYPTO = "crypto"         # Binance, Coinbase, Hyperliquid
     OPTION = "option"         # IBKR, Alpaca
     FUTURES = "futures"       # IBKR, Binance futures
@@ -62,7 +62,6 @@ class DataSource(Enum):
     # Stock Brokers (auth required for data)
     IBKR = "ibkr"
     WEBULL = "webull"
-    ROBINHOOD = "robinhood"
     
     # Crypto Exchanges (public data available)
     BINANCE = "binance"
@@ -647,101 +646,6 @@ class WebullAdapter(BaseDataAdapter):
         return None
 
 
-class RobinhoodAdapter(BaseDataAdapter):
-    """
-    Adapter for Robinhood stock data.
-    
-    REQUIRES AUTHENTICATION - No public API available.
-    
-    ⚠️ WARNING: Uses unofficial robin_stocks library.
-    """
-    
-    def __init__(self):
-        super().__init__(requires_auth=True, rate_limit=60)
-        self._client = None
-    
-    @property
-    def source(self) -> DataSource:
-        return DataSource.ROBINHOOD
-    
-    @property
-    def asset_types(self) -> List[AssetType]:
-        return [AssetType.STOCK, AssetType.CRYPTO, AssetType.OPTION]
-    
-    async def initialize(self, credentials: Optional[Dict] = None) -> bool:
-        """Initialize Robinhood client with credentials."""
-        if not credentials:
-            logger.warning(f"⚠️ {self.source.value} requires credentials - skipping")
-            return False
-        
-        try:
-            from src.exchanges.robinhood_client import RobinhoodClient
-            
-            self._client = RobinhoodClient(
-                username=credentials.get('username'),
-                password=credentials.get('password'),
-                mfa_secret=credentials.get('mfa_secret')
-            )
-            
-            initialized = await self._client.initialize()
-            self._initialized = initialized
-            
-            if initialized:
-                logger.info(f"✅ {self.source.value} adapter initialized")
-            return initialized
-            
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize Robinhood adapter: {e}")
-            return False
-    
-    async def get_markets(self) -> List[UnifiedTicker]:
-        """Get stock tickers from Robinhood."""
-        if not self._initialized or not self._client:
-            return []
-        
-        tickers = []
-        symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
-        
-        for symbol in symbols:
-            ticker = await self.get_ticker(symbol)
-            if ticker:
-                tickers.append(ticker)
-        
-        return tickers
-    
-    async def get_ticker(self, symbol: str) -> Optional[UnifiedTicker]:
-        """Get single stock ticker."""
-        if not self._initialized or not self._client:
-            return None
-        
-        try:
-            ticker_data = await self._client.get_ticker(symbol)
-            if ticker_data:
-                mid = (ticker_data.bid + ticker_data.ask) / 2 if ticker_data.bid and ticker_data.ask else ticker_data.last
-                spread = ((ticker_data.ask - ticker_data.bid) / mid * 100) if mid > 0 else 0
-                
-                return UnifiedTicker(
-                    symbol=symbol,
-                    source=DataSource.ROBINHOOD,
-                    asset_type=AssetType.STOCK,
-                    bid=ticker_data.bid,
-                    ask=ticker_data.ask,
-                    last_price=ticker_data.last,
-                    mid_price=mid,
-                    spread_percent=spread,
-                    volume_24h=ticker_data.volume_24h,
-                    liquidity=None,
-                    timestamp=datetime.now(timezone.utc),
-                    source_timestamp=ticker_data.timestamp,
-                    market_id=symbol,
-                    market_title=symbol,
-                )
-        except Exception as e:
-            logger.error(f"Error fetching Robinhood ticker {symbol}: {e}")
-        
-        return None
-
-
 class BinanceAdapter(BaseDataAdapter):
     """
     Adapter for Binance crypto exchange data.
@@ -867,7 +771,6 @@ class UnifiedMarketDataService:
     # Auth-required sources - only available if user connected
     AUTH_REQUIRED_SOURCES = [
         DataSource.WEBULL,
-        DataSource.ROBINHOOD,
         DataSource.IBKR,
     ]
     
@@ -888,7 +791,7 @@ class UnifiedMarketDataService:
             platform_credentials: Optional dict of platform -> credentials for
                                  auth-required sources in simulation mode.
                                  Use this to provide YOUR credentials for
-                                 Webull/Robinhood data in simulation.
+                                 Webull data in simulation.
         """
         self.user_id = user_id
         self.mode = mode
@@ -945,7 +848,6 @@ class UnifiedMarketDataService:
         # This allows platform owner to provide their credentials for simulation data
         auth_adapter_classes = {
             DataSource.WEBULL: WebullAdapter,
-            DataSource.ROBINHOOD: RobinhoodAdapter,
         }
         
         for source, adapter_class in auth_adapter_classes.items():
@@ -982,7 +884,6 @@ class UnifiedMarketDataService:
             DataSource.ALPACA: AlpacaAdapter,
             DataSource.BINANCE: BinanceAdapter,
             DataSource.WEBULL: WebullAdapter,
-            DataSource.ROBINHOOD: RobinhoodAdapter,
         }
         
         for source in self._user_connected_platforms:

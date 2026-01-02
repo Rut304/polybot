@@ -66,15 +66,15 @@ const EXCHANGE_METADATA: Record<string, {
     type: 'prediction_market',
     supports: ['prediction_markets'],
   },
-  robinhood: {
-    name: 'Robinhood',
-    type: 'stock_broker',
-    supports: ['stocks', 'crypto', 'options'],
-  },
   webull: {
     name: 'Webull',
     type: 'stock_broker',
     supports: ['stocks', 'crypto', 'options'],
+  },
+  hyperliquid: {
+    name: 'Hyperliquid',
+    type: 'crypto_exchange',
+    supports: ['crypto', 'perpetuals'],
   },
 };
 

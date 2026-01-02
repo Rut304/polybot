@@ -578,6 +578,75 @@ With crypto exchanges connected:
     view_count: 0,
   },
   {
+    id: 'platforms-reference',
+    slug: 'platforms-reference',
+    title: 'Complete Platform Integration Reference',
+    category: 'integrations',
+    excerpt: 'Comprehensive guide to all 12 supported trading platforms with detailed setup instructions, features, fees, and troubleshooting.',
+    content: `# Complete Platform Integration Reference
+
+PolyParlay supports **12 trading platforms** for automated trading. For the comprehensive guide, see [Full Platform Documentation](/docs/platforms-reference.md).
+
+## Quick Platform Overview
+
+| Platform | Type | Fees | US Legal | Best For |
+|----------|------|------|----------|----------|
+| **Polymarket** | Prediction Market | 0% | Yes | Political/Sports |
+| **Kalshi** | Prediction Market | 7% profit | ✅ | Weather/Economics |
+| **Hyperliquid** ⭐ | Crypto DEX | 0% maker | ✅ | Grid Trading, Perps |
+| **Binance** | Crypto CEX | 0.1% | ⚠️ US | High Liquidity |
+| **Coinbase** | Crypto CEX | 0.5% | ✅ | US Compliance |
+| **Kraken** | Crypto CEX | 0.16% | ✅ | Security |
+| **KuCoin** | Crypto CEX | 0.1% | ⚠️ | Altcoins |
+| **Bybit** | Crypto CEX | 0.1% | ❌ US | Derivatives |
+| **OKX** | Crypto CEX | 0.08% | ⚠️ | All-in-One |
+| **Alpaca** | Stock Broker | $0 | ✅ | Algo Trading |
+| **IBKR** | Multi-Asset | ~$1 | ✅ | Professional |
+| **Webull** | Stock Broker | $0 | ✅ | Casual Trading |
+
+## ⭐ Recommended Platforms to Start
+
+### For Crypto Trading: **Hyperliquid**
+- Zero maker fees (grid trading is extremely profitable!)
+- No KYC required
+- API wallets for security (can trade, can't withdraw)
+- Built on Arbitrum
+
+### For Stock Trading: **Alpaca**
+- Commission-free
+- Excellent API
+- Paper trading with $100K virtual balance
+- No minimum deposit
+
+### For Prediction Markets: **Polymarket**
+- Zero fees
+- Deepest liquidity
+- 24/7 trading
+
+## Security Best Practices
+
+1. **Never enable withdrawal permissions** - PolyParlay doesn't need them
+2. **Use IP whitelisting** where available
+3. **Use API Wallets on Hyperliquid** - they can't withdraw
+4. **Rotate keys periodically** - every 90 days recommended
+5. **Enable 2FA** on all exchange accounts
+
+## Platform Not Configured?
+
+If a platform isn't configured, the bot **gracefully skips it** - no errors, just a log message. You only need to configure platforms you want to use.
+
+## More Details
+
+See the full documentation for each platform:
+- [Polymarket Setup](/help?article=connecting-polymarket)
+- [Kalshi Setup](/help?article=connecting-kalshi)
+- [Alpaca Setup](/help?article=connecting-alpaca)
+- [Crypto Exchanges](/help?article=connecting-crypto)
+
+Or view the [Complete Platform Documentation](/docs/platforms-reference.md) for detailed setup guides with screenshots.`,
+    view_count: 0,
+  },
+  {
     id: '8',
     slug: 'tradingview-webhook',
     title: 'TradingView Webhook Integration',
@@ -1369,6 +1438,384 @@ Detailed comparison of what's included in each PolyParlay subscription.
 ## Ready to Upgrade?
 
 [View Pricing →](/pricing)`,
+    view_count: 0,
+  },
+  // ========================================
+  // SEO ARTICLES - PREDICTION MARKETS
+  // ========================================
+  {
+    id: '16',
+    slug: 'what-is-prediction-market-arbitrage',
+    title: 'What is Prediction Market Arbitrage?',
+    category: 'strategies',
+    excerpt: 'Learn how arbitrage works in prediction markets like Polymarket and Kalshi.',
+    content: `# What is Prediction Market Arbitrage?
+
+Prediction market arbitrage is a low-risk trading strategy that exploits price differences in prediction markets to generate guaranteed profits.
+
+## How It Works
+
+In prediction markets, you can buy "YES" and "NO" contracts for any event:
+- If you buy YES at $0.45 and the event happens, you get $1.00
+- If you buy NO at $0.45 and the event doesn't happen, you get $1.00
+
+**Arbitrage occurs when YES + NO < $1.00**
+
+### Example:
+- YES price: $0.48
+- NO price: $0.49
+- Total: $0.97
+
+If you buy **both** YES and NO for $0.97, you're **guaranteed** to receive $1.00 when the market resolves (since one of them must be true). That's a **3.1% guaranteed profit**.
+
+## Types of Prediction Market Arbitrage
+
+### 1. Single-Platform Arbitrage
+Buy both outcomes on the same platform when they're mispriced.
+- Works on Polymarket (0% fees)
+- Works on Kalshi (need larger spread due to 7% fees)
+
+### 2. Cross-Platform Arbitrage
+Different prices on Polymarket vs Kalshi for the same event.
+- Buy the cheaper side on one platform
+- Sell (or buy opposite) on the other platform
+- Historical opportunity: ~$95K+ documented profits
+
+### 3. Bracket Arbitrage
+For multi-outcome markets (like "BTC price range"), if all brackets sum to less than 100%, buy all brackets.
+
+## Real Profit Potential
+
+Academic research on Polymarket found:
+- **$40 million** extracted by arbitrageurs over 1 year
+- Most profitable traders used automated bots
+- Market makers earned 15-25% APY
+
+## How PolyParlay Helps
+
+PolyParlay automates arbitrage scanning:
+- ✅ Real-time monitoring every 30 seconds
+- ✅ Automatic profit calculation including fees
+- ✅ Cross-platform opportunity matching
+- ✅ Position sizing recommendations
+- ✅ Paper trading to learn risk-free
+
+[Get Started with Arbitrage →](/strategies)`,
+    view_count: 0,
+  },
+  {
+    id: '17',
+    slug: 'polymarket-trading-bot',
+    title: 'Polymarket Trading Bot: Automated Strategies',
+    category: 'strategies',
+    excerpt: 'How to automate your Polymarket trading with bots and strategies.',
+    content: `# Polymarket Trading Bot: Automated Strategies
+
+Learn how to automate your Polymarket trading with proven strategies and reduce emotional decision-making.
+
+## Why Use a Polymarket Trading Bot?
+
+Polymarket is a 24/7 prediction market. Manual trading has limitations:
+- You can't watch markets while sleeping
+- Emotional decisions lead to losses
+- Manual arbitrage scanning is too slow
+- Position sizing is often inconsistent
+
+A trading bot solves these problems by:
+- ✅ Monitoring markets 24/7
+- ✅ Executing trades instantly when opportunities arise
+- ✅ Following consistent rules without emotion
+- ✅ Optimizing position sizes mathematically
+
+## Best Strategies for Polymarket Bots
+
+### 1. Single-Platform Arbitrage
+**Risk: Low | Return: 50-200% APY**
+
+Buy both YES and NO when combined < $1.00. Guaranteed profit on resolution.
+
+### 2. Market Making
+**Risk: Medium | Return: 15-25% APY**
+
+Provide liquidity by posting buy/sell orders. Earn the spread + Polymarket rewards.
+
+### 3. Whale Copy Trading
+**Risk: Medium | Return: Varies**
+
+Track wallets with 80%+ win rates. Copy their trades with a small delay.
+
+### 4. News Arbitrage
+**Risk: Medium | Return: 5-30% per event**
+
+React to breaking news before markets fully adjust.
+
+### 5. AI Superforecasting
+**Risk: Medium | Return: 30-60% APY**
+
+Use AI to estimate probabilities and trade divergences from market consensus.
+
+## Setting Up a Polymarket Bot with PolyParlay
+
+### Step 1: Create Account
+Sign up at [polyparlay.io](/signup) - free paper trading included.
+
+### Step 2: Connect Polymarket
+You'll need:
+- Polymarket wallet address
+- Private key (for automated execution)
+- USDC on Polygon network
+
+### Step 3: Choose Strategies
+Go to **Automation → Strategies** and enable:
+- Single-Platform Arbitrage
+- Market Making
+- Any other strategies that fit your goals
+
+### Step 4: Configure Settings
+For each strategy, set:
+- Maximum position size
+- Minimum profit threshold
+- Scan interval
+
+### Step 5: Start Paper Trading
+Test with simulated money first to validate performance.
+
+## FAQ
+
+**Q: Is this legal?**
+A: Automated trading on Polymarket is allowed. However, prediction markets may have geographic restrictions.
+
+**Q: How much capital do I need?**
+A: Start with as little as $50-100 for paper trading. Real trading depends on strategy.
+
+**Q: What are the risks?**
+A: Even "low-risk" arbitrage can fail if markets don't resolve as expected. Always use proper position sizing.
+
+[Start Your Polymarket Bot →](/signup)`,
+    view_count: 0,
+  },
+  {
+    id: '18',
+    slug: 'kalshi-vs-polymarket',
+    title: 'Kalshi vs Polymarket: Which is Better for Trading?',
+    category: 'platforms',
+    excerpt: 'Compare Kalshi and Polymarket for prediction market trading and arbitrage.',
+    content: `# Kalshi vs Polymarket: Complete Comparison
+
+Both Kalshi and Polymarket are leading prediction markets, but they serve different traders. Here's how they compare.
+
+## Quick Comparison
+
+| Feature | Polymarket | Kalshi |
+|---------|------------|--------|
+| **Fees** | 0% trading fees | ~7% total fees |
+| **Regulation** | Unregulated (crypto) | CFTC-regulated |
+| **US Access** | Technically restricted | Fully legal in US |
+| **Liquidity** | Higher on politics/crypto | Higher on economics |
+| **Settlement** | USDC on Polygon | USD (bank transfer) |
+| **Markets** | Politics, Sports, Crypto | Everything + 15-min brackets |
+| **API** | Yes (free) | Yes (free) |
+
+## When to Use Polymarket
+
+✅ **Best for:**
+- International traders
+- Crypto-native users
+- High-frequency arbitrage (0% fees)
+- Political and crypto markets
+- Larger position sizes
+
+❌ **Downsides:**
+- Legally gray in US
+- Crypto wallet required
+- No short-term bracket markets
+
+## When to Use Kalshi
+
+✅ **Best for:**
+- US-based traders
+- Regulated, compliant trading
+- 15-minute crypto bracket markets
+- Economic indicator markets
+- Tax reporting simplicity
+
+❌ **Downsides:**
+- ~7% fees eat into profits
+- Lower liquidity on some markets
+- Smaller position limits
+
+## Arbitrage Opportunities
+
+The fee difference creates arbitrage opportunities:
+
+**Buying on Polymarket (0% fee):**
+- Need ~2.5% spread to profit
+
+**Buying on Kalshi (7% fee):**
+- Need ~9% spread to profit
+
+**Cross-platform arbitrage:**
+- Same event, different prices
+- Historical data shows $95K+ opportunities
+
+## PolyParlay Supports Both
+
+PolyParlay connects to both platforms:
+
+1. **Compare prices** across platforms
+2. **Find arbitrage** automatically
+3. **Execute trades** on either platform
+4. **Track performance** in one dashboard
+
+[Connect Your Accounts →](/settings)`,
+    view_count: 0,
+  },
+  {
+    id: '19',
+    slug: 'kelly-criterion-position-sizing',
+    title: 'Kelly Criterion: Optimal Position Sizing for Trading',
+    category: 'strategies',
+    excerpt: 'Learn how the Kelly Criterion helps you size bets optimally for maximum growth.',
+    content: `# Kelly Criterion: Optimal Position Sizing
+
+The Kelly Criterion is a mathematical formula that tells you the optimal amount to bet to maximize long-term portfolio growth.
+
+## The Formula
+
+**Kelly % = W - [(1-W) / R]**
+
+Where:
+- **W** = Win probability
+- **R** = Win/Loss ratio (average win / average loss)
+
+### Example:
+- Win rate: 60% (W = 0.60)
+- Average win: $150, Average loss: $100 (R = 1.5)
+
+Kelly % = 0.60 - [(1-0.60) / 1.5] = 0.60 - 0.267 = **33.3%**
+
+This means you should bet 33.3% of your bankroll on this opportunity.
+
+## Why Kelly Works
+
+Kelly betting maximizes the **geometric growth rate** of your portfolio:
+- Bet too little → Leave money on the table
+- Bet too much → Risk of ruin (bankruptcy)
+- Bet Kelly → Optimal balance for long-term growth
+
+## Fractional Kelly (Recommended)
+
+Full Kelly is aggressive. Most traders use **fractional Kelly**:
+
+| Fraction | Risk Level | Use Case |
+|----------|------------|----------|
+| 25% Kelly | Conservative | Beginners, uncertain edge |
+| 50% Kelly | Moderate | Experienced traders |
+| 75% Kelly | Aggressive | High confidence |
+| 100% Kelly | Maximum | Only for verified edge |
+
+## Kelly for Prediction Markets
+
+In prediction markets:
+- **W** = Your estimated probability vs market price
+- **R** = (1 - market_price) / market_price for YES bets
+
+### Example:
+- Market says YES at 40¢
+- You believe true probability is 60%
+- Edge = 60% - 40% = 20%
+
+Kelly % = 0.60 - [(1-0.60) / (60/40)] = 0.60 - 0.267 = **33.3%**
+
+## PolyParlay Kelly Feature
+
+PolyParlay includes built-in Kelly position sizing:
+
+1. **Enable Kelly Sizer** in Framework Modules
+2. Set your **Kelly Fraction** (default: 25%)
+3. Set **Max Position %** cap (default: 10%)
+4. All strategies automatically use optimal sizing
+
+The system:
+- Calculates edge from historical win rate
+- Applies your Kelly fraction for safety
+- Caps at maximum position size
+- Adjusts dynamically as performance changes
+
+[Enable Kelly Position Sizing →](/strategies)`,
+    view_count: 0,
+  },
+  {
+    id: '20',
+    slug: 'crypto-trading-bot-comparison',
+    title: 'Best Crypto Trading Bots 2025: Complete Comparison',
+    category: 'getting-started',
+    excerpt: 'Compare PolyParlay with 3Commas, Cryptohopper, and other crypto trading bots.',
+    content: `# Best Crypto Trading Bots 2025
+
+A comprehensive comparison of automated crypto trading platforms to help you choose the right bot.
+
+## Quick Comparison
+
+| Bot | Exchanges | Price | Unique Feature |
+|-----|-----------|-------|----------------|
+| **PolyParlay** | 12+ incl. prediction markets | Free-$99/mo | Only bot for Polymarket + Kalshi |
+| **3Commas** | 20+ | $14-$49/mo | Largest user base, DCA bots |
+| **Cryptohopper** | 15+ | $19-$99/mo | Strategy marketplace |
+| **Pionex** | 1 (Pionex) | Free | Built-in exchange |
+
+## PolyParlay Advantages
+
+### ✅ Multi-Asset Class
+The only bot that combines:
+- **Prediction Markets** (Polymarket, Kalshi)
+- **Crypto** (Binance, Coinbase, Kraken, etc.)
+- **Stocks** (Alpaca, Interactive Brokers)
+- **Options** (IBKR)
+
+### ✅ Unique Strategies
+- Cross-platform prediction market arbitrage
+- Whale copy trading (on-chain tracking)
+- AI Superforecasting with Gemini
+- Congressional stock tracker
+
+### ✅ Free Paper Trading
+Unlimited paper trading on all plans - learn risk-free.
+
+## When to Choose Others
+
+### Choose 3Commas if:
+- You only trade crypto
+- You want the largest community
+- You need TradingView Pine Script support
+
+### Choose Cryptohopper if:
+- You want to buy/sell strategies from others
+- You prefer a pure crypto focus
+- You need tournament features
+
+### Choose PolyParlay if:
+- You trade prediction markets
+- You want multi-asset automation
+- You're interested in arbitrage strategies
+- You want cutting-edge AI features
+
+## Pricing Comparison
+
+| Plan | PolyParlay | 3Commas | Cryptohopper |
+|------|------------|---------|--------------|
+| Free | Unlimited paper | 1 DCA bot | 1 bot |
+| Mid | $29/mo (Pro) | $29/mo | $49/mo |
+| Top | $99/mo (Elite) | $49/mo | $99/mo |
+
+## The Verdict
+
+**For prediction markets**: PolyParlay is the only option
+**For pure crypto**: 3Commas has the largest ecosystem
+**For strategy marketplace**: Cryptohopper wins
+**For multi-asset**: PolyParlay is unique
+
+[Try PolyParlay Free →](/signup)`,
     view_count: 0,
   },
 ];

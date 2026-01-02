@@ -1008,35 +1008,6 @@ class PolybotRunner:
             logger.info("⏸️ IBKR Client DISABLED (enable_ibkr=False)")
 
         # =====================================================================
-        # ROBINHOOD CLIENT (Unofficial API - use at own risk)
-        # =====================================================================
-        if getattr(self.config.trading, 'enable_robinhood', False):
-            try:
-                from src.exchanges.robinhood_client import RobinhoodClient
-                if RobinhoodClient and self.user_id:
-                    self.robinhood_client = await RobinhoodClient.create_for_user(
-                        user_id=self.user_id,
-                        db_client=self.db
-                    )
-                    if self.robinhood_client:
-                        logger.info("✓ Robinhood client initialized")
-                    else:
-                        logger.info(
-                            "⏸️ Robinhood - no credentials for this user"
-                        )
-                else:
-                    logger.debug("Robinhood client not available")
-            except ImportError:
-                logger.info(
-                    "⏸️ Robinhood DISABLED "
-                    "(robin_stocks not installed)"
-                )
-            except Exception as e:
-                logger.error(f"Robinhood initialization failed: {e}")
-        else:
-            logger.info("⏸️ Robinhood Client DISABLED")
-
-        # =====================================================================
         # WEBULL CLIENT
         # =====================================================================
         if getattr(self.config.trading, 'enable_webull', False):

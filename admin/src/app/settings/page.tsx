@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import {
   Settings,
@@ -114,7 +115,6 @@ const EXCHANGE_ICONS: Record<string, string> = {
   kucoin: '🟢',
   hyperliquid: '⚡',
   ibkr: '🏛️',
-  robinhood: '🪶',
   webull: '🐂',
 };
 
@@ -143,8 +143,6 @@ interface PlatformsSectionProps {
     setEnableAlpaca: (v: boolean) => void;
     enableIbkr: boolean;
     setEnableIbkr: (v: boolean) => void;
-    enableRobinhood: boolean;
-    setEnableRobinhood: (v: boolean) => void;
     enableWebull: boolean;
     setEnableWebull: (v: boolean) => void;
   };
@@ -152,7 +150,16 @@ interface PlatformsSectionProps {
 
 function PlatformsSection({ config }: PlatformsSectionProps) {
   const { data: exchangesData, isLoading } = useUserExchanges();
+  const { isSimulation } = useTier();
   const connectedIds = exchangesData?.connected_exchange_ids || [];
+  const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
+  const [setupMode, setSetupMode] = useState<'simulation' | 'live'>('simulation');
+
+  // Dynamic import of the setup wizard
+  const PlatformSetupWizard = dynamic(
+    () => import('@/components/PlatformSetupWizard').then(m => ({ default: m.PlatformSetupWizard })),
+    { ssr: false }
+  );
 
   // Define all platforms with their config bindings
   const platforms = [
@@ -167,7 +174,6 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
     { id: 'hyperliquid', name: 'Hyperliquid', type: 'Crypto Exchange', enabled: config.enableHyperliquid, setEnabled: config.setEnableHyperliquid },
     { id: 'alpaca', name: 'Alpaca', type: 'Stock Broker', enabled: config.enableAlpaca, setEnabled: config.setEnableAlpaca },
     { id: 'ibkr', name: 'Interactive Brokers', type: 'Options Broker', enabled: config.enableIbkr, setEnabled: config.setEnableIbkr },
-    { id: 'robinhood', name: 'Robinhood', type: 'Stock Broker', enabled: config.enableRobinhood, setEnabled: config.setEnableRobinhood },
     { id: 'webull', name: 'Webull', type: 'Stock Broker', enabled: config.enableWebull, setEnabled: config.setEnableWebull },
   ];
 
@@ -178,6 +184,24 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
 
   const renderPlatformRow = (platform: typeof platforms[0]) => {
     const isConnected = connectedIds.includes(platform.id);
+    
+    const handleToggle = () => {
+      // If trying to enable, show setup wizard with appropriate mode
+      if (!platform.enabled) {
+        // Determine mode based on connection status and current trading mode
+        setSetupMode(isConnected ? 'live' : (isSimulation ? 'simulation' : 'live'));
+        setSetupPlatform(platform.id);
+      } else {
+        // Just disable
+        platform.setEnabled(false);
+      }
+    };
+
+    const handleSetupLive = () => {
+      setSetupMode('live');
+      setSetupPlatform(platform.id);
+    };
+
     return (
       <div 
         key={platform.id}
@@ -195,6 +219,10 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
                 <span className="text-xs text-neon-green flex items-center gap-1">
                   <Link2 className="w-3 h-3" /> Connected
                 </span>
+              ) : platform.enabled ? (
+                <span className="text-xs text-neon-blue flex items-center gap-1">
+                  📄 Paper Only
+                </span>
               ) : (
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                   <Unlink className="w-3 h-3" /> Not connected
@@ -204,17 +232,28 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {!isConnected && (
-            <Link 
-              href="/secrets" 
+          {!isConnected && platform.enabled && (
+            <button 
+              onClick={handleSetupLive}
+              className="text-xs text-neon-purple hover:underline"
+            >
+              Go Live
+            </button>
+          )}
+          {!isConnected && !platform.enabled && (
+            <button 
+              onClick={() => {
+                setSetupMode('live');
+                setSetupPlatform(platform.id);
+              }}
               className="text-xs text-neon-blue hover:underline"
             >
-              Add credentials
-            </Link>
+              Setup Guide
+            </button>
           )}
           <ToggleSwitch 
             enabled={platform.enabled} 
-            onToggle={() => platform.setEnabled(!platform.enabled)} 
+            onToggle={handleToggle}
           />
         </div>
       </div>
@@ -281,9 +320,48 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
           {stockBrokers.map(renderPlatformRow)}
         </div>
         <p className="text-xs text-gray-500 mt-4">
-          💡 Connect your broker credentials in API Keys to enable live trading
+          💡 Click &quot;Setup Guide&quot; to see step-by-step instructions for connecting each platform
         </p>
       </div>
+
+      {/* Platform Setup Wizard Modal */}
+      {setupPlatform && (
+        <PlatformSetupWizard
+          platformId={setupPlatform}
+          isOpen={!!setupPlatform}
+          onClose={() => setSetupPlatform(null)}
+          mode={setupMode}
+          onComplete={async (secrets) => {
+            // For simulation mode, no secrets needed - just enable
+            if (setupMode === 'simulation' || Object.keys(secrets).length === 0) {
+              const platform = platforms.find(p => p.id === setupPlatform);
+              if (platform) {
+                platform.setEnabled(true);
+              }
+              return;
+            }
+            
+            // For live mode, save secrets and enable platform
+            try {
+              const response = await fetch('/api/secrets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ secrets }),
+              });
+              
+              if (response.ok) {
+                // Find and enable the platform
+                const platform = platforms.find(p => p.id === setupPlatform);
+                if (platform) {
+                  platform.setEnabled(true);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to save secrets:', error);
+            }
+          }}
+        />
+      )}
     </>
   );
 }
@@ -985,7 +1063,6 @@ export default function SettingsPage() {
   // Stock Brokers
   const [enableAlpaca, setEnableAlpaca] = useState(config?.enable_alpaca ?? false);
   const [enableIbkr, setEnableIbkr] = useState(config?.enable_ibkr ?? false);
-  const [enableRobinhood, setEnableRobinhood] = useState(config?.enable_robinhood ?? false);
   const [enableWebull, setEnableWebull] = useState(config?.enable_webull ?? false);
 
   // =========================================================================
@@ -1272,7 +1349,6 @@ export default function SettingsPage() {
       if (config.enable_hyperliquid !== undefined) setEnableHyperliquid(config.enable_hyperliquid);
       if (config.enable_alpaca !== undefined) setEnableAlpaca(config.enable_alpaca);
       if (config.enable_ibkr !== undefined) setEnableIbkr(config.enable_ibkr);
-      if (config.enable_robinhood !== undefined) setEnableRobinhood(config.enable_robinhood);
       if (config.enable_webull !== undefined) setEnableWebull(config.enable_webull);
 
       // Starting Balances (for P&L tracking)
@@ -1396,7 +1472,6 @@ export default function SettingsPage() {
     if (enableCoinbase !== (config.enable_coinbase ?? false)) return true;
     if (enableAlpaca !== (config.enable_alpaca ?? false)) return true;
     if (enableIbkr !== (config.enable_ibkr ?? false)) return true;
-    if (enableRobinhood !== (config.enable_robinhood ?? false)) return true;
     if (enableWebull !== (config.enable_webull ?? false)) return true;
 
     // Check trading params
@@ -1422,7 +1497,7 @@ export default function SettingsPage() {
     config, status,
     botEnabled, dryRunMode, requireApproval,
     polymarketEnabled, kalshiEnabled, enableBinance, enableCoinbase, enableAlpaca, enableIbkr,
-    enableRobinhood, enableWebull,
+    enableWebull,
     minProfitPercent, maxTradeSize, maxDailyLoss, scanInterval,
     polymarketStartingBalance, kalshiStartingBalance, binanceStartingBalance,
     coinbaseStartingBalance, alpacaStartingBalance, ibkrStartingBalance,
@@ -1453,7 +1528,6 @@ export default function SettingsPage() {
         enable_coinbase: enableCoinbase,
         enable_alpaca: enableAlpaca,
         enable_ibkr: enableIbkr,
-        enable_robinhood: enableRobinhood,
         enable_webull: enableWebull,
 
         min_profit_percent: minProfitPercent,
@@ -2097,7 +2171,6 @@ export default function SettingsPage() {
                 enableHyperliquid, setEnableHyperliquid,
                 enableAlpaca, setEnableAlpaca,
                 enableIbkr, setEnableIbkr,
-                enableRobinhood, setEnableRobinhood,
                 enableWebull, setEnableWebull,
               }}
             />

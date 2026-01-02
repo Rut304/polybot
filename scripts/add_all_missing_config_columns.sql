@@ -34,6 +34,7 @@ ALTER TABLE polybot_config ADD COLUMN IF NOT EXISTS enable_spike_hunter BOOLEAN 
 
 -- 15-Min Crypto Scalping
 ALTER TABLE polybot_config ADD COLUMN IF NOT EXISTS enable_15min_crypto_scalping BOOLEAN DEFAULT false;
+ALTER TABLE polybot_config ADD COLUMN IF NOT EXISTS scalp_15min_entry_threshold DECIMAL(5, 4) DEFAULT 0.45;
 
 -- AI Superforecasting  
 ALTER TABLE polybot_config ADD COLUMN IF NOT EXISTS enable_ai_superforecasting BOOLEAN DEFAULT false;

@@ -179,11 +179,23 @@ export async function PATCH(request: NextRequest) {
         }
         profileResult = data;
       } else {
-        // Insert new profile (no updated_at column in this table)
+        // Insert new profile - must fetch user's email from auth.users first
+        // because email is a NOT NULL column in polybot_user_profiles
+        const { data: authUser, error: authFetchError } = await supabase.auth.admin.getUserById(userId);
+        
+        if (authFetchError || !authUser?.user?.email) {
+          console.error('Failed to fetch user email for profile creation:', authFetchError);
+          return NextResponse.json(
+            { error: `Failed to create profile: Could not fetch user email` },
+            { status: 500 }
+          );
+        }
+
         const { data, error } = await supabase
           .from('polybot_user_profiles')
           .insert({
             id: userId,
+            email: authUser.user.email,
             ...profileUpdates,
             created_at: new Date().toISOString(),
           })

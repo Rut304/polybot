@@ -224,8 +224,8 @@ class TradingConfig:
     # Stock Brokers
     enable_alpaca: bool = True                 # Alpaca (commission-free)
     enable_ibkr: bool = True                   # Interactive Brokers
-    enable_robinhood: bool = False             # Robinhood (unofficial API)
     enable_webull: bool = False                # Webull
+    enable_hyperliquid: bool = False           # Hyperliquid (perpetuals)
 
     # =========================================================================
     # ADVANCED FRAMEWORK - PHASE 1 (Risk Management)
@@ -860,11 +860,11 @@ class Config:
             enable_ibkr=self._get_bool(
                 "enable_ibkr", "ENABLE_IBKR", True
             ),
-            enable_robinhood=self._get_bool(
-                "enable_robinhood", "ENABLE_ROBINHOOD", False
-            ),
             enable_webull=self._get_bool(
                 "enable_webull", "ENABLE_WEBULL", False
+            ),
+            enable_hyperliquid=self._get_bool(
+                "enable_hyperliquid", "ENABLE_HYPERLIQUID", False
             ),
             # ============================================================
             # STOCK MEAN REVERSION SETTINGS (70% confidence)
