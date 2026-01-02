@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 
-// AWS credentials
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
+// AWS IAM credentials for Lightsail (AMAZON_* prefix, not AWS_*)
+const AMAZON_ACCESS_KEY_ID = process.env.AMAZON_ACCESS_KEY_ID || '';
+const AMAZON_SECRET_ACCESS_KEY = process.env.AMAZON_SECRET_ACCESS_KEY || '';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
 export async function POST() {
-  if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+  if (!AMAZON_ACCESS_KEY_ID || !AMAZON_SECRET_ACCESS_KEY) {
     return NextResponse.json(
-      { error: 'AWS credentials not configured.' },
+      { error: 'AWS credentials not configured. Set AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY.' },
       { status: 500 }
     );
   }
@@ -27,8 +27,8 @@ export async function POST() {
     const client = new LightsailClient({
       region: AWS_REGION,
       credentials: {
-        accessKeyId: AWS_ACCESS_KEY_ID,
-        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+        accessKeyId: AMAZON_ACCESS_KEY_ID,
+        secretAccessKey: AMAZON_SECRET_ACCESS_KEY,
       },
     });
 

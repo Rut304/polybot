@@ -4,9 +4,9 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
-// AWS credentials for Secrets Manager
-const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
-const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
+// AWS IAM credentials for Secrets Manager (AMAZON_* prefix, not AWS_*)
+const AMAZON_ACCESS_KEY_ID = process.env.AMAZON_ACCESS_KEY_ID || '';
+const AMAZON_SECRET_ACCESS_KEY = process.env.AMAZON_SECRET_ACCESS_KEY || '';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 
 const hasServiceKey = supabaseUrl && supabaseServiceKey;
@@ -22,9 +22,9 @@ export async function POST() {
     );
   }
   
-  if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+  if (!AMAZON_ACCESS_KEY_ID || !AMAZON_SECRET_ACCESS_KEY) {
     return NextResponse.json(
-      { error: 'AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.' },
+      { error: 'AWS credentials not configured. Set AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY.' },
       { status: 500 }
     );
   }

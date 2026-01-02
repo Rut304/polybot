@@ -10,11 +10,11 @@ const getSupabaseAdmin = () => {
   return createClient(supabaseUrl, supabaseServiceKey);
 };
 
-// Lazy Load AWS Secrets Client
+// Lazy Load AWS Secrets Client (uses AMAZON_* prefix for AWS IAM credentials)
 const getSecretsClient = () => {
   const region = process.env.AWS_REGION || 'us-east-1';
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const accessKeyId = process.env.AMAZON_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AMAZON_SECRET_ACCESS_KEY;
   
   if (!accessKeyId || !secretAccessKey) return null;
   

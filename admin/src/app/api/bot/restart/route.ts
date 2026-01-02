@@ -4,9 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
 
-// AWS credentials for Lightsail Container Service
-const AWS_ACCESS_KEY_ID = (process.env.AWS_ACCESS_KEY_ID || '').trim();
-const AWS_SECRET_ACCESS_KEY = (process.env.AWS_SECRET_ACCESS_KEY || '').trim();
+// AWS IAM credentials for Lightsail Container Service
+// Note: AMAZON_* keys are for AWS infrastructure (Lightsail, Secrets Manager, etc.)
+// AWS_* keys (without AMAZON prefix) are for Amazon Product Advertising API - different service!
+const AMAZON_ACCESS_KEY_ID = (process.env.AMAZON_ACCESS_KEY_ID || '').trim();
+const AMAZON_SECRET_ACCESS_KEY = (process.env.AMAZON_SECRET_ACCESS_KEY || '').trim();
 const AWS_REGION = (process.env.AWS_REGION || 'us-east-1').trim();
 const LIGHTSAIL_SERVICE_NAME = (process.env.LIGHTSAIL_SERVICE_NAME || 'polyparlay').trim();
 
@@ -30,10 +32,10 @@ export async function POST(request: Request) {
     }
 
     // Check if AWS credentials are configured
-    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+    if (!AMAZON_ACCESS_KEY_ID || !AMAZON_SECRET_ACCESS_KEY) {
       return NextResponse.json({
         success: false,
-        error: 'AWS credentials not configured. Add AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to .env.local',
+        error: 'AWS credentials not configured. Add AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY to environment variables.',
       }, { status: 500 });
     }
 
@@ -206,10 +208,10 @@ export async function POST(request: Request) {
 // GET endpoint to check bot/service status
 export async function GET() {
   try {
-    if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+    if (!AMAZON_ACCESS_KEY_ID || !AMAZON_SECRET_ACCESS_KEY) {
       return NextResponse.json({
         status: 'unknown',
-        error: 'AWS credentials not configured',
+        error: 'AWS credentials not configured. Set AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY.',
       });
     }
 
@@ -219,8 +221,8 @@ export async function GET() {
     const client = new LightsailClient({
       region: AWS_REGION,
       credentials: {
-        accessKeyId: AWS_ACCESS_KEY_ID,
-        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+        accessKeyId: AMAZON_ACCESS_KEY_ID,
+        secretAccessKey: AMAZON_SECRET_ACCESS_KEY,
       },
     });
 
