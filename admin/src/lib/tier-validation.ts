@@ -42,9 +42,10 @@ export const STRATEGY_TIER_REQUIREMENTS: Record<string, StrategyTier> = {
   enable_custom_strategy: 'elite',
 };
 
-// Strategies that are deprecated or have markets that no longer exist
-export const DEPRECATED_STRATEGIES: Set<string> = new Set([
-  'enable_15min_crypto_scalping',  // 15-min BTC/ETH markets no longer exist
+// Strategies that are deprecated or have markets that rarely exist
+// These will still scan for markets but may not find opportunities
+export const LIMITED_MARKET_STRATEGIES: Set<string> = new Set([
+  'enable_15min_crypto_scalping',  // 15-min BTC/ETH markets rarely available
 ]);
 
 // =============================================================================

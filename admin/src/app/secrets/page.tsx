@@ -125,6 +125,16 @@ const CATEGORY_INFO: Record<string, CategoryInfo> = {
       { name: 'Telegram BotFather', url: 'https://t.me/botfather' },
     ],
   },
+  ai_services: {
+    title: 'AI Services',
+    icon: <span className="text-2xl">🧠</span>,
+    color: 'from-emerald-500/20 to-teal-500/20',
+    description: 'AI/LLM APIs for superforecasting and analysis',
+    signupLinks: [
+      { name: 'Google AI Studio (Gemini)', url: 'https://aistudio.google.com/app/apikey' },
+      { name: 'OpenAI', url: 'https://platform.openai.com/api-keys' },
+    ],
+  },
   data_feeds: {
     title: 'Data Feeds',
     icon: <span className="text-2xl">📰</span>,
