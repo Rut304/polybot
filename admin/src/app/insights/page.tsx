@@ -41,7 +41,9 @@ import {
   useSimulationHistory,
   useStrategyPerformance,
   useBotConfig,
+  useLiveBalances,
 } from '@/lib/hooks';
+import { useTier } from '@/lib/useTier';
 import { formatCurrency, formatPercent, cn } from '@/lib/utils';
 
 // Strategy tuning recommendation interface
@@ -328,12 +330,19 @@ interface SuggestionHistoryEntry {
 }
 
 export default function InsightsPage() {
-  const { data: trades = [] } = useSimulatedTrades(500);
+  // Get trading mode from user profile
+  const { isSimulation: isUserSimMode } = useTier();
+  const tradingMode = isUserSimMode ? 'paper' : 'live';
+  const isLiveMode = tradingMode === 'live';
+  
+  // Pass trading mode to all data hooks
+  const { data: trades = [] } = useSimulatedTrades(500, tradingMode);
   const { data: opportunities = [] } = useOpportunities(1000);
   const { data: stats } = useSimulationStats();
   const { data: history = [] } = useSimulationHistory(168); // Last 7 days
-  const { data: strategyPerf = [] } = useStrategyPerformance();
+  const { data: strategyPerf = [] } = useStrategyPerformance(tradingMode);
   const { data: config, refetch: refetchConfig } = useBotConfig();
+  const { data: liveBalances } = useLiveBalances();
 
   const [generating, setGenerating] = useState(false);
   const [filter, setFilter] = useState<Insight['category'] | 'all'>('all');

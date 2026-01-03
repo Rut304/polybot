@@ -22,7 +22,7 @@ import {
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { useConnectionSummary, useConnectedPlatforms, useBotStatus, useSimulationStats, useRealTimeStats } from '@/lib/hooks';
+import { useConnectionSummary, useConnectedPlatforms, useBotStatus, useSimulationStats, useRealTimeStats, useLiveBalances } from '@/lib/hooks';
 import { useTier } from '@/lib/useTier';
 import { usePlatforms } from '@/lib/PlatformContext';
 import { TradingModeToggle } from '@/components/TradingModeToggle';
@@ -84,6 +84,7 @@ export default function BalancesPage() {
   // Get trading mode from tier context
   const { isSimulation: isUserSimMode } = useTier();
   const tradingMode = isUserSimMode ? 'paper' : 'live';
+  const isLiveMode = tradingMode === 'live';
   
   // Platform filtering context
   const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();
@@ -97,9 +98,16 @@ export default function BalancesPage() {
   // Get real-time stats filtered by trading mode
   const { data: realTimeStats } = useRealTimeStats(undefined, tradingMode);
   
+  // Fetch LIVE balances from connected exchanges
+  const { data: liveBalances, isLoading: liveBalancesLoading } = useLiveBalances();
+  
   // Use context-based simulation mode, not bot status
   const isSimulation = isUserSimMode;
   const simulatedBalance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 30000;
+  
+  // For LIVE mode: use actual exchange balances from useLiveBalances hook
+  // For PAPER mode: use simulated balance from trades
+  const displayBalance = isLiveMode ? (liveBalances?.total_usd ?? 0) : simulatedBalance;
 
   useEffect(() => {
     fetchBalances();
@@ -254,18 +262,15 @@ export default function BalancesPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-400">
-                {isSimulation ? 'Simulated Portfolio' : 'Total Portfolio'}
+                {isLiveMode ? 'Live Portfolio' : 'Simulated Portfolio'}
               </p>
               <p className="text-3xl font-bold text-green-400 mt-1">
-                ${isSimulation 
-                  ? simulatedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                  : (balance?.total_portfolio_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00')
-                }
+                ${displayBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
             </div>
             <DollarSign className="w-10 h-10 text-green-500/50" />
           </div>
-          {!isSimulation && change24h !== 0 && (
+          {isLiveMode && change24h !== 0 && (
             <div className={`flex items-center gap-1 mt-2 text-sm ${change24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
               {change24h > 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
               {Math.abs(change24h).toFixed(2)}% (24h)
@@ -283,9 +288,9 @@ export default function BalancesPage() {
             <div>
               <p className="text-sm text-gray-400">Cash Balance</p>
               <p className="text-2xl font-bold mt-1">
-                ${isSimulation 
-                  ? simulatedBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                  : (balance?.total_cash_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00')
+                ${isLiveMode 
+                  ? (liveBalances?.total_cash_usd ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })
+                  : displayBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })
                 }
               </p>
             </div>

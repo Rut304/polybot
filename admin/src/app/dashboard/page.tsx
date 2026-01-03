@@ -26,6 +26,7 @@ import {
   usePnLHistory,
   useRealTimeStats,
   useUserExchanges,
+  useLiveBalances,
 } from '@/lib/hooks';
 import { formatCurrency, formatPercent, timeAgo, isRecent, cn } from '@/lib/utils';
 import { Tooltip, METRIC_TOOLTIPS } from '@/components/Tooltip';
@@ -122,20 +123,38 @@ export default function Dashboard() {
   const { data: allTrades } = useSimulatedTrades(5000, tradingMode);
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760, tradingMode); // 0 = All time = 1 year
+  
+  // Fetch LIVE balances from connected exchanges
+  const { data: liveBalances, isLoading: liveBalancesLoading } = useLiveBalances();
 
   // Starting balance constant (6 platforms x $5,000 each = $30,000)
   // 6 platforms x $5,000 each = $30,000 total
   const STARTING_BALANCE = 30000;
 
-  // Prefer real-time computed stats (more accurate - uses database aggregates)
-  const balance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? STARTING_BALANCE;
+  // For LIVE mode: use actual exchange balances
+  // For PAPER mode: use simulated balance from trades
+  const isLiveMode = tradingMode === 'live';
+  
+  // Calculate live balance from actual exchange data
+  const actualLiveBalance = liveBalances?.total_usd ?? 0;
+  
+  // Prefer real-time computed stats for paper mode (uses database aggregates)
+  const paperBalance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? STARTING_BALANCE;
+  
+  // Use the appropriate balance based on mode
+  const balance = isLiveMode ? actualLiveBalance : paperBalance;
 
   const totalPnl = realTimeStats?.total_pnl ?? simStats?.total_pnl ?? 0;
   const totalTrades = realTimeStats?.total_trades ?? simStats?.total_trades ?? 0;
   const winRate = realTimeStats?.win_rate ?? simStats?.win_rate ?? 0;
   const winningTrades = realTimeStats?.winning_trades ?? simStats?.stats_json?.winning_trades ?? 0;
   const losingTrades = realTimeStats?.losing_trades ?? simStats?.stats_json?.losing_trades ?? 0;
-  const roiPct = realTimeStats?.roi_pct ?? simStats?.stats_json?.roi_pct ?? 0;
+  
+  // For live mode, calculate ROI based on actual balance vs starting
+  // Note: We'd need to track starting live balance to calculate true live ROI
+  const paperRoi = realTimeStats?.roi_pct ?? simStats?.stats_json?.roi_pct ?? 0;
+  const roiPct = isLiveMode ? (totalPnl / (actualLiveBalance - totalPnl || 1)) * 100 : paperRoi;
+  
   const totalOpportunities = realTimeStats?.total_opportunities_seen ?? simStats?.stats_json?.total_opportunities_seen ?? 0;
 
   // Modal state
@@ -318,15 +337,15 @@ export default function Dashboard() {
       {/* Top Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
-          title={isSimulation ? "Paper Balance" : "Real Balance"}
-          tooltip={isSimulation ? METRIC_TOOLTIPS.simulatedBalance : "Your actual exchange balance"}
+          title={isLiveMode ? "Live Balance" : "Paper Balance"}
+          tooltip={isLiveMode ? "Your actual exchange balance from connected platforms" : METRIC_TOOLTIPS.simulatedBalance}
           value={formatCurrency(balance)}
           change={roiPct}
           icon={DollarSign}
           color="green"
-          loading={statsLoading && !realTimeStats}
+          loading={isLiveMode ? liveBalancesLoading : (statsLoading && !realTimeStats)}
           onClick={() => setModalType('balance')}
-          badge={isSimulation ? "PAPER" : "LIVE"}
+          badge={isLiveMode ? "LIVE" : "PAPER"}
         />
         <StatCard
           title={globalTimeframeHours === 0 ? "Net P&L (All Time)" : `Net P&L (${globalTimeframeHours}h)`}

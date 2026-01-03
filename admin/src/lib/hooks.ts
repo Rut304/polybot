@@ -88,6 +88,60 @@ export interface UserExchangesResponse {
   total_connected: number;
 }
 
+// Live balances response from /api/balances
+export interface LiveBalancesResponse {
+  timestamp: string;
+  total_usd: number;
+  total_positions_usd: number;
+  total_cash_usd: number;
+  connected_exchanges: string[];
+  platforms: Array<{
+    platform: string;
+    platform_type: string;
+    connected: boolean;
+    cash_balance: number;
+    positions_value: number;
+    total_balance: number;
+    positions_count: number;
+    last_updated: string;
+  }>;
+}
+
+// Fetch live balances from connected exchanges
+export function useLiveBalances() {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ['liveBalances', user?.id],
+    queryFn: async (): Promise<LiveBalancesResponse | null> => {
+      if (!user) return null;
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch('/api/balances', {
+        credentials: 'include',
+        headers: session?.access_token ? {
+          'Authorization': `Bearer ${session.access_token}`,
+        } : {},
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log('Live balances: Not authenticated');
+          return null;
+        }
+        throw new Error('Failed to fetch live balances');
+      }
+      
+      const json = await response.json();
+      return json.data || null;
+    },
+    enabled: !!user,
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 10000,
+  });
+}
+
 export function useUserExchanges() {
   const { user } = useAuth();
   
