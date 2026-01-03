@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Create supabase client lazily to avoid build-time errors
@@ -9,7 +9,7 @@ const getSupabase = () => {
   return createClient(url, key);
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabase();
     if (!supabase) {
@@ -18,6 +18,10 @@ export async function GET() {
         error: 'Database not configured' 
       }, { status: 500 });
     }
+
+    // Get trading mode from query params (optional filter)
+    const searchParams = request.nextUrl.searchParams;
+    const tradingMode = searchParams.get('tradingMode'); // 'paper' | 'live' | null (all)
 
     // 1. Check polybot_status for running status and heartbeat
     const { data: statusData, error: statusError } = await supabase
@@ -31,25 +35,37 @@ export async function GET() {
     }
 
     // 2. Check for recent trades (last 24 hours) to verify bot activity
+    // Filter by trading_mode if specified
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     
-    const { count: recentTradeCount, error: tradeError } = await supabase
+    let tradesQuery = supabase
       .from('polybot_simulated_trades')
       .select('*', { count: 'exact', head: true })
       .gte('created_at', twentyFourHoursAgo);
+    
+    // Apply trading mode filter if specified
+    if (tradingMode) {
+      tradesQuery = tradesQuery.eq('trading_mode', tradingMode);
+    }
+    
+    const { count: recentTradeCount, error: tradeError } = await tradesQuery;
 
     if (tradeError) {
       console.error('Error fetching recent trades:', tradeError);
     }
 
-    // 3. Check last trade timestamp
-    const { data: lastTrade, error: lastTradeError } = await supabase
+    // 3. Check last trade timestamp (with optional mode filter)
+    let lastTradeQuery = supabase
       .from('polybot_simulated_trades')
-      .select('created_at, platform, strategy')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .select('created_at, platform, strategy, trading_mode')
+      .order('created_at', { ascending: false });
+    
+    if (tradingMode) {
+      lastTradeQuery = lastTradeQuery.eq('trading_mode', tradingMode);
+    }
+    
+    const { data: lastTrade, error: lastTradeError } = await lastTradeQuery.limit(1).single();
 
     if (lastTradeError && lastTradeError.code !== 'PGRST116') {
       console.error('Error fetching last trade:', lastTradeError);

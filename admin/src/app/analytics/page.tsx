@@ -506,14 +506,16 @@ export default function AnalyticsPage() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          {/* Mode Indicator */}
+          {/* Mode Indicator - shows current VIEW mode, not user's account mode */}
           <div className={cn(
             "px-3 py-1.5 rounded-lg text-xs font-medium",
-            isSimulationMode 
-              ? "bg-amber-500/20 text-amber-400" 
-              : "bg-green-500/20 text-green-400"
+            viewMode === 'live' 
+              ? "bg-green-500/20 text-green-400" 
+              : viewMode === 'paper'
+                ? "bg-amber-500/20 text-amber-400"
+                : "bg-blue-500/20 text-blue-400"
           )}>
-            {isSimulationMode ? '🧪 Simulation' : '⚡ Live'}
+            {viewMode === 'live' ? '⚡ Live' : viewMode === 'paper' ? '🧪 Simulation' : '📊 All Data'}
           </div>
           
           {/* Platform Filter */}

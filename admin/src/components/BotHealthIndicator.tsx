@@ -46,12 +46,14 @@ interface BotHealthIndicatorProps {
   className?: string;
   compact?: boolean;
   showDetails?: boolean;
+  tradingMode?: 'paper' | 'live';
 }
 
 export function BotHealthIndicator({ 
   className, 
   compact = false,
   showDetails = true,
+  tradingMode,
 }: BotHealthIndicatorProps) {
   const [health, setHealth] = useState<BotHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,10 @@ export function BotHealthIndicator({
   const fetchHealth = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/bot/health');
+      const url = tradingMode 
+        ? `/api/bot/health?tradingMode=${tradingMode}`
+        : '/api/bot/health';
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch bot health');
       const data = await response.json();
       setHealth(data);
@@ -77,7 +82,7 @@ export function BotHealthIndicator({
     // Refresh every 30 seconds
     const interval = setInterval(fetchHealth, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [tradingMode]); // Re-fetch when tradingMode changes
 
   const getStatusColor = (status: string) => {
     switch (status) {

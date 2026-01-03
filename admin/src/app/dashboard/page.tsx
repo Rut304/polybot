@@ -244,8 +244,8 @@ export default function Dashboard() {
 
   return (
     <div className="p-8">
-      {/* Trading Mode Banner - explains Simulation vs Live data filtering */}
-      <TradingModeBanner />
+      {/* Trading Mode Banner - shows based on current viewMode selection, not profile */}
+      {viewMode !== 'live' && <TradingModeBanner />}
       
       {/* Welcome Banner for new users - includes upgrade CTA */}
       <WelcomeBanner />
@@ -418,7 +418,7 @@ export default function Dashboard() {
 
       {/* Bot Health Indicator */}
       <div className="mb-8 animate-fadeIn animate-delay-100">
-        <BotHealthIndicator className="bg-dark-card" />
+        <BotHealthIndicator className="bg-dark-card" tradingMode={tradingMode} />
       </div>
 
       {/* Strategy Performance */}
@@ -429,7 +429,7 @@ export default function Dashboard() {
             Strategy Performance
           </h2>
         </div>
-        <StrategyPerformanceTable tradingMode={isSimulation ? 'paper' : 'live'} limit={5} />
+        <StrategyPerformanceTable tradingMode={tradingMode} limit={5} />
       </div>
 
       {/* Live Feeds */}
@@ -455,7 +455,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Clock className="w-5 h-5 text-neon-purple" />
-              Recent Paper Trades
+              Recent {isLiveMode ? 'Live' : 'Paper'} Trades
             </h2>
           </div>
           <TradesList

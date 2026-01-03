@@ -76,7 +76,8 @@ interface StrategyPerformanceTableProps {
 }
 
 export function StrategyPerformanceTable({ tradingMode, limit }: StrategyPerformanceTableProps) {
-    const { data: strategies = [], isLoading } = useStrategyPerformance();
+    // Pass tradingMode to the hook so it filters data by mode
+    const { data: strategies = [], isLoading } = useStrategyPerformance(tradingMode);
     const [sortField, setSortField] = useState<'total_pnl' | 'win_rate' | 'total_trades' | 'avg_trade' | 'best_trade'>('total_pnl');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
