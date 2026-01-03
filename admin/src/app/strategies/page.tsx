@@ -6,7 +6,7 @@ import {
   AlertTriangle, TrendingUp, Target, Landmark, Brain, Crown, Activity,
   Shield, BarChart3, Newspaper, Users, Grid3X3, Repeat, LineChart,
   Wallet, Globe, Flame, BookOpen, ArrowLeftRight, Bitcoin, X, ExternalLink,
-  Sparkles, GitBranch, Info, Lock
+  Sparkles, GitBranch, Info, Lock, Key, XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -1719,6 +1719,11 @@ export default function StrategiesPage() {
   
   // Upgrade modal state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  
+  // Platform setup modal state
+  const [showPlatformModal, setShowPlatformModal] = useState(false);
+  const [missingPlatforms, setMissingPlatforms] = useState<string[]>([]);
+  const [pendingStrategy, setPendingStrategy] = useState<Strategy | null>(null);
 
   // State
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['prediction-core']));
@@ -1815,6 +1820,17 @@ export default function StrategiesPage() {
     }
     
     const currentValue = isStrategyEnabled(strategy);
+    
+    // If trying to ENABLE and requirements not met, show platform setup modal
+    if (!currentValue) {
+      const reqs = checkRequirements(strategy);
+      if (!reqs.met) {
+        setMissingPlatforms(reqs.missing);
+        setPendingStrategy(strategy);
+        setShowPlatformModal(true);
+        return;
+      }
+    }
     
     let newValue: boolean;
 
@@ -2036,7 +2052,7 @@ export default function StrategiesPage() {
                                 <ToggleSwitch
                                   enabled={enabled}
                                   onToggle={() => toggleStrategy(strategy)}
-                                  disabled={isLocked || cannotEnable}
+                                  disabled={isLocked}
                                   size="sm"
                                 />
                                 <button
@@ -2322,14 +2338,19 @@ export default function StrategiesPage() {
                 <button
                   onClick={() => {
                     toggleStrategy(selectedStrategy);
-                    setSelectedStrategy(null);
+                    // Only close if strategy was toggled (not showing platform modal)
+                    const reqs = checkRequirements(selectedStrategy);
+                    if (reqs.met || isStrategyEnabled(selectedStrategy)) {
+                      setSelectedStrategy(null);
+                    }
                   }}
-                  disabled={isStrategyLocked(selectedStrategy) || (!checkRequirements(selectedStrategy).met && !isStrategyEnabled(selectedStrategy))}
+                  disabled={isStrategyLocked(selectedStrategy)}
                   className={cn(
                     "flex-1 py-3 rounded-xl text-center font-medium transition-colors",
                     isStrategyEnabled(selectedStrategy)
                       ? "bg-red-600 hover:bg-red-700 text-white"
-                      : "bg-neon-green hover:bg-neon-green/90 text-black"
+                      : "bg-neon-green hover:bg-neon-green/90 text-black",
+                    isStrategyLocked(selectedStrategy) && "opacity-50 cursor-not-allowed"
                   )}
                 >
                   {isStrategyEnabled(selectedStrategy) ? 'Disable Strategy' : 'Enable Strategy'}
@@ -2350,6 +2371,95 @@ export default function StrategiesPage() {
           trigger="strategy_limit"
         />
       )}
+      
+      {/* Platform Setup Modal */}
+      <AnimatePresence>
+        {showPlatformModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowPlatformModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-dark-card border border-dark-border rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-orange-500/20 rounded-xl">
+                  <AlertTriangle className="w-6 h-6 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Platform Setup Required</h3>
+                  <p className="text-sm text-dark-muted">Connect your account to enable this strategy</p>
+                </div>
+              </div>
+              
+              {/* Strategy Info */}
+              {pendingStrategy && (
+                <div className="bg-dark-bg/50 rounded-xl p-4 mb-4 border border-dark-border">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('p-2 rounded-lg', pendingStrategy.color)}>
+                      <pendingStrategy.icon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white">{pendingStrategy.name}</p>
+                      <p className="text-xs text-dark-muted">{pendingStrategy.description}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Missing Platforms */}
+              <div className="mb-6">
+                <p className="text-sm text-gray-400 mb-3">
+                  This strategy requires the following platform{missingPlatforms.length > 1 ? 's' : ''} to be connected:
+                </p>
+                <div className="space-y-2">
+                  {missingPlatforms.map((platform) => (
+                    <div 
+                      key={platform}
+                      className="flex items-center gap-3 bg-dark-bg rounded-lg p-3 border border-dark-border"
+                    >
+                      <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                        <Key className="w-4 h-4 text-orange-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-white">{platform}</p>
+                        <p className="text-xs text-dark-muted">API keys not configured</p>
+                      </div>
+                      <XCircle className="w-4 h-4 text-red-400" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPlatformModal(false)}
+                  className="flex-1 px-4 py-3 bg-dark-border hover:bg-dark-border/80 rounded-xl text-gray-300 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <Link
+                  href="/secrets"
+                  onClick={() => setShowPlatformModal(false)}
+                  className="flex-1 px-4 py-3 bg-neon-green hover:bg-neon-green/90 rounded-xl text-black font-medium text-center transition-colors flex items-center justify-center gap-2"
+                >
+                  <Key className="w-4 h-4" />
+                  Setup API Keys
+                </Link>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
