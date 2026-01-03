@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -60,11 +60,26 @@ const PLATFORM_COLORS: Record<string, string> = {
 
 export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<number>(168); // 7 days default
-  const [viewMode, setViewMode] = useState<'all' | 'paper' | 'live'>('all'); // Default to showing ALL data
+  
+  // Get user context - use profile setting as source of truth
+  const { isAdmin, isSimulation: isUserSimMode } = useTier();
+  
+  // Default view mode based on user's profile setting (is_simulation flag)
+  // If user has live trading enabled (is_simulation=false), show live data only
+  const [viewMode, setViewMode] = useState<'all' | 'paper' | 'live'>(() => isUserSimMode ? 'paper' : 'live');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]); // Empty = all platforms
-
-  // Get user context
-  const { isAdmin } = useTier();
+  
+  // Update view mode when user profile loads
+  const [hasUserSelectedMode, setHasUserSelectedMode] = useState(false);
+  
+  useEffect(() => {
+    if (!hasUserSelectedMode) {
+      const profileMode = isUserSimMode ? 'paper' : 'live';
+      if (viewMode !== profileMode) {
+        setViewMode(profileMode);
+      }
+    }
+  }, [isUserSimMode, hasUserSelectedMode, viewMode]);
   
   // Get platform context for filtering
   const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Activity,
@@ -87,27 +87,31 @@ export default function Dashboard() {
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const botIsLive = botStatus?.dry_run_mode === false;
   
-  // Default view mode to current bot mode (paper or live), NOT "all"
-  // This prevents confusing combined data on first load
-  const [viewMode, setViewMode] = useState<ViewMode>('paper');
+  // Get current trading mode from user profile context (source of truth)
+  const { isSimulation: isUserSimMode } = useTier();
   
-  // Update view mode when bot status loads (if not already changed by user)
+  // Default view mode based on user's profile setting (is_simulation flag)
+  // If user has live trading enabled (is_simulation=false), show live data only
+  const [viewMode, setViewMode] = useState<ViewMode>(() => isUserSimMode ? 'paper' : 'live');
+  
+  // Update view mode when user profile loads
   const [hasUserSelectedMode, setHasUserSelectedMode] = useState(false);
   
-  // Auto-set to bot's current mode on first load
-  if (!statusLoading && botStatus && !hasUserSelectedMode) {
-    const currentMode = botIsLive ? 'live' : 'paper';
-    if (viewMode !== currentMode) {
-      setViewMode(currentMode);
+  // Auto-set to user's profile mode on first load (profile takes priority over bot status)
+  useEffect(() => {
+    if (!hasUserSelectedMode) {
+      const profileMode = isUserSimMode ? 'paper' : 'live';
+      if (viewMode !== profileMode) {
+        setViewMode(profileMode);
+      }
     }
-  }
+  }, [isUserSimMode, hasUserSelectedMode, viewMode]);
 
-  // Get current trading mode from user context
-  const { isSimulation: isUserSimMode } = useTier();
   // Use viewMode for data filtering, fall back to user's current mode if 'all'
   const tradingMode: 'paper' | 'live' | undefined = viewMode === 'all' ? undefined : viewMode;
 
-  const isSimulation = botStatus?.mode !== 'live';
+  // Use user profile setting as source of truth for simulation mode
+  const isSimulation = isUserSimMode;
   const { data: simStats, isLoading: statsLoading } = useSimulationStats();
   // Pass trading mode to get stats filtered by current mode (undefined = all)
   const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours, tradingMode);

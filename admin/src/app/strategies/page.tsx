@@ -2036,7 +2036,7 @@ export default function StrategiesPage() {
                                 <ToggleSwitch
                                   enabled={enabled}
                                   onToggle={() => toggleStrategy(strategy)}
-                                  disabled={!isAdmin || isLocked || cannotEnable}
+                                  disabled={isLocked || cannotEnable}
                                   size="sm"
                                 />
                                 <button
@@ -2112,7 +2112,7 @@ export default function StrategiesPage() {
                                                 min={setting.min}
                                                 max={setting.max}
                                                 step={setting.step}
-                                                disabled={!isAdmin}
+                                                disabled={isLocked}
                                                 title={setting.tooltip || setting.label}
                                                 className="w-full bg-dark-border border border-dark-border rounded px-2 py-1.5 text-sm text-white focus:outline-none focus:border-neon-green disabled:opacity-50"
                                               />
@@ -2324,7 +2324,7 @@ export default function StrategiesPage() {
                     toggleStrategy(selectedStrategy);
                     setSelectedStrategy(null);
                   }}
-                  disabled={!isAdmin}
+                  disabled={isStrategyLocked(selectedStrategy) || (!checkRequirements(selectedStrategy).met && !isStrategyEnabled(selectedStrategy))}
                   className={cn(
                     "flex-1 py-3 rounded-xl text-center font-medium transition-colors",
                     isStrategyEnabled(selectedStrategy)
