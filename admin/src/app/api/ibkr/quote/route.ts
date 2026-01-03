@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 // Force dynamic rendering - this route uses request.url
 export const dynamic = 'force-dynamic';
@@ -68,24 +69,16 @@ async function getIBKRCredentials(userId: string) {
   }
 }
 
-// Get Alpaca credentials from secrets table
+// Get Alpaca credentials from AWS Secrets Manager (PRIMARY SOURCE)
 async function getAlpacaCredentials() {
-  if (!supabase) return null;
-  
   try {
-    const { data: keys } = await supabase
-      .from('polybot_secrets')
-      .select('key_name, key_value')
-      .in('key_name', ['ALPACA_PAPER_API_KEY', 'ALPACA_PAPER_API_SECRET']);
-    
-    if (!keys || keys.length < 2) return null;
-    
-    const apiKey = keys.find(k => k.key_name === 'ALPACA_PAPER_API_KEY')?.key_value;
-    const apiSecret = keys.find(k => k.key_name === 'ALPACA_PAPER_API_SECRET')?.key_value;
+    const secrets = await getAwsSecrets();
+    const apiKey = secrets['ALPACA_PAPER_API_KEY'] || secrets['ALPACA_API_KEY'];
+    const apiSecret = secrets['ALPACA_PAPER_API_SECRET'] || secrets['ALPACA_API_SECRET'];
     
     return apiKey && apiSecret ? { apiKey, apiSecret } : null;
   } catch (e) {
-    console.error('Error fetching Alpaca credentials:', e);
+    console.error('Error fetching Alpaca credentials from AWS:', e);
     return null;
   }
 }

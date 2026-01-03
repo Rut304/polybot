@@ -5,6 +5,7 @@ Handles persistence of opportunities, trades, and bot state.
 
 import logging
 import os
+import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 
@@ -12,6 +13,49 @@ from supabase import create_client
 from src.utils.vault import Vault
 
 logger = logging.getLogger(__name__)
+
+
+# AWS Secrets Manager integration
+_aws_secrets_cache: Dict[str, str] = {}
+_aws_secrets_loaded = False
+
+
+def _load_aws_secrets() -> Dict[str, str]:
+    """
+    Load all secrets from AWS Secrets Manager (polybot/trading-keys bundle).
+    This is the PRIMARY source of truth for all API keys in production.
+    """
+    global _aws_secrets_cache, _aws_secrets_loaded
+    
+    if _aws_secrets_loaded:
+        return _aws_secrets_cache
+    
+    try:
+        import boto3
+        from botocore.exceptions import ClientError, NoCredentialsError
+        
+        region = os.getenv("AWS_REGION", "us-east-1")
+        client = boto3.client('secretsmanager', region_name=region)
+        
+        response = client.get_secret_value(SecretId='polybot/trading-keys')
+        secrets_dict = json.loads(response['SecretString'])
+        
+        _aws_secrets_cache = secrets_dict
+        _aws_secrets_loaded = True
+        logger.info(f"✓ Loaded {len(secrets_dict)} secrets from AWS Secrets Manager")
+        return _aws_secrets_cache
+        
+    except ImportError:
+        logger.debug("boto3 not installed, skipping AWS Secrets Manager")
+    except NoCredentialsError:
+        logger.debug("No AWS credentials found, skipping AWS Secrets Manager")
+    except ClientError as e:
+        logger.debug(f"AWS Secrets Manager not available: {e}")
+    except Exception as e:
+        logger.debug(f"Could not load AWS secrets: {e}")
+    
+    _aws_secrets_loaded = True  # Mark as loaded even on failure to avoid retries
+    return {}
 
 
 def _get_supabase_credentials():
@@ -80,21 +124,21 @@ class Database:
         return self._client is not None
 
     # ==================== Secrets Management ====================
-    # Single source of truth for all API keys - reads from polybot_secrets table
+    # Primary source: AWS Secrets Manager (polybot/trading-keys)
+    # Fallback: Supabase polybot_secrets table (for metadata only)
 
     def load_secrets(self, force_refresh: bool = False) -> Dict[str, str]:
         """
-        Load all secrets from Supabase.
+        Load all secrets, with AWS Secrets Manager as primary source.
         
         Order of precedence:
-        1. Global secrets from polybot_secrets (always loaded first)
-        2. User-specific secrets from polybot_key_vault (if user_id set, overlays global)
-        
-        This ensures the bot always has access to global API keys while allowing
-        user-specific overrides for multi-tenant scenarios.
+        1. AWS Secrets Manager (polybot/trading-keys) - PRODUCTION
+        2. Supabase polybot_secrets (legacy/fallback)
+        3. User-specific secrets from polybot_key_vault (if user_id set)
+        4. Environment variables (local dev)
 
         Args:
-            force_refresh: If True, bypass cache and reload from DB
+            force_refresh: If True, bypass cache and reload
 
         Returns:
             Dict of key_name -> key_value for all configured secrets
@@ -102,33 +146,41 @@ class Database:
         if self._secrets_loaded and not force_refresh:
             return self._secrets_cache
 
-        if not self._client:
-            logger.warning("Database not connected, falling back to environment variables")
-            return {}
-
         try:
             self._secrets_cache = {}
             
-            # STEP 1: Always load global secrets from polybot_secrets first
-            # These are the shared API keys configured by admin
-            try:
-                global_query = self._client.table("polybot_secrets").select(
-                    "key_name, key_value"
-                ).eq("is_configured", True)
-
-                global_result = global_query.execute()
-
-                for row in (global_result.data or []):
-                    if row.get("key_value"):
-                        self._secrets_cache[row["key_name"]] = row["key_value"]
-                
-                logger.info(f"✓ Loaded {len(self._secrets_cache)} global secrets from polybot_secrets")
-            except Exception as e:
-                logger.warning(f"Could not load global secrets: {e}")
+            # STEP 1: Load from AWS Secrets Manager (PRIMARY SOURCE)
+            # This is where all secrets should live in production
+            aws_secrets = _load_aws_secrets()
+            if aws_secrets:
+                self._secrets_cache.update(aws_secrets)
+                logger.info(f"✓ Loaded {len(aws_secrets)} secrets from AWS")
             
-            # STEP 2: If user_id is set, overlay with user-specific secrets from vault
-            # User secrets take precedence over global secrets
-            if self.user_id:
+            # STEP 2: Fallback to Supabase polybot_secrets (LEGACY)
+            # Only loads secrets not already in AWS
+            if self._client:
+                try:
+                    global_query = self._client.table("polybot_secrets").select(
+                        "key_name, key_value"
+                    ).eq("is_configured", True)
+
+                    global_result = global_query.execute()
+
+                    supabase_count = 0
+                    for row in (global_result.data or []):
+                        key_name = row["key_name"]
+                        # Only use Supabase if NOT already in AWS
+                        if key_name not in self._secrets_cache and row.get("key_value"):
+                            self._secrets_cache[key_name] = row["key_value"]
+                            supabase_count += 1
+                    
+                    if supabase_count > 0:
+                        logger.info(f"✓ Loaded {supabase_count} additional secrets from Supabase (fallback)")
+                except Exception as e:
+                    logger.warning(f"Could not load Supabase secrets: {e}")
+            
+            # STEP 3: User-specific secrets from vault (multi-tenant override)
+            if self.user_id and self._client:
                 try:
                     vault_query = self._client.table("polybot_key_vault").select(
                         "key_name, encrypted_value"
@@ -145,25 +197,25 @@ class Database:
                             self._secrets_cache[key_name] = decrypted
                             user_secrets_count += 1
                         except Exception as e:
-                            logger.error(f"Failed to decrypt secret {key_name}: {e}")
+                            logger.error(f"Failed to decrypt {key_name}: {e}")
                     
                     if user_secrets_count > 0:
-                        logger.info(f"✓ Overlaid {user_secrets_count} user secrets from polybot_key_vault (user: {self.user_id})")
+                        logger.info(f"✓ Overlaid {user_secrets_count} user secrets")
                 except Exception as e:
-                    logger.warning(f"Could not load user-specific secrets: {e}")
+                    logger.warning(f"Could not load user secrets: {e}")
 
             self._secrets_loaded = True
-            logger.info(f"✓ Total secrets available: {len(self._secrets_cache)}")
+            logger.info(f"✓ Total secrets: {len(self._secrets_cache)}")
             return self._secrets_cache
 
         except Exception as e:
-            logger.error(f"Failed to load secrets from Supabase: {e}")
+            logger.error(f"Failed to load secrets: {e}")
             return {}
 
     def get_secret(self, key_name: str, default: Optional[str] = None) -> Optional[str]:
         """
         Get a single secret by key name.
-        Falls back to environment variable if not in Supabase.
+        Order: AWS Secrets Manager > Supabase > Environment variables
 
         Args:
             key_name: The secret key name (e.g., 'BINANCE_API_KEY')

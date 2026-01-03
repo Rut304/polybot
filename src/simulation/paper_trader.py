@@ -140,7 +140,7 @@ class PaperTrader:
         db_client,
         starting_balance: Decimal = Decimal("10000.00"),
         max_position_pct: float = 10.0,  # Max 10% of balance per trade
-        min_profit_threshold: float = 0.5,  # Only sim trades with 0.5%+ expected profit
+        min_profit_threshold: float = 0.5,  # Min 0.5%+ expected profit
     ):
         self.db = db_client
         self.stats = PaperTradingStats(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 import { getSupabaseAdmin } from '../../../lib/supabase-admin';
 
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
   }
   
   try {
+    // Get metadata from Supabase (key_name, description, category)
     const { data, error } = await supabaseAdmin
       .from('polybot_secrets')
       .select('*')
@@ -49,16 +51,20 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Mask sensitive values for frontend
-    const maskedData = (data || []).map((secret: any) => ({
-      ...secret,
-      key_value: secret.key_value 
-        ? (secret.key_value.length <= 8 
-            ? '********' 
-            : `${secret.key_value.substring(0, 4)}...${secret.key_value.substring(secret.key_value.length - 4)}`)
-        : null,
-      is_configured: !!secret.key_value,
-    }));
+    // Get actual secrets from AWS Secrets Manager (PRIMARY SOURCE)
+    const awsSecrets = await getAwsSecrets();
+    
+    // Merge: use Supabase for metadata, AWS for is_configured status
+    const maskedData = (data || []).map((secret: any) => {
+      const hasAwsValue = !!awsSecrets[secret.key_name];
+      const maskedValue = hasAwsValue ? '••••••••' : null;
+      
+      return {
+        ...secret,
+        key_value: maskedValue,
+        is_configured: hasAwsValue,
+      };
+    });
 
     // Log successful view
     await logAuditEvent({

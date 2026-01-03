@@ -1,37 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAwsSecrets, getAwsSecret } from '@/lib/aws-secrets';
 
-// Supabase client for fetching secrets
+// Supabase client for non-secret database operations
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 const supabase = supabaseUrl && supabaseServiceKey 
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-// Helper to get API key from Supabase secrets
-async function getSecretFromSupabase(keyName: string): Promise<string | null> {
-  if (!supabase) {
-    console.log('Supabase not configured');
-    return null;
-  }
-  
-  try {
-    const { data, error } = await supabase
-      .from('polybot_secrets')
-      .select('key_value')
-      .eq('key_name', keyName)
-      .single();
-    
-    if (error || !data) {
-      console.log(`Secret ${keyName} not found:`, error?.message);
-      return null;
-    }
-    
-    return data.key_value;
-  } catch (e) {
-    console.error(`Error fetching secret ${keyName}:`, e);
-    return null;
-  }
+// Helper to get API key from AWS Secrets Manager (PRIMARY SOURCE)
+async function getSecretFromAws(keyName: string): Promise<string | null> {
+  return await getAwsSecret(keyName);
 }
 
 // Cache for all US stocks from Alpaca (refresh every 24 hours)
@@ -49,8 +29,8 @@ async function fetchAllAlpacaAssets(): Promise<any[]> {
     return cachedAlpacaAssets;
   }
   
-  const apiKey = await getSecretFromSupabase('ALPACA_PAPER_API_KEY');
-  const apiSecret = await getSecretFromSupabase('ALPACA_PAPER_API_SECRET');
+  const apiKey = await getSecretFromAws('ALPACA_PAPER_API_KEY');
+  const apiSecret = await getSecretFromAws('ALPACA_PAPER_API_SECRET');
   
   if (!apiKey || !apiSecret) {
     console.log('Alpaca API keys not configured');
@@ -743,7 +723,7 @@ async function fetchAlpacaStocks() {
     console.log(`Processing ${alpacaAssets.length} stocks from Alpaca`);
     
     // Get Finnhub key for live price quotes on priority stocks
-    const FINNHUB_KEY = await getSecretFromSupabase('FINNHUB_API_KEY') || process.env.FINNHUB_API_KEY;
+    const FINNHUB_KEY = await getSecretFromAws('FINNHUB_API_KEY') || process.env.FINNHUB_API_KEY;
     
     // Priority symbols to fetch live quotes for
     const prioritySymbols = [
@@ -843,7 +823,7 @@ async function fetchAlpacaStocks() {
   
   // Fallback to original static + Finnhub approach
   console.log('Alpaca assets unavailable, using fallback data');
-  const FINNHUB_KEY = await getSecretFromSupabase('FINNHUB_API_KEY') || process.env.FINNHUB_API_KEY;
+  const FINNHUB_KEY = await getSecretFromAws('FINNHUB_API_KEY') || process.env.FINNHUB_API_KEY;
   
   if (!FINNHUB_KEY) {
     console.log('Finnhub API key not configured, using comprehensive static stock data');

@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const getSupabaseAdmin = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !supabaseServiceKey) return null;
-  return createClient(supabaseUrl, supabaseServiceKey);
-};
+import { getAwsSecrets, isAwsConfigured } from '@/lib/aws-secrets';
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,29 +9,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing platform' }, { status: 400 });
     }
     
-    const supabase = getSupabaseAdmin();
-    if (!supabase) {
-      return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
+    // Get all secrets from AWS Secrets Manager (PRIMARY SOURCE)
+    if (!isAwsConfigured()) {
+      return NextResponse.json({ 
+        error: 'AWS Secrets Manager not configured. Set AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY.' 
+      }, { status: 500 });
     }
     
-    // Get all configured secrets (polybot_secrets is a global table, no user_id)
-    const { data: secrets, error: secretsError } = await supabase
-      .from('polybot_secrets')
-      .select('key_name, key_value')
-      .eq('is_configured', true);
+    const secretsMap = await getAwsSecrets();
     
-    if (secretsError) {
-      console.error('Error fetching secrets:', secretsError);
-      return NextResponse.json({ error: 'Failed to fetch credentials' }, { status: 500 });
+    if (Object.keys(secretsMap).length === 0) {
+      return NextResponse.json({ 
+        error: 'No secrets found in AWS Secrets Manager (polybot/trading-keys)' 
+      }, { status: 500 });
     }
-    
-    // Map secrets to a lookup object
-    const secretsMap: Record<string, string> = {};
-    secrets?.forEach(s => {
-      if (s.key_value) {
-        secretsMap[s.key_name] = s.key_value;
-      }
-    });
     
     // Test based on platform
     let result: { connected: boolean; balance?: number; error?: string; details?: string };

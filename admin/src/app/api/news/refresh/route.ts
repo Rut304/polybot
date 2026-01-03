@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -16,17 +17,11 @@ function getSupabase(): SupabaseClient {
   return _supabase;
 }
 
-// Helper to get API key from Supabase secrets
+// Helper to get API key from AWS Secrets Manager (PRIMARY SOURCE)
 async function getSecret(keyName: string): Promise<string | null> {
   try {
-    const { data, error } = await getSupabase()
-      .from('polybot_secrets')
-      .select('key_value')
-      .eq('key_name', keyName)
-      .single();
-    
-    if (error || !data) return null;
-    return data.key_value;
+    const secrets = await getAwsSecrets();
+    return secrets[keyName] || null;
   } catch {
     return null;
   }

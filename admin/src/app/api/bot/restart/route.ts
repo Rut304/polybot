@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
@@ -82,21 +83,12 @@ export async function POST(request: Request) {
     // This effectively restarts the container
     const currentDeployment = service.currentDeployment;
     
-    // Fetch latest secrets from Supabase to inject into the container
-    const { data: secrets } = await supabase
-      .from('polybot_secrets')
-      .select('key_name, key_value')
-      .eq('is_configured', true);
-
-    // Build environment variables from secrets
-    const environment: Record<string, string> = {};
-    if (secrets) {
-      for (const secret of secrets) {
-        if (secret.key_value) {
-          environment[secret.key_name] = secret.key_value;
-        }
-      }
-    }
+    // Fetch secrets from AWS Secrets Manager (PRIMARY SOURCE)
+    // The bot will also fetch from AWS at runtime, but we inject them here for redundancy
+    const awsSecrets = await getAwsSecrets();
+    
+    // Build environment variables from AWS secrets
+    const environment: Record<string, string> = { ...awsSecrets };
 
     // CRITICAL: Validate that essential infrastructure secrets are present
     // These MUST exist for the bot to function - fail deployment if missing
@@ -104,10 +96,10 @@ export async function POST(request: Request) {
     const missingSecrets = REQUIRED_SECRETS.filter(key => !environment[key]);
     
     if (missingSecrets.length > 0) {
-      console.error('Missing required secrets in polybot_secrets table:', missingSecrets);
+      console.error('Missing required secrets in AWS Secrets Manager:', missingSecrets);
       return NextResponse.json({
         success: false,
-        error: `Missing required secrets: ${missingSecrets.join(', ')}. Add them to the polybot_secrets table in Supabase.`,
+        error: `Missing required secrets in AWS: ${missingSecrets.join(', ')}. Add them to polybot/trading-keys in AWS Secrets Manager.`,
       }, { status: 400 });
     }
 
