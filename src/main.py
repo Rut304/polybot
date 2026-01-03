@@ -39,17 +39,21 @@ logging.basicConfig(
 logger = logging.getLogger("polybot")
 
 
-async def run_single_instance(user_id: Optional[str] = None):
+async def run_single_instance(user_id: Optional[str] = None, live_mode: bool = False):
     """Run a single instance of PolyBot."""
     # Setup logging with user context
     setup_database_logging(user_id=user_id)
 
-    logger.info(f"🚀 Starting PolyBot single instance (User: {user_id or 'Global'})...")
+    mode_str = "LIVE 💰" if live_mode else "PAPER 📝"
+    logger.info(f"🚀 Starting PolyBot single instance (User: {user_id or 'Global'}, Mode: {mode_str})...")
+
+    if live_mode:
+        logger.warning("⚠️  LIVE TRADING ENABLED - Real money at risk!")
 
     # Run Startup Cleanup to remove zombie records
     await cleanup_stale_data()
 
-    runner = PolybotRunner(user_id=user_id)
+    runner = PolybotRunner(user_id=user_id, simulation_mode=not live_mode)
 
     # Handle shutdown
     loop = asyncio.get_running_loop()
@@ -81,8 +85,12 @@ async def main():
     parser.add_argument("--user-id", type=str, help="Run for specific User ID")
     parser.add_argument("--manager", action="store_true", help="Run in Multi-Tenant Manager mode")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--live", action="store_true", help="Enable LIVE trading (real money!)")
 
     args = parser.parse_args()
+
+    # Also check environment variable for live mode
+    live_mode = args.live or os.getenv("LIVE_TRADING", "").lower() in ("true", "1", "yes")
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -103,7 +111,7 @@ async def main():
         await manager.run()
 
     else:
-        await run_single_instance(user_id=args.user_id)
+        await run_single_instance(user_id=args.user_id, live_mode=live_mode)
 
 
 if __name__ == "__main__":

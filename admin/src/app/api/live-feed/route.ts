@@ -41,8 +41,9 @@ export async function GET() {
     // Only show trades with positive outcomes for social proof
     const { data: trades, error } = await supabase
       .from('polybot_simulated_trades')
-      .select('id, polymarket_market_title, kalshi_market_title, trade_type, actual_profit_usd, outcome, created_at')
+      .select('id, polymarket_market_title, kalshi_market_title, trade_type, actual_profit_usd, outcome, created_at, trading_mode')
       .in('outcome', ['won', 'pending'])  // Only show successful or pending
+      .eq('trading_mode', 'paper')  // Only show paper trades publicly (not live trades)
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -87,10 +88,11 @@ export async function GET() {
       };
     });
 
-    // Also fetch aggregate stats
+    // Also fetch aggregate stats (paper trades only for public display)
     const { data: stats } = await supabase
       .from('polybot_simulated_trades')
-      .select('actual_profit_usd, outcome');
+      .select('actual_profit_usd, outcome')
+      .eq('trading_mode', 'paper');
     
     const totalTrades = stats?.length || 0;
     const winningTrades = stats?.filter(t => t.outcome === 'won').length || 0;

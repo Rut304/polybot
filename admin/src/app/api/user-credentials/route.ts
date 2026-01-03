@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
           account_id: null,
           is_paper: true,
           connected: false,
-          source: null,
+          source: 'none' as string,
           last_authenticated: null,
           created_at: null,
         });
