@@ -75,7 +75,7 @@ async def main():
     
     # Confirm with user
     print("\n⚠️  WARNING: LIVE TRADING ENABLED")
-    print("   - Max position size: $25 per trade")
+    print("   - Max position size: $10 per trade (10 concurrent max)")
     print("   - Strategy: Kalshi Single-Platform Arb")
     print("   - Min profit threshold: 8%")
     print(f"   - Available balance: ${balance:.2f}")
@@ -92,7 +92,7 @@ async def main():
     setup_database_logging()
     
     # Override config for safety
-    os.environ["KALSHI_SINGLE_MAX_POSITION_USD"] = "25"  # Max $25 per trade
+    os.environ["KALSHI_SINGLE_MAX_POSITION_USD"] = "10"  # Max $10 per trade
     os.environ["ENABLE_POLYMARKET_SINGLE_ARB"] = "false"  # Disable Polymarket
     os.environ["ENABLE_CROSS_PLATFORM_ARB"] = "false"  # Disable cross-platform
     
@@ -102,14 +102,14 @@ async def main():
     )
     
     # Override config after init for extra safety
-    runner.config.trading.kalshi_single_max_position_usd = 25.0  # Cap at $25
+    runner.config.trading.kalshi_single_max_position_usd = 10.0  # Cap at $10
     runner.config.trading.enable_polymarket_single_arb = False
     runner.config.trading.enable_cross_platform_arb = False
     runner.config.trading.enable_kalshi_single_arb = True
     
     logger.info("🔴 LIVE MODE ACTIVE - Kalshi Single Arb Only")
     logger.info(f"💰 Starting balance: ${balance:.2f}")
-    logger.info(f"📏 Max position size: $25.00")
+    logger.info("📏 Max position size: $10.00")
     
     try:
         await runner.run()
