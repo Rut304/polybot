@@ -50,14 +50,15 @@ export async function GET(request: NextRequest) {
       .select('exchange')
       .eq('user_id', authResult.user_id);
     
-    const connectedExchanges = userExchanges?.map(e => e.exchange) || [];
+    const connectedExchanges = userExchanges?.map(e => e.exchange?.toLowerCase()) || [];
 
-    // Fetch balances filtered by user_id
+    // Fetch the single balances row (shared across users - balances are per-exchange)
+    // The polybot_balances table stores a single row with platforms array
     const { data: balancesData, error } = await supabase
       .from('polybot_balances')
       .select('*')
-      .eq('user_id', authResult.user_id)  // Multi-tenant filter
-      .order('updated_at', { ascending: false });
+      .eq('id', 1)  // Single row table
+      .single();
 
     if (error) {
       console.error('Error fetching balances:', error);
@@ -67,28 +68,33 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Calculate aggregated totals
-    const platforms = balancesData || [];
-    const total_cash = platforms.reduce((sum: number, p: any) => sum + (parseFloat(p.cash_balance) || 0), 0);
-    const total_positions = platforms.reduce((sum: number, p: any) => sum + (parseFloat(p.positions_value) || 0), 0);
+    // Filter platforms to only show user's connected exchanges
+    const allPlatforms = balancesData?.platforms || [];
+    const userPlatforms = allPlatforms.filter((p: any) => 
+      connectedExchanges.includes(p.platform?.toLowerCase())
+    );
+    
+    // Calculate totals only from user's connected exchanges
+    const total_cash = userPlatforms.reduce((sum: number, p: any) => sum + (parseFloat(p.cash_balance) || 0), 0);
+    const total_positions = userPlatforms.reduce((sum: number, p: any) => sum + (parseFloat(p.positions_value) || 0), 0);
 
     return NextResponse.json({
       success: true,
       data: {
-        timestamp: new Date().toISOString(),
+        timestamp: balancesData?.updated_at || new Date().toISOString(),
         total_usd: total_cash + total_positions,
         total_positions_usd: total_positions,
         total_cash_usd: total_cash,
         connected_exchanges: connectedExchanges,
-        platforms: platforms.map((p: any) => ({
+        platforms: userPlatforms.map((p: any) => ({
           platform: p.platform,
           platform_type: p.platform_type || 'unknown',
-          connected: connectedExchanges.includes(p.platform?.toLowerCase()),
+          connected: true, // These are already filtered to connected only
           cash_balance: parseFloat(p.cash_balance) || 0,
           positions_value: parseFloat(p.positions_value) || 0,
           total_balance: (parseFloat(p.cash_balance) || 0) + (parseFloat(p.positions_value) || 0),
           positions_count: p.positions_count || 0,
-          last_updated: p.updated_at,
+          last_updated: p.last_updated,
         })),
       },
     });
