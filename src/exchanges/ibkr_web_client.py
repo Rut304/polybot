@@ -268,18 +268,51 @@ class IBKRWebClient(BaseExchange):
             return False
 
     async def _encrypt_token(self, token: str) -> str:
-        """Encrypt token for storage. TODO: Implement proper encryption."""
-        # For now, just base64 encode.
-        # In production, use Supabase Vault or AWS KMS
+        """
+        Encrypt token for secure storage using Vault.
+        Falls back to base64 if POLYBOT_MASTER_KEY not set.
+        """
         if not token:
             return ""
+        
+        try:
+            # Try to use the Vault for proper encryption
+            from src.utils.vault import Vault
+            vault = Vault()
+            if vault._fernet:  # Master key is configured
+                return vault.encrypt(token)
+        except Exception as e:
+            logger.warning(f"Vault encryption unavailable: {e}")
+        
+        # Fallback to base64 (not secure, but backward compatible)
+        logger.warning(
+            "POLYBOT_MASTER_KEY not set - using base64 encoding (not secure)"
+        )
         return base64.b64encode(token.encode()).decode()
 
     async def _decrypt_token(self, encrypted: str) -> str:
-        """Decrypt token from storage."""
+        """
+        Decrypt token from storage using Vault.
+        Falls back to base64 if encrypted value is not Fernet format.
+        """
         if not encrypted:
             return ""
-        return base64.b64decode(encrypted.encode()).decode()
+        
+        try:
+            # Try to use the Vault for proper decryption
+            from src.utils.vault import Vault
+            vault = Vault()
+            if vault._fernet and encrypted.startswith("gAAAAA"):
+                return vault.decrypt(encrypted)
+        except Exception as e:
+            logger.debug(f"Vault decryption failed, trying base64: {e}")
+        
+        # Fallback to base64 decoding
+        try:
+            return base64.b64decode(encrypted.encode()).decode()
+        except Exception:
+            logger.error("Failed to decrypt token - returning empty")
+            return ""
 
     # =========================================================================
     # Authentication

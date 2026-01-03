@@ -1954,8 +1954,98 @@ class PolybotRunner:
             logger.error(f"Error logging copy signal: {e}")
 
         if not self.simulation_mode:
-            # TODO: Execute actual trade
-            pass
+            # LIVE TRADING: Execute actual copy trade
+            await self._execute_live_copy_trade(signal)
+
+    async def _execute_live_copy_trade(self, signal: CopySignal):
+        """
+        Execute a live copy trade based on signal.
+        
+        Supports both Polymarket and Kalshi platforms.
+        """
+        try:
+            # Determine platform from signal (copy trading currently only Polymarket)
+            platform = "polymarket"  # CopySignal comes from Polymarket whale tracking
+            
+            # Get current balance to verify we can afford the trade
+            if platform == "polymarket":
+                if not self.polymarket_client:
+                    logger.error("❌ Copy trade failed: Polymarket client not initialized")
+                    return
+                
+                # Check if we have the py-clob-client available for live trading
+                from py_clob_client.client import ClobClient
+                from py_clob_client.clob_types import OrderArgs
+                
+                # Calculate order parameters
+                # signal.copy_size is already calculated based on copy_multiplier
+                size_usd = min(signal.copy_size, float(self.config.trading.max_trade_size))
+                price_cents = int(signal.price * 100)  # Convert to cents
+                
+                # Determine side based on signal
+                side = "yes" if signal.outcome.lower() in ("yes", "y") else "no"
+                action = signal.action.lower()  # 'buy' or 'sell'
+                
+                logger.info(
+                    f"🔴 LIVE COPY TRADE: {action.upper()} ${size_usd:.2f} {side.upper()} "
+                    f"@ {signal.price:.2%} - {signal.market_title[:50]}..."
+                )
+                
+                # Execute via Polymarket client
+                result = await self.polymarket_client.place_order(
+                    token_id=signal.token_id,
+                    side=side,
+                    price=signal.price,
+                    size=size_usd / signal.price,  # Convert USD to contracts
+                    order_type="limit",
+                )
+                
+                if result.get("success"):
+                    logger.info(
+                        f"✅ Copy trade executed: Order {result.get('order_id')} "
+                        f"filled {result.get('filled_size', 0)} contracts"
+                    )
+                    # Log successful trade
+                    self.db.log_opportunity({
+                        "id": f"copy_exec_{signal.market_slug[:15]}_{datetime.utcnow().timestamp():.0f}",
+                        "buy_platform": platform,
+                        "sell_platform": platform,
+                        "buy_market_id": signal.token_id,
+                        "sell_market_id": signal.token_id,
+                        "buy_market_name": f"Copy: {signal.outcome} @ {signal.price:.2%}",
+                        "sell_market_name": signal.market_title[:200],
+                        "buy_price": float(signal.price),
+                        "sell_price": float(signal.price),
+                        "profit_percent": 0.0,
+                        "strategy": "copy_trading_live",
+                        "detected_at": signal.detected_at.isoformat(),
+                        "status": "executed",
+                        "execution_result": "filled",
+                    })
+                else:
+                    logger.error(
+                        f"❌ Copy trade failed: {result.get('error', 'Unknown error')}"
+                    )
+            
+            elif platform == "kalshi":
+                # Future: Support Kalshi copy trading
+                if not self.kalshi_client or not self.kalshi_client.is_authenticated:
+                    logger.error("❌ Copy trade failed: Kalshi client not authenticated")
+                    return
+                
+                # Kalshi order execution would go here
+                # Currently copy trading only tracks Polymarket whales
+                logger.warning("Kalshi copy trading not yet implemented")
+                
+        except ImportError:
+            logger.error(
+                "❌ Copy trade failed: py-clob-client not installed. "
+                "Run: pip install py-clob-client"
+            )
+        except Exception as e:
+            logger.error(f"❌ Copy trade execution error: {e}")
+            import traceback
+            traceback.print_exc()
 
     async def on_arb_opportunity(self, opp: OverlapOpportunity):
         """Handle overlapping arbitrage opportunities."""

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAuth } from '@/lib/audit';
 
 // ============================================================================
 // Stats API - Returns aggregate trading statistics
@@ -9,6 +10,9 @@ import { createClient } from '@supabase/supabase-js';
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
+
+// Default starting balances per platform (in USD)
+const DEFAULT_PLATFORM_BALANCE = 5000;
 
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -27,6 +31,31 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const tradingMode = searchParams.get('trading_mode'); // 'paper' or 'live'
     const hours = searchParams.get('hours'); // time filter in hours
+
+    // Try to get user config for starting balances
+    let startingBalance = DEFAULT_PLATFORM_BALANCE * 6; // Default: $30,000 total
+    try {
+      const authResult = await verifyAuth(request as any);
+      if (authResult?.user_id) {
+        const { data: config } = await supabase
+          .from('polybot_config')
+          .select('polymarket_starting_balance, kalshi_starting_balance, binance_starting_balance, coinbase_starting_balance, alpaca_starting_balance, ibkr_starting_balance')
+          .eq('user_id', authResult.user_id)
+          .single();
+        
+        if (config) {
+          startingBalance = 
+            (config.polymarket_starting_balance || DEFAULT_PLATFORM_BALANCE) +
+            (config.kalshi_starting_balance || DEFAULT_PLATFORM_BALANCE) +
+            (config.binance_starting_balance || DEFAULT_PLATFORM_BALANCE) +
+            (config.coinbase_starting_balance || DEFAULT_PLATFORM_BALANCE) +
+            (config.alpaca_starting_balance || DEFAULT_PLATFORM_BALANCE) +
+            (config.ibkr_starting_balance || DEFAULT_PLATFORM_BALANCE);
+        }
+      }
+    } catch {
+      // Use default if auth fails (public stats endpoint)
+    }
 
     // Get aggregated stats from the strategy performance view (most accurate)
     let strategyQuery = supabase
@@ -55,10 +84,9 @@ export async function GET(request: Request) {
     const resolvedTrades = winningTrades + losingTrades;
     const winRate = resolvedTrades > 0 ? (winningTrades / resolvedTrades) * 100 : 0;
     
-    // Starting balance (configurable, default $10,000)
-    const startingBalance = 10000;
+    // Starting balance from user config (calculated above)
     const currentBalance = startingBalance + totalPnl;
-    const roiPct = (totalPnl / startingBalance) * 100;
+    const roiPct = startingBalance > 0 ? (totalPnl / startingBalance) * 100 : 0;
 
     // If time filter requested, also get filtered stats from raw trades
     let filteredStats = null;

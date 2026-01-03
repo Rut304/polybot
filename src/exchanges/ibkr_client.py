@@ -56,14 +56,40 @@ class IBKRClient(BaseExchange):
 
         if symbol in futures or symbol.startswith('F:'):
             clean_sym = symbol.replace('F:', '')
-            # For futures, usually need expiration.
-            # Empty string expiration in ib_insync often defaults to front month if combined with 'ContFut'?
-            # Or we let qualifyContracts resolve to the nearest expiry
-            # Here we try with empty lastTradeDateOrContractMonth to let IB resolve to front month
-            return Future(clean_sym, '202506', 'GLOBEX') # HARDCODED expiry for now as example until refined
-            # TODO: dynamic expiration logic
+            # Calculate front month expiration dynamically
+            expiry = self._get_front_month_expiry()
+            return Future(clean_sym, expiry, 'GLOBEX')
         else:
             return Stock(symbol, 'SMART', 'USD')
+    
+    def _get_front_month_expiry(self) -> str:
+        """
+        Calculate front month futures expiration (3rd Friday pattern).
+        Returns expiry in YYYYMM format.
+        """
+        from datetime import date, timedelta
+        import calendar
+        
+        today = date.today()
+        year = today.year
+        month = today.month
+        
+        # Find 3rd Friday of current month
+        c = calendar.Calendar(firstweekday=calendar.MONDAY)
+        fridays = [d for d in c.itermonthdays2(year, month) 
+                   if d[0] != 0 and d[1] == 4]  # Friday = 4
+        third_friday = fridays[2][0] if len(fridays) >= 3 else 15
+        
+        expiry_date = date(year, month, third_friday)
+        
+        # If past 3rd Friday, roll to next month
+        if today >= expiry_date:
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+        
+        return f"{year}{month:02d}"
 
     # =========================================================================
     # Market Data
@@ -110,9 +136,59 @@ class IBKRClient(BaseExchange):
         return tickers
 
     async def get_orderbook(self, symbol: str, limit: int = 20) -> Dict[str, Any]:
-        """Get order book (Not fully implemented for IBKR in this simplified client)."""
-        # IBKR requires subscribing to market depth
-        return {'bids': [], 'asks': []}
+        """
+        Get order book (market depth) for a symbol.
+        
+        Args:
+            symbol: Stock/futures symbol
+            limit: Number of levels to fetch (max ~20 for IBKR)
+            
+        Returns:
+            Dict with 'bids' and 'asks' lists of [price, size] tuples
+        """
+        contract = self._get_contract(symbol)
+        try:
+            self.ib.qualifyContracts(contract)
+        except Exception as e:
+            logger.warning(f"Could not qualify contract {symbol}: {e}")
+            return {'bids': [], 'asks': []}
+        
+        try:
+            # Request market depth (L2 data)
+            # Note: Requires market data subscription for the exchange
+            ticker = self.ib.reqMktDepth(contract, numRows=min(limit, 20))
+            
+            # Wait for depth data to populate
+            for _ in range(30):  # 3 second timeout
+                if ticker.domBids or ticker.domAsks:
+                    break
+                await asyncio.sleep(0.1)
+            
+            # Format bids and asks
+            bids = [
+                [float(b.price), int(b.size)]
+                for b in (ticker.domBids or [])
+                if b.price > 0
+            ][:limit]
+            
+            asks = [
+                [float(a.price), int(a.size)]
+                for a in (ticker.domAsks or [])
+                if a.price > 0
+            ][:limit]
+            
+            # Cancel market depth subscription
+            self.ib.cancelMktDepth(contract)
+            
+            return {
+                'bids': bids,
+                'asks': asks,
+                'timestamp': datetime.now().isoformat(),
+            }
+            
+        except Exception as e:
+            logger.error(f"Error fetching order book for {symbol}: {e}")
+            return {'bids': [], 'asks': []}
 
     async def get_ohlcv(self, symbol: str, timeframe: str = '1h', limit: int = 100) -> List[List[float]]:
         """Get historical data."""

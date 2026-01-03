@@ -5,14 +5,10 @@ Handles persistence of opportunities, trades, and bot state.
 
 import logging
 import os
-import random
-import time
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
-from decimal import Decimal
 
-from supabase import create_client, Client
-from supabase.lib.client_options import ClientOptions
+from supabase import create_client
 from src.utils.vault import Vault
 
 logger = logging.getLogger(__name__)
@@ -63,6 +59,9 @@ class Database:
         self.url = url or os.getenv("SUPABASE_URL", "")
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         self.user_id = user_id
+        
+        # Initialize Vault for encrypting/decrypting user secrets
+        self.vault = Vault()
 
         if not self.url or not self.key:
             logger.warning("Supabase credentials not found in environment variables")
@@ -1297,11 +1296,30 @@ class Database:
             secrets = {}
             for row in (result.data or []):
                 platform = row["platform"]
+                
+                # Decrypt secrets using Vault (if encrypted)
+                api_key = row.get("api_key_encrypted")
+                api_secret = row.get("api_secret_encrypted")
+                private_key = row.get("private_key_encrypted")
+                
+                if self.vault:
+                    try:
+                        if api_key:
+                            api_key = self.vault.decrypt(api_key)
+                        if api_secret:
+                            api_secret = self.vault.decrypt(api_secret)
+                        if private_key:
+                            private_key = self.vault.decrypt(private_key)
+                    except Exception as decrypt_err:
+                        logger.error(
+                            f"Failed to decrypt {platform} secrets: {decrypt_err}"
+                        )
+                        # Continue with encrypted values as fallback
+                
                 secrets[platform] = {
-                    # TODO: Decrypt using Supabase Vault or KMS
-                    "api_key": row.get("api_key_encrypted"),
-                    "api_secret": row.get("api_secret_encrypted"),
-                    "private_key": row.get("private_key_encrypted"),
+                    "api_key": api_key,
+                    "api_secret": api_secret,
+                    "private_key": private_key,
                     "wallet_address": row.get("wallet_address"),
                     "is_paper": row.get("is_paper", True),
                     "validation_status": row.get("validation_status"),

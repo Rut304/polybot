@@ -266,9 +266,12 @@ class TradeExecutor:
             self._pending_approval.append(opportunity)
             return None, None, "Requires manual approval"
 
-        # Calculate position size
-        # TODO: Get actual balances from clients
-        available_balance = self.max_trade_size  # Placeholder
+        # Calculate position size using actual balances from clients
+        available_balance = await self._get_available_balance(opportunity.buy_platform)
+        if available_balance <= 0:
+            logger.warning(f"No balance available on {opportunity.buy_platform}")
+            available_balance = self.max_trade_size  # Fall back to max as safety limit
+        
         size = self.calculate_position_size(opportunity, available_balance)
 
         if size <= 0:
@@ -618,6 +621,42 @@ class TradeExecutor:
                 "success": False,
                 "error": str(e),
             }
+
+    async def _get_available_balance(self, platform: str) -> float:
+        """
+        Get available balance from the specified platform.
+        
+        Args:
+            platform: 'polymarket' or 'kalshi'
+            
+        Returns:
+            Available balance in USD, or 0 if unavailable
+        """
+        try:
+            if platform.lower() == "polymarket":
+                if not self.polymarket_client:
+                    return 0.0
+                # Polymarket balance requires wallet address
+                # For now, return max_trade_size as we need wallet integration
+                balance_data = self.polymarket_client.get_balance("")
+                return float(balance_data.get("balance", 0))
+                
+            elif platform.lower() == "kalshi":
+                if not self.kalshi_client:
+                    return 0.0
+                if not self.kalshi_client.is_authenticated:
+                    logger.warning("Kalshi not authenticated for balance check")
+                    return 0.0
+                balance_data = self.kalshi_client.get_balance()
+                return float(balance_data.get("balance", 0))
+                
+            else:
+                logger.warning(f"Unknown platform for balance: {platform}")
+                return 0.0
+                
+        except Exception as e:
+            logger.error(f"Failed to get balance from {platform}: {e}")
+            return 0.0
 
     def get_pending_approvals(self) -> List[Opportunity]:
         """Get opportunities pending manual approval."""

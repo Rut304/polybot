@@ -54,6 +54,7 @@ body {
 /* Card styling */
 .card {
   @apply bg-dark-card border border-dark-border rounded-xl p-6;
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 
@@ -184,9 +185,10 @@ body {
     -webkit-tap-highlight-color: transparent;
   }
   
-  /* Better touch scrolling */
+  /* Better touch scrolling - removed deprecated property */
   .overflow-y-auto {
-    -webkit-overflow-scrolling: touch;
+    /* Modern browsers handle touch scrolling natively */
+    overscroll-behavior: contain;
   }
 }
 
@@ -221,10 +223,11 @@ body {
 
 /* Hide scrollbar but keep functionality */
 .scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
+/* WebKit browsers (Chrome, Safari, newer Edge) */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }

@@ -235,8 +235,10 @@ export default function NewsPage() {
         <Filter className="w-5 h-5 text-gray-400" />
         
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">Source:</label>
+          <label htmlFor="source-filter" className="text-sm text-gray-400">Source:</label>
           <select
+            id="source-filter"
+            aria-label="Filter by news source"
             value={sourceFilter}
             onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
             className="bg-dark-card border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-blue"
@@ -252,8 +254,10 @@ export default function NewsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-400">Sentiment:</label>
+          <label htmlFor="sentiment-filter" className="text-sm text-gray-400">Sentiment:</label>
           <select
+            id="sentiment-filter"
+            aria-label="Filter by sentiment"
             value={sentimentFilter}
             onChange={(e) => { setSentimentFilter(e.target.value); setPage(1); }}
             className="bg-dark-card border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-neon-blue"
@@ -494,6 +498,8 @@ export default function NewsPage() {
                             href={item.url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            title="Open article in new tab"
+                            aria-label="Open article in new tab"
                             className="flex-shrink-0 p-1.5 rounded-lg hover:bg-gray-700/50 transition-colors"
                           >
                             <ExternalLink className="w-4 h-4 text-gray-400" />
@@ -577,6 +583,8 @@ export default function NewsPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
+            aria-label="Previous page"
+            title="Previous page"
             className="p-2 rounded-lg bg-dark-card hover:bg-gray-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
@@ -601,6 +609,8 @@ export default function NewsPage() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
+            aria-label="Next page"
+            title="Next page"
             className="p-2 rounded-lg bg-dark-card hover:bg-gray-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
