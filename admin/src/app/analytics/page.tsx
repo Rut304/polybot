@@ -62,24 +62,26 @@ export default function AnalyticsPage() {
   const [timeframe, setTimeframe] = useState<number>(168); // 7 days default
   
   // Get user context - use profile setting as source of truth
-  const { isAdmin, isSimulation: isUserSimMode } = useTier();
+  const { isAdmin, isSimulation: isUserSimMode, isLoading: tierLoading } = useTier();
   
-  // Default view mode based on user's profile setting (is_simulation flag)
-  // If user has live trading enabled (is_simulation=false), show live data only
-  const [viewMode, setViewMode] = useState<'all' | 'paper' | 'live'>(() => isUserSimMode ? 'paper' : 'live');
+  // Track if we've set the initial mode from profile
+  const [hasInitializedMode, setHasInitializedMode] = useState(false);
+  
+  // Default to 'paper' until profile loads
+  const [viewMode, setViewMode] = useState<'all' | 'paper' | 'live'>('paper');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]); // Empty = all platforms
   
   // Update view mode when user profile loads
   const [hasUserSelectedMode, setHasUserSelectedMode] = useState(false);
   
+  // Auto-set to user's profile mode when profile finishes loading (one-time)
   useEffect(() => {
-    if (!hasUserSelectedMode) {
+    if (!tierLoading && !hasInitializedMode) {
       const profileMode = isUserSimMode ? 'paper' : 'live';
-      if (viewMode !== profileMode) {
-        setViewMode(profileMode);
-      }
+      setViewMode(profileMode);
+      setHasInitializedMode(true);
     }
-  }, [isUserSimMode, hasUserSelectedMode, viewMode]);
+  }, [tierLoading, isUserSimMode, hasInitializedMode]);
   
   // Get platform context for filtering
   const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();
