@@ -41,9 +41,8 @@ export async function GET() {
     // Only show trades with positive outcomes for social proof
     const { data: trades, error } = await supabase
       .from('polybot_simulated_trades')
-      .select('id, polymarket_market_title, kalshi_market_title, buy_platform, sell_platform, pnl_usdc, outcome, created_at, trading_mode')
+      .select('id, polymarket_market_title, kalshi_market_title, trade_type, actual_profit_usd, outcome, created_at')
       .in('outcome', ['won', 'pending'])  // Only show successful or pending
-      .eq('trading_mode', 'paper')  // Only show paper/simulation trades publicly
       .order('created_at', { ascending: false })
       .limit(20);
 
@@ -67,8 +66,9 @@ export async function GET() {
     // Transform and anonymize the data
     const publicTrades: PublicTrade[] = trades.map(trade => {
       const marketTitle = trade.polymarket_market_title || trade.kalshi_market_title || 'Market Trade';
-      const platform = trade.buy_platform || trade.sell_platform || 'polymarket';
-      const profit = trade.pnl_usdc || 0;
+      const platform = trade.trade_type?.includes('polymarket') ? 'polymarket' : 
+                       trade.trade_type?.includes('kalshi') ? 'kalshi' : 'polymarket';
+      const profit = trade.actual_profit_usd || 0;
       
       // Anonymize market title to avoid revealing specific positions
       const anonymizedMarket = anonymizeMarket(marketTitle);
@@ -90,12 +90,11 @@ export async function GET() {
     // Also fetch aggregate stats
     const { data: stats } = await supabase
       .from('polybot_simulated_trades')
-      .select('pnl_usdc, outcome')
-      .eq('trading_mode', 'paper');
+      .select('actual_profit_usd, outcome');
     
     const totalTrades = stats?.length || 0;
     const winningTrades = stats?.filter(t => t.outcome === 'won').length || 0;
-    const totalProfit = stats?.reduce((sum, t) => sum + (t.pnl_usdc || 0), 0) || 0;
+    const totalProfit = stats?.reduce((sum, t) => sum + (t.actual_profit_usd || 0), 0) || 0;
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100) : 0;
 
     return NextResponse.json({
