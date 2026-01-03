@@ -9,9 +9,8 @@ import {
   Sparkles, GitBranch, Info, Lock, Key, XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useBotConfig } from '@/lib/hooks';
-import { supabase } from '@/lib/supabase';
+import { useQueryClient } from '@tanstack/react-query';
+import { useBotConfig, useUpdateBotConfig } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useTier } from '@/lib/useTier';
@@ -1742,33 +1741,26 @@ export default function StrategiesPage() {
     }
   }, [config]);
 
-  // Update config mutation
-  const updateConfig = useMutation({
-    mutationFn: async (newConfig: Record<string, unknown>) => {
-      if (!config?.id) throw new Error('Implementation Error: Missing config ID');
-
-      const { error } = await supabase
-        .from('polybot_config')
-        .upsert({
-          ...newConfig,
-          id: config.id, // CRITICAL FIX: Use actual config ID, not hardcoded 1
-          user_id: user?.id, // Ensure user ownership
-          updated_at: new Date().toISOString()
-        });
-      if (error) throw error;
+  // Use the shared config update hook (uses API route with service role)
+  const updateConfigMutation = useUpdateBotConfig();
+  
+  // Wrapper to add success/error handling
+  const updateConfig = {
+    mutateAsync: async (newConfig: Record<string, unknown>) => {
+      try {
+        await updateConfigMutation.mutateAsync(newConfig);
+        setSaveSuccess(true);
+        setSaveError(null);
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } catch (error) {
+        console.error('Save failed:', error);
+        setSaveError((error as Error).message || 'Failed to save settings');
+        setTimeout(() => setSaveError(null), 5000);
+        throw error;
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['botConfig'] });
-      setSaveSuccess(true);
-      setSaveError(null);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    },
-    onError: (error: Error) => {
-      console.error('Save failed:', error);
-      setSaveError(error.message || 'Failed to save settings');
-      setTimeout(() => setSaveError(null), 5000);
-    },
-  });
+    isPending: updateConfigMutation.isPending,
+  };
 
   // Handlers
   const toggleCategory = (categoryId: string) => {
@@ -2440,21 +2432,38 @@ export default function StrategiesPage() {
               </div>
               
               {/* Actions */}
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPlatformModal(false)}
+                    className="flex-1 px-4 py-3 bg-dark-border hover:bg-dark-border/80 rounded-xl text-gray-300 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <Link
+                    href="/secrets"
+                    onClick={() => setShowPlatformModal(false)}
+                    className="flex-1 px-4 py-3 bg-neon-green hover:bg-neon-green/90 rounded-xl text-black font-medium text-center transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Key className="w-4 h-4" />
+                    Setup API Keys
+                  </Link>
+                </div>
+                {/* Enable Anyway option */}
                 <button
-                  onClick={() => setShowPlatformModal(false)}
-                  className="flex-1 px-4 py-3 bg-dark-border hover:bg-dark-border/80 rounded-xl text-gray-300 font-medium transition-colors"
+                  onClick={() => {
+                    if (pendingStrategy) {
+                      // Force enable the strategy even without platform connection
+                      const newValue = pendingStrategy.configKey === 'skip_same_platform_overlap' ? false : true;
+                      setLocalConfig(prev => ({ ...prev, [pendingStrategy.configKey]: newValue }));
+                    }
+                    setShowPlatformModal(false);
+                    setPendingStrategy(null);
+                  }}
+                  className="w-full px-4 py-2 text-sm text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 rounded-lg transition-colors"
                 >
-                  Cancel
+                  Enable anyway (strategy won&apos;t execute until platform is connected)
                 </button>
-                <Link
-                  href="/secrets"
-                  onClick={() => setShowPlatformModal(false)}
-                  className="flex-1 px-4 py-3 bg-neon-green hover:bg-neon-green/90 rounded-xl text-black font-medium text-center transition-colors flex items-center justify-center gap-2"
-                >
-                  <Key className="w-4 h-4" />
-                  Setup API Keys
-                </Link>
               </div>
             </motion.div>
           </motion.div>
