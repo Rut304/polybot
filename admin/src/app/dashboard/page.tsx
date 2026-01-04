@@ -109,9 +109,16 @@ export default function Dashboard() {
   const effectiveViewMode = viewMode ?? (isUserSimMode ? 'paper' : 'live');
   const tradingMode: 'paper' | 'live' | undefined = effectiveViewMode === 'all' ? undefined : effectiveViewMode;
 
+  // Determine if we're in live mode for performance optimization
+  const isLiveMode = tradingMode === 'live';
+
   // Use user profile setting as source of truth for simulation mode
   const isSimulation = isUserSimMode;
-  const { data: simStats, isLoading: statsLoading } = useSimulationStats();
+  
+  // PERFORMANCE OPTIMIZATION: Only fetch simulation stats in paper mode
+  // In live mode, we use live balances and realTimeStats instead
+  const { data: simStats, isLoading: statsLoading } = useSimulationStats(!isLiveMode);
+  
   // Pass trading mode to get stats filtered by current mode (undefined = all)
   const { data: realTimeStats } = useRealTimeStats(globalTimeframeHours, tradingMode);
   const { data: trades } = useSimulatedTrades(20, tradingMode);
@@ -120,8 +127,8 @@ export default function Dashboard() {
   const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760, tradingMode); // 0 = All time = 1 year
   
-  // Fetch LIVE balances from connected exchanges
-  const { data: liveBalances, isLoading: liveBalancesLoading } = useLiveBalances();
+  // PERFORMANCE OPTIMIZATION: Only fetch live balances in live mode
+  const { data: liveBalances, isLoading: liveBalancesLoading } = useLiveBalances(isLiveMode);
 
   // Starting balance constant (6 platforms x $5,000 each = $30,000)
   // 6 platforms x $5,000 each = $30,000 total
@@ -129,8 +136,7 @@ export default function Dashboard() {
 
   // For LIVE mode: use actual exchange balances
   // For PAPER mode: use simulated balance from trades
-  // CRITICAL: Base this on profile setting when viewMode is null (loading)
-  const isLiveMode = tradingMode === 'live';
+  // (isLiveMode already defined above for performance optimization)
   
   // Calculate live balance from actual exchange data
   const actualLiveBalance = liveBalances?.total_usd ?? 0;

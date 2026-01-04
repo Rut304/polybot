@@ -108,7 +108,8 @@ export interface LiveBalancesResponse {
 }
 
 // Fetch live balances from connected exchanges
-export function useLiveBalances() {
+// Pass enabled=false in paper mode to skip unnecessary fetching
+export function useLiveBalances(enabled: boolean = true) {
   const { user } = useAuth();
   
   return useQuery({
@@ -136,8 +137,8 @@ export function useLiveBalances() {
       const json = await response.json();
       return json.data || null;
     },
-    enabled: !!user,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    enabled: !!user && enabled, // Skip query in paper mode
+    refetchInterval: enabled ? 30000 : false, // Only poll in live mode
     staleTime: 10000,
   });
 }
@@ -180,7 +181,8 @@ export function useUserExchanges() {
 }
 
 // Fetch latest simulation stats
-export function useSimulationStats() {
+// Pass enabled=false in live mode to skip unnecessary fetching
+export function useSimulationStats(enabled: boolean = true) {
   return useQuery({
     queryKey: ['simulationStats'],
     queryFn: async (): Promise<SimulationStats | null> => {
@@ -197,7 +199,8 @@ export function useSimulationStats() {
       }
       return data;
     },
-    refetchInterval: 5000,
+    enabled, // Skip query in live mode
+    refetchInterval: enabled ? 5000 : false,
   });
 }
 
