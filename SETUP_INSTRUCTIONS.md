@@ -27,8 +27,9 @@ This repo is ready for the 6-hour arbitrage bot build!
 # From poly-parlay, copy these secrets:
 gh secret set SUPABASE_URL -R Rut304/polybot
 gh secret set SUPABASE_KEY -R Rut304/polybot
-gh secret set AWS_ACCESS_KEY_ID -R Rut304/polybot
-gh secret set AWS_SECRET_ACCESS_KEY -R Rut304/polybot
+# NOTE: Use AMAZON_ prefix for AWS credentials (not AWS_)
+gh secret set AMAZON_ACCESS_KEY_ID -R Rut304/polybot
+gh secret set AMAZON_SECRET_ACCESS_KEY -R Rut304/polybot
 
 # From Kalshi (after signup):
 gh secret set KALSHI_API_KEY -R Rut304/polybot

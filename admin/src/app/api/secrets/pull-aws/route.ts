@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
 
   if (!secretsClient) {
     return NextResponse.json(
-      { error: 'AWS not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.' },
+      { error: 'AWS not configured. Set AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY.' },
       { status: 500 }
     );
   }

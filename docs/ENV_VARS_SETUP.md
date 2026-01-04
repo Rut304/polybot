@@ -101,10 +101,11 @@ STRIPE_PUBLISHABLE_KEY=pk_live_xxxxx
 STRIPE_WEBHOOK_SECRET=whsec_xxxxx
 
 # ========================
-# AWS Configuration
+# AWS Configuration (for Secrets Manager & Lightsail)
+# NOTE: Use AMAZON_ prefix, NOT AWS_ prefix!
 # ========================
-AWS_ACCESS_KEY_ID=AKIA...
-AWS_SECRET_ACCESS_KEY=xxxxx
+AMAZON_ACCESS_KEY_ID=AKIA...
+AMAZON_SECRET_ACCESS_KEY=xxxxx
 AWS_REGION=us-east-1
 AWS_LIGHTSAIL_SERVICE_NAME=polybot
 
