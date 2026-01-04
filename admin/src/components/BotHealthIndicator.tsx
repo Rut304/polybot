@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import { 
   Activity, 
   AlertCircle, 
@@ -62,11 +63,18 @@ export function BotHealthIndicator({
   const fetchHealth = async () => {
     try {
       setLoading(true);
+      
+      // Get auth session for Bearer token
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const url = tradingMode 
         ? `/api/bot/health?tradingMode=${tradingMode}`
         : '/api/bot/health';
       const response = await fetch(url, {
         credentials: 'include', // Include auth cookies
+        headers: session?.access_token 
+          ? { 'Authorization': `Bearer ${session.access_token}` }
+          : {},
       });
       if (!response.ok) throw new Error('Failed to fetch bot health');
       const data = await response.json();
@@ -187,6 +195,8 @@ export function BotHealthIndicator({
           onClick={fetchHealth}
           className="p-1 hover:bg-dark-border rounded transition-colors"
           disabled={loading}
+          title="Refresh health status"
+          aria-label="Refresh health status"
         >
           <RefreshCw className={cn("w-4 h-4 text-gray-400", loading && "animate-spin")} />
         </button>
