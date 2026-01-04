@@ -103,16 +103,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: credError.message }, { status: 500 });
     }
 
-    // Get user's config to see which exchanges are enabled AND trading mode
+    // Get user's config to see which exchanges are enabled
     const { data: config } = await supabaseAdmin
       .from('polybot_config')
       .select('trading_mode, enable_polymarket, enable_kalshi, enable_binance, enable_bybit, enable_okx, enable_kraken, enable_coinbase, enable_kucoin, enable_alpaca, enable_ibkr')
       .eq('user_id', authResult.user_id)
       .single();
 
-    // Determine if user is in simulation mode
+    // Get user's profile for the SOURCE OF TRUTH on simulation mode
+    const { data: profile } = await supabaseAdmin
+      .from('polybot_profiles')
+      .select('is_simulation')
+      .eq('id', authResult.user_id)
+      .single();
+
+    // Use polybot_profiles.is_simulation as the SINGLE SOURCE OF TRUTH
     // Default to simulation (paper) if not set - safer for users
-    const isSimulation = !config?.trading_mode || config.trading_mode === 'paper';
+    const isSimulation = profile?.is_simulation ?? true;
 
     // Build response with connected exchanges
     const connectedExchanges = new Set((credentials || []).map(c => c.exchange.toLowerCase()));

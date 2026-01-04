@@ -35,7 +35,15 @@ interface TierContextType {
   
   // Trading mode
   isSimulation: boolean;
-  setTradingMode: (isSimulation: boolean) => Promise<void>;
+  setTradingMode: (isSimulation: boolean, currentStats?: {
+    totalTrades: number;
+    winningTrades: number;
+    losingTrades: number;
+    totalPnl: number;
+    opportunitiesDetected: number;
+    opportunitiesExecuted: number;
+    currentBalance: number;
+  }) => Promise<void>;
   
   // Refresh
   refreshProfile: () => Promise<void>;
@@ -150,7 +158,15 @@ export function TierProvider({ children, userId }: { children: React.ReactNode; 
     fetchProfile();
   }, [fetchProfile]);
 
-  const setTradingMode = async (isSimulation: boolean) => {
+  const setTradingMode = async (isSimulation: boolean, currentStats?: {
+    totalTrades: number;
+    winningTrades: number;
+    losingTrades: number;
+    totalPnl: number;
+    opportunitiesDetected: number;
+    opportunitiesExecuted: number;
+    currentBalance: number;
+  }) => {
     if (!userId || !profile) return;
 
     // Can't switch to live on free tier
@@ -159,15 +175,27 @@ export function TierProvider({ children, userId }: { children: React.ReactNode; 
     }
 
     try {
-      const { error } = await supabase
-        .from('polybot_profiles')
-        .update({ 
-          is_simulation: isSimulation,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
+      // Get auth token for the API call
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Use the switch-mode API to handle session tracking
+      const response = await fetch('/api/switch-mode', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          newMode: isSimulation ? 'paper' : 'live',
+          currentStats,
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to switch mode');
+      }
 
       setProfile(prev => prev ? { ...prev, isSimulation } : null);
     } catch (err) {
