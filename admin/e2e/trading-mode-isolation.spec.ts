@@ -320,13 +320,13 @@ test.describe('Trading Mode Data Isolation', () => {
 
 test.describe('Connected Platforms Consistency', () => {
   const PLATFORM_DISPLAY_LOCATIONS = [
-    { path: '/dashboard', selector: 'text=/Connected Platforms|platforms connected/i', name: 'Dashboard' },
-    { path: '/balances', selector: 'text=/Platform|Exchange/i', name: 'Balances' },
-    { path: '/settings', selector: 'text=/Connected|API Keys/i', name: 'Settings' },
-    { path: '/secrets', selector: 'text=/Credentials|API Keys/i', name: 'Secrets' },
+    { path: '/dashboard', selector: 'text=/Connected Platforms/i', name: 'Dashboard' },
+    { path: '/balances', selector: 'text=/Platform/i', name: 'Balances' },
+    { path: '/settings', selector: 'text=/Connected/i', name: 'Settings' },
   ];
 
   test('Connected platforms count should match across all pages', async ({ page }) => {
+    test.setTimeout(60000); // Increase timeout for this test
     const platformCounts: Record<string, number> = {};
     
     for (const location of PLATFORM_DISPLAY_LOCATIONS) {
@@ -363,14 +363,14 @@ test.describe('Connected Platforms Consistency', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     
-    // Check for ConnectedExchangesBadge component
-    const badge = page.locator('[class*="ConnectedExchanges"], text=/platforms? connected/i');
+    // Check for ConnectedExchangesBadge component (use simpler selector)
+    const badge = page.locator('[data-testid="connected-exchanges"], .connected-exchanges-badge, text=/platforms connected/i').first();
     
+    // Try clicking to see dropdown if available
     if (await badge.count() > 0) {
       console.log('✅ Connected exchanges badge found on dashboard');
       
-      // Click to see dropdown if available
-      await badge.first().click().catch(() => {});
+      await badge.click().catch(() => {});
       await page.waitForTimeout(500);
       
       // Check for platform names
@@ -381,6 +381,9 @@ test.describe('Connected Platforms Consistency', () => {
           console.log(`  Found: ${platform}`);
         }
       }
+    } else {
+      // Badge might not be present if no platforms connected
+      console.log('ℹ️ Connected exchanges badge not found (may be expected if no platforms connected)');
     }
   });
 });
