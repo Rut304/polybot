@@ -77,8 +77,8 @@ const TIMEFRAME_OPTIONS = [
   { value: 0, label: 'All Time' },
 ];
 
-// Data view mode options
-type ViewMode = 'all' | 'paper' | 'live';
+// Data view mode options - REMOVED: Now strictly follows user's profile mode
+// type ViewMode = 'all' | 'paper' | 'live';
 
 export default function Dashboard() {
   // Global timeframe state - all components use this
@@ -91,23 +91,9 @@ export default function Dashboard() {
   // DO NOT use botStatus.dry_run_mode for UI mode decisions
   const { isSimulation: isUserSimMode, isLoading: tierLoading } = useTier();
   
-  // DON'T initialize viewMode until profile loads to prevent flash
-  // null = waiting for profile, then set to user's mode
-  const [viewMode, setViewMode] = useState<ViewMode | null>(null);
-  
-  // Auto-set to user's profile mode when profile finishes loading (one-time)
-  useEffect(() => {
-    // Only set initial mode once, after profile has loaded
-    if (!tierLoading && viewMode === null) {
-      const profileMode = isUserSimMode ? 'paper' : 'live';
-      setViewMode(profileMode);
-    }
-  }, [tierLoading, isUserSimMode, viewMode]);
-
-  // Use viewMode for data filtering, fall back to user's current mode
-  // While loading (viewMode === null), use profile setting
-  const effectiveViewMode = viewMode ?? (isUserSimMode ? 'paper' : 'live');
-  const tradingMode: 'paper' | 'live' | undefined = effectiveViewMode === 'all' ? undefined : effectiveViewMode;
+  // STRICT MODE ISOLATION: Dashboard ONLY shows data for current mode
+  // No toggle to view other mode's data - keeps it simple and prevents confusion
+  const tradingMode: 'paper' | 'live' = isUserSimMode ? 'paper' : 'live';
 
   // Determine if we're in live mode for performance optimization
   const isLiveMode = tradingMode === 'live';
@@ -246,7 +232,7 @@ export default function Dashboard() {
     isRecent(botStatus.updated_at, 30000));
 
   // Don't render until we know the user's trading mode
-  const isPageReady = !tierLoading && viewMode !== null;
+  const isPageReady = !tierLoading;
   
   return (
     <div className="p-8">
@@ -314,21 +300,15 @@ export default function Dashboard() {
               ))}
             </select>
           </div>
-          {/* View Mode Toggle - All/Paper/Live */}
-          <div className="flex items-center bg-dark-card border border-dark-border rounded-xl p-1">
-            {(['all', 'paper', 'live'] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-                  effectiveViewMode === mode
-                    ? mode === 'live' ? 'bg-red-500/20 text-red-400' : mode === 'paper' ? 'bg-neon-green/20 text-neon-green' : 'bg-neon-blue/20 text-neon-blue'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {mode === 'all' ? 'All Data' : mode === 'paper' ? 'Paper' : 'Live'}
-              </button>
-            ))}
+          {/* Current Mode Indicator - strict isolation, no toggle to view other mode's data */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${
+            isLiveMode 
+              ? 'bg-red-500/10 border-red-500/30 text-red-400' 
+              : 'bg-neon-green/10 border-neon-green/30 text-neon-green'
+          }`}>
+            <span className="text-sm font-medium">
+              {isLiveMode ? '🔴 Live Data' : '📊 Paper Data'}
+            </span>
           </div>
         </div>
       </div>

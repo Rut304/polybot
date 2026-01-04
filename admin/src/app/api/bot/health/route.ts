@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyAuth } from '@/lib/audit';
 
 // Create supabase client lazily to avoid build-time errors
 const getSupabase = () => {
@@ -19,15 +20,25 @@ export async function GET(request: NextRequest) {
       }, { status: 500 });
     }
 
+    // Verify authentication - REQUIRED for user-specific data
+    const authResult = await verifyAuth(request);
+    if (!authResult?.user_id) {
+      return NextResponse.json({ 
+        health: { status: 'offline', message: 'Not authenticated' },
+        error: 'Unauthorized' 
+      }, { status: 401 });
+    }
+    const userId = authResult.user_id;
+
     // Get trading mode from query params (optional filter)
     const searchParams = request.nextUrl.searchParams;
     const tradingMode = searchParams.get('tradingMode'); // 'paper' | 'live' | null (all)
 
-    // 1. Check polybot_status for running status and heartbeat
+    // 1. Check polybot_status for running status and heartbeat - FILTER BY USER
     const { data: statusData, error: statusError } = await supabase
       .from('polybot_status')
       .select('is_running, last_started_at, last_heartbeat_at, version')
-      .limit(1)
+      .eq('user_id', userId)
       .single();
 
     if (statusError) {
@@ -35,13 +46,14 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Check for recent trades (last 24 hours) to verify bot activity
-    // Filter by trading_mode if specified
+    // Filter by trading_mode if specified AND always by user_id
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     
     let tradesQuery = supabase
       .from('polybot_simulated_trades')
       .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
       .gte('created_at', twentyFourHoursAgo);
     
     // Apply trading mode filter if specified
@@ -55,10 +67,11 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching recent trades:', tradeError);
     }
 
-    // 3. Check last trade timestamp (with optional mode filter)
+    // 3. Check last trade timestamp (with optional mode filter) - FILTER BY USER
     let lastTradeQuery = supabase
       .from('polybot_simulated_trades')
       .select('created_at, platform, strategy, trading_mode')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     
     if (tradingMode) {
@@ -71,10 +84,11 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching last trade:', lastTradeError);
     }
 
-    // 4. Check for recent log entries
+    // 4. Check for recent log entries - FILTER BY USER
     const { data: recentLogs, error: logError } = await supabase
       .from('polybot_logs')
       .select('timestamp, level, message')
+      .eq('user_id', userId)
       .order('timestamp', { ascending: false })
       .limit(5);
 

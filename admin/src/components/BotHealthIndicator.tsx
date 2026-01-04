@@ -65,7 +65,9 @@ export function BotHealthIndicator({
       const url = tradingMode 
         ? `/api/bot/health?tradingMode=${tradingMode}`
         : '/api/bot/health';
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        credentials: 'include', // Include auth cookies
+      });
       if (!response.ok) throw new Error('Failed to fetch bot health');
       const data = await response.json();
       setHealth(data);
@@ -301,7 +303,9 @@ export function BotHealthBadge() {
   useEffect(() => {
     const fetchHealth = async () => {
       try {
-        const response = await fetch('/api/bot/health');
+        const response = await fetch('/api/bot/health', {
+          credentials: 'include', // Include auth cookies
+        });
         if (response.ok) {
           setHealth(await response.json());
         }
