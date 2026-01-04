@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { verifyAuth } from '@/lib/audit';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 // ============================================================================
 // User Exchanges API - Discovery endpoint for user's connected exchanges
 // Returns which exchanges user has connected and their status
 // Used by UI to know what data to show (markets, charts, opportunities)
+//
+// CONNECTION DETECTION:
+// 1. OAuth tokens in user_exchange_credentials table (IBKR, etc.)
+// 2. API keys in AWS Secrets Manager (Kalshi, Polymarket, Binance, etc.)
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
@@ -121,8 +126,67 @@ export async function GET(request: NextRequest) {
     // Default to simulation (paper) if not set - safer for users
     const isSimulation = profile?.is_simulation ?? true;
 
-    // Build response with connected exchanges
-    const connectedExchanges = new Set((credentials || []).map(c => c.exchange.toLowerCase()));
+    // ========================================================================
+    // DETECT CONNECTED PLATFORMS FROM MULTIPLE SOURCES
+    // ========================================================================
+    
+    // Source 1: OAuth tokens from user_exchange_credentials table
+    const oauthConnected = new Set((credentials || []).map(c => c.exchange.toLowerCase()));
+    
+    // Source 2: API keys from AWS Secrets Manager
+    // Map platform ID -> required keys
+    const PLATFORM_REQUIRED_KEYS: Record<string, { primary: string[]; alternate?: string[] }> = {
+      kalshi: { primary: ['KALSHI_API_KEY', 'KALSHI_PRIVATE_KEY'] },
+      polymarket: { primary: ['POLYMARKET_API_KEY', 'POLYMARKET_SECRET'] },
+      binance: { primary: ['BINANCE_API_KEY', 'BINANCE_API_SECRET'] },
+      bybit: { primary: ['BYBIT_API_KEY', 'BYBIT_API_SECRET'] },
+      okx: { primary: ['OKX_API_KEY', 'OKX_API_SECRET', 'OKX_PASSPHRASE'] },
+      kraken: { primary: ['KRAKEN_API_KEY', 'KRAKEN_API_SECRET'] },
+      coinbase: { primary: ['COINBASE_API_KEY', 'COINBASE_API_SECRET'] },
+      kucoin: { primary: ['KUCOIN_API_KEY', 'KUCOIN_API_SECRET', 'KUCOIN_PASSPHRASE'] },
+      hyperliquid: { 
+        primary: ['HYPERLIQUID_WALLET_ADDRESS', 'HYPERLIQUID_PRIVATE_KEY'],
+        alternate: ['HYPERLIQUID_API_WALLET_ADDRESS', 'HYPERLIQUID_API_WALLET_KEY'],
+      },
+      alpaca: { 
+        primary: ['ALPACA_PAPER_API_KEY', 'ALPACA_PAPER_API_SECRET'],
+        alternate: ['ALPACA_LIVE_API_KEY', 'ALPACA_LIVE_API_SECRET'],
+      },
+      ibkr: { primary: ['IBKR_HOST', 'IBKR_PORT'] },
+    };
+    
+    // Fetch AWS secrets and check which platforms have all required keys
+    const awsConnected = new Set<string>();
+    try {
+      const awsSecrets = await getAwsSecrets();
+      
+      for (const [platformId, keys] of Object.entries(PLATFORM_REQUIRED_KEYS)) {
+        // Check primary keys
+        const primaryConfigured = keys.primary.every(k => !!awsSecrets[k]);
+        if (primaryConfigured) {
+          awsConnected.add(platformId);
+          continue;
+        }
+        // Check alternate keys if primary not satisfied
+        if (keys.alternate) {
+          const altConfigured = keys.alternate.every(k => !!awsSecrets[k]);
+          if (altConfigured) {
+            awsConnected.add(platformId);
+          }
+        }
+      }
+      
+      console.log('[user-exchanges] AWS secrets check:', {
+        secretsFound: Object.keys(awsSecrets).length,
+        platformsConnected: Array.from(awsConnected),
+      });
+    } catch (error) {
+      console.error('[user-exchanges] Error checking AWS secrets:', error);
+      // Continue without AWS secrets - will only show OAuth-connected platforms
+    }
+    
+    // Merge both sources: OAuth tokens OR AWS API keys
+    const connectedExchanges = new Set([...oauthConnected, ...awsConnected]);
     
     // Create exchange status list
     const exchanges = Object.entries(EXCHANGE_METADATA).map(([key, meta]) => {

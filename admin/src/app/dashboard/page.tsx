@@ -446,6 +446,7 @@ export default function Dashboard() {
           <TradesList
             trades={trades || []}
             onTradeClick={(trade) => setSelectedTrade(tradeToTradeDetails(trade))}
+            tradingMode={isLiveMode ? 'live' : 'paper'}
           />
         </div>
       </div>

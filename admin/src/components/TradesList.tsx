@@ -7,14 +7,16 @@ import { TrendingUp, TrendingDown, Clock, CheckCircle2, Eye } from 'lucide-react
 interface TradesListProps {
   trades: SimulatedTrade[];
   onTradeClick?: (trade: SimulatedTrade) => void;
+  tradingMode?: 'live' | 'paper';  // Display context-appropriate message
 }
 
-export function TradesList({ trades, onTradeClick }: TradesListProps) {
+export function TradesList({ trades, onTradeClick, tradingMode = 'paper' }: TradesListProps) {
   if (trades.length === 0) {
+    const isLive = tradingMode === 'live';
     return (
       <div className="text-center py-12 text-gray-500">
         <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-        <p>No paper trades yet</p>
+        <p>No {isLive ? 'live' : 'paper'} trades yet</p>
         <p className="text-sm">Trades will appear here when opportunities are detected</p>
       </div>
     );
