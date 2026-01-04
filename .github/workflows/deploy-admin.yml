@@ -148,6 +148,16 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
+      # CRITICAL: Create .vercel/project.json with correct project ID
+      # The .vercel folder is gitignored, so we must create it in CI
+      # Project: admin-app (prj_OXaRt2irRQpkfUOsIFkm5XEOLM81) - NOT "admin"!
+      - name: Link to correct Vercel project
+        run: |
+          mkdir -p .vercel
+          echo '{"projectId":"prj_OXaRt2irRQpkfUOsIFkm5XEOLM81","orgId":"team_25BKCm9rNi2FRW0gcF4rbCj0","projectName":"admin-app"}' > .vercel/project.json
+          cat .vercel/project.json
+        working-directory: admin
+
       - name: Pull Vercel Environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         working-directory: admin
