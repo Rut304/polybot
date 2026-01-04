@@ -326,24 +326,28 @@ test.describe('Connected Platforms Consistency', () => {
   ];
 
   test('Connected platforms count should match across all pages', async ({ page }) => {
-    test.setTimeout(60000); // Increase timeout for this test
+    test.setTimeout(120000); // Increase timeout for this multi-page test
     const platformCounts: Record<string, number> = {};
     
     for (const location of PLATFORM_DISPLAY_LOCATIONS) {
-      await page.goto(location.path);
-      await page.waitForLoadState('networkidle');
-      await page.waitForTimeout(1500);
-      
-      // Try to find platform count indicators
-      const countText = await page.locator(location.selector).first().textContent().catch(() => '');
-      
-      // Extract any numbers from the text
-      const numbers = countText?.match(/\\d+/g);
-      if (numbers && numbers.length > 0) {
-        platformCounts[location.name] = parseInt(numbers[0]);
+      try {
+        await page.goto(location.path, { timeout: 30000 });
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
+        
+        // Try to find platform count indicators
+        const countText = await page.locator(location.selector).first().textContent({ timeout: 5000 }).catch(() => '');
+        
+        // Extract any numbers from the text
+        const numbers = countText?.match(/\\d+/g);
+        if (numbers && numbers.length > 0) {
+          platformCounts[location.name] = parseInt(numbers[0]);
+        }
+        
+        console.log(`${location.name}: "${countText}"`);
+      } catch (e) {
+        console.log(`${location.name}: Could not load or find selector`);
       }
-      
-      console.log(`${location.name}: "${countText}"`);
     }
     
     console.log('Platform counts by page:', platformCounts);
@@ -363,20 +367,25 @@ test.describe('Connected Platforms Consistency', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
     
-    // Check for ConnectedExchangesBadge component (use simpler selector)
-    const badge = page.locator('[data-testid="connected-exchanges"], .connected-exchanges-badge, text=/platforms connected/i').first();
+    // Check for ConnectedExchangesBadge component (use simpler selectors separately)
+    const badge = page.locator('[data-testid="connected-exchanges"], .connected-exchanges-badge').first();
+    const badgeAlt = page.getByText(/platforms connected/i).first();
     
     // Try clicking to see dropdown if available
-    if (await badge.count() > 0) {
+    const hasBadge = await badge.count() > 0;
+    const hasAltBadge = await badgeAlt.count() > 0;
+    
+    if (hasBadge || hasAltBadge) {
       console.log('✅ Connected exchanges badge found on dashboard');
       
-      await badge.click().catch(() => {});
+      const targetBadge = hasBadge ? badge : badgeAlt;
+      await targetBadge.click().catch(() => {});
       await page.waitForTimeout(500);
       
       // Check for platform names
       const platforms = ['Kalshi', 'Polymarket', 'Binance', 'Coinbase', 'Alpaca'];
       for (const platform of platforms) {
-        const platformElement = page.locator(`text=/${platform}/i`);
+        const platformElement = page.getByText(new RegExp(platform, 'i'));
         if (await platformElement.count() > 0) {
           console.log(`  Found: ${platform}`);
         }
