@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { usePlatforms } from '@/lib/PlatformContext';
+import { useTier } from '@/lib/useTier';
 import { BookOpen, Zap, X, ChevronDown, ChevronUp, ExternalLink, AlertTriangle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
@@ -17,12 +18,18 @@ import Link from 'next/link';
  * - Only show data from connected platforms
  * - Real money trades only on connected platforms
  * - Filters applied automatically
+ * 
+ * SOURCE OF TRUTH: useTier().isSimulation from polybot_profiles.is_simulation
  */
 export function TradingModeBanner() {
-  const { isSimulationMode, connectedIds, platforms, isLoading } = usePlatforms();
+  // Use useTier() as the SOURCE OF TRUTH for mode
+  const { isSimulation: isSimulationMode, isLoading: tierLoading } = useTier();
+  // Use usePlatforms() only for platform-related info (not mode)
+  const { connectedIds, platforms, isLoading: platformsLoading } = usePlatforms();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
 
+  const isLoading = tierLoading || platformsLoading;
   if (isDismissed || isLoading) return null;
 
   const connectedPlatforms = platforms.filter(p => p.connected);
@@ -191,10 +198,15 @@ export function TradingModeBanner() {
 
 /**
  * Compact mode badge for headers/nav
+ * SOURCE OF TRUTH: useTier().isSimulation from polybot_profiles.is_simulation
  */
 export function TradingModeIndicator() {
-  const { isSimulationMode, connectedIds, isLoading } = usePlatforms();
+  // Use useTier() as the SOURCE OF TRUTH for mode
+  const { isSimulation: isSimulationMode, isLoading: tierLoading } = useTier();
+  // Use usePlatforms() only for platform-related info (not mode)
+  const { connectedIds, isLoading: platformsLoading } = usePlatforms();
 
+  const isLoading = tierLoading || platformsLoading;
   if (isLoading) {
     return (
       <div className="px-3 py-1.5 bg-dark-card rounded-lg animate-pulse">

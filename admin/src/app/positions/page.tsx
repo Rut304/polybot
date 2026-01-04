@@ -330,13 +330,13 @@ export default function PositionsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-4">
-        {/* Mode indicator */}
+        {/* Mode indicator - Use isUserSimMode from useTier (source of truth) */}
         <div className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
-          isSimulationMode 
+          isUserSimMode 
             ? 'bg-amber-500/20 text-amber-400' 
             : 'bg-green-500/20 text-green-400'
         }`}>
-          {isSimulationMode ? '🧪 Simulation - All Platforms' : '⚡ Live - Connected Only'}
+          {isUserSimMode ? '🧪 Simulation - All Platforms' : '⚡ Live - Connected Only'}
         </div>
         
         <div className="h-6 w-px bg-gray-700" />
