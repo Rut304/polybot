@@ -14,16 +14,18 @@ interface BotStartCTAProps {
 }
 
 export function BotStartCTA({ className, onStart }: BotStartCTAProps) {
-  const { tier, isSimulation, canDoTrade, isPro, isElite, isFree, profile } = useTier();
+  const { tier, isSimulation, canDoTrade, isPro, isElite, isFree, profile, isLoading: tierLoading } = useTier();
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   // Determine if bot is currently running
+  // Be more lenient - if is_running is true, trust it even if heartbeat is a bit stale
+  // Use 2 minute window instead of 30 seconds to reduce flashing
   const isOnline = !!(botStatus?.is_running &&
     botStatus?.updated_at &&
-    isRecent(botStatus.updated_at, 30000));
+    isRecent(botStatus.updated_at, 120000)); // 2 minutes
   
   const isLiveMode = botStatus?.dry_run_mode === false;
 
@@ -73,8 +75,9 @@ export function BotStartCTA({ className, onStart }: BotStartCTAProps) {
     }
   };
 
-  // Don't show CTA if bot is already running
-  if (statusLoading) {
+  // Don't show CTA if bot is already running OR if still loading
+  // This prevents flashing during initial load
+  if (statusLoading || tierLoading) {
     return null;
   }
 

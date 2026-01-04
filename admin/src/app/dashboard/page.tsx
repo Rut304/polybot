@@ -91,27 +91,23 @@ export default function Dashboard() {
   // Get current trading mode from user profile context (source of truth)
   const { isSimulation: isUserSimMode, isLoading: tierLoading } = useTier();
   
-  // Track if we've set the initial mode from profile
-  const [hasInitializedMode, setHasInitializedMode] = useState(false);
-  
-  // Default to 'paper' until profile loads, then update based on profile
-  const [viewMode, setViewMode] = useState<ViewMode>('paper');
-  
-  // Update view mode when user profile loads
-  const [hasUserSelectedMode, setHasUserSelectedMode] = useState(false);
+  // DON'T initialize viewMode until profile loads to prevent flash
+  // null = waiting for profile, then set to user's mode
+  const [viewMode, setViewMode] = useState<ViewMode | null>(null);
   
   // Auto-set to user's profile mode when profile finishes loading (one-time)
   useEffect(() => {
     // Only set initial mode once, after profile has loaded
-    if (!tierLoading && !hasInitializedMode) {
+    if (!tierLoading && viewMode === null) {
       const profileMode = isUserSimMode ? 'paper' : 'live';
       setViewMode(profileMode);
-      setHasInitializedMode(true);
     }
-  }, [tierLoading, isUserSimMode, hasInitializedMode]);
+  }, [tierLoading, isUserSimMode, viewMode]);
 
-  // Use viewMode for data filtering, fall back to user's current mode if 'all'
-  const tradingMode: 'paper' | 'live' | undefined = viewMode === 'all' ? undefined : viewMode;
+  // Use viewMode for data filtering, fall back to user's current mode
+  // While loading (viewMode === null), use profile setting
+  const effectiveViewMode = viewMode ?? (isUserSimMode ? 'paper' : 'live');
+  const tradingMode: 'paper' | 'live' | undefined = effectiveViewMode === 'all' ? undefined : effectiveViewMode;
 
   // Use user profile setting as source of truth for simulation mode
   const isSimulation = isUserSimMode;
@@ -133,6 +129,7 @@ export default function Dashboard() {
 
   // For LIVE mode: use actual exchange balances
   // For PAPER mode: use simulated balance from trades
+  // CRITICAL: Base this on profile setting when viewMode is null (loading)
   const isLiveMode = tradingMode === 'live';
   
   // Calculate live balance from actual exchange data
@@ -242,10 +239,14 @@ export default function Dashboard() {
     botStatus?.updated_at &&
     isRecent(botStatus.updated_at, 30000));
 
+  // Don't render until we know the user's trading mode
+  const isPageReady = !tierLoading && viewMode !== null;
+  
   return (
     <div className="p-8">
-      {/* Trading Mode Banner - shows based on current viewMode selection, not profile */}
-      {viewMode !== 'live' && <TradingModeBanner />}
+      {/* Trading Mode Banner - ONLY show for PAPER mode users */}
+      {/* Don't show during loading to prevent flash */}
+      {isPageReady && isUserSimMode && <TradingModeBanner />}
       
       {/* Welcome Banner for new users - includes upgrade CTA */}
       <WelcomeBanner />
@@ -309,15 +310,12 @@ export default function Dashboard() {
           </div>
           {/* View Mode Toggle - All/Paper/Live */}
           <div className="flex items-center bg-dark-card border border-dark-border rounded-xl p-1">
-            {(['all', 'paper', 'live'] as ViewMode[]).map((mode) => (
+            {(['all', 'paper', 'live'] as const).map((mode) => (
               <button
                 key={mode}
-                onClick={() => {
-                  setViewMode(mode);
-                  setHasUserSelectedMode(true); // User explicitly chose a mode
-                }}
+                onClick={() => setViewMode(mode)}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-all ${
-                  viewMode === mode
+                  effectiveViewMode === mode
                     ? mode === 'live' ? 'bg-red-500/20 text-red-400' : mode === 'paper' ? 'bg-neon-green/20 text-neon-green' : 'bg-neon-blue/20 text-neon-blue'
                     : 'text-gray-400 hover:text-white'
                 }`}

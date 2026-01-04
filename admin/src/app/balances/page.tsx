@@ -81,13 +81,13 @@ export default function BalancesPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
 
-  // Get trading mode from tier context
-  const { isSimulation: isUserSimMode } = useTier();
+  // Get trading mode from tier context (SOURCE OF TRUTH)
+  const { isSimulation: isUserSimMode, isLoading: tierLoading } = useTier();
   const tradingMode = isUserSimMode ? 'paper' : 'live';
   const isLiveMode = tradingMode === 'live';
   
   // Platform filtering context
-  const { filterByPlatform, isSimulationMode, connectedIds } = usePlatforms();
+  const { filterByPlatform, connectedIds } = usePlatforms();
 
   // Get connected platforms from centralized secrets
   const { data: connectedPlatforms = [] } = useConnectedPlatforms();
@@ -101,7 +101,7 @@ export default function BalancesPage() {
   // Fetch LIVE balances from connected exchanges
   const { data: liveBalances, isLoading: liveBalancesLoading } = useLiveBalances();
   
-  // Use context-based simulation mode, not bot status
+  // Use tier context as source of truth for simulation mode
   const isSimulation = isUserSimMode;
   const simulatedBalance = realTimeStats?.simulated_balance ?? simStats?.simulated_balance ?? 30000;
   
@@ -197,7 +197,7 @@ export default function BalancesPage() {
     };
   }, [filteredPlatforms]);
 
-  if (loading) {
+  if (loading || tierLoading) {
     return (
       <div className="p-8 flex items-center justify-center">
         <RefreshCw className="w-8 h-8 animate-spin text-gray-500" />
@@ -213,19 +213,19 @@ export default function BalancesPage() {
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Wallet className="text-green-400" />
             Portfolio Balances
-            {/* Simulation/Live Badge */}
+            {/* Simulation/Live Badge - uses tier context, not platform context */}
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-              isSimulationMode 
+              isUserSimMode 
                 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
                 : 'bg-green-500/20 text-green-400 border border-green-500/30'
             }`}>
-              {isSimulationMode ? '🧪 Simulation' : '⚡ Live'}
+              {isUserSimMode ? '🧪 Paper Trading' : '⚡ Live Trading'}
             </span>
           </h1>
           <p className="text-gray-400 mt-1">
-            {isSimulationMode 
-              ? 'Viewing all platform balances (simulation mode)'
-              : 'Viewing connected platform balances (live mode)'}
+            {isUserSimMode 
+              ? 'Viewing simulated balances (paper trading mode)'
+              : `Viewing real balances from ${connectionSummary.totalConnected} connected platform${connectionSummary.totalConnected !== 1 ? 's' : ''}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
