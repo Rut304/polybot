@@ -403,6 +403,10 @@ const FAQ = [
     a: "Yes! PolyParlay supports three types of trading: (1) Prediction markets like Polymarket and Kalshi which are legal in the US, (2) Stock trading via Alpaca and Interactive Brokers, and (3) Crypto trading via exchanges like Coinbase and Binance. We're a trading platform that helps you manage all your accounts in one place - we don't hold your funds."
   },
   {
+    q: "Which exchanges do you support?",
+    a: "We currently support: Polymarket, Kalshi (prediction markets), Coinbase, Binance, Kraken, Bybit, OKX, KuCoin (crypto), Alpaca, Interactive Brokers, Webull (stocks). We use CCXT for crypto exchanges, which supports 100+ exchanges. If your exchange isn't listed, email support@polyparlay.io and we'll prioritize adding it."
+  },
+  {
     q: "How does paper trading work?",
     a: "Paper trading uses real market data but simulated money. It's completely free and unlimited - perfect for learning without risk."
   },
