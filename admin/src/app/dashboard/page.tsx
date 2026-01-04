@@ -84,11 +84,11 @@ export default function Dashboard() {
   // Global timeframe state - all components use this
   const [globalTimeframeHours, setGlobalTimeframeHours] = useState<number>(24);
   
-  // Get current trading mode from bot status first
+  // Get bot status for online indicator only (NOT for mode - that comes from useTier)
   const { data: botStatus, isLoading: statusLoading } = useBotStatus();
-  const botIsLive = botStatus?.dry_run_mode === false;
   
-  // Get current trading mode from user profile context (source of truth)
+  // SOURCE OF TRUTH for trading mode: useTier().isSimulation from polybot_profiles
+  // DO NOT use botStatus.dry_run_mode for UI mode decisions
   const { isSimulation: isUserSimMode, isLoading: tierLoading } = useTier();
   
   // DON'T initialize viewMode until profile loads to prevent flash

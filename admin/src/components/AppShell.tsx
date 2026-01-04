@@ -2,18 +2,20 @@
 
 import { Navigation } from '@/components/Navigation';
 import { MobileNavigation } from '@/components/MobileNavigation';
-import { useBotStatus } from '@/lib/hooks';
-import { isRecent } from '@/lib/utils';
+import { useTier } from '@/lib/useTier';
 import { AlertTriangle, DollarSign } from 'lucide-react';
 
+/**
+ * AppShell - Main layout wrapper
+ * 
+ * SOURCE OF TRUTH for trading mode: useTier().isSimulation from polybot_profiles.is_simulation
+ * DO NOT use botStatus.dry_run_mode - that's for the bot process, not the user's mode
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { data: botStatus } = useBotStatus();
-  const isOnline = !!(botStatus?.is_running &&
-    botStatus?.updated_at &&
-    isRecent(botStatus.updated_at, 30000));
+  const { isSimulation, isLoading } = useTier();
 
-  // Check if we're in live trading mode
-  const isLiveTrading = botStatus?.dry_run_mode === false;
+  // Check if we're in live trading mode (NOT simulation)
+  const isLiveTrading = !isSimulation && !isLoading;
 
   return (
     <div className="min-h-screen bg-dark-bg flex">

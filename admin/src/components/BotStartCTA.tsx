@@ -27,7 +27,9 @@ export function BotStartCTA({ className, onStart }: BotStartCTAProps) {
     botStatus?.updated_at &&
     isRecent(botStatus.updated_at, 120000)); // 2 minutes
   
-  const isLiveMode = botStatus?.dry_run_mode === false;
+  // SOURCE OF TRUTH for mode: useTier().isSimulation from polybot_profiles
+  // NOT botStatus.dry_run_mode (that's for bot process, not user mode)
+  const isLiveMode = !isSimulation && !tierLoading;
 
   // Check if user can start the bot
   const tradeCheck = canDoTrade(isLiveMode);
