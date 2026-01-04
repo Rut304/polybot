@@ -93,13 +93,13 @@ export default function BalancesPage() {
   const { data: connectedPlatforms = [] } = useConnectedPlatforms();
   const connectionSummary = useConnectionSummary();
   const { data: botStatus } = useBotStatus();
-  const { data: simStats } = useSimulationStats();
+  const { data: simStats } = useSimulationStats(!isLiveMode); // Only fetch in paper mode
   
   // Get real-time stats filtered by trading mode
   const { data: realTimeStats } = useRealTimeStats(undefined, tradingMode);
   
-  // Fetch LIVE balances from connected exchanges
-  const { data: liveBalances, isLoading: liveBalancesLoading } = useLiveBalances();
+  // Fetch LIVE balances from connected exchanges - ALWAYS fetch for status
+  const { data: liveBalances, isLoading: liveBalancesLoading, refetch: refetchLiveBalances } = useLiveBalances();
   
   // Use tier context as source of truth for simulation mode
   const isSimulation = isUserSimMode;
@@ -108,6 +108,23 @@ export default function BalancesPage() {
   // For LIVE mode: use actual exchange balances from useLiveBalances hook
   // For PAPER mode: use simulated balance from trades
   const displayBalance = isLiveMode ? (liveBalances?.total_usd ?? 0) : simulatedBalance;
+  
+  // LIVE MODE: Use data from useLiveBalances API (actual exchange data)
+  // PAPER MODE: Use data from polybot_balances table (simulated data)
+  const displayPositionsValue = isLiveMode 
+    ? (liveBalances?.total_positions_usd ?? 0) 
+    : (balance?.total_positions_usd ?? 0);
+  
+  const displayCashBalance = isLiveMode
+    ? (liveBalances?.total_cash_usd ?? 0)
+    : displayBalance;
+  
+  const displayPlatforms = isLiveMode
+    ? (liveBalances?.platforms ?? [])
+    : (balance?.platforms ?? []);
+  
+  // For live mode, connected platforms count comes from API response
+  const liveConnectedCount = liveBalances?.platforms?.length ?? 0;
 
   useEffect(() => {
     fetchBalances();
@@ -156,7 +173,13 @@ export default function BalancesPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchBalances();
+    if (isLiveMode) {
+      // In live mode, refetch from exchanges API
+      await refetchLiveBalances();
+    } else {
+      // In paper mode, fetch from polybot_balances table
+      await fetchBalances();
+    }
     await fetchHistory();
     setRefreshing(false);
   };
@@ -225,7 +248,7 @@ export default function BalancesPage() {
           <p className="text-gray-400 mt-1">
             {isUserSimMode 
               ? 'Viewing simulated balances (paper trading mode)'
-              : `Viewing real balances from ${connectionSummary.totalConnected} connected platform${connectionSummary.totalConnected !== 1 ? 's' : ''}`}
+              : `Viewing real balances from ${liveConnectedCount} connected platform${liveConnectedCount !== 1 ? 's' : ''}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -309,7 +332,7 @@ export default function BalancesPage() {
             <div>
               <p className="text-sm text-gray-400">In Positions</p>
               <p className="text-2xl font-bold mt-1">
-                ${balance?.total_positions_usd.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}
+                ${displayPositionsValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </p>
             </div>
             <BarChart3 className="w-8 h-8 text-purple-500/50" />
@@ -327,13 +350,16 @@ export default function BalancesPage() {
             <div>
               <p className="text-sm text-gray-400">Connected Platforms</p>
               <p className="text-2xl font-bold mt-1">
-                {connectionSummary.totalConnected}
+                {isLiveMode ? liveConnectedCount : connectionSummary.totalConnected}
               </p>
             </div>
             <Building2 className="w-8 h-8 text-orange-500/50" />
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Last updated: {balance?.updated_at ? new Date(balance.updated_at).toLocaleTimeString() : 'Never'}
+            Last updated: {isLiveMode 
+              ? (liveBalances?.timestamp ? new Date(liveBalances.timestamp).toLocaleTimeString() : 'Never')
+              : (balance?.updated_at ? new Date(balance.updated_at).toLocaleTimeString() : 'Never')
+            }
           </p>
         </motion.div>
       </div>

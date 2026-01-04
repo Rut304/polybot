@@ -274,11 +274,12 @@ export function useSimulatedTrades(limit: number = 50, tradingMode?: 'paper' | '
 
 // Fetch opportunities (with optional timeframe filter)
 // Multi-tenant: Show shared opportunities (user_id IS NULL) OR user's own
-export function useOpportunities(limit: number = 100, timeframeHours?: number) {
+// tradingMode: Filter by 'paper' or 'live' mode
+export function useOpportunities(limit: number = 100, timeframeHours?: number, tradingMode?: 'paper' | 'live') {
   const { user } = useAuth();
   
   return useQuery({
-    queryKey: ['opportunities', limit, timeframeHours, user?.id],
+    queryKey: ['opportunities', limit, timeframeHours, tradingMode, user?.id],
     queryFn: async (): Promise<Opportunity[]> => {
       if (!user) return [];
       
@@ -286,6 +287,11 @@ export function useOpportunities(limit: number = 100, timeframeHours?: number) {
         .from('polybot_opportunities')
         .select('*')
         .or(`user_id.is.null,user_id.eq.${user.id}`);
+      
+      // Apply trading mode filter if specified
+      if (tradingMode) {
+        query = query.eq('trading_mode', tradingMode);
+      }
       
       // Apply timeframe filter if specified (0 = all time)
       if (timeframeHours && timeframeHours > 0) {
@@ -482,24 +488,39 @@ export function useRealTimeStats(timeframeHours?: number, tradingMode?: 'paper' 
       
       // Fetch ACTUAL opportunities count from database (not limited array)
       // Show shared opportunities (user_id IS NULL) OR user's own
+      // Filter by trading_mode if specified
       let opportunitiesCount = opportunities.length;
       if (timeframeHours && timeframeHours > 0) {
         const since = new Date();
         since.setHours(since.getHours() - timeframeHours);
-        const { count, error: countError } = await supabase
+        let oppQuery = supabase
           .from('polybot_opportunities')
           .select('id', { count: 'exact', head: true })
           .or(`user_id.is.null,user_id.eq.${user.id}`)
           .gte('detected_at', since.toISOString());
+        
+        // Apply trading mode filter
+        if (tradingMode) {
+          oppQuery = oppQuery.eq('trading_mode', tradingMode);
+        }
+        
+        const { count, error: countError } = await oppQuery;
         if (!countError && count !== null) {
           opportunitiesCount = count;
         }
       } else {
         // All-time count
-        const { count, error: countError } = await supabase
+        let oppQuery = supabase
           .from('polybot_opportunities')
           .select('id', { count: 'exact', head: true })
           .or(`user_id.is.null,user_id.eq.${user.id}`);
+        
+        // Apply trading mode filter
+        if (tradingMode) {
+          oppQuery = oppQuery.eq('trading_mode', tradingMode);
+        }
+        
+        const { count, error: countError } = await oppQuery;
         if (!countError && count !== null) {
           opportunitiesCount = count;
         }
@@ -1907,9 +1928,9 @@ export function usePlatformFilteredTrades(limit: number = 50, tradingMode?: 'pap
  * In simulation mode: ALL opportunities across all platforms
  * In live mode: Only opportunities from connected platforms
  */
-export function usePlatformFilteredOpportunities(limit: number = 100, timeframeHours?: number) {
+export function usePlatformFilteredOpportunities(limit: number = 100, timeframeHours?: number, tradingMode?: 'paper' | 'live') {
   const filterByPlatform = usePlatformFilter();
-  const { data: opportunities, ...rest } = useOpportunities(limit, timeframeHours);
+  const { data: opportunities, ...rest } = useOpportunities(limit, timeframeHours, tradingMode);
   
   return {
     ...rest,

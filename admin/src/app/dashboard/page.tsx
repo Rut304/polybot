@@ -110,7 +110,8 @@ export default function Dashboard() {
   const { data: trades } = useSimulatedTrades(20, tradingMode);
   // Fetch all trades for accurate modal calculations
   const { data: allTrades } = useSimulatedTrades(5000, tradingMode);
-  const { data: opportunities } = useOpportunities(50, globalTimeframeHours);
+  // Filter opportunities by trading mode - in live mode only show live opportunities
+  const { data: opportunities } = useOpportunities(50, globalTimeframeHours, tradingMode);
   const { data: pnlHistory } = usePnLHistory(globalTimeframeHours || 8760, tradingMode); // 0 = All time = 1 year
   
   // PERFORMANCE OPTIMIZATION: Only fetch live balances in live mode
