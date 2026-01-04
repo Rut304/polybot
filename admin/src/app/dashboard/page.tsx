@@ -244,9 +244,9 @@ export default function Dashboard() {
   
   return (
     <div className="p-8">
-      {/* Trading Mode Banner - ONLY show for PAPER mode users */}
-      {/* Don't show during loading to prevent flash */}
-      {isPageReady && isUserSimMode && <TradingModeBanner />}
+      {/* Trading Mode Banner - Shows appropriate banner for both paper and live modes */}
+      {/* The component itself decides what to display based on mode */}
+      {isPageReady && <TradingModeBanner />}
       
       {/* Welcome Banner for new users - includes upgrade CTA */}
       <WelcomeBanner />
