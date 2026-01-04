@@ -641,7 +641,7 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   // All authenticated users can edit their own settings - isAdmin is only for admin-specific features
-  const { isPro, isElite, isAdmin } = useTier();
+  const { isPro, isElite, isAdmin, isSimulation: tierIsSimulation, setTradingMode, refreshProfile } = useTier();
   const canEditSettings = !!user; // Any authenticated user can edit their settings
   const { data: status } = useBotStatus();
   const { data: config, isLoading: configLoading } = useBotConfig();
@@ -675,7 +675,9 @@ export default function SettingsPage() {
   const [botEnabled, setBotEnabled] = useState(status?.is_running ?? false);
   const [polymarketEnabled, setPolymarketEnabled] = useState(config?.polymarket_enabled ?? true);
   const [kalshiEnabled, setKalshiEnabled] = useState(config?.kalshi_enabled ?? true);
-  const [dryRunMode, setDryRunMode] = useState(status?.dry_run_mode ?? true);
+  // CRITICAL: Use tierIsSimulation as source of truth for trading mode
+  // This comes from polybot_profiles.is_simulation which is the canonical source
+  const [dryRunMode, setDryRunMode] = useState(tierIsSimulation ?? true);
   const [requireApproval, setRequireApproval] = useState(false); // Will be stored in localStorage until DB column is added
   
   // Multi-tenant Bot Manager - DISABLED by default (infrastructure change required)
@@ -709,6 +711,13 @@ export default function SettingsPage() {
   const [lossSeverityMax, setLossSeverityMax] = useState(config?.loss_severity_max ?? 0.15);
   // DEBUG: Track last save error
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+
+  // Sync dryRunMode with tierIsSimulation when it changes (e.g., after page load)
+  useEffect(() => {
+    if (tierIsSimulation !== undefined) {
+      setDryRunMode(tierIsSimulation);
+    }
+  }, [tierIsSimulation]);
 
   // Position sizing
   const [maxPositionPct, setMaxPositionPct] = useState(config?.max_position_pct ?? 5.0);
@@ -1964,7 +1973,21 @@ export default function SettingsPage() {
                   </div>
                   <ToggleSwitch
                     enabled={!dryRunMode}
-                    onToggle={() => dryRunMode ? setShowConfirm('live-trading') : setDryRunMode(true)}
+                    onToggle={async () => {
+                      if (dryRunMode) {
+                        // Switching to live - show confirmation
+                        setShowConfirm('live-trading');
+                      } else {
+                        // Switching to paper - do it immediately via unified API
+                        try {
+                          await setTradingMode(true); // true = paper mode (simulation)
+                          setDryRunMode(true);
+                          await refreshProfile();
+                        } catch (err) {
+                          console.error('Failed to switch to paper mode:', err);
+                        }
+                      }
+                    }}
                     size="lg"
                     disabled={!canEditSettings}
                   />
@@ -2308,7 +2331,22 @@ export default function SettingsPage() {
               <p className="text-gray-300 mb-6">Real money will be at risk. This cannot be undone automatically.</p>
               <div className="flex gap-4">
                 <button onClick={() => setShowConfirm(null)} className="flex-1 py-3 rounded-xl bg-dark-border hover:bg-dark-border/80 font-bold">Cancel</button>
-                <button onClick={() => { setDryRunMode(false); setShowConfirm(null); }} className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold">Enable Live</button>
+                <button 
+                  onClick={async () => { 
+                    try {
+                      // Use the unified switch-mode API which updates polybot_profiles.is_simulation
+                      await setTradingMode(false); // false = live mode (not simulation)
+                      setDryRunMode(false);
+                      await refreshProfile(); // Refresh to sync state
+                    } catch (err) {
+                      console.error('Failed to enable live trading:', err);
+                    }
+                    setShowConfirm(null); 
+                  }} 
+                  className="flex-1 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold"
+                >
+                  Enable Live
+                </button>
               </div>
             </div>
           </div>
