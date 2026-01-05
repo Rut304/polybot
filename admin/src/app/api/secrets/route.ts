@@ -43,16 +43,24 @@ export async function GET(request: NextRequest) {
   
   try {
     // Get metadata from Supabase (key_name, description, category)
+    console.log('[/api/secrets] Fetching secrets metadata from Supabase...');
     const { data, error } = await supabaseAdmin
       .from('polybot_secrets')
       .select('*')
       .order('category')
       .order('key_name');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[/api/secrets] Supabase query error:', error);
+      throw error;
+    }
+    console.log(`[/api/secrets] Got ${data?.length || 0} secrets from Supabase`);
 
     // Get actual secrets from AWS Secrets Manager (PRIMARY SOURCE)
+    console.log('[/api/secrets] Fetching from AWS Secrets Manager...');
     const awsSecrets = await getAwsSecrets();
+    const awsKeyCount = Object.keys(awsSecrets).length;
+    console.log(`[/api/secrets] Got ${awsKeyCount} secrets from AWS`);
     
     // Merge: use Supabase for metadata, AWS for is_configured status
     const maskedData = (data || []).map((secret: any) => {
@@ -65,6 +73,10 @@ export async function GET(request: NextRequest) {
         is_configured: hasAwsValue,
       };
     });
+    
+    // Count configured vs not configured
+    const configuredCount = maskedData.filter((s: any) => s.is_configured).length;
+    console.log(`[/api/secrets] ${configuredCount}/${maskedData.length} secrets are configured`);
 
     // Log successful view
     await logAuditEvent({
