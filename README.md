@@ -2,6 +2,8 @@
 
 **Production-grade autonomous trading system for prediction markets, crypto, and stocks**
 
+> ⚠️ **DEPLOYMENT NOTE:** Admin UI auto-deploys via GitHub → Vercel. **Do NOT use `vercel` CLI from `admin/` folder** - it causes path doubling errors. Always use `git push` or run from repo root.
+
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Status](https://img.shields.io/badge/status-v33%20RUNNING-brightgreen.svg)]()

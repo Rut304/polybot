@@ -1,10 +1,25 @@
 # PolyBot Agent Handoff Document
 
-**Last Updated:** January 1, 2026  
+**Last Updated:** January 4, 2026  
 **Current Version:** v1.1.25 (Build #98)  
 **Bot Deployment:** v29 ACTIVE on AWS Lightsail (us-east-1)  
 **Admin UI:** Auto-deploys from GitHub to Vercel (admin-app → polyparlay.io)  
 **Status:** 🟢 RUNNING - Simulation Mode
+
+---
+
+## 🚨🚨🚨 VERCEL DEPLOYMENT - READ FIRST 🚨🚨🚨
+
+**ROOT CAUSE DOCUMENTED:** The Vercel project `admin-app` has `Root Directory: admin` configured for Git deployments.
+
+| Action | Result |
+|--------|--------|
+| `git push` from anywhere | ✅ Works - Vercel uses `admin/` as root |
+| `vercel --prod` from `/Users/rut/polybot` | ✅ Works - Vercel adds `admin/` |
+| `vercel --prod` from `/Users/rut/polybot/admin` | ❌ FAILS - Becomes `admin/admin` |
+| `vercel link` without `--project admin-app` | ❌ Creates DUPLICATE project |
+
+**ALWAYS USE GIT PUSH FOR DEPLOYMENTS. The CLI is a trap.**
 
 ---
 
@@ -219,7 +234,7 @@ ALPACA_API_KEY=...
 - `SUPABASE_SERVICE_ROLE_KEY` ✅ Updated
 - `SUPABASE_MANAGEMENT_TOKEN` ✅ Updated
 - `SUPABASE_ACCESS_TOKEN` ✅ Updated
-- `AMAZON_ACCESS_KEY_ID` (NOTE: Use AMAZON_ prefix, not AWS_)
+- `AMAZON_ACCESS_KEY_ID` (NOTE: Use AMAZON_prefix, not AWS_)
 - `AMAZON_SECRET_ACCESS_KEY`
 
 ---

@@ -154,6 +154,8 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
   const connectedIds = exchangesData?.connected_exchange_ids || [];
   const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
   const [setupMode, setSetupMode] = useState<'simulation' | 'live'>('simulation');
+  const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | 'loading'; message: string } | null>(null);
+  const queryClient = useQueryClient();
 
   // Dynamic import of the setup wizard
   const PlatformSetupWizard = dynamic(
@@ -332,16 +334,22 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
           onClose={() => setSetupPlatform(null)}
           mode={setupMode}
           onComplete={async (secrets) => {
+            const platformName = platforms.find(p => p.id === setupPlatform)?.name || setupPlatform;
+            
             // For simulation mode, no secrets needed - just enable
             if (setupMode === 'simulation' || Object.keys(secrets).length === 0) {
               const platform = platforms.find(p => p.id === setupPlatform);
               if (platform) {
                 platform.setEnabled(true);
               }
+              setSaveStatus({ type: 'success', message: `${platformName} enabled for paper trading!` });
+              setTimeout(() => setSaveStatus(null), 5000);
               return;
             }
             
             // For live mode, save secrets and enable platform
+            setSaveStatus({ type: 'loading', message: `Saving ${platformName} API keys...` });
+            
             try {
               const { data: { session } } = await supabase.auth.getSession();
               const response = await fetch('/api/secrets', {
@@ -353,18 +361,68 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
                 body: JSON.stringify({ secrets }),
               });
               
-              if (response.ok) {
+              const result = await response.json();
+              
+              if (response.ok && result.success) {
                 // Find and enable the platform
                 const platform = platforms.find(p => p.id === setupPlatform);
                 if (platform) {
                   platform.setEnabled(true);
                 }
+                
+                // Refresh the secrets/platform status
+                queryClient.invalidateQueries({ queryKey: ['secretsStatus'] });
+                queryClient.invalidateQueries({ queryKey: ['connectedPlatforms'] });
+                
+                setSaveStatus({ 
+                  type: 'success', 
+                  message: `✅ ${platformName} connected successfully! ${result.saved?.length || 0} API key(s) saved.` 
+                });
+              } else {
+                setSaveStatus({ 
+                  type: 'error', 
+                  message: `❌ Failed to save ${platformName}: ${result.error || 'Unknown error'}` 
+                });
               }
-            } catch (error) {
+            } catch (error: any) {
               console.error('Failed to save secrets:', error);
+              setSaveStatus({ 
+                type: 'error', 
+                message: `❌ Failed to save ${platformName}: ${error.message || 'Network error'}` 
+              });
             }
+            
+            // Clear status after 8 seconds
+            setTimeout(() => setSaveStatus(null), 8000);
           }}
         />
+      )}
+      
+      {/* Save Status Toast */}
+      {saveStatus && (
+        <div className={`fixed bottom-4 right-4 z-50 p-4 rounded-xl shadow-2xl border max-w-md ${
+          saveStatus.type === 'success' ? 'bg-green-500/20 border-green-500/50 text-green-400' :
+          saveStatus.type === 'error' ? 'bg-red-500/20 border-red-500/50 text-red-400' :
+          'bg-blue-500/20 border-blue-500/50 text-blue-400'
+        }`}>
+          <div className="flex items-center gap-3">
+            {saveStatus.type === 'loading' && (
+              <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            )}
+            <span className="font-medium">{saveStatus.message}</span>
+            {saveStatus.type !== 'loading' && (
+              <button 
+                onClick={() => setSaveStatus(null)}
+                className="ml-2 text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </>
   );

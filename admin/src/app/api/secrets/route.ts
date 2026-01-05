@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
-import { getAwsSecrets } from '@/lib/aws-secrets';
+import { getAwsSecrets, updateAwsSecrets, clearSecretsCache } from '@/lib/aws-secrets';
 
 import { getSupabaseAdmin } from '../../../lib/supabase-admin';
 
@@ -221,27 +221,64 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { key_name, key_value, description, category } = body;
-
-    if (!key_name) {
+    
+    // Handle both formats:
+    // 1. { secrets: { KEY1: 'value1', KEY2: 'value2' } } - from wizard
+    // 2. { key_name: 'KEY', key_value: 'value' } - from API keys page
+    
+    let secretsToSave: Record<string, string> = {};
+    
+    if (body.secrets && typeof body.secrets === 'object') {
+      // Wizard format: { secrets: { KEY1: 'val1', KEY2: 'val2' } }
+      secretsToSave = body.secrets;
+    } else if (body.key_name) {
+      // Single key format: { key_name: 'KEY', key_value: 'value' }
+      secretsToSave = { [body.key_name]: body.key_value || '' };
+    } else {
       return NextResponse.json(
-        { error: 'key_name is required' },
+        { error: 'Invalid request format. Expected { secrets: {...} } or { key_name, key_value }' },
         { status: 400 }
       );
     }
-
-    const { error } = await supabaseAdmin
-      .from('polybot_secrets')
-      .upsert({
-        key_name,
-        key_value: key_value || null,
-        description: description || '',
-        category: category || 'general',
-        is_configured: !!key_value,
-        last_updated: new Date().toISOString(),
-      });
-
-    if (error) throw error;
+    
+    // Filter out empty values
+    const nonEmptySecrets: Record<string, string> = {};
+    for (const [key, value] of Object.entries(secretsToSave)) {
+      if (value && value.trim()) {
+        nonEmptySecrets[key] = value.trim();
+      }
+    }
+    
+    if (Object.keys(nonEmptySecrets).length === 0) {
+      return NextResponse.json(
+        { error: 'No secrets to save - all values are empty' },
+        { status: 400 }
+      );
+    }
+    
+    console.log(`[POST /api/secrets] Saving ${Object.keys(nonEmptySecrets).length} secrets to AWS:`, Object.keys(nonEmptySecrets));
+    
+    // PRIMARY: Save to AWS Secrets Manager (source of truth)
+    const awsResult = await updateAwsSecrets(nonEmptySecrets);
+    
+    if (!awsResult.success) {
+      console.error('[POST /api/secrets] AWS save failed:', awsResult.error);
+      return NextResponse.json(
+        { error: `Failed to save to AWS: ${awsResult.error}` },
+        { status: 500 }
+      );
+    }
+    
+    // SECONDARY: Update metadata in Supabase for each key
+    for (const keyName of Object.keys(nonEmptySecrets)) {
+      await supabaseAdmin
+        .from('polybot_secrets')
+        .upsert({
+          key_name: keyName,
+          is_configured: true,
+          last_updated: new Date().toISOString(),
+        }, { onConflict: 'key_name' });
+    }
 
     // Log successful create
     await logAuditEvent({
@@ -249,11 +286,10 @@ export async function POST(request: NextRequest) {
       user_email: authResult.user_email,
       action: 'secret.update',
       resource_type: 'secret',
-      resource_id: key_name,
+      resource_id: awsResult.updated.join(','),
       details: { 
-        key_name,
-        category,
-        has_value: !!key_value,
+        keys_saved: awsResult.updated,
+        count: awsResult.updated.length,
       },
       ip_address: metadata.ip_address,
       user_agent: metadata.user_agent,
@@ -262,7 +298,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `${key_name} saved successfully` 
+      message: `Successfully saved ${awsResult.updated.length} API key(s)`,
+      saved: awsResult.updated,
     });
   } catch (error: any) {
     console.error('Error saving secret:', error);
