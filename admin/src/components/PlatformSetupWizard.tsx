@@ -952,7 +952,7 @@ interface PlatformSetupWizardProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: (secrets: Record<string, string>) => void;
-  mode?: 'simulation' | 'live';  // New: simulation mode skips credential setup
+  mode?: 'simulation' | 'live' | 'quick-connect';  // quick-connect: keys already exist, just enable
 }
 
 export function PlatformSetupWizard({
@@ -1076,6 +1076,105 @@ export function PlatformSetupWizard({
                 className="flex-1 px-4 py-3 rounded-xl bg-neon-green text-black font-semibold hover:bg-neon-green/90 transition-colors"
               >
                 Enable Paper Trading
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  // QUICK-CONNECT MODE: Keys already exist - simple confirmation dialog
+  if (mode === 'quick-connect' && isOpen) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={(e) => e.target === e.currentTarget && onClose()}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="relative w-full max-w-lg overflow-hidden bg-dark-card rounded-2xl border border-dark-border shadow-2xl"
+          >
+            {/* Header */}
+            <div className="p-6 border-b border-dark-border">
+              <div className="flex items-center gap-4">
+                <div className="text-4xl p-3 rounded-xl bg-neon-green/20">
+                  {platform.icon}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">
+                    Enable {platform.name}
+                  </h2>
+                  <p className="text-sm text-gray-400">{platform.description}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {/* Already Connected Banner */}
+              <div className="p-4 rounded-xl bg-neon-green/10 border border-neon-green/30">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-6 h-6 text-neon-green flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-neon-green">API Keys Already Configured!</p>
+                    <p className="text-sm text-gray-300 mt-1">
+                      Your {platform.name} credentials are already saved securely. 
+                      Just click the button below to enable trading.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* What will happen */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-gray-400">What happens when you enable:</h4>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center gap-2 text-gray-300">
+                    <CheckCircle className="w-4 h-4 text-neon-green" />
+                    Connect to your existing {platform.name} account
+                  </li>
+                  <li className="flex items-center gap-2 text-gray-300">
+                    <CheckCircle className="w-4 h-4 text-neon-green" />
+                    Enable live trading with real funds
+                  </li>
+                  <li className="flex items-center gap-2 text-gray-300">
+                    <CheckCircle className="w-4 h-4 text-neon-green" />
+                    Show real balances on dashboard
+                  </li>
+                </ul>
+              </div>
+
+              {/* Note */}
+              <div className="p-3 rounded-lg bg-dark-border/50">
+                <p className="text-xs text-gray-400">
+                  💡 To update your API keys, go to Settings → Secrets.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-dark-border flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 px-4 py-3 rounded-xl border border-dark-border text-gray-400 hover:bg-dark-border/50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onComplete({});
+                  onClose();
+                }}
+                className="flex-1 px-4 py-3 rounded-xl bg-neon-green text-black font-semibold hover:bg-neon-green/90 transition-colors"
+              >
+                Enable Live Trading
               </button>
             </div>
           </motion.div>

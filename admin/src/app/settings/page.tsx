@@ -153,7 +153,7 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
   const { isSimulation } = useTier();
   const connectedIds = exchangesData?.connected_exchange_ids || [];
   const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
-  const [setupMode, setSetupMode] = useState<'simulation' | 'live'>('simulation');
+  const [setupMode, setSetupMode] = useState<'simulation' | 'live' | 'quick-connect'>('simulation');
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | 'loading'; message: string } | null>(null);
   const queryClient = useQueryClient();
 
@@ -190,8 +190,13 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
     const handleToggle = () => {
       // If trying to enable, show setup wizard with appropriate mode
       if (!platform.enabled) {
-        // Determine mode based on connection status and current trading mode
-        setSetupMode(isConnected ? 'live' : (isSimulation ? 'simulation' : 'live'));
+        // If keys already exist in AWS, use quick-connect mode (no credential entry needed)
+        if (isConnected) {
+          setSetupMode('quick-connect');
+        } else {
+          // No keys yet - show full wizard (simulation or live based on trading mode)
+          setSetupMode(isSimulation ? 'simulation' : 'live');
+        }
         setSetupPlatform(platform.id);
       } else {
         // Just disable
@@ -335,6 +340,17 @@ function PlatformsSection({ config }: PlatformsSectionProps) {
           mode={setupMode}
           onComplete={async (secrets) => {
             const platformName = platforms.find(p => p.id === setupPlatform)?.name || setupPlatform;
+            
+            // For quick-connect mode (keys already exist) - just enable without saving anything
+            if (setupMode === 'quick-connect') {
+              const platform = platforms.find(p => p.id === setupPlatform);
+              if (platform) {
+                platform.setEnabled(true);
+              }
+              setSaveStatus({ type: 'success', message: `✅ ${platformName} enabled for live trading!` });
+              setTimeout(() => setSaveStatus(null), 5000);
+              return;
+            }
             
             // For simulation mode, no secrets needed - just enable
             if (setupMode === 'simulation' || Object.keys(secrets).length === 0) {
