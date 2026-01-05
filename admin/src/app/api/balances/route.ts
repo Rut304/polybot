@@ -7,6 +7,7 @@ import { getAwsSecrets } from '@/lib/aws-secrets';
 // Balances API - Returns balances for the authenticated user
 // - Connected platforms determined from AWS Secrets Manager
 // - Actual balance data from polybot_balances table (populated by Python bot)
+// - For LIVE mode: Fetches real-time Alpaca balance from live API
 // ============================================================================
 
 // Platform detection: which secrets indicate a platform is configured
@@ -64,6 +65,65 @@ function getConnectedPlatforms(secrets: Record<string, string>): string[] {
   return connected;
 }
 
+/**
+ * Fetch real-time Alpaca balance based on trading mode
+ */
+async function fetchAlpacaBalance(secrets: Record<string, string>, isLiveMode: boolean): Promise<{
+  cash_balance: number;
+  positions_value: number;
+  total_balance: number;
+  positions_count: number;
+} | null> {
+  try {
+    // Select keys based on mode
+    const apiKey = isLiveMode 
+      ? secrets['ALPACA_LIVE_API_KEY'] 
+      : (secrets['ALPACA_PAPER_API_KEY'] || secrets['alpaca_api_key']);
+    const apiSecret = isLiveMode 
+      ? secrets['ALPACA_LIVE_API_SECRET'] 
+      : (secrets['ALPACA_PAPER_API_SECRET'] || secrets['alpaca_api_secret']);
+    
+    if (!apiKey || !apiSecret) {
+      console.log(`[Alpaca] No ${isLiveMode ? 'LIVE' : 'PAPER'} credentials found`);
+      return null;
+    }
+    
+    const baseUrl = isLiveMode 
+      ? 'https://api.alpaca.markets' 
+      : 'https://paper-api.alpaca.markets';
+    
+    console.log(`[Alpaca] Fetching ${isLiveMode ? 'LIVE' : 'PAPER'} balance from ${baseUrl}...`);
+    
+    const response = await fetch(`${baseUrl}/v2/account`, {
+      headers: {
+        'APCA-API-KEY-ID': apiKey,
+        'APCA-API-SECRET-KEY': apiSecret,
+      },
+    });
+    
+    if (!response.ok) {
+      console.error(`[Alpaca] API error: ${response.status} ${await response.text()}`);
+      return null;
+    }
+    
+    const account = await response.json();
+    const equity = parseFloat(account.equity) || 0;
+    const cash = parseFloat(account.cash) || 0;
+    
+    console.log(`[Alpaca] ${isLiveMode ? 'LIVE' : 'PAPER'} balance: $${equity.toFixed(2)} (cash: $${cash.toFixed(2)})`);
+    
+    return {
+      cash_balance: cash,
+      positions_value: equity - cash,
+      total_balance: equity,
+      positions_count: 0, // Would need separate API call for positions
+    };
+  } catch (error) {
+    console.error('[Alpaca] Error fetching balance:', error);
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Verify authentication
@@ -72,29 +132,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Check if live mode is requested (from query param or user's settings)
+    const url = new URL(request.url);
+    const modeParam = url.searchParams.get('mode');
+    
+    // Get user's trading mode from database if not specified in URL
+    let isLiveMode = modeParam === 'live';
+    const supabase = getSupabaseClient();
+    
+    if (!modeParam && supabase) {
+      const { data: userTier } = await supabase
+        .from('user_tiers')
+        .select('is_simulation')
+        .eq('user_id', authResult.user_id)
+        .single();
+      
+      if (userTier) {
+        isLiveMode = !userTier.is_simulation;
+      }
+    }
+    
+    console.log(`[/api/balances] Mode: ${isLiveMode ? 'LIVE' : 'PAPER'}`);
+
     // Get secrets from AWS to determine connected platforms
-    console.log('[/api/balances] Fetching AWS secrets to determine connected platforms...');
+    console.log('[/api/balances] Fetching AWS secrets...');
     const secrets = await getAwsSecrets();
     const connectedPlatforms = getConnectedPlatforms(secrets);
     console.log(`[/api/balances] Connected platforms: ${connectedPlatforms.join(', ') || 'none'}`);
 
-    // Get Supabase client to read actual balance data
-    const supabase = getSupabaseClient();
-    
     if (!supabase) {
-      // Return connected platforms with $0 if Supabase not available
       console.warn('[/api/balances] Supabase not configured');
-      const platforms = connectedPlatforms.map(platform => ({
-        platform: platform.charAt(0).toUpperCase() + platform.slice(1),
-        platform_type: PLATFORM_TYPES[platform] || 'unknown',
-        connected: true,
-        cash_balance: 0,
-        positions_value: 0,
-        total_balance: 0,
-        positions_count: 0,
-        last_updated: new Date().toISOString(),
-      }));
-      
       return NextResponse.json({
         success: true,
         data: {
@@ -103,7 +170,7 @@ export async function GET(request: NextRequest) {
           total_positions_usd: 0,
           total_cash_usd: 0,
           connected_exchanges: connectedPlatforms,
-          platforms,
+          platforms: [],
         },
       });
     }
@@ -112,7 +179,7 @@ export async function GET(request: NextRequest) {
     const { data: balancesData, error } = await supabase
       .from('polybot_balances')
       .select('*')
-      .eq('id', 1)  // Single row table
+      .eq('id', 1)
       .single();
 
     if (error) {
@@ -121,12 +188,30 @@ export async function GET(request: NextRequest) {
 
     // Get platform balances from the table
     const allPlatformBalances = balancesData?.platforms || [];
-    console.log(`[/api/balances] Found ${allPlatformBalances.length} platforms in polybot_balances table`);
-
-    // Filter to only connected platforms (from AWS)
-    const userPlatforms = allPlatformBalances.filter((p: any) => 
+    
+    // Filter to only connected platforms
+    let userPlatforms = allPlatformBalances.filter((p: any) => 
       connectedPlatforms.includes(p.platform?.toLowerCase())
     );
+    
+    // For LIVE mode: Fetch real-time Alpaca balance from LIVE API
+    // (The polybot_balances table may have paper trading data)
+    if (isLiveMode && connectedPlatforms.includes('alpaca')) {
+      const liveAlpacaBalance = await fetchAlpacaBalance(secrets, true);
+      if (liveAlpacaBalance) {
+        // Replace or add Alpaca balance with live data
+        userPlatforms = userPlatforms.filter((p: any) => p.platform?.toLowerCase() !== 'alpaca');
+        userPlatforms.push({
+          platform: 'Alpaca',
+          platform_type: 'stock_broker',
+          cash_balance: liveAlpacaBalance.cash_balance,
+          positions_value: liveAlpacaBalance.positions_value,
+          total_usd: liveAlpacaBalance.total_balance,
+          positions_count: liveAlpacaBalance.positions_count,
+          last_updated: new Date().toISOString(),
+        });
+      }
+    }
     
     // For connected platforms not in the table, add them with $0
     const platformsInTable = userPlatforms.map((p: any) => p.platform?.toLowerCase());
@@ -168,6 +253,7 @@ export async function GET(request: NextRequest) {
         total_positions_usd: total_positions,
         total_cash_usd: total_cash,
         connected_exchanges: connectedPlatforms,
+        trading_mode: isLiveMode ? 'live' : 'paper',
         platforms,
       },
     });
