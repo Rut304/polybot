@@ -409,20 +409,32 @@ export default function SecretsPage() {
       setError(null);
 
       try {
-        const response = await fetch('/api/secrets/sync-aws', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await new Promise<{ok: boolean; data: any}>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/secrets/sync-aws', true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+              } catch {
+                reject(new Error(`Server returned: ${xhr.status} - ${xhr.responseText}`));
+              }
+            }
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(JSON.stringify({}));
         });
 
-        const result = await response.json();
-
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to sync to AWS');
+          throw new Error(response.data.error || 'Failed to sync to AWS');
         }
 
-        setSuccess(`✓ Synced ${result.synced} secrets to AWS Secrets Manager`);
+        setSuccess(`✓ Synced ${response.data.synced} secrets to AWS Secrets Manager`);
         setTimeout(() => setSuccess(null), 5000);
       } catch (err: any) {
+        console.error('Sync to AWS error:', err);
         setError(err.message || 'Failed to sync to AWS');
       } finally {
         setSyncing(null);
@@ -437,20 +449,32 @@ export default function SecretsPage() {
       setError(null);
 
       try {
-        const response = await fetch('/api/secrets/sync-github', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await new Promise<{ok: boolean; data: any}>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/secrets/sync-github', true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+              } catch {
+                reject(new Error(`Server returned: ${xhr.status} - ${xhr.responseText}`));
+              }
+            }
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(JSON.stringify({}));
         });
 
-        const result = await response.json();
-
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to sync to GitHub');
+          throw new Error(response.data.error || 'Failed to sync to GitHub');
         }
 
-        setSuccess(`✓ Synced ${result.synced} secrets to GitHub repository`);
+        setSuccess(`✓ Synced ${response.data.synced} secrets to GitHub repository`);
         setTimeout(() => setSuccess(null), 5000);
       } catch (err: any) {
+        console.error('Sync to GitHub error:', err);
         setError(err.message || 'Failed to sync to GitHub');
       } finally {
         setSyncing(null);
@@ -465,21 +489,31 @@ export default function SecretsPage() {
       setError(null);
 
       try {
-        const response = await fetch('/api/bot/restart', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action }),
+        const response = await new Promise<{ok: boolean; data: any}>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/bot/restart', true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+              } catch {
+                reject(new Error(`Server returned: ${xhr.status} - ${xhr.responseText}`));
+              }
+            }
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(JSON.stringify({ action }));
         });
 
-        const result = await response.json();
-
         if (!response.ok) {
-          throw new Error(result.error || `Failed to ${action} bot`);
+          throw new Error(response.data.error || `Failed to ${action} bot`);
         }
 
-        if (result.method === 'manual') {
+        if (response.data.method === 'manual') {
           // Show instructions for manual restart
-          setSuccess(`✓ ${result.message}\n\nManual steps:\n${result.instructions.join('\n')}`);
+          setSuccess(`✓ ${response.data.message}\n\nManual steps:\n${response.data.instructions?.join('\n') || ''}`);
         } else {
           setSuccess(`✓ Bot ${action} command sent successfully!`);
         }
