@@ -177,7 +177,7 @@ OPTIONAL_SECRETS=(
     "KALSHI_PRIVATE_KEY_PATH"
     "DISCORD_WEBHOOK"
     "IBKR_TRADING_MODE"
-
+    "BOT_USER_ID"
 )
 
 # Build JSON environment from .env file

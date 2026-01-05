@@ -4358,9 +4358,9 @@ async def main():
 
     # Load simulation mode from database (Admin UI setting)
     # This allows toggling simulation/live from the UI without code changes
-    db = Database()
-    simulation_mode = True  # Safe default
     bot_user_id = os.getenv("BOT_USER_ID")
+    db = Database(user_id=bot_user_id)  # Pass user_id for multi-tenancy
+    simulation_mode = True  # Safe default
     
     try:
         if db._client:
