@@ -141,14 +141,15 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseClient();
     
     if (!modeParam && supabase) {
-      const { data: userTier } = await supabase
-        .from('user_tiers')
+      // Use polybot_profiles as the source of truth for trading mode
+      const { data: profile } = await supabase
+        .from('polybot_profiles')
         .select('is_simulation')
-        .eq('user_id', authResult.user_id)
+        .eq('id', authResult.user_id)
         .single();
       
-      if (userTier) {
-        isLiveMode = !userTier.is_simulation;
+      if (profile) {
+        isLiveMode = !profile.is_simulation;
       }
     }
     

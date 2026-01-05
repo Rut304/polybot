@@ -11,7 +11,7 @@ import {
   Check,
   Loader2,
 } from 'lucide-react';
-import { usePlaceManualTrade, useMarketCache } from '@/lib/hooks';
+import { usePlaceManualTrade, useMarketCache, useTier } from '@/lib/hooks';
 import { formatCurrency, cn } from '@/lib/utils';
 
 interface ManualTradeModalProps {
@@ -28,6 +28,7 @@ interface ManualTradeModalProps {
 
 export function ManualTradeModal({ isOpen, onClose, prefillMarket }: ManualTradeModalProps) {
   const placeTrade = usePlaceManualTrade();
+  const { isSimulation } = useTier();
   const { data: markets = [] } = useMarketCache();
   
   const [platform, setPlatform] = useState<'polymarket' | 'kalshi'>(prefillMarket?.platform || 'polymarket');
@@ -323,11 +324,28 @@ export function ManualTradeModal({ isOpen, onClose, prefillMarket }: ManualTrade
               </div>
 
               {/* Warning */}
-              <div className="flex items-start gap-3 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
-                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className={cn(
+                "flex items-start gap-3 p-4 border rounded-xl",
+                isSimulation 
+                  ? "bg-yellow-500/10 border-yellow-500/30" 
+                  : "bg-red-500/10 border-red-500/30"
+              )}>
+                <AlertCircle className={cn(
+                  "w-5 h-5 flex-shrink-0 mt-0.5",
+                  isSimulation ? "text-yellow-500" : "text-red-500"
+                )} />
                 <div className="text-sm">
-                  <p className="font-medium text-yellow-400">Paper Trading Mode</p>
-                  <p className="text-gray-400">This is a paper trade. No real money will be used.</p>
+                  {isSimulation ? (
+                    <>
+                      <p className="font-medium text-yellow-400">Paper Trading Mode</p>
+                      <p className="text-gray-400">This is a paper trade. No real money will be used.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-red-400">⚠️ LIVE Trading Mode</p>
+                      <p className="text-gray-400">This trade will use REAL money on {platform}!</p>
+                    </>
+                  )}
                 </div>
               </div>
 

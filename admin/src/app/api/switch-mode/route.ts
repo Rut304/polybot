@@ -138,6 +138,15 @@ export async function POST(request: NextRequest) {
       })
       .eq('user_id', userId);
 
+    // CRITICAL: Update polybot_status - this is what the bot reads!
+    await supabaseAdmin
+      .from('polybot_status')
+      .update({
+        dry_run_mode: requestedSimulation,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+
     return NextResponse.json({
       success: true,
       message: `Switched to ${newMode} mode`,
