@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getAwsSecrets, updateAwsSecrets } from '@/lib/aws-secrets';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
-
-// AWS IAM credentials for Secrets Manager (AMAZON_* prefix, not AWS_*)
-const AMAZON_ACCESS_KEY_ID = process.env.AMAZON_ACCESS_KEY_ID || '';
-const AMAZON_SECRET_ACCESS_KEY = process.env.AMAZON_SECRET_ACCESS_KEY || '';
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-
-const hasServiceKey = supabaseUrl && supabaseServiceKey;
-const supabaseAdmin = hasServiceKey 
-  ? createClient(supabaseUrl, supabaseServiceKey)
-  : null;
-
+/**
+ * Sync secrets between AWS and Supabase
+ * 
+ * AWS Secrets Manager is the SOURCE OF TRUTH.
+ * This endpoint:
+ * 1. Reads all secrets from AWS
+ * 2. Updates Supabase metadata to reflect what's in AWS
+ * 3. Optionally syncs any Supabase-only keys TO AWS (for keys entered via old UI)
+ */
 export async function POST() {
+  const supabaseAdmin = getSupabaseAdmin();
+  
   if (!supabaseAdmin) {
     return NextResponse.json(
       { error: 'Server not configured. SUPABASE_SERVICE_KEY is required.' },
@@ -22,88 +21,134 @@ export async function POST() {
     );
   }
   
-  if (!AMAZON_ACCESS_KEY_ID || !AMAZON_SECRET_ACCESS_KEY) {
-    return NextResponse.json(
-      { error: 'AWS credentials not configured. Set AMAZON_ACCESS_KEY_ID and AMAZON_SECRET_ACCESS_KEY.' },
-      { status: 500 }
-    );
-  }
-  
   try {
-    // Fetch all configured secrets from Supabase
-    const { data: secrets, error: fetchError } = await supabaseAdmin
+    // Step 1: Get all secrets from AWS (source of truth)
+    const awsSecrets = await getAwsSecrets(true); // Force refresh
+    const awsKeyCount = Object.keys(awsSecrets).length;
+    
+    if (awsKeyCount === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'No secrets found in AWS. Check AWS credentials.',
+      }, { status: 500 });
+    }
+    
+    // Step 2: Get current Supabase metadata
+    const { data: supabaseSecrets, error: fetchError } = await supabaseAdmin
       .from('polybot_secrets')
-      .select('key_name, key_value, category')
-      .eq('is_configured', true)
-      .not('key_value', 'is', null);
+      .select('key_name, key_value, is_configured');
     
     if (fetchError) throw fetchError;
     
-    if (!secrets || secrets.length === 0) {
-      return NextResponse.json({ 
-        success: true, 
-        synced: 0,
-        message: 'No secrets to sync' 
-      });
-    }
+    const supabaseMap = new Map(
+      (supabaseSecrets || []).map(s => [s.key_name, s])
+    );
     
-    // Use AWS SDK to sync secrets
-    // For now, we'll use the AWS Secrets Manager REST API via fetch
-    const secretsManagerUrl = `https://secretsmanager.${AWS_REGION}.amazonaws.com`;
+    // Step 3: Check for any Supabase-only keys that need to go to AWS
+    const supabaseOnlyKeys: string[] = [];
+    const keysToSyncToAws: Record<string, string> = {};
     
-    let synced = 0;
-    const errors: string[] = [];
-    
-    for (const secret of secrets) {
-      try {
-        // Create or update secret in AWS Secrets Manager
-        // Secret name format: polybot/{category}/{key_name}
-        const secretName = `polybot/${secret.category}/${secret.key_name}`;
-        
-        // AWS4 signing is complex - for production, use @aws-sdk/client-secrets-manager
-        // For now, we'll store sync status in Supabase
-        
-        // Update sync status in Supabase
-        await supabaseAdmin
-          .from('polybot_secrets')
-          .update({ 
-            synced_aws: true,
-            aws_sync_time: new Date().toISOString()
-          })
-          .eq('key_name', secret.key_name);
-        
-        synced++;
-      } catch (err: any) {
-        errors.push(`${secret.key_name}: ${err.message}`);
+    for (const [keyName, secret] of supabaseMap) {
+      if (secret.key_value && !awsSecrets[keyName]) {
+        supabaseOnlyKeys.push(keyName);
+        keysToSyncToAws[keyName] = secret.key_value;
       }
     }
     
-    // Log sync activity
-    await supabaseAdmin
-      .from('polybot_activity_log')
-      .insert({
-        action: 'sync_aws_secrets',
-        details: {
-          synced_count: synced,
-          total_count: secrets.length,
-          errors: errors.length > 0 ? errors : undefined,
-        },
-        created_at: new Date().toISOString(),
-      })
-      .single();
+    // Step 4: Sync Supabase-only keys TO AWS
+    let syncedToAws = 0;
+    if (Object.keys(keysToSyncToAws).length > 0) {
+      try {
+        await updateAwsSecrets(keysToSyncToAws);
+        syncedToAws = Object.keys(keysToSyncToAws).length;
+        console.log(`[sync-aws] Synced ${syncedToAws} keys from Supabase to AWS`);
+      } catch (err) {
+        console.error('[sync-aws] Failed to sync keys to AWS:', err);
+      }
+    }
+    
+    // Step 5: Update Supabase metadata to reflect AWS state
+    let updatedInSupabase = 0;
+    const errors: string[] = [];
+    
+    // Refresh AWS secrets after potential sync
+    const finalAwsSecrets = syncedToAws > 0 ? await getAwsSecrets(true) : awsSecrets;
+    
+    for (const [keyName, value] of Object.entries(finalAwsSecrets)) {
+      if (!value) continue;
+      
+      try {
+        // Upsert metadata in Supabase (but NOT the value - AWS is source of truth)
+        const { error: upsertError } = await supabaseAdmin
+          .from('polybot_secrets')
+          .upsert({
+            key_name: keyName,
+            is_configured: true,
+            synced_aws: true,
+            aws_sync_time: new Date().toISOString(),
+            last_updated: new Date().toISOString(),
+          }, {
+            onConflict: 'key_name',
+            ignoreDuplicates: false,
+          });
+        
+        if (upsertError) throw upsertError;
+        updatedInSupabase++;
+      } catch (err: any) {
+        errors.push(`${keyName}: ${err.message}`);
+      }
+    }
+    
+    // Step 6: Mark keys NOT in AWS as not configured
+    for (const [keyName, secret] of supabaseMap) {
+      if (!finalAwsSecrets[keyName] && secret.is_configured) {
+        try {
+          await supabaseAdmin
+            .from('polybot_secrets')
+            .update({ is_configured: false, synced_aws: false })
+            .eq('key_name', keyName);
+        } catch (err: any) {
+          errors.push(`${keyName}: ${err.message}`);
+        }
+      }
+    }
+    
+    // Log activity
+    try {
+      await supabaseAdmin
+        .from('polybot_activity_log')
+        .insert({
+          action: 'sync_aws_secrets',
+          details: {
+            aws_key_count: Object.keys(finalAwsSecrets).length,
+            synced_to_aws: syncedToAws,
+            updated_in_supabase: updatedInSupabase,
+            supabase_only_keys: supabaseOnlyKeys,
+            errors: errors.length > 0 ? errors : undefined,
+          },
+          created_at: new Date().toISOString(),
+        });
+    } catch (logErr) {
+      console.error('[sync-aws] Failed to log activity:', logErr);
+    }
     
     return NextResponse.json({ 
-      success: true, 
-      synced,
-      total: secrets.length,
+      success: true,
+      message: 'AWS ↔ Supabase sync complete',
+      details: {
+        aws_secrets_count: Object.keys(finalAwsSecrets).length,
+        synced_to_aws: syncedToAws,
+        synced_to_aws_keys: supabaseOnlyKeys,
+        updated_supabase_metadata: updatedInSupabase,
+      },
+      // Legacy field for UI compatibility
+      synced: updatedInSupabase,
       errors: errors.length > 0 ? errors : undefined,
-      message: `Synced ${synced}/${secrets.length} secrets to AWS Secrets Manager`,
-      note: 'For full AWS Secrets Manager integration, install @aws-sdk/client-secrets-manager'
     });
   } catch (error: any) {
-    console.error('Error syncing to AWS:', error);
+    console.error('Error in AWS sync:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to sync to AWS Secrets Manager' },
+      { error: error.message || 'Failed to sync with AWS Secrets Manager' },
       { status: 500 }
     );
   }
