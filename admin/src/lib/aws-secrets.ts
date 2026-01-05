@@ -3,6 +3,11 @@
  * 
  * This module provides a unified way to fetch secrets from AWS Secrets Manager.
  * All API keys should be stored in AWS, not in Supabase (which only stores metadata).
+ * 
+ * Required env vars:
+ * - AMAZON_ACCESS_KEY_ID (NOT AWS_ACCESS_KEY_ID)
+ * - AMAZON_SECRET_ACCESS_KEY  
+ * - AWS_REGION (must be plain value like "us-east-1", no quotes in Vercel)
  */
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
