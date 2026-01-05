@@ -104,6 +104,9 @@ class Database:
         self.key = key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
         self.user_id = user_id
         
+        # Trading mode - will be loaded from database
+        self._trading_mode: Optional[str] = None
+        
         # Initialize Vault for encrypting/decrypting user secrets
         self.vault = Vault()
 
@@ -122,6 +125,59 @@ class Database:
     @property
     def is_connected(self) -> bool:
         return self._client is not None
+
+    # ==================== Trading Mode ====================
+
+    def get_trading_mode(self, force_refresh: bool = False) -> str:
+        """
+        Get current trading mode from database.
+        
+        Returns 'live' or 'paper'. Defaults to 'paper' for safety.
+        """
+        if self._trading_mode and not force_refresh:
+            return self._trading_mode
+        
+        if not self._client:
+            return 'paper'
+        
+        try:
+            # Try polybot_profiles first (primary source)
+            if self.user_id:
+                result = self._client.table('polybot_profiles').select(
+                    'is_simulation'
+                ).eq('id', self.user_id).single().execute()
+                
+                if result.data:
+                    is_sim = result.data.get('is_simulation', True)
+                    self._trading_mode = 'paper' if is_sim else 'live'
+                    return self._trading_mode
+            
+            # Fallback to polybot_status
+            if self.user_id:
+                result = self._client.table('polybot_status').select(
+                    'dry_run_mode'
+                ).eq('user_id', self.user_id).single().execute()
+            else:
+                result = self._client.table('polybot_status').select(
+                    'dry_run_mode'
+                ).limit(1).execute()
+            
+            if result.data:
+                data = result.data if isinstance(result.data, dict) \
+                    else result.data[0]
+                is_dry = data.get('dry_run_mode', True)
+                self._trading_mode = 'paper' if is_dry else 'live'
+                return self._trading_mode
+                
+        except Exception as e:
+            logger.warning(f"Could not load trading mode: {e}")
+        
+        self._trading_mode = 'paper'
+        return 'paper'
+
+    def set_trading_mode(self, mode: str) -> None:
+        """Set the trading mode (for hot-reloading)."""
+        self._trading_mode = mode
 
     # ==================== Secrets Management ====================
     # Primary source: AWS Secrets Manager (polybot/trading-keys)
@@ -631,12 +687,16 @@ class Database:
                 "strategy": opportunity.get("strategy"),
                 "status": opportunity.get("status", "detected"),
                 "skip_reason": opportunity.get("skip_reason"),
+                # CRITICAL: Include trading mode for filtering
+                "trading_mode": self.get_trading_mode(),
             }
 
             if self.user_id:
                 insert_data["user_id"] = self.user_id
 
-            result = self._client.table("polybot_opportunities").insert(insert_data).execute()
+            result = self._client.table("polybot_opportunities").insert(
+                insert_data
+            ).execute()
 
             if result.data:
                 return result.data[0].get("id")
@@ -733,12 +793,16 @@ class Database:
                 "order_id": trade.get("order_id"),
                 "error_message": trade.get("error_message"),
                 "fees": trade.get("fees"),
+                # Include trading mode for filtering
+                "trading_mode": self.get_trading_mode(),
             }
 
             if self.user_id:
                 insert_data["user_id"] = self.user_id
 
-            result = self._client.table("polybot_trades").insert(insert_data).execute()
+            result = self._client.table("polybot_trades").insert(
+                insert_data
+            ).execute()
 
             if result.data:
                 return result.data[0].get("id")

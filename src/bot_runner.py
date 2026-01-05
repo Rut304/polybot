@@ -3794,6 +3794,50 @@ class PolybotRunner:
                 errors_last_hour += 1
             await asyncio.sleep(60)  # Update every 60 seconds
 
+    async def run_mode_checker(self):
+        """
+        Periodically check if trading mode has changed in the database.
+        This enables hot-reloading of live/paper mode without restarting.
+        """
+        while self._running:
+            try:
+                # Check every 30 seconds for mode changes
+                new_mode = self.db.get_trading_mode(force_refresh=True)
+                current_mode = 'paper' if self.simulation_mode else 'live'
+                
+                if new_mode != current_mode:
+                    # Mode changed!
+                    logger.warning(
+                        f"🔄 TRADING MODE CHANGE DETECTED: "
+                        f"{current_mode.upper()} → {new_mode.upper()}"
+                    )
+                    
+                    self.simulation_mode = (new_mode == 'paper')
+                    
+                    if new_mode == 'live':
+                        logger.warning(
+                            "⚠️ ⚠️ ⚠️  SWITCHING TO LIVE MODE - "
+                            "REAL MONEY AT RISK  ⚠️ ⚠️ ⚠️"
+                        )
+                        self.notifier.send_alert(
+                            "🔴 LIVE MODE ACTIVATED",
+                            "Bot has switched to LIVE trading mode. "
+                            "Real money will be used for trades.",
+                            severity="critical"
+                        )
+                    else:
+                        logger.info("📊 Switched to PAPER trading mode")
+                        self.notifier.send_info(
+                            "📊 Paper Mode Activated",
+                            "Bot has switched to paper trading mode. "
+                            "No real money will be used."
+                        )
+                        
+            except Exception as e:
+                logger.warning(f"Mode checker error: {e}")
+            
+            await asyncio.sleep(30)  # Check every 30 seconds
+
     async def run_paper_trading_stats(self):
         """Periodically save paper trading stats and print summary."""
         while self._running:
@@ -4136,6 +4180,11 @@ class PolybotRunner:
             self._resilient_task("heartbeat", self.run_heartbeat)
         ))
 
+        # Always run trading mode checker (hot-reload mode changes)
+        tasks.append(asyncio.create_task(
+            self._resilient_task("mode_checker", self.run_mode_checker)
+        ))
+
         # Run paper trading stats saver if in simulation mode
         if self.simulation_mode and self.paper_trader:
             tasks.append(asyncio.create_task(self.run_paper_trading_stats()))
@@ -4311,24 +4360,50 @@ async def main():
     # This allows toggling simulation/live from the UI without code changes
     db = Database()
     simulation_mode = True  # Safe default
+    bot_user_id = os.getenv("BOT_USER_ID")
+    
     try:
         if db._client:
-            # Read from polybot_status table (same table Admin UI writes to)
-            result = db._client.table('polybot_status').select(
-                'dry_run_mode'
-            ).limit(1).execute()
-            if result.data and len(result.data) > 0:
-                # dry_run_mode=True means simulation, False means LIVE
-                simulation_mode = result.data[0].get('dry_run_mode', True)
-                mode_str = 'SIMULATION' if simulation_mode else 'LIVE'
-                logger.info(f"📊 Loaded mode from database: {mode_str}")
+            # First try to load from user's polybot_profiles (primary source of truth)
+            if bot_user_id:
+                profile_result = db._client.table('polybot_profiles').select(
+                    'is_simulation'
+                ).eq('id', bot_user_id).single().execute()
+                
+                if profile_result.data:
+                    simulation_mode = profile_result.data.get('is_simulation', True)
+                    mode_str = 'SIMULATION' if simulation_mode else '🔴 LIVE'
+                    logger.info(f"📊 Loaded mode from polybot_profiles for user {bot_user_id[:8]}...: {mode_str}")
+                else:
+                    # Fallback to polybot_status for the user
+                    status_result = db._client.table('polybot_status').select(
+                        'dry_run_mode'
+                    ).eq('user_id', bot_user_id).single().execute()
+                    
+                    if status_result.data:
+                        simulation_mode = status_result.data.get('dry_run_mode', True)
+                        mode_str = 'SIMULATION' if simulation_mode else '🔴 LIVE'
+                        logger.info(f"📊 Loaded mode from polybot_status for user {bot_user_id[:8]}...: {mode_str}")
             else:
-                logger.warning(
-                    "No status row in polybot_status, defaulting to SIMULATION"
-                )
+                # No user ID - try to get first row (backward compatibility)
+                result = db._client.table('polybot_status').select(
+                    'dry_run_mode'
+                ).limit(1).execute()
+                if result.data and len(result.data) > 0:
+                    simulation_mode = result.data[0].get('dry_run_mode', True)
+                    mode_str = 'SIMULATION' if simulation_mode else '🔴 LIVE'
+                    logger.info(f"📊 Loaded mode from database (no user_id): {mode_str}")
+                else:
+                    logger.warning(
+                        "No status row in polybot_status, defaulting to SIMULATION"
+                    )
     except Exception as e:
-        logger.warning(f"Could not load dry_run_mode: {e}")
+        logger.warning(f"Could not load trading mode: {e}")
         simulation_mode = True
+    
+    # Log final mode decision with clear warning for LIVE
+    if not simulation_mode:
+        logger.warning("⚠️ ⚠️ ⚠️  LIVE TRADING MODE ENABLED - REAL MONEY AT RISK  ⚠️ ⚠️ ⚠️")
 
     # Example tracked traders (these are whale addresses on Polymarket)
     tracked_traders = [
