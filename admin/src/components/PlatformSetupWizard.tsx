@@ -1398,6 +1398,25 @@ export function PlatformSetupWizard({
               </button>
 
               <div className="flex gap-3">
+                {/* "I already have an account" - skip to API key step */}
+                {isFirstStep && platform.apiKeyType !== 'oauth' && (
+                  <button
+                    onClick={() => {
+                      // Find the step with input fields (API key entry)
+                      const inputStepIdx = platform.steps.findIndex(s => s.action === 'input');
+                      if (inputStepIdx >= 0) {
+                        setCurrentStep(inputStepIdx);
+                      } else {
+                        // Fallback: go to last step
+                        setCurrentStep(platform.steps.length - 1);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-neon-blue hover:text-white hover:bg-dark-border border border-neon-blue/30 transition-colors"
+                  >
+                    I already have an account →
+                  </button>
+                )}
+                
                 <button
                   onClick={onClose}
                   className="px-4 py-2 rounded-lg text-gray-400 hover:text-white transition-colors"
