@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from '@/lib/audit';
 import { getAwsSecrets } from '@/lib/aws-secrets';
 
 // ============================================================================
 // Balances API - Returns balances for the authenticated user
-// Determines connected platforms from AWS Secrets Manager
+// - Connected platforms determined from AWS Secrets Manager
+// - Actual balance data from polybot_balances table (populated by Python bot)
 // ============================================================================
 
 // Platform detection: which secrets indicate a platform is configured
@@ -32,6 +34,18 @@ const PLATFORM_TYPES: Record<string, string> = {
   okx: 'crypto_exchange',
   kucoin: 'crypto_exchange',
   ibkr: 'stock_broker',
+};
+
+// Create Supabase admin client
+const getSupabaseClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return null;
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey);
 };
 
 /**
@@ -64,18 +78,83 @@ export async function GET(request: NextRequest) {
     const connectedPlatforms = getConnectedPlatforms(secrets);
     console.log(`[/api/balances] Connected platforms: ${connectedPlatforms.join(', ') || 'none'}`);
 
-    // Build platform data with $0 balances (actual balance fetching would call exchange APIs)
-    // For now, we're just showing which platforms are connected
-    const platforms = connectedPlatforms.map(platform => ({
-      platform: platform.charAt(0).toUpperCase() + platform.slice(1),
-      platform_type: PLATFORM_TYPES[platform] || 'unknown',
-      connected: true,
-      cash_balance: 0,  // TODO: Implement actual balance fetching from exchanges
-      positions_value: 0,
-      total_balance: 0,
-      positions_count: 0,
-      last_updated: new Date().toISOString(),
-    }));
+    // Get Supabase client to read actual balance data
+    const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      // Return connected platforms with $0 if Supabase not available
+      console.warn('[/api/balances] Supabase not configured');
+      const platforms = connectedPlatforms.map(platform => ({
+        platform: platform.charAt(0).toUpperCase() + platform.slice(1),
+        platform_type: PLATFORM_TYPES[platform] || 'unknown',
+        connected: true,
+        cash_balance: 0,
+        positions_value: 0,
+        total_balance: 0,
+        positions_count: 0,
+        last_updated: new Date().toISOString(),
+      }));
+      
+      return NextResponse.json({
+        success: true,
+        data: {
+          timestamp: new Date().toISOString(),
+          total_usd: 0,
+          total_positions_usd: 0,
+          total_cash_usd: 0,
+          connected_exchanges: connectedPlatforms,
+          platforms,
+        },
+      });
+    }
+
+    // Fetch balance data from polybot_balances table (populated by Python bot)
+    const { data: balancesData, error } = await supabase
+      .from('polybot_balances')
+      .select('*')
+      .eq('id', 1)  // Single row table
+      .single();
+
+    if (error) {
+      console.error('[/api/balances] Error fetching from polybot_balances:', error);
+    }
+
+    // Get platform balances from the table
+    const allPlatformBalances = balancesData?.platforms || [];
+    console.log(`[/api/balances] Found ${allPlatformBalances.length} platforms in polybot_balances table`);
+
+    // Filter to only connected platforms (from AWS)
+    const userPlatforms = allPlatformBalances.filter((p: any) => 
+      connectedPlatforms.includes(p.platform?.toLowerCase())
+    );
+    
+    // For connected platforms not in the table, add them with $0
+    const platformsInTable = userPlatforms.map((p: any) => p.platform?.toLowerCase());
+    const missingPlatforms = connectedPlatforms.filter(p => !platformsInTable.includes(p));
+    
+    // Build final platforms array
+    const platforms = [
+      ...userPlatforms.map((p: any) => ({
+        platform: p.platform,
+        platform_type: p.platform_type || PLATFORM_TYPES[p.platform?.toLowerCase()] || 'unknown',
+        connected: true,
+        cash_balance: parseFloat(p.cash_balance) || 0,
+        positions_value: parseFloat(p.positions_value) || 0,
+        total_balance: (parseFloat(p.cash_balance) || 0) + (parseFloat(p.positions_value) || 0),
+        positions_count: p.positions_count || 0,
+        last_updated: p.last_updated || balancesData?.updated_at,
+      })),
+      ...missingPlatforms.map(platform => ({
+        platform: platform.charAt(0).toUpperCase() + platform.slice(1),
+        platform_type: PLATFORM_TYPES[platform] || 'unknown',
+        connected: true,
+        cash_balance: 0,
+        positions_value: 0,
+        total_balance: 0,
+        positions_count: 0,
+        last_updated: new Date().toISOString(),
+      })),
+    ];
 
     // Calculate totals
     const total_cash = platforms.reduce((sum, p) => sum + p.cash_balance, 0);
@@ -84,7 +163,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        timestamp: new Date().toISOString(),
+        timestamp: balancesData?.updated_at || new Date().toISOString(),
         total_usd: total_cash + total_positions,
         total_positions_usd: total_positions,
         total_cash_usd: total_cash,
