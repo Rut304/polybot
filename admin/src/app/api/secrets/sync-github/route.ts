@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-// GitHub credentials - try multiple env var names
-let GITHUB_TOKEN = process.env.MY_GITHUB_TOKEN || process.env.GITHUB_TOKEN || '';
+// GitHub credentials - try env vars first
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'Rut304';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'polybot';
 
@@ -14,22 +14,30 @@ const supabaseAdmin = hasServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey)
   : null;
 
-// Helper to get GitHub token from Supabase if not in env
+// Helper to get GitHub token - AWS is primary source
 async function getGitHubToken(): Promise<string> {
-  if (GITHUB_TOKEN) return GITHUB_TOKEN;
+  // Check env vars first
+  if (process.env.MY_GITHUB_TOKEN) return process.env.MY_GITHUB_TOKEN;
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   
-  if (!supabaseAdmin) return '';
-  
-  // Try to get from Supabase secrets
-  const { data } = await supabaseAdmin
-    .from('polybot_secrets')
-    .select('key_value')
-    .in('key_name', ['MY_GITHUB_TOKEN', 'GITHUB_TOKEN'])
-    .eq('is_configured', true)
-    .limit(1)
-    .single();
-  
-  return data?.key_value || '';
+  // Fall back to AWS Secrets Manager (PRIMARY)
+  try {
+    const awsSecrets = await getAwsSecrets();
+    return awsSecrets['MY_GITHUB_TOKEN'] || awsSecrets['GITHUB_TOKEN'] || '';
+  } catch (err) {
+    console.error('Failed to get GitHub token from AWS:', err);
+    return '';
+  }
+}
+
+// Helper to categorize secrets
+function getCategoryForKey(keyName: string): string {
+  if (keyName.includes('KALSHI') || keyName.includes('POLYMARKET')) return 'prediction_markets';
+  if (keyName.includes('BINANCE') || keyName.includes('COINBASE') || keyName.includes('BYBIT') || keyName.includes('OKX') || keyName.includes('KRAKEN') || keyName.includes('KUCOIN')) return 'crypto_exchanges';
+  if (keyName.includes('ALPACA') || keyName.includes('IBKR') || keyName.includes('WEBULL')) return 'stock_brokers';
+  if (keyName.includes('FINNHUB') || keyName.includes('NEWS') || keyName.includes('TWITTER') || keyName.includes('X_')) return 'news_sentiment';
+  if (keyName.includes('SUPABASE') || keyName.includes('GITHUB') || keyName.includes('AWS') || keyName.includes('AMAZON')) return 'infrastructure';
+  return 'other';
 }
 
 // Convert sodium public key and encrypt using libsodium
@@ -60,16 +68,19 @@ export async function POST() {
   }
   
   try {
-    // Fetch all configured secrets from Supabase
-    const { data: secrets, error: fetchError } = await supabaseAdmin
-      .from('polybot_secrets')
-      .select('key_name, key_value, category')
-      .eq('is_configured', true)
-      .not('key_value', 'is', null);
+    // Fetch all secrets from AWS (PRIMARY SOURCE)
+    const awsSecrets = await getAwsSecrets();
     
-    if (fetchError) throw fetchError;
+    // Convert to array format for iteration
+    const secrets = Object.entries(awsSecrets)
+      .filter(([_, value]) => value && value.length > 0)
+      .map(([key_name, key_value]) => ({
+        key_name,
+        key_value,
+        category: getCategoryForKey(key_name),
+      }));
     
-    if (!secrets || secrets.length === 0) {
+    if (secrets.length === 0) {
       return NextResponse.json({ 
         success: true, 
         synced: 0,

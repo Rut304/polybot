@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAuth, logAuditEvent, checkRateLimit, getRequestMetadata, rateLimitResponse, unauthorizedResponse } from '@/lib/audit';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 import crypto from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -63,15 +64,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch the relevant secrets from database
-    const { data: secrets, error: fetchError } = await supabaseAdmin
-      .from('polybot_secrets')
-      .select('key_name, key_value')
-      .in('key_name', getRequiredKeys(platform));
-
-    if (fetchError) throw fetchError;
-
-    const secretsMap = new Map(secrets?.map(s => [s.key_name, s.key_value]) || []);
+    // Fetch the relevant secrets from AWS (PRIMARY SOURCE)
+    const awsSecrets = await getAwsSecrets();
+    const requiredKeys = getRequiredKeys(platform);
+    const secretsMap = new Map(
+      requiredKeys.map(k => [k, awsSecrets[k] || ''])
+    );
 
     let testResult;
     switch (platform.toLowerCase()) {
