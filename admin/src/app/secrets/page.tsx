@@ -367,21 +367,34 @@ export default function SecretsPage() {
       setError(null);
 
       try {
-        const response = await fetch('/api/secrets/pull-aws', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        // Use XMLHttpRequest to avoid any fetch interceptors that might add bad headers
+        const response = await new Promise<{ok: boolean; data: any}>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/secrets/pull-aws', true);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+              } catch {
+                reject(new Error(`Server returned: ${xhr.status} - ${xhr.responseText}`));
+              }
+            }
+          };
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(JSON.stringify({}));
         });
 
-        const result = await response.json();
-
         if (!response.ok) {
-          throw new Error(result.error || 'Failed to pull from AWS');
+          throw new Error(response.data.error || 'Failed to pull from AWS');
         }
 
-        setSuccess(`✓ Imported ${result.imported} secrets from AWS`);
+        setSuccess(`✓ Imported ${response.data.imported} secrets from AWS`);
         fetchSecrets(); // Refresh the list
         setTimeout(() => setSuccess(null), 5000);
       } catch (err: any) {
+        console.error('Pull from AWS error:', err);
         setError(err.message || 'Failed to pull from AWS');
       } finally {
         setSyncing(null);
