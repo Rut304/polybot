@@ -1,105 +1,99 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { verifyAuth } from '@/lib/audit';
+import { getAwsSecrets } from '@/lib/aws-secrets';
 
 // ============================================================================
 // Balances API - Returns balances for the authenticated user
-// Multi-tenant: Filters by user_id and user's connected exchanges
+// Determines connected platforms from AWS Secrets Manager
 // ============================================================================
 
-// Create Supabase admin client
-const getSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Platform detection: which secrets indicate a platform is configured
+const PLATFORM_REQUIRED_KEYS: Record<string, string[]> = {
+  polymarket: ['polymarket_api_key', 'polymarket_secret'],
+  kalshi: ['kalshi_api_key', 'kalshi_private_key'],
+  binance: ['binance_api_key', 'binance_api_secret'],
+  coinbase: ['coinbase_api_key', 'coinbase_api_secret'],
+  alpaca: ['alpaca_api_key', 'alpaca_api_secret'],
+  kraken: ['kraken_api_key', 'kraken_api_secret'],
+  bybit: ['bybit_api_key', 'bybit_api_secret'],
+  okx: ['okx_api_key', 'okx_api_secret', 'okx_passphrase'],
+  kucoin: ['kucoin_api_key', 'kucoin_api_secret', 'kucoin_passphrase'],
+  ibkr: ['ibkr_username', 'ibkr_password'],
+};
+
+const PLATFORM_TYPES: Record<string, string> = {
+  polymarket: 'prediction_market',
+  kalshi: 'prediction_market',
+  binance: 'crypto_exchange',
+  coinbase: 'crypto_exchange',
+  alpaca: 'stock_broker',
+  kraken: 'crypto_exchange',
+  bybit: 'crypto_exchange',
+  okx: 'crypto_exchange',
+  kucoin: 'crypto_exchange',
+  ibkr: 'stock_broker',
+};
+
+/**
+ * Determine connected platforms from AWS secrets
+ */
+function getConnectedPlatforms(secrets: Record<string, string>): string[] {
+  const connected: string[] = [];
   
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return null;
+  for (const [platform, requiredKeys] of Object.entries(PLATFORM_REQUIRED_KEYS)) {
+    const allKeysPresent = requiredKeys.every(key => !!secrets[key]);
+    if (allKeysPresent) {
+      connected.push(platform);
+    }
   }
   
-  return createClient(supabaseUrl, supabaseServiceKey);
-};
+  return connected;
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getSupabaseClient();
-    
-    if (!supabase) {
-      // Return mock data for development
-      return NextResponse.json({
-        success: true,
-        data: {
-          timestamp: new Date().toISOString(),
-          total_usd: 5000.00,
-          total_positions_usd: 0,
-          total_cash_usd: 5000.00,
-          platforms: [],
-        },
-        mock: true,
-      });
-    }
-
-    // Verify authentication and get user_id
+    // Verify authentication
     const authResult = await verifyAuth(request);
     if (!authResult?.user_id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // First, get user's connected exchanges
-    const { data: userExchanges } = await supabase
-      .from('user_exchange_credentials')
-      .select('exchange')
-      .eq('user_id', authResult.user_id);
-    
-    const connectedExchanges = userExchanges?.map(e => e.exchange?.toLowerCase()) || [];
+    // Get secrets from AWS to determine connected platforms
+    console.log('[/api/balances] Fetching AWS secrets to determine connected platforms...');
+    const secrets = await getAwsSecrets();
+    const connectedPlatforms = getConnectedPlatforms(secrets);
+    console.log(`[/api/balances] Connected platforms: ${connectedPlatforms.join(', ') || 'none'}`);
 
-    // Fetch the single balances row (shared across users - balances are per-exchange)
-    // The polybot_balances table stores a single row with platforms array
-    const { data: balancesData, error } = await supabase
-      .from('polybot_balances')
-      .select('*')
-      .eq('id', 1)  // Single row table
-      .single();
+    // Build platform data with $0 balances (actual balance fetching would call exchange APIs)
+    // For now, we're just showing which platforms are connected
+    const platforms = connectedPlatforms.map(platform => ({
+      platform: platform.charAt(0).toUpperCase() + platform.slice(1),
+      platform_type: PLATFORM_TYPES[platform] || 'unknown',
+      connected: true,
+      cash_balance: 0,  // TODO: Implement actual balance fetching from exchanges
+      positions_value: 0,
+      total_balance: 0,
+      positions_count: 0,
+      last_updated: new Date().toISOString(),
+    }));
 
-    if (error) {
-      console.error('Error fetching balances:', error);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
-    }
-
-    // Filter platforms to only show user's connected exchanges
-    const allPlatforms = balancesData?.platforms || [];
-    const userPlatforms = allPlatforms.filter((p: any) => 
-      connectedExchanges.includes(p.platform?.toLowerCase())
-    );
-    
-    // Calculate totals only from user's connected exchanges
-    const total_cash = userPlatforms.reduce((sum: number, p: any) => sum + (parseFloat(p.cash_balance) || 0), 0);
-    const total_positions = userPlatforms.reduce((sum: number, p: any) => sum + (parseFloat(p.positions_value) || 0), 0);
+    // Calculate totals
+    const total_cash = platforms.reduce((sum, p) => sum + p.cash_balance, 0);
+    const total_positions = platforms.reduce((sum, p) => sum + p.positions_value, 0);
 
     return NextResponse.json({
       success: true,
       data: {
-        timestamp: balancesData?.updated_at || new Date().toISOString(),
+        timestamp: new Date().toISOString(),
         total_usd: total_cash + total_positions,
         total_positions_usd: total_positions,
         total_cash_usd: total_cash,
-        connected_exchanges: connectedExchanges,
-        platforms: userPlatforms.map((p: any) => ({
-          platform: p.platform,
-          platform_type: p.platform_type || 'unknown',
-          connected: true, // These are already filtered to connected only
-          cash_balance: parseFloat(p.cash_balance) || 0,
-          positions_value: parseFloat(p.positions_value) || 0,
-          total_balance: (parseFloat(p.cash_balance) || 0) + (parseFloat(p.positions_value) || 0),
-          positions_count: p.positions_count || 0,
-          last_updated: p.last_updated,
-        })),
+        connected_exchanges: connectedPlatforms,
+        platforms,
       },
     });
   } catch (error) {
-    console.error('Error in balances API:', error);
+    console.error('[/api/balances] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
