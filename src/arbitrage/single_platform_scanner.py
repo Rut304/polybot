@@ -910,6 +910,33 @@ class SinglePlatformScanner:
                 )
                 return None
 
+            # Reject invalid prices (Kalshi only accepts 1-99 cents)
+            # yes_ask=0 means no offers on YES side
+            # no_ask=100 means NO side costs maximum (no liquidity)
+            if yes_ask <= 0 or yes_ask >= 100:
+                rejection_reason = f"YES price {yes_ask}¢ invalid (must be 1-99)"
+                await self._log_market_scan(
+                    scanner_type="kalshi_single",
+                    platform="kalshi",
+                    market_id=market_id,
+                    market_title=market_title,
+                    qualifies=False,
+                    rejection_reason=rejection_reason,
+                )
+                return None
+
+            if no_ask <= 0 or no_ask >= 100:
+                rejection_reason = f"NO price {no_ask}¢ invalid (must be 1-99)"
+                await self._log_market_scan(
+                    scanner_type="kalshi_single",
+                    platform="kalshi",
+                    market_id=market_id,
+                    market_title=market_title,
+                    qualifies=False,
+                    rejection_reason=rejection_reason,
+                )
+                return None
+
             # Convert to decimal (Kalshi uses cents)
             yes_price = Decimal(str(yes_ask)) / 100
             no_price = Decimal(str(no_ask)) / 100
@@ -919,15 +946,28 @@ class SinglePlatformScanner:
             total = yes_price + no_price
             total_float = float(total)
 
-            # Check for arbitrage
-            if total < Decimal("1.0"):
-                profit_pct = (Decimal("1.0") - total) * 100
-            elif total > Decimal("1.0"):
-                profit_pct = (total - Decimal("1.0")) * 100
-            else:
-                profit_pct = Decimal("0")
-                rejection_reason = "Perfectly balanced (no arb)"
+            # IMPORTANT: Single-platform arbitrage ONLY exists when total < $1
+            # If total < $1: Buy BOTH YES and NO, one must win → guaranteed $1 payout
+            # If total > $1: Buying both would cost MORE than $1 payout → LOSS!
+            # (To profit from total > $1, you'd need to SELL/short, which requires existing positions)
+            if total >= Decimal("1.0"):
+                rejection_reason = f"Total {total:.4f} >= $1 (no buy-both arb)"
+                self.stats[ArbitrageType.KALSHI_SINGLE]["markets_rejected"] += 1
+                await self._log_market_scan(
+                    scanner_type="kalshi_single",
+                    platform="kalshi",
+                    market_id=market_id,
+                    market_title=market_title,
+                    qualifies=False,
+                    rejection_reason=rejection_reason,
+                    yes_price=yes_price_float,
+                    no_price=no_price_float,
+                    total_price=total_float,
+                )
+                return None
 
+            # total < $1 means guaranteed profit
+            profit_pct = (Decimal("1.0") - total) * 100
             profit_pct_float = float(profit_pct)
 
             # Filter by per-platform thresholds (Kalshi has ~7% fees - need higher min!)
