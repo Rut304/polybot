@@ -2524,16 +2524,33 @@ class PolybotRunner:
             }
 
         try:
-            # Get YES and NO token IDs
-            yes_token_id = opp.outcomes.get("yes", {}).get("token_id")
-            no_token_id = opp.outcomes.get("no", {}).get("token_id")
-            yes_price = opp.outcomes.get("yes", {}).get("price", 0.5)
-            no_price = opp.outcomes.get("no", {}).get("price", 0.5)
+            # Extract prices from conditions list
+            # conditions is a list like [{"outcome": "YES", "price": 0.56, ...}]
+            yes_price = 0.5
+            no_price = 0.5
+            yes_token_id = None
+            no_token_id = None
+
+            for cond in opp.conditions:
+                outcome = cond.get("outcome", "").upper()
+                if outcome == "YES":
+                    yes_price = float(cond.get("price", 0.5))
+                    yes_token_id = cond.get("token_id") or cond.get("condition_id")
+                elif outcome == "NO":
+                    no_price = float(cond.get("price", 0.5))
+                    no_token_id = cond.get("token_id") or cond.get("condition_id")
+
+            # For multi-condition markets, we need all condition token IDs
+            if len(opp.conditions) > 2:
+                # Multi-condition market - buy all outcomes
+                return await self._execute_polymarket_multi_condition(
+                    opp, position_size, clob_client
+                )
 
             if not yes_token_id or not no_token_id:
                 return {
                     "success": False,
-                    "error": "Missing token IDs for YES/NO outcomes"
+                    "error": f"Missing token IDs (YES={yes_token_id}, NO={no_token_id})"
                 }
 
             # Calculate shares to buy for each outcome
@@ -2596,6 +2613,57 @@ class PolybotRunner:
             logger.error(f"Polymarket live trade error: {e}")
             return {"success": False, "error": str(e)}
 
+    async def _execute_polymarket_multi_condition(
+        self,
+        opp: SinglePlatformOpportunity,
+        position_size: float,
+        clob_client,
+    ) -> dict:
+        """
+        Execute multi-condition Polymarket arbitrage.
+
+        For markets with 3+ conditions, we buy ALL conditions at once.
+        """
+        try:
+            order_ids = []
+            per_condition_size = position_size / len(opp.conditions)
+
+            for cond in opp.conditions:
+                token_id = cond.get("token_id") or cond.get("condition_id")
+                price = float(cond.get("price", 0.5))
+
+                if not token_id:
+                    continue
+
+                shares = per_condition_size / price
+
+                result = await self.polymarket_client.place_order(
+                    clob_client=clob_client,
+                    token_id=token_id,
+                    side="BUY",
+                    price=price,
+                    size=shares,
+                    order_type="GTC",
+                )
+
+                if result.get("success"):
+                    order_ids.append(result.get("order_id"))
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Order failed: {result.get('error')}",
+                        "partial_order_ids": order_ids,
+                    }
+
+            return {
+                "success": True,
+                "order_ids": order_ids,
+            }
+
+        except Exception as e:
+            logger.error(f"Polymarket multi-condition error: {e}")
+            return {"success": False, "error": str(e)}
+
     async def _execute_kalshi_live_trade(
         self,
         opp: SinglePlatformOpportunity,
@@ -2615,8 +2683,18 @@ class PolybotRunner:
         try:
             # Get ticker
             ticker = opp.market_id
-            yes_price = opp.outcomes.get("yes", {}).get("price", 0.5)
-            no_price = opp.outcomes.get("no", {}).get("price", 0.5)
+
+            # Extract prices from conditions list
+            # conditions is [{"outcome": "YES", "price": 0.56}, ...]
+            yes_price = 0.5
+            no_price = 0.5
+
+            for cond in opp.conditions:
+                outcome = cond.get("outcome", "").upper()
+                if outcome == "YES":
+                    yes_price = float(cond.get("price", 0.5))
+                elif outcome == "NO":
+                    no_price = float(cond.get("price", 0.5))
 
             # Calculate contracts to buy
             # On Kalshi, each contract costs price_cents and pays $1
