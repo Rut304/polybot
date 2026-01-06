@@ -2929,13 +2929,21 @@ class PolybotRunner:
                     "error": "Kalshi client not authenticated"
                 }
 
+            # Validate price is in valid range (1-99 cents)
+            price_cents = round(price * 100)
+            if price_cents < 1 or price_cents > 99:
+                return {
+                    "success": False,
+                    "error": f"Price {price_cents}¢ out of range (1-99)"
+                }
+
             action = "buy" if side == "buy" else "sell"
             return await self.kalshi_client.place_order(
                 ticker=market_id,
                 side="yes",
                 action=action,
                 count=contracts,
-                price_cents=int(price * 100),
+                price_cents=price_cents,
                 order_type="limit",
             )
         else:

@@ -587,8 +587,15 @@ class TradeExecutor:
             }
 
         try:
-            # Convert price from decimal (0.65) to cents (65)
-            price_cents = int(price * 100)
+            # Convert price from decimal (0.65) to cents (65) with rounding
+            price_cents = round(price * 100)
+
+            # Validate price is in valid range (1-99 cents)
+            if price_cents < 1 or price_cents > 99:
+                return {
+                    "success": False,
+                    "error": f"Price {price_cents}¢ out of range (1-99)",
+                }
 
             # Determine action based on side
             # For arbitrage: we're always buying
