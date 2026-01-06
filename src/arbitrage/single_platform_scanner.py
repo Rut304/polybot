@@ -157,9 +157,15 @@ class SinglePlatformScanner:
         self.poly_min_profit = Decimal(str(poly_min_profit_pct if poly_min_profit_pct else 2.0))
         self.poly_max_spread = Decimal(str(poly_max_spread_pct if poly_max_spread_pct else 15.0))
         self.poly_max_position = Decimal(str(poly_max_position_usd if poly_max_position_usd else 35.0))
-        self.kalshi_min_profit = Decimal(str(kalshi_min_profit_pct if kalshi_min_profit_pct else 8.0))
-        self.kalshi_max_spread = Decimal(str(kalshi_max_spread_pct if kalshi_max_spread_pct else 15.0))
-        self.kalshi_max_position = Decimal(str(kalshi_max_position_usd if kalshi_max_position_usd else 75.0))
+        self.kalshi_min_profit = Decimal(str(
+            kalshi_min_profit_pct if kalshi_min_profit_pct else 8.0
+        ))
+        self.kalshi_max_spread = Decimal(str(
+            kalshi_max_spread_pct if kalshi_max_spread_pct else 15.0
+        ))
+        self.kalshi_max_position = Decimal(str(
+            kalshi_max_position_usd if kalshi_max_position_usd else 10.0  # $10 max
+        ))
 
         self.scan_interval = scan_interval_seconds
         self.on_opportunity = on_opportunity

@@ -2502,8 +2502,11 @@ class PolybotRunner:
 
         try:
             # Calculate position size - LIMIT BY AVAILABLE BALANCE
+            # Hard cap at $10 for Kalshi to allow multiple small test trades
             max_size = self.config.trading.max_trade_size
-            position_size = min(max_size, 100, available_balance * 0.95)  # Use 95% of balance max
+            if opp.platform == "kalshi":
+                max_size = min(max_size, 10.0)  # $10 max for Kalshi
+            position_size = min(max_size, available_balance * 0.95)
 
             if opp.platform == "polymarket":
                 result = await self._execute_polymarket_live_trade(
