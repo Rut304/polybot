@@ -2766,9 +2766,28 @@ class PolybotRunner:
                     no_price = float(cond.get("price", 0.5))
 
             # Calculate contracts to buy
-            # On Kalshi, each contract costs price_cents and pays $1
-            yes_contracts = int((position_size / 2) / yes_price)
-            no_contracts = int((position_size / 2) / no_price)
+            # CRITICAL: For guaranteed arbitrage, we need EQUAL contracts on both sides!
+            # If we buy N YES and N NO, one side MUST win, paying N × $1.00
+            # Total cost: N × (yes_price + no_price)
+            # Profit: N × ($1.00 - yes_price - no_price)
+            #
+            # OLD (BROKEN): Split dollars evenly → unequal contracts → NOT guaranteed profit
+            # NEW (CORRECT): Calculate max contracts at combined price
+            combined_price = yes_price + no_price
+            num_contracts = int(position_size / combined_price)
+            
+            yes_contracts = num_contracts
+            no_contracts = num_contracts
+
+            # Log the arbitrage calculation for transparency
+            total_cost = num_contracts * combined_price
+            guaranteed_payout = num_contracts * 1.0
+            guaranteed_profit = guaranteed_payout - total_cost
+            logger.info(
+                f"📊 ARB CALC: {num_contracts} contracts × "
+                f"(${yes_price:.2f} YES + ${no_price:.2f} NO) = "
+                f"${total_cost:.2f} cost → ${guaranteed_profit:.2f} profit"
+            )
 
             # Convert to cents with rounding (avoid float precision issues)
             yes_price_cents = round(yes_price * 100)
@@ -2778,12 +2797,20 @@ class PolybotRunner:
             if yes_price_cents < 1 or yes_price_cents > 99:
                 return {
                     "success": False,
-                    "error": f"YES price {yes_price_cents}¢ out of range (1-99)"
+                    "error": f"YES price {yes_price_cents}¢ out of range"
                 }
             if no_price_cents < 1 or no_price_cents > 99:
                 return {
                     "success": False,
-                    "error": f"NO price {no_price_cents}¢ out of range (1-99)"
+                    "error": f"NO price {no_price_cents}¢ out of range"
+                }
+
+            # Validate we can afford at least 1 contract
+            if num_contracts < 1:
+                return {
+                    "success": False,
+                    "error": f"Position ${position_size} too small for "
+                             f"combined price ${combined_price:.2f}"
                 }
 
             order_ids = []
