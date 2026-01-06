@@ -180,14 +180,19 @@ class KalshiClient:
             logger.error(f"Failed to load Kalshi private key: {e}")
             self._private_key = None
 
-    def _get_auth_headers(self, path: str = "/trade-api/ws/v2") -> Dict[str, str]:
-        """Generate authentication headers with RSA signature."""
+    def _get_auth_headers(self, path: str = "/trade-api/ws/v2", method: str = "GET") -> Dict[str, str]:
+        """Generate authentication headers with RSA signature.
+        
+        Args:
+            path: API path (e.g., "/trade-api/v2/portfolio/orders")
+            method: HTTP method - "GET" or "POST" (must match actual request method!)
+        """
         if not self._private_key or not self.api_key:
             return {}
 
         current_time_ms = int(time.time() * 1000)
         timestamp_str = str(current_time_ms)
-        message = timestamp_str + "GET" + path
+        message = timestamp_str + method + path
 
         signature = self._private_key.sign(
             message.encode('utf-8'),
@@ -695,7 +700,7 @@ class KalshiClient:
 
             # Get auth headers for POST
             path = "/trade-api/v2/portfolio/orders"
-            headers = self._get_auth_headers(path)
+            headers = self._get_auth_headers(path, method="POST")
             headers["Content-Type"] = "application/json"
 
             # Submit order
@@ -790,7 +795,7 @@ class KalshiClient:
             self._wait_for_rate_limit()
 
             path = f"/trade-api/v2/portfolio/orders/{order_id}"
-            headers = self._get_auth_headers(path)
+            headers = self._get_auth_headers(path, method="DELETE")
 
             response = requests.delete(
                 f"{self.api_url}/portfolio/orders/{order_id}",
