@@ -2545,6 +2545,21 @@ class PolybotRunner:
                     skip_reason=f"Execution failed: {error}"
                 )
                 self.analytics.record_failed_execution(arb_type)
+                
+                # Log partial executions for audit trail
+                partial_orders = result.get("partial_order_ids", [])
+                cancelled_orders = result.get("cancelled_order_ids", [])
+                if partial_orders or cancelled_orders:
+                    self.db.log_live_trade({
+                        "opportunity_id": opp_id,
+                        "platform": opp.platform,
+                        "market_id": opp.market_id,
+                        "market_title": f"[FAILED] {opp.market_title[:180]}",
+                        "position_size_usd": position_size,
+                        "expected_profit_pct": float(opp.profit_pct),
+                        "order_ids": partial_orders + cancelled_orders,
+                        "status": "failed_cancelled" if cancelled_orders else "failed_orphan",
+                    })
 
         except Exception as e:
             logger.error(f"❌ Live trade exception: {e}")
@@ -2805,14 +2820,37 @@ class PolybotRunner:
                     "no_order": no_result,
                 }
             else:
-                logger.warning(
-                    f"Partial execution: YES succeeded, NO failed. "
-                    f"Order {order_ids[0]} may need manual handling."
-                )
+                # CRITICAL: NO order failed - cancel YES order to avoid one-sided position!
+                yes_order_id = order_ids[0] if order_ids else None
+                if yes_order_id:
+                    logger.error(
+                        f"🚨 NO order failed - cancelling YES order {yes_order_id} "
+                        f"to avoid one-sided position"
+                    )
+                    cancel_result = await self.kalshi_client.cancel_order(yes_order_id)
+                    if cancel_result.get("success"):
+                        logger.info(f"✅ YES order {yes_order_id} cancelled successfully")
+                    else:
+                        logger.error(
+                            f"❌ CRITICAL: Failed to cancel YES order {yes_order_id}! "
+                            f"Manual intervention required. Error: {cancel_result.get('error')}"
+                        )
+                        # Log this to live trades with critical status for manual review
+                        self.db.log_live_trade({
+                            "opportunity_id": f"ORPHAN-{yes_order_id}",
+                            "platform": "kalshi",
+                            "market_id": ticker,
+                            "market_title": f"ORPHAN: YES order needs manual cancel",
+                            "position_size_usd": position_size / 2,
+                            "expected_profit_pct": 0,
+                            "order_ids": [yes_order_id],
+                            "status": "critical_orphan",
+                        })
+                
                 return {
                     "success": False,
-                    "error": f"NO order failed: {no_result.get('error')}",
-                    "partial_order_ids": order_ids,
+                    "error": f"NO order failed: {no_result.get('error')} (YES order was cancelled)",
+                    "cancelled_order_ids": order_ids,
                 }
 
         except Exception as e:
