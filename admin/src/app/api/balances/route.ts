@@ -71,6 +71,115 @@ function getConnectedPlatforms(secrets: Record<string, string>): string[] {
 }
 
 /**
+ * Fetch real-time Kalshi balance via API
+ */
+async function fetchKalshiBalance(secrets: Record<string, string>): Promise<{
+  cash_balance: number;
+  positions_value: number;
+  total_balance: number;
+  positions_count: number;
+} | null> {
+  try {
+    const apiKey = secrets['kalshi_api_key'] || secrets['KALSHI_API_KEY'];
+    const privateKey = secrets['kalshi_private_key'] || secrets['KALSHI_PRIVATE_KEY'];
+    
+    if (!apiKey || !privateKey) {
+      console.log('[Kalshi] No API credentials found');
+      return null;
+    }
+    
+    // Create authentication signature
+    const crypto = await import('crypto');
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const path = '/trade-api/v2/portfolio/balance';
+    const method = 'GET';
+    const signaturePayload = timestamp + method + path;
+    
+    // Parse private key and sign
+    const key = crypto.createPrivateKey({
+      key: privateKey,
+      format: 'pem',
+    });
+    
+    const signatureBuffer = crypto.sign('sha256', new Uint8Array(Buffer.from(signaturePayload)), {
+      key,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+      saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
+    });
+    
+    const signatureBase64 = signatureBuffer.toString('base64');
+    
+    // Fetch balance
+    const balanceResponse = await fetch('https://api.elections.kalshi.com/trade-api/v2/portfolio/balance', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'KALSHI-ACCESS-KEY': apiKey,
+        'KALSHI-ACCESS-SIGNATURE': signatureBase64,
+        'KALSHI-ACCESS-TIMESTAMP': timestamp,
+      },
+    });
+    
+    if (!balanceResponse.ok) {
+      console.error(`[Kalshi] Balance API error: ${balanceResponse.status}`);
+      return null;
+    }
+    
+    const balanceData = await balanceResponse.json();
+    const cashBalance = (balanceData.balance || 0) / 100; // Convert cents to dollars
+    
+    // Fetch positions for positions value
+    const posTimestamp = Math.floor(Date.now() / 1000).toString();
+    const posPath = '/trade-api/v2/portfolio/positions';
+    const posPayload = posTimestamp + 'GET' + posPath;
+    
+    const posSignatureBuffer = crypto.sign('sha256', new Uint8Array(Buffer.from(posPayload)), {
+      key,
+      padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+      saltLength: crypto.constants.RSA_PSS_SALTLEN_DIGEST,
+    });
+    
+    const positionsResponse = await fetch('https://api.elections.kalshi.com/trade-api/v2/portfolio/positions', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'KALSHI-ACCESS-KEY': apiKey,
+        'KALSHI-ACCESS-SIGNATURE': posSignatureBuffer.toString('base64'),
+        'KALSHI-ACCESS-TIMESTAMP': posTimestamp,
+      },
+    });
+    
+    let positionsValue = 0;
+    let positionsCount = 0;
+    
+    if (positionsResponse.ok) {
+      const posData = await positionsResponse.json();
+      const positions = posData.market_positions || [];
+      positionsCount = positions.filter((p: any) => p.position !== 0).length;
+      
+      // Estimate positions value
+      for (const pos of positions) {
+        const quantity = Math.abs(pos.position || 0);
+        const exposure = (pos.market_exposure || 0) / 100; // Convert cents
+        positionsValue += exposure;
+      }
+    }
+    
+    console.log(`[Kalshi] Real-time balance: $${cashBalance.toFixed(2)} cash, $${positionsValue.toFixed(2)} positions`);
+    
+    return {
+      cash_balance: cashBalance,
+      positions_value: positionsValue,
+      total_balance: cashBalance + positionsValue,
+      positions_count: positionsCount,
+    };
+  } catch (error) {
+    console.error('[Kalshi] Error fetching balance:', error);
+    return null;
+  }
+}
+
+/**
  * Fetch real-time Alpaca balance based on trading mode
  */
 async function fetchAlpacaBalance(secrets: Record<string, string>, isLiveMode: boolean): Promise<{
@@ -214,6 +323,24 @@ export async function GET(request: NextRequest) {
           positions_value: liveAlpacaBalance.positions_value,
           total_usd: liveAlpacaBalance.total_balance,
           positions_count: liveAlpacaBalance.positions_count,
+          last_updated: new Date().toISOString(),
+        });
+      }
+    }
+    
+    // For LIVE mode: Fetch real-time Kalshi balance from API
+    if (connectedPlatforms.includes('kalshi')) {
+      const liveKalshiBalance = await fetchKalshiBalance(secrets);
+      if (liveKalshiBalance) {
+        // Replace or add Kalshi balance with live data
+        userPlatforms = userPlatforms.filter((p: any) => p.platform?.toLowerCase() !== 'kalshi');
+        userPlatforms.push({
+          platform: 'Kalshi',
+          platform_type: 'prediction_market',
+          cash_balance: liveKalshiBalance.cash_balance,
+          positions_value: liveKalshiBalance.positions_value,
+          total_usd: liveKalshiBalance.total_balance,
+          positions_count: liveKalshiBalance.positions_count,
           last_updated: new Date().toISOString(),
         });
       }
