@@ -3086,9 +3086,24 @@ class PolybotRunner:
 
     async def run_cross_platform_scanner(self):
         """Run cross-platform arbitrage scanner (Polymarket↔Kalshi)."""
-        # Use self.config (loaded from Supabase)
+        # Refresh config from database to pick up UI changes
+        self.db.load_config(force_refresh=True)
+        
+        # Check STRATEGY flag
         if not self.config.trading.enable_cross_platform_arb:
-            logger.info("⏸️ Cross-platform arbitrage DISABLED")
+            logger.info("⏸️ Cross-platform arbitrage DISABLED (strategy)")
+            return
+        
+        # Check PLATFORM flags - cross-platform requires BOTH platforms enabled
+        platform_poly = self.db.get_config("polymarket_enabled", True)
+        platform_kalshi = self.db.get_config("kalshi_enabled", True)
+        
+        if not platform_poly or not platform_kalshi:
+            logger.info(
+                f"⏸️ Cross-platform arbitrage DISABLED "
+                f"(requires both platforms: Poly={platform_poly}, "
+                f"Kalshi={platform_kalshi})"
+            )
             return
 
         if self.cross_platform_scanner:
@@ -3099,9 +3114,29 @@ class PolybotRunner:
 
     async def run_single_platform_scanner(self):
         """Run single-platform arbitrage scanner (intra-market)."""
-        # Use self.config (loaded from Supabase)
-        enable_poly = self.config.trading.enable_polymarket_single_arb
-        enable_kalshi = self.config.trading.enable_kalshi_single_arb
+        # Refresh config from database to pick up UI changes
+        self.db.load_config(force_refresh=True)
+        
+        # STRATEGY FLAGS: Whether single-platform arb is enabled per platform
+        strategy_poly = self.config.trading.enable_polymarket_single_arb
+        strategy_kalshi = self.config.trading.enable_kalshi_single_arb
+        
+        # PLATFORM FLAGS: Whether the platform is enabled in Settings UI
+        # UI saves these as 'polymarket_enabled' and 'kalshi_enabled'
+        # Must check BOTH strategy AND platform enablement
+        platform_poly = self.db.get_config("polymarket_enabled", True)
+        platform_kalshi = self.db.get_config("kalshi_enabled", True)
+        
+        # Only scan if BOTH platform is enabled AND strategy is enabled
+        enable_poly = strategy_poly and platform_poly
+        enable_kalshi = strategy_kalshi and platform_kalshi
+        
+        # Log what's happening for debugging
+        logger.info(
+            f"📊 Platform Settings: "
+            f"Poly(plat={platform_poly},strat={strategy_poly})→{enable_poly} | "
+            f"Kalshi(plat={platform_kalshi},strat={strategy_kalshi})→{enable_kalshi}"
+        )
 
         if not enable_poly and not enable_kalshi:
             logger.info("⏸️ Single-platform arb DISABLED (both platforms)")
