@@ -55,8 +55,13 @@ const getSupabaseClient = () => {
 function getConnectedPlatforms(secrets: Record<string, string>): string[] {
   const connected: string[] = [];
   
+  // Create case-insensitive lookup (AWS keys may be uppercase or lowercase)
+  const secretsLower = Object.fromEntries(
+    Object.entries(secrets).map(([k, v]) => [k.toLowerCase(), v])
+  );
+  
   for (const [platform, requiredKeys] of Object.entries(PLATFORM_REQUIRED_KEYS)) {
-    const allKeysPresent = requiredKeys.every(key => !!secrets[key]);
+    const allKeysPresent = requiredKeys.every(key => !!secretsLower[key.toLowerCase()]);
     if (allKeysPresent) {
       connected.push(platform);
     }
