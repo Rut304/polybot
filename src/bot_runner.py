@@ -3183,7 +3183,13 @@ class PolybotRunner:
             await self.copy_trading.run(callback=self.on_copy_signal)
 
     async def run_arb_detection(self):
-        """Run arbitrage detection."""
+        """Run overlapping arbitrage detection (Polymarket only)."""
+        # Check if Polymarket is enabled - overlapping arb is Polymarket-only
+        platform_poly = self.db.get_config("polymarket_enabled", True)
+        if not platform_poly:
+            logger.info("⏸️ Overlapping Arb DISABLED (Polymarket disabled)")
+            return
+            
         if self.arb_detector:
             await self.arb_detector.run(callback=self.on_arb_opportunity)
 
@@ -4141,7 +4147,8 @@ class PolybotRunner:
         if self.enable_copy_trading and self.copy_trading:
             tasks.append(asyncio.create_task(self.run_copy_trading()))
 
-        if self.enable_arb_detection and self.arb_detector:
+        # Overlapping arb is POLYMARKET ONLY - check platform enabled
+        if self.enable_arb_detection and self.arb_detector and poly_enabled:
             tasks.append(asyncio.create_task(self.run_arb_detection()))
 
         # Run cross-platform scanner if enabled
