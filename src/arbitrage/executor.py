@@ -269,8 +269,14 @@ class TradeExecutor:
         # Calculate position size using actual balances from clients
         available_balance = await self._get_available_balance(opportunity.buy_platform)
         if available_balance <= 0:
-            logger.warning(f"No balance available on {opportunity.buy_platform}")
-            available_balance = self.max_trade_size  # Fall back to max as safety limit
+            logger.error(f"REFUSING TRADE: No balance available on {opportunity.buy_platform} - balance: ${available_balance:.2f}")
+            return None, None, f"No available balance on {opportunity.buy_platform}"
+        
+        # Additional safety: Require minimum $1 to trade
+        MIN_BALANCE_REQUIRED = 1.0
+        if available_balance < MIN_BALANCE_REQUIRED:
+            logger.error(f"REFUSING TRADE: Balance ${available_balance:.2f} below minimum ${MIN_BALANCE_REQUIRED}")
+            return None, None, f"Balance ${available_balance:.2f} below minimum ${MIN_BALANCE_REQUIRED}"
         
         size = self.calculate_position_size(opportunity, available_balance)
 

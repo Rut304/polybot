@@ -2442,15 +2442,63 @@ class PolybotRunner:
             opp_id: Database opportunity ID
             arb_type: Type of arbitrage (polymarket_single or kalshi_single)
         """
+        # =========================================================================
+        # CRITICAL: CHECK BALANCE BEFORE TRADING
+        # =========================================================================
+        MIN_BALANCE_REQUIRED = 1.0  # Minimum $1 required to trade
+        
+        try:
+            if opp.platform == "kalshi":
+                balance_data = self.kalshi_client.get_balance()
+                available_balance = float(balance_data.get("balance", 0))
+                logger.info(f"💰 Kalshi balance check: ${available_balance:.2f}")
+            elif opp.platform == "polymarket":
+                if self.polymarket_client and self.wallet_address:
+                    balance_data = self.polymarket_client.get_balance(self.wallet_address)
+                    available_balance = float(balance_data.get("balance", 0))
+                else:
+                    available_balance = 0.0
+                logger.info(f"💰 Polymarket balance check: ${available_balance:.2f}")
+            else:
+                available_balance = 0.0
+            
+            if available_balance <= 0:
+                logger.error(f"🚫 REFUSING TRADE: No balance on {opp.platform} (${available_balance:.2f})")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="skipped",
+                    skip_reason=f"No balance available on {opp.platform}"
+                )
+                return
+            
+            if available_balance < MIN_BALANCE_REQUIRED:
+                logger.error(f"🚫 REFUSING TRADE: Balance ${available_balance:.2f} below minimum ${MIN_BALANCE_REQUIRED}")
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="skipped",
+                    skip_reason=f"Balance ${available_balance:.2f} below minimum ${MIN_BALANCE_REQUIRED}"
+                )
+                return
+                
+        except Exception as e:
+            logger.error(f"🚫 REFUSING TRADE: Balance check failed: {e}")
+            self.db.update_opportunity_status(
+                opportunity_id=opp_id,
+                status="skipped",
+                skip_reason=f"Balance check failed: {e}"
+            )
+            return
+        # =========================================================================
+        
         logger.warning(
             f"🔴 LIVE TRADE: {opp.platform.upper()} single-platform arb | "
-            f"{opp.profit_pct:.2f}% profit"
+            f"{opp.profit_pct:.2f}% profit | Balance: ${available_balance:.2f}"
         )
 
         try:
-            # Calculate position size
+            # Calculate position size - LIMIT BY AVAILABLE BALANCE
             max_size = self.config.trading.max_trade_size
-            position_size = min(max_size, 100)  # Cap at $100 for safety
+            position_size = min(max_size, 100, available_balance * 0.95)  # Use 95% of balance max
 
             if opp.platform == "polymarket":
                 result = await self._execute_polymarket_live_trade(
@@ -2786,16 +2834,61 @@ class PolybotRunner:
             opp: The cross-platform opportunity
             opp_id: Database opportunity ID
         """
+        # =========================================================
+        # CRITICAL: CHECK BALANCE BEFORE TRADING
+        # =========================================================
+        MIN_BALANCE_REQUIRED = 1.0
+        
+        try:
+            if opp.buy_platform.lower() == "kalshi":
+                balance_data = self.kalshi_client.get_balance()
+                available_balance = float(balance_data.get("balance", 0))
+            elif opp.buy_platform.lower() == "polymarket":
+                if self.polymarket_client and self.wallet_address:
+                    balance_data = self.polymarket_client.get_balance(
+                        self.wallet_address
+                    )
+                    available_balance = float(balance_data.get("balance", 0))
+                else:
+                    available_balance = 0.0
+            else:
+                available_balance = 0.0
+            
+            logger.info(
+                f"💰 {opp.buy_platform} balance: ${available_balance:.2f}"
+            )
+            
+            if available_balance < MIN_BALANCE_REQUIRED:
+                logger.error(
+                    f"🚫 REFUSING TRADE: Balance ${available_balance:.2f} "
+                    f"below minimum ${MIN_BALANCE_REQUIRED}"
+                )
+                self.db.update_opportunity_status(
+                    opportunity_id=opp_id,
+                    status="skipped",
+                    skip_reason=f"Insufficient balance: ${available_balance:.2f}"
+                )
+                return
+        except Exception as e:
+            logger.error(f"🚫 Balance check failed: {e}")
+            self.db.update_opportunity_status(
+                opportunity_id=opp_id,
+                status="skipped",
+                skip_reason=f"Balance check failed: {e}"
+            )
+            return
+        # =========================================================
+        
         logger.warning(
             f"🔴 LIVE CROSS-PLATFORM TRADE: "
             f"Buy {opp.buy_platform} @ {opp.buy_price:.2f} → "
             f"Sell {opp.sell_platform} @ {opp.sell_price:.2f} | "
-            f"{opp.profit_percent:.2f}% profit"
+            f"{opp.profit_percent:.2f}% profit | Balance: ${available_balance:.2f}"
         )
 
         try:
             max_size = self.config.trading.max_trade_size
-            position_size = min(max_size, 100)
+            position_size = min(max_size, 100, available_balance * 0.95)
 
             # Execute buy leg first
             buy_result = await self._execute_cross_platform_leg(
