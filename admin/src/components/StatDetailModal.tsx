@@ -24,6 +24,17 @@ interface RealTimeStats {
   starting_balance: number;
 }
 
+// Live balance data from exchanges
+interface LiveBalanceData {
+  total_usd: number;
+  total_positions_usd: number;
+  total_cash_usd: number;
+  platforms?: Array<{
+    platform: string;
+    total_balance: number;
+  }>;
+}
+
 interface StatDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -33,9 +44,11 @@ interface StatDetailModalProps {
   trades?: SimulatedTrade[];
   opportunities?: Opportunity[];
   totalOpportunitiesSeen?: number;
+  isLiveMode?: boolean;
+  liveBalances?: LiveBalanceData | null;
 }
 
-export function StatDetailModal({ isOpen, onClose, type, stats, realTimeStats, trades = [], opportunities = [], totalOpportunitiesSeen }: StatDetailModalProps) {
+export function StatDetailModal({ isOpen, onClose, type, stats, realTimeStats, trades = [], opportunities = [], totalOpportunitiesSeen, isLiveMode = false, liveBalances }: StatDetailModalProps) {
   const statsJson = stats?.stats_json;
   const { data: config } = useBotConfig();
   
@@ -135,7 +148,7 @@ export function StatDetailModal({ isOpen, onClose, type, stats, realTimeStats, t
 
               <div className="space-y-6">
                 {type === 'balance' && (
-                  <BalanceDetails stats={stats} statsJson={statsJson} realTimeStats={realTimeStats} trades={trades} startingBalance={totalStartingBalance} />
+                  <BalanceDetails stats={stats} statsJson={statsJson} realTimeStats={realTimeStats} trades={trades} startingBalance={totalStartingBalance} isLiveMode={isLiveMode} liveBalances={liveBalances} />
                 )}
                 {type === 'pnl' && (
                   <PnLDetails stats={stats} statsJson={statsJson} realTimeStats={realTimeStats} trades={trades} />
@@ -155,7 +168,78 @@ export function StatDetailModal({ isOpen, onClose, type, stats, realTimeStats, t
   );
 }
 
-function BalanceDetails({ stats, statsJson, realTimeStats, trades, startingBalance }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; realTimeStats?: RealTimeStats | null; trades: SimulatedTrade[]; startingBalance: number }) {
+function BalanceDetails({ stats, statsJson, realTimeStats, trades, startingBalance, isLiveMode = false, liveBalances }: { stats: SimulationStats | null; statsJson: SimulationStats['stats_json'] | undefined; realTimeStats?: RealTimeStats | null; trades: SimulatedTrade[]; startingBalance: number; isLiveMode?: boolean; liveBalances?: LiveBalanceData | null }) {
+  // For LIVE MODE: Use actual exchange balances
+  // For PAPER MODE: Use simulation stats
+  
+  if (isLiveMode && liveBalances) {
+    // LIVE MODE - show actual exchange data
+    const currentBalance = liveBalances.total_usd || 0;
+    const positionsValue = liveBalances.total_positions_usd || 0;
+    const cashBalance = liveBalances.total_cash_usd || 0;
+    
+    // Calculate P&L from live trades (filter by trading_mode = 'live')
+    const liveTrades = trades.filter(t => t.trading_mode === 'live');
+    const livePnL = liveTrades.reduce((sum, t) => sum + (t.actual_profit_usd || t.expected_profit_usd || 0), 0);
+    const liveFees = liveTrades.reduce((sum, t) => sum + (t.total_fees_usd || 0), 0);
+    
+    // For live mode, we don't have a fixed starting balance - estimate from balance - P&L
+    const estimatedStarting = currentBalance - livePnL;
+    const roiPct = estimatedStarting > 0 ? (livePnL / estimatedStarting) * 100 : 0;
+    const balancePct = estimatedStarting > 0 ? (currentBalance / estimatedStarting) * 100 : 100;
+    
+    return (
+      <div className="space-y-4">
+        {/* Live Mode Badge */}
+        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          <span className="text-green-400 text-sm font-medium">Live Trading Mode - Real Exchange Data</span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <StatBox label="Cash Balance" value={formatCurrency(cashBalance)} color="gray" />
+          <StatBox label="Current Balance" value={formatCurrency(currentBalance)} color="green" />
+          <StatBox label="Positions Value" value={formatCurrency(positionsValue)} color="blue" />
+          <StatBox label="ROI" value={formatPercent(roiPct)} color={roiPct >= 0 ? 'green' : 'red'} />
+          <StatBox label="Total Fees Paid" value={formatCurrency(liveFees)} color="yellow" />
+          <StatBox label="Live P&L" value={formatCurrency(livePnL)} color={livePnL >= 0 ? 'green' : 'red'} />
+        </div>
+        
+        {/* Platform breakdown if available */}
+        {liveBalances.platforms && liveBalances.platforms.length > 0 && (
+          <div className="bg-dark-border/50 rounded-xl p-4">
+            <h4 className="text-sm font-medium text-gray-400 mb-3">Platform Breakdown</h4>
+            <div className="space-y-2">
+              {liveBalances.platforms.filter(p => p.total_balance > 0).map(p => (
+                <div key={p.platform} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-300 capitalize">{p.platform}</span>
+                  <span className="text-sm font-medium text-white">{formatCurrency(p.total_balance)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="bg-dark-border/50 rounded-xl p-4">
+          <h4 className="text-sm font-medium text-gray-400 mb-3">Balance Growth</h4>
+          <div className="relative h-8 bg-dark-bg rounded-full overflow-hidden">
+            <div 
+              className={cn(
+                "absolute inset-y-0 left-0 rounded-full transition-all",
+                balancePct >= 100 ? "bg-gradient-to-r from-neon-green/80 to-neon-green" : "bg-red-500"
+              )}
+              style={{ width: `${Math.min(100, balancePct)}%` }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center text-sm font-medium">
+              {balancePct.toFixed(1)}% of starting
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // PAPER MODE - original simulation logic
   // PREFER realTimeStats (from view) over stats (stale snapshot)
   const totalPnL = realTimeStats?.all_time_pnl ?? stats?.total_pnl ?? 0;
   const currentBalance = realTimeStats?.all_time_balance ?? (startingBalance + totalPnL);

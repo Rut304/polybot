@@ -257,6 +257,8 @@ export default function Dashboard() {
         trades={allTrades || trades || []}
         opportunities={opportunities || []}
         totalOpportunitiesSeen={totalOpportunities}
+        isLiveMode={isLiveMode}
+        liveBalances={liveBalances}
       />
 
       {/* Trade Details Modal */}
