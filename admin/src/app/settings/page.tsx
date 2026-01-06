@@ -1601,7 +1601,12 @@ export default function SettingsPage() {
   ]);
 
   const handleSaveSettings = async () => {
-    if (!config) return;
+    // CRITICAL: Don't save if config hasn't loaded yet - this prevents
+    // saving default values (all true) instead of the actual database values
+    if (!config || configLoading) {
+      console.error('Cannot save: config not loaded yet');
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     setLastSaveError(null);
@@ -1947,18 +1952,22 @@ export default function SettingsPage() {
 
         <button
           onClick={handleSaveSettings}
-          disabled={updateBotStatus.isPending || updateConfig.isPending}
+          disabled={updateBotStatus.isPending || updateConfig.isPending || configLoading}
           className={cn(
             "flex items-center gap-2 px-6 py-3 rounded-xl font-bold shadow-lg transition-all",
-            "bg-neon-blue hover:bg-neon-blue/80 text-white shadow-neon-blue/20"
+            configLoading 
+              ? "bg-gray-600 cursor-not-allowed text-gray-400"
+              : "bg-neon-blue hover:bg-neon-blue/80 text-white shadow-neon-blue/20"
           )}
         >
-          {updateBotStatus.isPending || updateConfig.isPending ? (
+          {configLoading ? (
+            <RefreshCw className="w-5 h-5 animate-spin" />
+          ) : updateBotStatus.isPending || updateConfig.isPending ? (
             <RefreshCw className="w-5 h-5 animate-spin" />
           ) : (
             <Save className="w-5 h-5" />
           )}
-          {updateBotStatus.isPending || updateConfig.isPending ? 'Saving...' : 'Save Changes'}
+          {configLoading ? 'Loading...' : updateBotStatus.isPending || updateConfig.isPending ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
