@@ -4008,6 +4008,16 @@ class PolybotRunner:
         logger.info(f"  - Position Manager: {self.enable_position_manager}")
         logger.info(f"  - News/Sentiment: {self.enable_news_sentiment}")
         logger.info("-" * 60)
+        # =================================================================
+        # PLATFORM ENABLEMENT FLAGS (from UI Settings)
+        # These are the MASTER switches that control which platforms can run
+        # =================================================================
+        poly_enabled = self.db.get_config("polymarket_enabled", True)
+        kalshi_enabled = self.db.get_config("kalshi_enabled", True)
+        logger.info("🔧 PLATFORM SETTINGS (from UI):")
+        logger.info(f"  🟣 Polymarket: {'✅ ENABLED' if poly_enabled else '❌ DISABLED'}")
+        logger.info(f"  🟢 Kalshi: {'✅ ENABLED' if kalshi_enabled else '❌ DISABLED'}")
+        logger.info("-" * 60)
         logger.info("ARBITRAGE STRATEGIES (from Supabase polybot_config):")
         ps = self.config.trading.enable_polymarket_single_arb
         ks = self.config.trading.enable_kalshi_single_arb
@@ -4019,10 +4029,10 @@ class PolybotRunner:
         pt = self.config.trading.enable_pairs_trading
         smr = self.config.trading.enable_stock_mean_reversion
         sm = self.config.trading.enable_stock_momentum
-        logger.info(f"  - Polymarket Single-Platform: {'ON' if ps else 'OFF'}")
-        logger.info(f"  - Kalshi Single-Platform: {'ON' if ks else 'OFF'}")
-        logger.info(f"  - Cross-Platform (Poly↔Kalshi): {'ON' if cp else 'OFF'}")
-        logger.info(f"  - Market Making (10-20% APR): {'ON' if mm else 'OFF'}")
+        logger.info(f"  🟣 Polymarket Single-Platform: {'ON' if ps and poly_enabled else 'OFF'}{' (platform disabled)' if ps and not poly_enabled else ''}")
+        logger.info(f"  🟢 Kalshi Single-Platform: {'ON' if ks and kalshi_enabled else 'OFF'}{' (platform disabled)' if ks and not kalshi_enabled else ''}")
+        logger.info(f"  🟣🟢 Cross-Platform (Poly↔Kalshi): {'ON' if cp and poly_enabled and kalshi_enabled else 'OFF'}{' (needs both platforms)' if cp and (not poly_enabled or not kalshi_enabled) else ''}")
+        logger.info(f"  🟣 Market Making (10-20% APR): {'ON' if mm and poly_enabled else 'OFF'}{' (platform disabled)' if mm and not poly_enabled else ''}")
         logger.info(f"  - News Arbitrage (5-30%/event): {'ON' if na else 'OFF'}")
         logger.info("-" * 60)
         logger.info("CRYPTO STRATEGIES (HIGH PRIORITY):")
@@ -4052,13 +4062,46 @@ class PolybotRunner:
         mac_board = getattr(self.config.trading, 'enable_macro_board', False)
         fear_pr = getattr(self.config.trading, 'enable_fear_premium_contrarian', False)
         cong_tr = getattr(self.config.trading, 'enable_congressional_tracker', False)
-        logger.info(f"  - BTC Bracket Arb (85%): {'ON' if btc_br else 'OFF'}")
-        logger.info(f"  - Bracket Compression (70%): {'ON' if br_comp else 'OFF'}")
-        logger.info(f"  - Kalshi Mention Snipe (80%): {'ON' if kal_snipe else 'OFF'}")
-        logger.info(f"  - Whale Copy Trading (75%): {'ON' if wh_copy else 'OFF'}")
-        logger.info(f"  - Macro Board (65%): {'ON' if mac_board else 'OFF'}")
-        logger.info(f"  - Fear Premium Contrarian (70%): {'ON' if fear_pr else 'OFF'}")
-        logger.info(f"  - Congressional Tracker (75%): {'ON' if cong_tr else 'OFF'}")
+        # BTC Bracket uses BOTH platforms
+        btc_can_run = btc_br and (poly_enabled or kalshi_enabled)
+        logger.info(f"  🟣🟢 BTC Bracket Arb (85%): {'ON' if btc_can_run else 'OFF'}{' (no platforms enabled)' if btc_br and not btc_can_run else ''}")
+        # Bracket Compression uses BOTH platforms
+        br_can_run = br_comp and (poly_enabled or kalshi_enabled)
+        logger.info(f"  🟣🟢 Bracket Compression (70%): {'ON' if br_can_run else 'OFF'}{' (no platforms enabled)' if br_comp and not br_can_run else ''}")
+        # Kalshi Mention Snipe - Kalshi ONLY
+        kal_can_run = kal_snipe and kalshi_enabled
+        logger.info(f"  🟢 Kalshi Mention Snipe (80%): {'ON' if kal_can_run else 'OFF'}{' (Kalshi disabled)' if kal_snipe and not kalshi_enabled else ''}")
+        # Whale Copy Trading - Polymarket ONLY
+        wh_can_run = wh_copy and poly_enabled
+        logger.info(f"  🟣 Whale Copy Trading (75%): {'ON' if wh_can_run else 'OFF'}{' (Polymarket disabled)' if wh_copy and not poly_enabled else ''}")
+        # Macro Board uses BOTH platforms
+        mac_can_run = mac_board and (poly_enabled or kalshi_enabled)
+        logger.info(f"  🟣🟢 Macro Board (65%): {'ON' if mac_can_run else 'OFF'}{' (no platforms enabled)' if mac_board and not mac_can_run else ''}")
+        # Fear Premium uses BOTH platforms
+        fear_can_run = fear_pr and (poly_enabled or kalshi_enabled)
+        logger.info(f"  🟣🟢 Fear Premium Contrarian (70%): {'ON' if fear_can_run else 'OFF'}{' (no platforms enabled)' if fear_pr and not fear_can_run else ''}")
+        # Congressional Tracker - Stocks (Alpaca)
+        logger.info(f"  📈 Congressional Tracker (75%): {'ON' if cong_tr else 'OFF'}")
+        
+        # Additional strategies with platform indicators
+        crypto_scalp = getattr(self.config.trading, 'enable_15min_crypto_scalping', False)
+        ai_forecast = getattr(self.config.trading, 'enable_ai_superforecasting', False)
+        spike_hunt = getattr(self.config.trading, 'enable_spike_hunter', True)
+        sel_whale = getattr(self.config.trading, 'enable_selective_whale_copy', False)
+        logger.info("-" * 60)
+        logger.info("ADDITIONAL PREDICTION MARKET STRATEGIES:")
+        # 15-Min Crypto Scalping - Polymarket ONLY
+        scalp_can_run = crypto_scalp and poly_enabled
+        logger.info(f"  🟣 15-Min Crypto Scalping (90%): {'ON' if scalp_can_run else 'OFF'}{' (Polymarket disabled)' if crypto_scalp and not poly_enabled else ''}")
+        # AI Superforecasting - Polymarket ONLY
+        ai_can_run = ai_forecast and poly_enabled
+        logger.info(f"  🟣 AI Superforecasting (85%): {'ON' if ai_can_run else 'OFF'}{' (Polymarket disabled)' if ai_forecast and not poly_enabled else ''}")
+        # Spike Hunter - Polymarket ONLY
+        spike_can_run = spike_hunt and poly_enabled
+        logger.info(f"  🟣 Spike Hunter ($5K-100K/mo): {'ON' if spike_can_run else 'OFF'}{' (Polymarket disabled)' if spike_hunt and not poly_enabled else ''}")
+        # Selective Whale Copy - Polymarket ONLY
+        sel_can_run = sel_whale and poly_enabled
+        logger.info(f"  🟣 Selective Whale Copy (80%): {'ON' if sel_can_run else 'OFF'}{' (Polymarket disabled)' if sel_whale and not poly_enabled else ''}")
         logger.info("=" * 60)
 
         # Send startup notification
@@ -4095,8 +4138,11 @@ class PolybotRunner:
             )
 
         # Run Market Making strategy (HIGH confidence - 10-20% APR)
-        if mm and self.market_maker:
+        # 🟣 POLYMARKET ONLY - requires polymarket_enabled
+        if mm and self.market_maker and poly_enabled:
             tasks.append(asyncio.create_task(self.run_market_maker()))
+        elif mm and self.market_maker and not poly_enabled:
+            logger.info("⏸️ Market Maker SKIPPED (Polymarket disabled)")
 
         # Run News Arbitrage strategy (MEDIUM confidence)
         if na and self.news_arbitrage:
@@ -4189,44 +4235,62 @@ class PolybotRunner:
         # =====================================================================
 
         # Run BTC Bracket Arb (85% CONFIDENCE)
+        # 🟣🟢 BOTH PLATFORMS - needs at least one enabled
         btc_bracket = getattr(
             self.config.trading, 'enable_btc_bracket_arb', False
         )
-        if btc_bracket and self.btc_bracket_arb:
+        if btc_bracket and self.btc_bracket_arb and (poly_enabled or kalshi_enabled):
             tasks.append(asyncio.create_task(self.run_btc_bracket_arb()))
+        elif btc_bracket and self.btc_bracket_arb:
+            logger.info("⏸️ BTC Bracket Arb SKIPPED (no platforms enabled)")
 
         # Run Bracket Compression (70% CONFIDENCE)
+        # 🟣🟢 BOTH PLATFORMS - needs at least one enabled
         bracket_comp = getattr(
             self.config.trading, 'enable_bracket_compression', False
         )
-        if bracket_comp and self.bracket_compression:
+        if bracket_comp and self.bracket_compression and (poly_enabled or kalshi_enabled):
             tasks.append(asyncio.create_task(self.run_bracket_compression()))
+        elif bracket_comp and self.bracket_compression:
+            logger.info("⏸️ Bracket Compression SKIPPED (no platforms enabled)")
 
         # Run Kalshi Mention Sniper (80% CONFIDENCE)
+        # 🟢 KALSHI ONLY - requires kalshi_enabled
         kalshi_snipe = getattr(
             self.config.trading, 'enable_kalshi_mention_snipe', False
         )
-        if kalshi_snipe and self.kalshi_mention_sniper:
+        if kalshi_snipe and self.kalshi_mention_sniper and kalshi_enabled:
             tasks.append(asyncio.create_task(self.run_kalshi_mention_sniper()))
+        elif kalshi_snipe and self.kalshi_mention_sniper:
+            logger.info("⏸️ Kalshi Mention Sniper SKIPPED (Kalshi disabled)")
 
         # Run Whale Copy Trading (75% CONFIDENCE)
+        # 🟣 POLYMARKET ONLY - requires polymarket_enabled
         whale_copy = getattr(
             self.config.trading, 'enable_whale_copy_trading', False
         )
-        if whale_copy and self.whale_copy_trading:
+        if whale_copy and self.whale_copy_trading and poly_enabled:
             tasks.append(asyncio.create_task(self.run_whale_copy_trading()))
+        elif whale_copy and self.whale_copy_trading:
+            logger.info("⏸️ Whale Copy Trading SKIPPED (Polymarket disabled)")
 
         # Run Macro Board (65% CONFIDENCE)
+        # 🟣🟢 BOTH PLATFORMS - needs at least one enabled
         macro = getattr(self.config.trading, 'enable_macro_board', False)
-        if macro and self.macro_board:
+        if macro and self.macro_board and (poly_enabled or kalshi_enabled):
             tasks.append(asyncio.create_task(self.run_macro_board()))
+        elif macro and self.macro_board:
+            logger.info("⏸️ Macro Board SKIPPED (no platforms enabled)")
 
         # Run Fear Premium Contrarian (70% CONFIDENCE)
+        # 🟣🟢 BOTH PLATFORMS - needs at least one enabled
         fear_prem = getattr(
             self.config.trading, 'enable_fear_premium_contrarian', False
         )
-        if fear_prem and self.fear_premium_contrarian:
+        if fear_prem and self.fear_premium_contrarian and (poly_enabled or kalshi_enabled):
             tasks.append(asyncio.create_task(self.run_fear_premium_contrarian()))
+        elif fear_prem and self.fear_premium_contrarian:
+            logger.info("⏸️ Fear Premium Contrarian SKIPPED (no platforms enabled)")
 
         # Run Congressional Tracker (75% CONFIDENCE)
         congress = getattr(
@@ -4250,32 +4314,44 @@ class PolybotRunner:
             tasks.append(asyncio.create_task(self.run_high_conviction_strategy()))
 
         # Run Selective Whale Copy (80% CONFIDENCE)
+        # 🟣 POLYMARKET ONLY - requires polymarket_enabled
         sel_whale = getattr(
             self.config.trading, 'enable_selective_whale_copy', False
         )
-        if sel_whale and self.selective_whale_copy:
+        if sel_whale and self.selective_whale_copy and poly_enabled:
             tasks.append(asyncio.create_task(self.run_selective_whale_copy()))
+        elif sel_whale and self.selective_whale_copy:
+            logger.info("⏸️ Selective Whale Copy SKIPPED (Polymarket disabled)")
 
         # Run 15-Min Crypto Scalping (90% CONFIDENCE)
+        # 🟣 POLYMARKET ONLY - requires polymarket_enabled
         crypto_scalp = getattr(
             self.config.trading, 'enable_15min_crypto_scalping', False
         )
-        if crypto_scalp and self.crypto_15min_scalping:
+        if crypto_scalp and self.crypto_15min_scalping and poly_enabled:
             tasks.append(asyncio.create_task(self.run_crypto_15min_scalping()))
+        elif crypto_scalp and self.crypto_15min_scalping:
+            logger.info("⏸️ 15-Min Crypto Scalping SKIPPED (Polymarket disabled)")
 
         # Run AI Superforecasting (85% CONFIDENCE)
+        # 🟣 POLYMARKET ONLY - requires polymarket_enabled
         ai_forecast = getattr(
             self.config.trading, 'enable_ai_superforecasting', False
         )
-        if ai_forecast and self.ai_superforecasting:
+        if ai_forecast and self.ai_superforecasting and poly_enabled:
             tasks.append(asyncio.create_task(self.run_ai_superforecasting()))
+        elif ai_forecast and self.ai_superforecasting:
+            logger.info("⏸️ AI Superforecasting SKIPPED (Polymarket disabled)")
 
         # Run Spike Hunter (HIGH PRIORITY - $5K-100K/month)
+        # 🟣 POLYMARKET ONLY - requires polymarket_enabled
         spike_enabled = getattr(
             self.config.trading, 'enable_spike_hunter', True
         )
-        if spike_enabled and self.spike_hunter:
+        if spike_enabled and self.spike_hunter and poly_enabled:
             tasks.append(asyncio.create_task(self.run_spike_hunter()))
+        elif spike_enabled and self.spike_hunter:
+            logger.info("⏸️ Spike Hunter SKIPPED (Polymarket disabled)")
 
         if self.enable_position_manager and self.position_manager:
             tasks.append(asyncio.create_task(self.run_position_manager()))
