@@ -455,7 +455,8 @@ class PolybotRunner:
 
             status = response.data.get("subscription_status", "inactive")
 
-            if status in ["active", "trial"]:
+            # Valid statuses: active, trial, comped (complimentary access)
+            if status in ["active", "trial", "comped", "trialing"]:
                 return True
             else:
                 logger.warning(f"Subscription status '{status}' is not valid for trading.")
