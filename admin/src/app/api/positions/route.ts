@@ -79,13 +79,38 @@ export async function GET(request: NextRequest) {
         return null;
       }
 
+      // Determine the actual side traded
+      // For single-platform arbitrage, we buy both YES and NO - but the positions show the primary side
+      // If kalshi_yes_price is populated, we bought YES on Kalshi
+      // If kalshi_no_price is populated, we bought NO on Kalshi
+      // The market title often indicates the side too (starts with 'yes' or 'no')
+      const marketTitle = trade.polymarket_market_title || trade.kalshi_market_title || '';
+      const hasYesPrice = (trade.polymarket_yes_price && parseFloat(trade.polymarket_yes_price) > 0) || 
+                          (trade.kalshi_yes_price && parseFloat(trade.kalshi_yes_price) > 0);
+      const hasNoPrice = (trade.polymarket_no_price && parseFloat(trade.polymarket_no_price) > 0) || 
+                         (trade.kalshi_no_price && parseFloat(trade.kalshi_no_price) > 0);
+      
+      // For single platform arb, the strategy buys BOTH sides - but position tracking shows YES
+      // Market titles starting with 'yes' indicate YES contracts were bought
+      let side = 'yes';
+      if (marketTitle.toLowerCase().startsWith('[live] yes') || marketTitle.toLowerCase().startsWith('yes')) {
+        side = 'yes';
+      } else if (marketTitle.toLowerCase().startsWith('[live] no') || marketTitle.toLowerCase().startsWith('no')) {
+        side = 'no';
+      } else if (hasYesPrice && !hasNoPrice) {
+        side = 'yes';
+      } else if (hasNoPrice && !hasYesPrice) {
+        side = 'no';
+      }
+      // Default to YES for single platform arb (buying YES+NO for guaranteed profit)
+      
       return {
         id: trade.id.toString(),
         position_id: trade.position_id,
         platform: tradePlatform,
         market: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown',
         market_id: trade.polymarket_token_id || trade.kalshi_ticker,
-        side: trade.polymarket_yes_price > 0 ? 'yes' : 'no',
+        side: side,
         size: parseFloat(trade.position_size_usd) || 0,
         entry_price: parseFloat(trade.polymarket_yes_price) || parseFloat(trade.kalshi_yes_price) || 0,
         current_price: parseFloat(trade.polymarket_yes_price) || 0,

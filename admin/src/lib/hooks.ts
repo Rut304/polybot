@@ -987,13 +987,32 @@ export function usePositions(tradingMode?: 'paper' | 'live') {
         const entryPrice = parseFloat(trade.polymarket_yes_price) || parseFloat(trade.kalshi_yes_price) || 0;
         const size = parseFloat(trade.position_size_usd) || 0;
         
+        // Determine the actual side traded based on market title and available prices
+        const marketTitle = trade.polymarket_market_title || trade.kalshi_market_title || '';
+        const hasYesPrice = (trade.polymarket_yes_price && parseFloat(trade.polymarket_yes_price) > 0) || 
+                            (trade.kalshi_yes_price && parseFloat(trade.kalshi_yes_price) > 0);
+        const hasNoPrice = (trade.polymarket_no_price && parseFloat(trade.polymarket_no_price) > 0) || 
+                           (trade.kalshi_no_price && parseFloat(trade.kalshi_no_price) > 0);
+        
+        // Market titles starting with 'yes' or '[LIVE] yes' indicate YES contracts
+        let side = 'yes';
+        if (marketTitle.toLowerCase().startsWith('[live] yes') || marketTitle.toLowerCase().startsWith('yes')) {
+          side = 'yes';
+        } else if (marketTitle.toLowerCase().startsWith('[live] no') || marketTitle.toLowerCase().startsWith('no')) {
+          side = 'no';
+        } else if (hasYesPrice && !hasNoPrice) {
+          side = 'yes';
+        } else if (hasNoPrice && !hasYesPrice) {
+          side = 'no';
+        }
+        
         return {
           id: trade.id?.toString(),
           position_id: trade.position_id,
           platform,
           market: trade.polymarket_market_title || trade.kalshi_market_title || 'Unknown',
           market_id: trade.polymarket_token_id || trade.kalshi_ticker,
-          side: trade.polymarket_yes_price > 0 ? 'yes' : 'no',
+          side: side,
           cost_basis: size,
           current_value: size,
           avg_price: entryPrice,
