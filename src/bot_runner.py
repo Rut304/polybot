@@ -2702,6 +2702,22 @@ class PolybotRunner:
             yes_contracts = int((position_size / 2) / yes_price)
             no_contracts = int((position_size / 2) / no_price)
 
+            # Convert to cents with rounding (avoid float precision issues)
+            yes_price_cents = round(yes_price * 100)
+            no_price_cents = round(no_price * 100)
+
+            # Validate prices are in valid range (1-99 cents)
+            if yes_price_cents < 1 or yes_price_cents > 99:
+                return {
+                    "success": False,
+                    "error": f"YES price {yes_price_cents}¢ out of range (1-99)"
+                }
+            if no_price_cents < 1 or no_price_cents > 99:
+                return {
+                    "success": False,
+                    "error": f"NO price {no_price_cents}¢ out of range (1-99)"
+                }
+
             order_ids = []
 
             # Buy YES contracts
@@ -2710,7 +2726,7 @@ class PolybotRunner:
                 side="yes",
                 action="buy",
                 count=yes_contracts,
-                price_cents=int(yes_price * 100),
+                price_cents=yes_price_cents,
                 order_type="limit",
             )
 
@@ -2728,7 +2744,7 @@ class PolybotRunner:
                 side="no",
                 action="buy",
                 count=no_contracts,
-                price_cents=int(no_price * 100),
+                price_cents=no_price_cents,
                 order_type="limit",
             )
 

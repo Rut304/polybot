@@ -672,6 +672,20 @@ class KalshiClient:
             # Apply rate limiting
             self._wait_for_rate_limit()
 
+            # Validate inputs
+            if count <= 0:
+                return {
+                    "success": False, "order_id": None, "filled_count": 0,
+                    "remaining_count": count, "status": "failed", "fees_cents": 0,
+                    "error": f"Invalid count: {count} (must be > 0)",
+                }
+            if price_cents < 1 or price_cents > 99:
+                return {
+                    "success": False, "order_id": None, "filled_count": 0,
+                    "remaining_count": count, "status": "failed", "fees_cents": 0,
+                    "error": f"Invalid price: {price_cents} (must be 1-99)",
+                }
+
             logger.info(
                 f"🔴 LIVE ORDER: {action.upper()} {count} {side.upper()} "
                 f"contracts of {ticker} @ {price_cents}¢"
@@ -751,11 +765,14 @@ class KalshiClient:
                 }
             else:
                 error_data = response.json() if response.text else {}
-                error_msg = error_data.get(
-                    "message",
-                    f"HTTP {response.status_code}"
-                )
-                logger.error(f"❌ Order failed: {error_msg}")
+                # Kalshi errors are nested: {"error": {"code": "...", "message": "..."}}
+                error_obj = error_data.get("error", {})
+                error_msg = error_obj.get("message") if isinstance(error_obj, dict) else None
+                if not error_msg:
+                    error_msg = error_data.get("message", f"HTTP {response.status_code}")
+                error_details = error_obj.get("details", "") if isinstance(error_obj, dict) else ""
+                full_error = f"{error_msg}: {error_details}" if error_details else error_msg
+                logger.error(f"❌ Order failed: {full_error} | Payload: ticker={ticker}, side={side}, count={count}, price={price_cents}")
                 return {
                     "success": False,
                     "order_id": None,
@@ -763,7 +780,7 @@ class KalshiClient:
                     "remaining_count": count,
                     "status": "failed",
                     "fees_cents": 0,
-                    "error": error_msg,
+                    "error": full_error,
                 }
 
         except Exception as e:
