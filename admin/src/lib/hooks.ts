@@ -321,11 +321,13 @@ export interface StrategyStats {
   total_trades: number;
   winning_trades: number;
   losing_trades: number;
+  pending_trades?: number;  // Added for live trades that haven't resolved
   total_volume: number;
   avg_trade_pnl?: number;
   best_trade?: number;
   worst_trade?: number;
   win_rate_pct?: number;
+  trading_mode?: string;
 }
 
 // Fetch server-side computed strategy performance (100% accurate across full history)
@@ -338,8 +340,7 @@ export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
     queryFn: async (): Promise<StrategyStats[]> => {
       if (!user) return [];
       
-      // For paper/simulation mode, use the main view (aggregates all simulation trades)
-      // For live mode, would use user-filtered view (when implemented)
+      // First try the pre-computed view (has only won/lost trades)
       let query = supabase
         .from('polybot_strategy_performance')
         .select('*');
@@ -355,7 +356,74 @@ export function useStrategyPerformance(tradingMode?: 'paper' | 'live') {
         console.error('Error fetching strategy stats:', error);
         return [];
       }
-      return data || [];
+      
+      // If we have data from the view, return it
+      if (data && data.length > 0) {
+        return data;
+      }
+      
+      // VIEW is empty - compute stats from raw trades (includes pending)
+      // This handles live mode where all trades may be pending
+      let rawQuery = supabase
+        .from('polybot_simulated_trades')
+        .select('strategy_type, arbitrage_type, trade_type, outcome, actual_profit_usd, position_size_usd, trading_mode');
+      
+      // Apply filters
+      if (tradingMode === 'live') {
+        rawQuery = rawQuery.eq('user_id', user.id).eq('trading_mode', 'live');
+      } else if (tradingMode === 'paper') {
+        rawQuery = rawQuery.eq('trading_mode', 'paper').or(`user_id.is.null,user_id.eq.${user.id}`);
+      }
+      
+      const { data: trades, error: tradesError } = await rawQuery;
+      
+      if (tradesError || !trades || trades.length === 0) {
+        return [];
+      }
+      
+      // Group by strategy and compute stats
+      const strategyMap = new Map<string, {
+        trades: number;
+        pending: number;
+        won: number;
+        lost: number;
+        totalProfit: number;
+        totalVolume: number;
+      }>();
+      
+      for (const trade of trades) {
+        const strategy = trade.strategy_type || trade.arbitrage_type || trade.trade_type || 'unknown';
+        const existing = strategyMap.get(strategy) || { trades: 0, pending: 0, won: 0, lost: 0, totalProfit: 0, totalVolume: 0 };
+        
+        existing.trades++;
+        existing.totalVolume += parseFloat(trade.position_size_usd) || 0;
+        
+        if (trade.outcome === 'pending') {
+          existing.pending++;
+        } else if (trade.outcome === 'won') {
+          existing.won++;
+          existing.totalProfit += parseFloat(trade.actual_profit_usd) || 0;
+        } else if (trade.outcome === 'lost') {
+          existing.lost++;
+          existing.totalProfit += parseFloat(trade.actual_profit_usd) || 0;
+        }
+        
+        strategyMap.set(strategy, existing);
+      }
+      
+      // Convert to StrategyStats format (match interface field names)
+      return Array.from(strategyMap.entries()).map(([strategy, stats]) => ({
+        strategy: strategy,
+        total_pnl: stats.totalProfit,
+        total_trades: stats.trades,
+        winning_trades: stats.won,
+        losing_trades: stats.lost,
+        pending_trades: stats.pending,
+        total_volume: stats.totalVolume,
+        avg_trade_pnl: stats.trades > 0 ? stats.totalProfit / stats.trades : 0,
+        win_rate_pct: stats.won + stats.lost > 0 ? (stats.won / (stats.won + stats.lost)) * 100 : 0,
+        trading_mode: tradingMode || 'paper',
+      }));
     },
     enabled: !!user,
     refetchInterval: 5000,

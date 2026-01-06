@@ -11,7 +11,8 @@ import {
   Check,
   Loader2,
 } from 'lucide-react';
-import { usePlaceManualTrade, useMarketCache, useTier } from '@/lib/hooks';
+import { usePlaceManualTrade, useMarketCache } from '@/lib/hooks';
+import { useTier } from '@/lib/useTier';
 import { formatCurrency, cn } from '@/lib/utils';
 
 interface ManualTradeModalProps {
