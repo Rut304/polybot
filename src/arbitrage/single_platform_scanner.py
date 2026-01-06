@@ -122,17 +122,17 @@ class SinglePlatformScanner:
     # Thresholds
     MIN_PROFIT_PCT = Decimal("0.5")      # Minimum 0.5% profit to be interesting
     # FIXED: Raised from 15% to 30% - prediction markets CAN have large mispricings!
-    # Academic research shows significant arbitrage opportunities exist at various levels.
-    # Previously we were rejecting 16%+ profit opportunities as "bad data" - WRONG!
-    MAX_PROFIT_PCT = Decimal("30.0")     # Raised from 15% - big spreads are real!
+    # Academic research shows significant arbitrage opportunities exist.
+    # Previously we were rejecting 16%+ profit opportunities - WRONG!
+    MAX_PROFIT_PCT = Decimal("30.0")     # Big spreads can be real!
     MIN_LIQUIDITY_USD = Decimal("100")   # Minimum liquidity
 
-    # Deduplication: cooldown period before trading same market again
-    # For prediction markets, once you've identified an opportunity and traded it,
-    # there's no reason to trade the same market again until it resolves.
-    # Using 1 hour cooldown to prevent duplicate trades while allowing
-    # re-evaluation if market conditions change significantly.
-    MARKET_COOLDOWN_SECONDS = 3600  # 1 hour between trades on same market
+    # Cooldown between trades on same market
+    # REDUCED from 3600s (1 hour) to 60s (1 minute):
+    # - If arb exists, we SHOULD trade again (each trade is risk-free)
+    # - 60s prevents rapid duplicate orders from race conditions
+    # - Kalshi allows 10 writes/second so rate limits aren't an issue
+    MARKET_COOLDOWN_SECONDS = 60  # 1 minute between trades on same market
 
     def __init__(
         self,
@@ -147,8 +147,8 @@ class SinglePlatformScanner:
         kalshi_min_profit_pct: Optional[float] = None,
         kalshi_max_spread_pct: Optional[float] = None,
         kalshi_max_position_usd: Optional[float] = None,
-        market_cooldown_seconds: int = 3600,  # 1 hour default cooldown
-        max_days_to_expiration: int = 30,  # CRITICAL: Filter out long-dated markets!
+        market_cooldown_seconds: int = 60,  # 1 minute default (was 1 hour)
+        max_days_to_expiration: int = 30,  # Filter out long-dated markets
     ):
         self.min_profit_pct = Decimal(str(min_profit_pct))
         # Per-platform thresholds (TUNED 2024-12-26 based on simulation results)
@@ -857,33 +857,64 @@ class SinglePlatformScanner:
     # =========================================================================
 
     async def fetch_kalshi_markets(self) -> List[Dict]:
-        """Fetch active markets from Kalshi"""
+        """
+        Fetch ALL active markets from Kalshi using pagination.
+        
+        Kalshi API returns max 100 markets per request with cursor-based
+        pagination. We iterate through all pages to get complete market list.
+        """
         session = await self._get_session()
-        markets = []
+        all_markets = []
+        cursor = None
+        max_pages = 50  # Safety limit: 50 * 100 = 5000 markets max
 
         try:
-            url = f"{self.KALSHI_API}/markets"
-            params = {
-                "status": "open",
-                "limit": 100,
-            }
+            for page in range(max_pages):
+                url = f"{self.KALSHI_API}/markets"
+                params = {
+                    "status": "open",
+                    "limit": 100,
+                }
+                if cursor:
+                    params["cursor"] = cursor
 
-            headers = {
-                "Accept": "application/json",
-            }
+                headers = {"Accept": "application/json"}
 
-            async with session.get(url, params=params, headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    markets = data.get("markets", [])
-                    logger.debug(f"Fetched {len(markets)} Kalshi markets")
-                else:
-                    logger.warning(f"Kalshi API returned {resp.status}")
+                async with session.get(
+                    url, params=params, headers=headers
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        markets = data.get("markets", [])
+                        all_markets.extend(markets)
+                        
+                        # Check for next page
+                        cursor = data.get("cursor")
+                        if not cursor:
+                            # No more pages
+                            break
+                        
+                        logger.debug(
+                            f"Kalshi page {page + 1}: {len(markets)} markets, "
+                            f"total: {len(all_markets)}"
+                        )
+                    elif resp.status == 429:
+                        # Rate limited - stop pagination and use what we have
+                        logger.warning(
+                            f"Kalshi rate limited at page {page + 1}, "
+                            f"using {len(all_markets)} markets"
+                        )
+                        break
+                    else:
+                        logger.warning(f"Kalshi API returned {resp.status}")
+                        break
+
+            logger.info(f"📊 Fetched {len(all_markets)} total Kalshi markets")
 
         except Exception as e:
             logger.error(f"Error fetching Kalshi markets: {e}")
 
-        return markets
+        return all_markets
 
     async def fetch_kalshi_event_markets(self, event_ticker: str) -> List[Dict]:
         """Fetch all markets for a Kalshi event (multi-condition)"""
