@@ -148,6 +148,7 @@ class SinglePlatformScanner:
         kalshi_max_spread_pct: Optional[float] = None,
         kalshi_max_position_usd: Optional[float] = None,
         market_cooldown_seconds: int = 3600,  # 1 hour default cooldown
+        max_days_to_expiration: int = 30,  # CRITICAL: Filter out long-dated markets!
     ):
         self.min_profit_pct = Decimal(str(min_profit_pct))
         # Per-platform thresholds (TUNED 2024-12-26 based on simulation results)
@@ -163,6 +164,10 @@ class SinglePlatformScanner:
         self.scan_interval = scan_interval_seconds
         self.on_opportunity = on_opportunity
         self.db = db_client
+
+        # Market expiration filter - prevents betting on long-dated markets
+        # Default 30 days to avoid tying up capital for months/years
+        self.max_days_to_expiration = max_days_to_expiration
 
         # Deduplication: track recently traded markets
         self.market_cooldown_seconds = market_cooldown_seconds
@@ -391,6 +396,37 @@ class SinglePlatformScanner:
         if await self._is_on_cooldown(event_id, "polymarket"):
             self.stats[ArbitrageType.POLYMARKET_SINGLE]["markets_on_cooldown"] += 1
             return None  # Skip without logging (reduces noise)
+
+        # CRITICAL: Check event expiration to avoid long-dated bets
+        # Polymarket uses end_date_iso or endDate field
+        end_date_str = (
+            event.get("end_date_iso") or
+            event.get("endDate") or
+            event.get("end_date")
+        )
+        if end_date_str and self.max_days_to_expiration > 0:
+            try:
+                end_date = datetime.fromisoformat(
+                    end_date_str.replace('Z', '+00:00')
+                )
+                days_to_expiry = (
+                    end_date - datetime.now(timezone.utc)
+                ).days
+                if days_to_expiry > self.max_days_to_expiration:
+                    await self._log_market_scan(
+                        scanner_type="polymarket_single",
+                        platform="polymarket",
+                        market_id=event_id,
+                        market_title=f"[EVENT] {event.get('title', 'Unknown')}",
+                        qualifies=False,
+                        rejection_reason=(
+                            f"Expires in {days_to_expiry} days "
+                            f"(max {self.max_days_to_expiration})"
+                        ),
+                    )
+                    return None
+            except (ValueError, TypeError):
+                logger.debug(f"Could not parse end_date: {end_date_str}")
 
         """
         - Biden: $0.35
@@ -892,6 +928,39 @@ class SinglePlatformScanner:
         if await self._is_on_cooldown(market_id, "kalshi"):
             self.stats[ArbitrageType.KALSHI_SINGLE]["markets_on_cooldown"] += 1
             return None  # Skip without logging (reduces noise)
+
+        # CRITICAL: Check market expiration to avoid long-dated bets
+        # Kalshi uses close_time or expiration_time field
+        close_time_str = (
+            market.get("close_time") or
+            market.get("expiration_time") or
+            market.get("end_date_iso")
+        )
+        if close_time_str and self.max_days_to_expiration > 0:
+            try:
+                close_time = datetime.fromisoformat(
+                    close_time_str.replace('Z', '+00:00')
+                )
+                days_to_expiry = (
+                    close_time - datetime.now(timezone.utc)
+                ).days
+                if days_to_expiry > self.max_days_to_expiration:
+                    rejection_reason = (
+                        f"Expires in {days_to_expiry} days "
+                        f"(max {self.max_days_to_expiration})"
+                    )
+                    await self._log_market_scan(
+                        scanner_type="kalshi_single",
+                        platform="kalshi",
+                        market_id=market_id,
+                        market_title=market_title,
+                        qualifies=False,
+                        rejection_reason=rejection_reason,
+                    )
+                    return None
+            except (ValueError, TypeError):
+                # Can't parse date - log but continue
+                logger.debug(f"Could not parse close_time: {close_time_str}")
 
         try:
             yes_ask = market.get("yes_ask")

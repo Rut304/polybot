@@ -675,12 +675,17 @@ class PolybotRunner:
             kalshi_min_profit_pct=self.config.trading.kalshi_single_min_profit_pct,
             kalshi_max_spread_pct=self.config.trading.kalshi_single_max_spread_pct,
             kalshi_max_position_usd=self.config.trading.kalshi_single_max_position_usd,
+            # CRITICAL: Filter out long-dated markets (prevents year-long bets!)
+            max_days_to_expiration=self.config.trading.max_days_to_expiration,
         )
         logger.info("✓ Single-Platform Scanner initialized (intra-market arb)")
         logger.info("  📝 Logging ALL market scans to polybot_market_scans")
         logger.info(
             f"  📊 Poly min: {self.config.trading.poly_single_min_profit_pct}% | "
             f"Kalshi min: {self.config.trading.kalshi_single_min_profit_pct}%"
+        )
+        logger.info(
+            f"  📅 Max days to expiration: {self.config.trading.max_days_to_expiration}"
         )
 
         # Log arbitrage strategy configuration (from Supabase)

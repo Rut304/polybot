@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Building2, 
   DollarSign, 
@@ -27,6 +27,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { ProFeature } from '@/components/FeatureGate';
 import { useAuth } from '@/lib/auth';
+import { useTier } from '@/lib/useTier';
 
 interface CostItem {
   category: string;
@@ -151,7 +152,24 @@ export default function BusinessPage() {
   const { isAdmin } = useAuth();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>('month');
   const [showCostBreakdown, setShowCostBreakdown] = useState(true);
+  
+  // Get user context - use profile setting as source of truth for mode
+  const { isSimulation: isUserSimMode, isLoading: tierLoading } = useTier();
+  
+  // Track if we've set the initial mode from profile
+  const [hasInitializedMode, setHasInitializedMode] = useState(false);
+  
+  // Default to 'simulated' until profile loads
   const [dataMode, setDataMode] = useState<DataMode>('simulated');
+  
+  // Auto-set to user's profile mode when profile finishes loading (one-time)
+  useEffect(() => {
+    if (!tierLoading && !hasInitializedMode) {
+      const profileMode = isUserSimMode ? 'simulated' : 'live';
+      setDataMode(profileMode);
+      setHasInitializedMode(true);
+    }
+  }, [tierLoading, isUserSimMode, hasInitializedMode]);
 
   // Calculate date range based on timeframe
   const { startDate, endDate } = useMemo(() => {
@@ -184,16 +202,19 @@ export default function BusinessPage() {
   }, [timeFrame]);
 
   // Fetch trading data
+  // NOTE: Both paper and live trades are stored in polybot_simulated_trades
+  // The trading_mode column distinguishes between 'paper' and 'live'
   const { data: tradingData, isLoading } = useQuery({
     queryKey: ['businessPnL', startDate.toISOString(), endDate.toISOString(), dataMode],
     queryFn: async () => {
-      // For live mode, fetch from polybot_trades (real trades)
-      // For simulated mode, fetch from polybot_simulated_trades
-      const tableName = dataMode === 'live' ? 'polybot_trades' : 'polybot_simulated_trades';
+      // Map dataMode to trading_mode column value
+      const tradingMode = dataMode === 'live' ? 'live' : 'paper';
       
+      // Query polybot_simulated_trades with trading_mode filter
       const { data, error } = await supabase
-        .from(tableName)
-        .select('created_at, actual_profit_usd, position_size_usd, outcome')
+        .from('polybot_simulated_trades')
+        .select('created_at, actual_profit_usd, position_size_usd, outcome, trading_mode')
+        .eq('trading_mode', tradingMode)
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString())
         .order('created_at', { ascending: true });

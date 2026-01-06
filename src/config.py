@@ -59,6 +59,13 @@ class TradingConfig:
     enable_cross_platform_arb: bool = True
 
     # =========================================================================
+    # MARKET EXPIRATION FILTER (CRITICAL - prevents year-long bets!)
+    # Only trade markets that resolve within this many days
+    # Set to 30 by default to avoid tying up capital in long-dated positions
+    # =========================================================================
+    max_days_to_expiration: int = 30  # Default: only bet on markets < 30 days out
+
+    # =========================================================================
     # PER-STRATEGY SETTINGS (Independent thresholds!)
     # Each strategy type can have its own profit thresholds and position sizes
     # =========================================================================
