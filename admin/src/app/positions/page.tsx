@@ -18,6 +18,7 @@ import {
   Eye,
   Target,
   HelpCircle,
+  Banknote,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +27,7 @@ import { useTier } from '@/lib/useTier';
 import { usePlatforms } from '@/lib/PlatformContext';
 import { Tooltip } from '@/components/Tooltip';
 import { TradeDetailsModal, TradeDetails } from '@/components/TradeDetailsModal';
+import { SellPositionModal, PositionToSell } from '@/components/SellPositionModal';
 import { PlatformFilter, TimeRangeFilter } from '@/components/PlatformFilter';
 
 interface Position {
@@ -103,6 +105,8 @@ export default function PositionsPage() {
   const [strategyFilter, setStrategyFilter] = useState<string | null>(null);
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
+  const [showSellModal, setShowSellModal] = useState(false);
+  const [positionToSell, setPositionToSell] = useState<PositionToSell | null>(null);
   
   // Use ONLY database positions - no sample data fallback (that creates confusion)
   const rawPositions: Position[] = (dbPositions && dbPositions.length > 0) 
@@ -198,6 +202,34 @@ export default function PositionsPage() {
 
   const handleViewDetails = (position: Position) => {
     setSelectedPosition(position);
+    setShowTradeModal(true);
+  };
+
+  const handleSellPosition = (position: Position, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Convert to PositionToSell format
+    const sellData: PositionToSell = {
+      id: position.id,
+      ticker: position.market_slug || position.market,
+      marketTitle: position.market,
+      platform: position.platform,
+      side: position.side.toUpperCase() as 'YES' | 'NO',
+      contracts: Math.round(position.size / (position.entry_price || 1)),  // Estimate contracts
+      entryPrice: (position.entry_price || 0) * 100,  // Convert to cents
+      entryAmount: position.size,
+    };
+    
+    setPositionToSell(sellData);
+    setShowSellModal(true);
+  };
+
+  const handleSellComplete = () => {
+    // Refresh positions after successful sell
+    setTimeout(() => {
+      refetch();
+    }, 2000);
+  };
     setShowTradeModal(true);
   };
 
@@ -447,7 +479,7 @@ export default function PositionsPage() {
                   </div>
                 </th>
                 <th className="px-4 py-3">Opened</th>
-                <th className="px-4 py-3 text-center">Details</th>
+                <th className="px-4 py-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -535,16 +567,27 @@ export default function PositionsPage() {
                         </p>
                       </td>
                       <td className="px-4 py-4 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewDetails(position);
-                          }}
-                          className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
-                          title="View details"
-                        >
-                          <Eye className="w-4 h-4 text-gray-400 hover:text-white" />
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetails(position);
+                            }}
+                            className="p-2 rounded-lg hover:bg-gray-700 transition-colors"
+                            title="View details"
+                          >
+                            <Eye className="w-4 h-4 text-gray-400 hover:text-white" />
+                          </button>
+                          {['kalshi', 'polymarket'].includes(position.platform.toLowerCase()) && (
+                            <button
+                              onClick={(e) => handleSellPosition(position, e)}
+                              className="p-2 rounded-lg hover:bg-red-500/20 transition-colors group"
+                              title="Sell position"
+                            >
+                              <Banknote className="w-4 h-4 text-gray-400 group-hover:text-red-400" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                   ))
@@ -588,6 +631,17 @@ export default function PositionsPage() {
           }}
         />
       )}
+
+      {/* Sell Position Modal */}
+      <SellPositionModal
+        position={positionToSell}
+        isOpen={showSellModal}
+        onClose={() => {
+          setShowSellModal(false);
+          setPositionToSell(null);
+        }}
+        onSellComplete={handleSellComplete}
+      />
     </div>
   );
 }

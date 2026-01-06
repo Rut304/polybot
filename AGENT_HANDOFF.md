@@ -15,6 +15,7 @@
 **Problem:** Bot placed 7 bets on NBA/eSports parlays that expire January 20, 2026 - nearly 12 months out!  
 **Root Cause:** No market expiration filter in `SinglePlatformScanner`  
 **Fix Applied:**
+
 - Added `max_days_to_expiration` config to `TradingConfig` (default: 30 days)
 - Added expiration filtering in `SinglePlatformScanner.analyze_kalshi_market()`
 - Added expiration filtering in `SinglePlatformScanner.analyze_polymarket_event()`
@@ -26,6 +27,7 @@
 **Problem:** When user is in LIVE mode, P&L Dashboard still shows PAPER trading data  
 **Root Cause:** Dashboard had manual toggle but didn't sync with user's profile `is_simulation` setting  
 **Fix Applied:**
+
 - Added `useTier()` hook to business page
 - Auto-initialize mode from user's profile when page loads
 - Query now filters by `trading_mode` column correctly
@@ -34,6 +36,7 @@
 ### ✅ Issue 3: Secrets Architecture - VERIFIED
 
 **Status:** Architecture is correct and site does NOT depend on local machine.
+
 - **Bot (Lightsail):** Has container environment variables - runs independently
 - **Admin UI (Vercel):** Uses AWS Secrets Manager via `AMAZON_ACCESS_KEY_ID` and `AMAZON_SECRET_ACCESS_KEY`
 - **Local .env:** Only for development - production is fully independent
